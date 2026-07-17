@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# verify — oracle dispatcher. The harness's only interface to project QC.
+# Usage: ./verify fast | full | report
+# Contract: exit 0 = green, nonzero = red. Writes .harness/last-verify.json.
+set -uo pipefail
+
+TARGET="${1:-fast}"
+HARNESS_DIR=".harness"
+mkdir -p "$HARNESS_DIR"
+
+record() { # record <target> <exit_code>
+  local git_hash; git_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "no-git")
+  printf '{"target":"%s","exit":%d,"git":"%s","ts":"%s"}\n' \
+    "$1" "$2" "$git_hash" "$(date -u +%FT%TZ)" > "$HARNESS_DIR/last-verify.json"
+  rm -f "$HARNESS_DIR/dirty"
+  return "$2"
+}
+
+# --- leak gate (kit-core — DO NOT delete; keep self-contained) --------------
+# No machine-absolute home paths in tracked files: they bake the local username
+# and directory layout into the repo — and into any public remote. Use a
+# ~/-relative path or an env var instead. Prose placeholders (/Users/<user>/,
+# /home/$USER/) are docs ABOUT the pattern, not leaks, and are allowed.
+# NB: git grep uses POSIX ERE — no \s, no \d. (A \s here silently matches
+# NOTHING; that is how the fleet scanner once shipped blind. Keep it ERE-safe.)
+# --untracked is load-bearing: git grep defaults to TRACKED files only, so a
+# brand-new file is invisible to the gate until it is staged. Running verify
+# before `git add` then passes, and CI fails after the commit lands — which is
+# exactly how the first version of this gate shipped its own leak. Untracked
+# but not-gitignored == about to be committed, so scan it.
+# Allowlist: security docs legitimately CONTAIN the patterns (they are docs
+# ABOUT leaks). `.leakcheck-allow` lists exempt paths/globs, one per line
+# (# comments ok). Exemptions are commits too — justify sensitive ones in
+# DECISIONS.md. The scanner and the allowlist file are always exempt.
+leak_gate() {
+  local hits excludes=(':(exclude)*leak_scan.py' ':(exclude).leakcheck-allow')
+  if [ -f .leakcheck-allow ]; then
+    local line
+    while IFS= read -r line; do
+      line="${line%%#*}"; line="${line#"${line%%[![:space:]]*}"}"  # strip comment + lead ws
+      line="${line%"${line##*[![:space:]]}"}"                       # strip trailing ws
+      [ -n "$line" ] && excludes+=(":(exclude)$line")
+    done < .leakcheck-allow
+  fi
+  hits=$(git grep --untracked -nIE '/(Users|home)/[^/]+/' -- . "${excludes[@]}" 2>/dev/null \
+         | grep -vE '/(Users|home)/[<$@{%]' || true)
+  [ -z "$hits" ] && return 0
+  echo "verify: LEAK — machine-absolute path in a tracked file (use ~/ instead):" >&2
+  echo "$hits" | sed 's/^/    /' >&2
+  return 1
+}
+
+fast() {
+  # ---- Layer-0: seconds, not minutes. CI-blocking. -------------------------
+  # Honestly-scoped day-zero oracle: structure + manifest sanity. The real L0
+  # suite (L0-1 parity vs JS reference, L0-2..13 trajectories — ACCEPTANCE.md)
+  # lands in Phase 1 and REPLACES nothing here; it adds. Never weaken without
+  # a human decision recorded in ROADMAP.md.
+  local ok=0
+  leak_gate || ok=1          # privacy gate: kit-core, keep it first
+
+  # Structure: the canonical docs and the reference implementations exist.
+  local f
+  for f in SPEC.md ACCEPTANCE.md ROADMAP.md DECISIONS.md README.md CLAUDE.md \
+           INDEX.md LIBRARY.md project.manifest.json \
+           swarmsaw_v2.html swarmspectra.html swarmdynamics.html; do
+    [ -f "$f" ] || { echo "verify: MISSING $f" >&2; ok=1; }
+  done
+
+  # Manifest parses and pins the essentials.
+  python3 - << 'PY' || ok=1
+import json, sys
+m = json.load(open("project.manifest.json"))
+s = m["survey"]
+assert s["architecture_rung"]["choice"] == 2, "rung drifted from ratified answer"
+assert s["knowledge_loop_tags"], "knowledge-loop tags missing"
+assert m["model_routing"]["lead"] == "opus", "model pin drifted"
+PY
+
+  # Knowledge loop integrity: every INDEX pointer resolves in LIBRARY.
+  python3 - << 'PY' || ok=1
+import re
+idx = set(re.findall(r'\[(L\d{4})\]', open("INDEX.md").read()))
+lib = set(re.findall(r'\[(L\d{4})\]', open("LIBRARY.md").read()))
+missing = idx - lib
+assert not missing, f"INDEX ids missing from LIBRARY: {missing}"
+PY
+
+  return $ok
+}
+
+full() {
+  fast || return $?
+  # ---- Layer-E: the whole gate. Run before closing a queue item. -----------
+  # Phase 1+: golden parity renders + trajectory suite. Phase 2+: Layer-E
+  # listening checks E-1..E-6 (ACCEPTANCE.md) — human sign-off, macOS-local
+  # pluginval/auval/host-load checks (not CI-able; see CLAUDE.md §Domain).
+  echo "verify[full]: no Layer-E checks exist yet (pre-Phase-1) — fast is the whole gate today" >&2
+  return 0
+}
+
+case "$TARGET" in
+  fast)   fast;  record fast  $? ;;
+  full)   full;  record full  $? ;;
+  report) cat "$HARNESS_DIR/last-verify.json" 2>/dev/null || { echo '{"target":null,"exit":null}'; exit 1; } ;;
+  *)      echo "usage: ./verify fast|full|report" >&2; exit 64 ;;
+esac

@@ -1,0 +1,54 @@
+{
+  "schema": "project-manifest.0 (draft — kit v2 will formalize)",
+  "status": "PROVISIONAL 2026-07-17 — survey conducted and answered in-session; awaiting final ratification at spin-up review",
+  "name": "HYPERSAW",
+  "naming_note": "Working product title SWARM✱ remains open until the Phase 5 naming decision (see kit README). Repo/manifest use HYPERSAW to match the directory and avoid the ✱ glyph in identifiers.",
+  "survey": {
+    "what_is_it": "app — audio plugin: CLAP-native synthesizer instrument, VST3 via clap-wrapper (ADR-002), ported from three validated JS prototypes",
+    "architecture_rung": {
+      "choice": 2,
+      "menu": [
+        "1: single thread",
+        "2: thread + subagents/verifier",
+        "3: organ fleet"
+      ],
+      "earned_by": "the L0-1 parity oracle gives a fresh-context verifier independently checkable ground truth, and DSP debugging benefits from adversarial review. Fleet NOT earned: ADR-001 collapsed the three prototypes into one engine, so seam count is low."
+    },
+    "domain_core_llm_must_not_own": "the entire runtime DSP core: Kuramoto coupling (sync/splay/topologies), kernels, detune laws, consonance gravity, mulberry32 seeded determinism, no wall-clock in the core (SPEC §5.7). AI proposes/judges at design time; deterministic C++ decides at runtime.",
+    "oracle_shape": {
+      "goldens": "strict pinned goldens — L0-1 parity vs the JS reference implementations (ε = 1e-6 RMS) plus trajectory invariants L0-2..13, all in ./verify fast once Phase 1 lands; ./verify fast starts trivially-green (structure/manifest checks), honestly scoped",
+      "layer_e": "listening/behavioral checks E-1..E-6 in ./verify full with human sign-off per release",
+      "ci": "fast only — pluginval/auval/host-loading checks are macOS-local and human-run"
+    },
+    "second_implementation": {
+      "port_pin": true,
+      "note": "this project IS the second implementation: JS prototypes are the reference (ADR-003), C++ is the port, pinned by L0-1. JS headless cores get checked in as golden generators; divergence requires an ADR."
+    },
+    "consumers_and_providers": {
+      "consumes_future": [
+        "Tonality (Layer-3 ratio priors / context-weighted basins) — brief deferred to Phase 3, before gravity ships; default 13-ratio set is the visibly-degraded placeholder",
+        "terrain-sibling (wavetable kernel / 'every preset is somewhere') — brief deferred to Phase 4; stubbed kernel is the placeholder"
+      ],
+      "consumed_by": []
+    },
+    "parallel_audit_thread": false,
+    "knowledge_loop_tags": [
+      "swarm-dynamics",
+      "parity-oracle",
+      "plugin-platform",
+      "realtime-perf"
+    ],
+    "lifespan_autonomy": {
+      "lifespan": "long-lived (multi-phase product build, Phase 0→5 to release candidate)",
+      "autonomy_tier": "interactive — human at every phase gate and ADR; no unattended operation intended"
+    }
+  },
+  "model_routing": {
+    "note": "doctrine: pin explicitly, never inherit; cap at latest Opus",
+    "lead": "opus",
+    "critic": "opus",
+    "verifier": "haiku (verbatim-report role; runs gates, judges nothing)",
+    "implementer": "sonnet (scoped execution once spec is fixed)",
+    "judgment_bearing_work": "parity-oracle design, ADR resolution, DSP debugging stay in the Opus-tier lead, per kit README"
+  }
+}

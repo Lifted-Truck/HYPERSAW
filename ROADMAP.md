@@ -1,0 +1,51 @@
+# SWARM✱ — roadmap (phase-gated)
+
+Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset + trace written. Passing ≠ done; done = green + acceptance criteria + DECISIONS/trace updated.
+
+**Status (2026-07-17):** spin-up complete (ADR-010); Phase 0 is next. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
+
+## Phase 0 — Platform gate & renderer decision
+
+- CLAP-native skeleton; VST3 via clap-wrapper. Empty plugin builds on macOS + Windows, loads in target hosts (Live, Reaper, Bitwig), passes pluginval at strictness ≥ 5.
+- CI: build matrix + pluginval + `./verify fast` wiring (initially trivial-green).
+- **ADR-006 spike:** oscillator-bank vs iFFT additive renderer. Benchmark: 128 partials × 5 voices × 4 notes on target min-spec CPU; measure headroom both ways; decide and record. (Architecture note: coupling already runs at control rate, so iFFT frames are a natural fit if the bank loses.)
+- Define target hardware envelope for E-6.
+- **Gate:** hosts load it, CI is real, ADR-006 closed.
+
+## Phase 1 — SwarmCore port + parity oracle
+
+- Port `SwarmSynth` (SAW core) to C++: mulberry32, seeding scheme, 16-sample control tick, σ-normalized bipolar K with slews, splay (3× authority, center anchor), inertia, R→tone, envelopes, voice stealing, tanh guard.
+- Build the parity harness: JS reference renders (Node, checked into repo as golden generators, not binaries) vs C++ output; L0-1 green across the matrix.
+- Port the headless trajectory tests: L0-2 through L0-5, L0-13.
+- **Gate:** L0-1..5, L0-13 green. No UI exists yet and that is correct.
+
+## Phase 2 — SAW mode feature-complete
+
+- Distribution menu (even / JP / Gaussian / Cauchy / bimodal / clustered-pairs), detune laws (cents / Hz / ERB / tempo-grid with host-tempo sync), onset-lock/dissolve, retrigger, density comp, width + mono audition, digital↔clean, XY pad as macro pair.
+- L0-12 green (grid law); Layer-E 1, 2, 5 sign-off.
+- **Gate:** SAW mode is a shippable instrument on its own.
+
+## Phase 3 — Dynamics integration
+
+- Topology (mean-field / ring+reach / two-cluster+μ), Sakaguchi α, absolute-K mode, consonance gravity + basin + ratio readout.
+- L0-8..11 green; Layer-E 3 sign-off.
+- **Gate:** the dynamics lab's verified states are reproducible in-plugin from preset recall.
+
+## Phase 4 — SPECTRA mode & kernel abstraction
+
+- Per-partial engine at the ADR-006 renderer: amp tilt, stretch, width tilt, width law, cascade, splay-as-interference-gate with per-partial stereo narrowing.
+- Kernel abstraction landed: saw / sine share one voice path; wavetable kernel stubbed (terrain-sibling crossover parked until here).
+- L0-6, L0-7 green; Layer-E 4 sign-off.
+- **Gate:** SAW provably = SPECTRA at P=1 (parity between modes on equivalent settings).
+
+## Phase 5 — Performance layer & face
+
+- GUI: phase circle, phase carpet, partial strips, live R/σ/pull/gravity readouts — the §5.6 thesis, styled from the prototype design language.
+- MPE: pressure→K, slide→detune, per-note routing. Mod matrix with R and σ as sources. K envelopes/macros.
+- Presets with full provenance metadata; deterministic recall test added to L0-13.
+- Layer-E full pass; naming decision; demo patches (including the validated recipes: shimmer-K, zipper, erasure, gravity-settle, broken-symmetry pad).
+- **Gate:** release candidate.
+
+## Prior art & positioning
+
+Maintained in PRIOR-ART.md; revisit at Phase 3 (before gravity ships) for the freedom-to-operate check flagged there, and at Phase 5 for marketing claims accuracy.

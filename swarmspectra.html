@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWARM✱SPECTRA — per-partial spectral swarm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b0e14;
+    --panel: #11151f;
+    --panel2: #161b28;
+    --line: #232a3a;
+    --text: #e8ecf2;
+    --dim: #7c8698;
+    --swarm: #5ff2e0;
+    --pull: #ff4fa3;
+    --drift: #ffc24b;
+    --mono-f: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --disp-f: "Space Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--text); font-family: var(--mono-f); font-size: 13px; }
+  body { padding: 14px; min-height: 100vh; }
+
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--disp-f); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; }
+  h1 .star { color: var(--pull); }
+  .tagline { color: var(--dim); font-size: 11px; }
+  #power {
+    margin-left: auto; font-family: var(--mono-f); font-size: 12px; letter-spacing: 0.08em;
+    background: var(--swarm); color: var(--ink); border: none; padding: 8px 18px;
+    cursor: pointer; font-weight: 600; border-radius: 2px;
+  }
+  #power.on { background: var(--panel2); color: var(--swarm); border: 1px solid var(--swarm); }
+  #power:focus-visible { outline: 2px solid var(--pull); outline-offset: 2px; }
+
+  .grid { display: grid; grid-template-columns: 420px 1fr; gap: 12px; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+
+  .scope { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .scope h2, .cluster h2 {
+    font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 8px;
+  }
+  canvas { display: block; width: 100%; }
+  #stripCanvas { height: 240px; }
+  #waveCanvas { height: 80px; margin-top: 10px; }
+
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; align-content: start; }
+  .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .cluster.pull h2 { color: var(--pull); }
+
+  .row { display: grid; grid-template-columns: 92px 1fr 62px; align-items: center; gap: 8px; margin: 7px 0; }
+  .row label { color: var(--dim); font-size: 11px; }
+  .row output { text-align: right; font-size: 11px; color: var(--text); }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--line); border-radius: 2px; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--swarm); border: 2px solid var(--ink); cursor: pointer;
+  }
+  .pull input[type=range]::-webkit-slider-thumb { background: var(--pull); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  input[type=range]:focus-visible { outline: 2px solid var(--pull); outline-offset: 3px; }
+
+  select, input[type=number] {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 6px; border-radius: 2px; width: 100%;
+  }
+  .row.compact { grid-template-columns: 92px 1fr auto; }
+  button.mini {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 8px; cursor: pointer; border-radius: 2px;
+  }
+  button.mini:hover { border-color: var(--swarm); }
+  .togs { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+  .togs label { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 11px; cursor: pointer; }
+  .togs input { accent-color: var(--pull); }
+
+  .kbd { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .kbd .bar-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .kbd .bar-top h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase; }
+  #octlbl { color: var(--swarm); font-size: 11px; }
+  .keys { display: flex; height: 96px; position: relative; user-select: none; touch-action: none; }
+  .key { flex: 1; background: #e8ecf2; border: 1px solid var(--ink); border-radius: 0 0 3px 3px; position: relative; cursor: pointer; }
+  .key.black { position: absolute; width: 5.8%; height: 58%; background: #1a2030; border: 1px solid #000; z-index: 2; border-radius: 0 0 3px 3px; }
+  .key.held { background: var(--swarm); }
+  .key.black.held { background: var(--pull); }
+  .key span { position: absolute; bottom: 3px; left: 0; right: 0; text-align: center; font-size: 9px; color: #555; pointer-events: none; }
+  .key.black span { color: var(--dim); }
+  .key em { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 9px; font-style: normal; color: #999; pointer-events: none; }
+  .key.black em { color: var(--dim); }
+  .hint { color: var(--dim); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+  .hint b { color: var(--text); font-weight: 500; }
+  .hint .sw { color: var(--swarm); } .hint .pu { color: var(--pull); }
+  #status { color: var(--drift); font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SWARM<span class="star">✱</span>SPECTRA</h1>
+  <div class="tagline">per-partial unison clouds · cascade locking · interference gating · 4-voice poly</div>
+  <span id="status"></span>
+  <button id="power">POWER ON</button>
+</header>
+
+<div class="grid">
+  <div class="scope">
+    <h2>Partial clouds (newest note) — dot y = phase · <span style="color:var(--pull)">bar = per-partial sync R</span></h2>
+    <canvas id="stripCanvas" width="396" height="240"></canvas>
+    <canvas id="waveCanvas" width="396" height="80"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="cluster">
+      <h2>Spectrum</h2>
+      <div class="row"><label>partials</label><input type="range" id="partials" min="4" max="24" step="1" value="12"><output id="partials_o">12</output></div>
+      <div class="row"><label>amp tilt</label><input type="range" id="tilt" min="0.5" max="2" step="0.01" value="1"><output id="tilt_o">1/k¹·⁰⁰</output></div>
+      <div class="row"><label>stretch</label><input type="range" id="stretch" min="0" max="1" step="0.001" value="0"><output id="stretch_o">off</output></div>
+    </div>
+
+    <div class="cluster">
+      <h2>Clouds</h2>
+      <div class="row"><label>cloud size</label><input type="range" id="cloud" min="1" max="7" step="1" value="5"><output id="cloud_o">5</output></div>
+      <div class="row"><label>width</label><input type="range" id="cwidth" min="0" max="1" step="0.001" value="0.25"><output id="cwidth_o"></output></div>
+      <div class="row"><label>width tilt</label><input type="range" id="wtilt" min="-1" max="2" step="0.01" value="0"><output id="wtilt_o">k⁰·⁰⁰</output></div>
+      <div class="row compact"><label>width law</label>
+        <select id="wlaw">
+          <option value="0" selected>cents (beats climb series)</option>
+          <option value="1">Hz-flat (uniform shimmer)</option>
+        </select>
+      </div>
+      <div class="row compact"><label>seed</label><input type="number" id="seed" value="1234" min="0" max="999999"><button class="mini" id="dice" title="new seed">⚄</button></div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>Coupling — per-partial mean field</h2>
+      <div class="row"><label>pull K ±</label><input type="range" id="K" min="-1" max="1" step="0.001" value="0"><output id="K_o">+0.00 ×σ</output></div>
+      <div class="row"><label>cascade</label><input type="range" id="cascade" min="0" max="1" step="0.01" value="0"><output id="cascade_o">off</output></div>
+      <div class="row"><label>onset lock</label><input type="range" id="onset" min="0" max="1" step="0.001" value="0"><output id="onset_o">0.0 ×σ</output></div>
+      <div class="row"><label>dissolve</label><input type="range" id="dissolve" min="-1.3" max="0.9" step="0.01" value="-0.2"><output id="dissolve_o">0.63 s</output></div>
+      <div class="togs">
+        <label><input type="checkbox" id="retrig" checked> retrigger phases at note-on</label>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h2>Output</h2>
+      <div class="row"><label>stereo width</label><input type="range" id="swidth" min="0" max="1" step="0.01" value="0.8"><output id="swidth_o">0.80</output></div>
+      <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o">0.40</output></div>
+    </div>
+  </div>
+</div>
+
+<div class="kbd">
+  <div class="bar-top">
+    <h2>Keyboard — Ableton layout · 4-voice poly</h2>
+    <span id="octlbl"></span>
+  </div>
+  <div class="keys" id="keys"></div>
+  <div class="hint">
+    <b>A S D F G H J K L</b> = white keys, <b>W E · T Y U · O P</b> = blacks, <b>Z / X</b> = octave.<br>
+    Each harmonic carries its own unison cloud. <b>Width tilt</b> sends chaos up or down the series (negative = blizzard bass / pure top, positive = pure lows / blizzard top).
+    <span class="pu">Pull K</span> positive locks each cloud; with <b>cascade</b> up, a cloud can only lock once the cloud below it has — sweep K with cascade at 1 and watch purity climb the series like a zipper.
+    <span class="pu">K negative</span> splays each cloud — and splayed <i>sines</i> cancel: partials dissolve into shimmering silence, an interference gate.
+    <b>Stretch</b> bends the series inharmonic (bell/piano territory — coupling on stretched partials gets strange and lovely).
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= DSP: per-partial spectral swarm ================= */
+const P_MAX = 24, M_MAX = 7, POLY = 4, TICK = 16;
+const SINE = new Float32Array(4097);
+for (let i = 0; i <= 4096; i++) SINE[i] = Math.sin(i / 4096 * 2 * Math.PI);
+
+class SpectraSynth {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { partials: 12, tilt: 1, stretch: 0, cloud: 5, cwidth: 0.25, wtilt: 0, wlaw: 0,
+               seed: 1234, K: 0, cascade: 0, onset: 0, dissolve: 0.63, swidth: 0.8, vol: 0.4, retrig: 1 };
+    this.x = new Float64Array(M_MAX);
+    this.panL = new Float64Array(P_MAX * M_MAX);
+    this.panR = new Float64Array(P_MAX * M_MAX);
+    this.amp = new Float64Array(P_MAX);
+    this.centerIdx = 0;
+    this.noteCounter = 0;
+    this.tick = 0;
+    this.swarms = [];
+    for (let i = 0; i < POLY; i++) {
+      this.swarms.push({
+        phase: new Float64Array(P_MAX * M_MAX),
+        vf: new Float64Array(P_MAX * M_MAX),
+        couple: new Float64Array(P_MAX * M_MAX),
+        R: new Float64Array(P_MAX), psi: new Float64Array(P_MAX),
+        sigma: new Float64Array(P_MAX),
+        KsmS: new Float64Array(P_MAX), KsmP: new Float64Array(P_MAX),
+        wmix: new Float64Array(P_MAX),
+        f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, age: -1, rngState: 1
+      });
+    }
+    this.rebuild();
+  }
+  setParam(k, v) {
+    this.p[k] = v;
+    if (k === 'cloud' || k === 'swidth' || k === 'partials' || k === 'tilt') this.rebuild();
+  }
+  rngS(s) {
+    s.rngState |= 0; s.rngState = (s.rngState + 0x6D2B79F5) | 0;
+    let t = Math.imul(s.rngState ^ (s.rngState >>> 15), 1 | s.rngState);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  rebuild() {
+    const M = this.p.cloud, P = this.p.partials;
+    for (let m = 0; m < M; m++) this.x[m] = (M === 1) ? 0 : (2 * m / (M - 1) - 1);
+    this.centerIdx = 0;
+    for (let m = 1; m < M; m++) if (Math.abs(this.x[m]) < Math.abs(this.x[this.centerIdx])) this.centerIdx = m;
+    for (let k = 0; k < P; k++) {
+      this.amp[k] = 1 / Math.pow(k + 1, this.p.tilt);
+      const sgn = (k & 1) ? -1 : 1; // alternate pan orientation per partial: decorrelation
+      for (let m = 0; m < M; m++) {
+        const pan = Math.max(-1, Math.min(1, this.x[m] * sgn)) * this.p.swidth;
+        const th = (pan + 1) * 0.25 * 3.14159265;
+        const idx = k * M_MAX + m;
+        this.panL[idx] = Math.cos(th); this.panR[idx] = Math.sin(th);
+      }
+    }
+  }
+  alloc() {
+    let best = null;
+    for (const s of this.swarms) if (!s.gate && s.env < 1e-3) { if (!best || s.age < best.age) best = s; }
+    if (best) return best;
+    for (const s of this.swarms) { if (!best || s.age < best.age) best = s; }
+    return best;
+  }
+  noteOn(midi, f) {
+    const s = this.alloc();
+    s.midi = midi; s.f0 = f; s.gate = 1; s.age = this.noteCounter++;
+    s.Kenv = 8 * this.p.onset * this.p.onset;
+    s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
+    const P = this.p.partials, M = this.p.cloud;
+    for (let k = 0; k < P_MAX; k++) {
+      s.KsmS[k] = 0; s.KsmP[k] = 0;
+      for (let m = 0; m < M_MAX; m++) {
+        s.phase[k * M_MAX + m] = this.p.retrig ? 0 : this.rngS(s);
+      }
+    }
+  }
+  noteOff(midi) { for (const s of this.swarms) if (s.gate && s.midi === midi) s.gate = 0; }
+  focus() {
+    let best = null;
+    for (const s of this.swarms) if ((s.gate || s.env > 1e-3) && (!best || s.age > best.age)) best = s;
+    return best;
+  }
+  controlTick(s) {
+    const p = this.p, P = p.partials, M = p.cloud, dt = TICK / this.sr;
+    s.Kenv *= Math.exp(-dt / Math.max(0.01, p.dissolve));
+    const km = 4 * p.K * Math.abs(p.K);
+    const B = p.stretch * p.stretch * 0.002; // inharmonicity coefficient, squared taper
+    const c0 = this.centerIdx < M ? this.centerIdx : 0;
+    for (let k = 0; k < P; k++) {
+      const h = k + 1;
+      const fk = s.f0 * h * Math.sqrt(1 + B * h * h);
+      // per-partial cloud width
+      const tiltMul = Math.pow(h, p.wtilt);
+      let mean = 0;
+      for (let m = 0; m < M; m++) {
+        const idx = k * M_MAX + m;
+        let f;
+        if (p.wlaw === 0) {
+          const cents = this.x[m] * p.cwidth * 40 * tiltMul;
+          f = fk * Math.pow(2, Math.max(-300, Math.min(300, cents)) / 1200);
+        } else {
+          f = fk + this.x[m] * p.cwidth * 12 * tiltMul;
+        }
+        s.vf[idx] = Math.max(1, f);
+        mean += s.vf[idx];
+      }
+      mean /= M;
+      let varsum = 0;
+      for (let m = 0; m < M; m++) { const d = s.vf[k * M_MAX + m] - mean; varsum += d * d; }
+      s.sigma[k] = Math.max(0.05, Math.sqrt(varsum / M));
+      // mean field for this partial's cloud
+      let sx = 0, sy = 0;
+      for (let m = 0; m < M; m++) { const a = s.phase[k * M_MAX + m] * 6.283185307; sx += Math.cos(a); sy += Math.sin(a); }
+      sx /= M; sy /= M;
+      s.R[k] = Math.sqrt(sx * sx + sy * sy); s.psi[k] = Math.atan2(sy, sx);
+      // cascade gate: partial k receives full coupling once partial k-1 has genuinely locked
+      let gate = 1;
+      if (k > 0 && p.cascade >= 0.005) {
+        const r = s.R[k - 1];
+        const t = Math.max(0, Math.min(1, (r - 0.4) / 0.45));
+        gate = 1 - p.cascade + p.cascade * t * t;
+      }
+      const syncT = (Math.max(0, km) + s.Kenv) * gate * s.sigma[k];
+      const splayT = Math.max(0, -km) * 3 * gate * s.sigma[k];
+      const slew = 0.08 / (1 + p.cascade * 120);
+      s.KsmS[k] += (syncT - s.KsmS[k]) * slew;
+      s.KsmP[k] += (splayT - s.KsmP[k]) * slew;
+      // cancellation requires per-channel coherence: narrow this partial's stereo as splay engages
+      s.wmix[k] = s.KsmP[k] / (s.KsmP[k] + 2 * s.sigma[k]);
+      const psiC = s.psi[k] / 6.283185307;
+      const anchor = s.phase[k * M_MAX + c0];
+      for (let m = 0; m < M; m++) {
+        const idx = k * M_MAX + m;
+        let c = s.KsmS[k] * s.R[k] * Math.sin(s.psi[k] - s.phase[idx] * 6.283185307);
+        if (s.KsmP[k] > 0.001) {
+          c += s.KsmP[k] * Math.sin(6.283185307 * (anchor + (m - c0) / M - s.phase[idx]));
+        }
+        s.couple[idx] = c;
+      }
+    }
+  }
+  render(outL, outR) {
+    const sr = this.sr, p = this.p, P = p.partials, M = p.cloud;
+    let ampSum = 0;
+    for (let k = 0; k < P; k++) ampSum += this.amp[k];
+    const gain = p.vol * 1.4 / (ampSum * Math.pow(M, 0.75));
+    const atk = 1 - Math.exp(-1 / (0.004 * sr));
+    const rel = 1 - Math.exp(-1 / (0.18 * sr));
+    outL.fill(0); outR.fill(0);
+    for (const s of this.swarms) {
+      if (!s.gate && s.env < 1e-4) continue;
+      let tick = this.tick;
+      for (let smp = 0; smp < outL.length; smp++) {
+        if (tick === 0) this.controlTick(s);
+        tick = (tick + 1) & (TICK - 1);
+        let l = 0, r = 0;
+        for (let k = 0; k < P; k++) {
+          const a = this.amp[k];
+          const base = k * M_MAX;
+          const wm = s.wmix[k], iwm = 1 - wm;
+          for (let m = 0; m < M; m++) {
+            const idx = base + m;
+            const f = s.vf[idx] + s.couple[idx];
+            let ph = s.phase[idx] + Math.max(0, f) / sr;
+            ph -= Math.floor(ph);
+            s.phase[idx] = ph;
+            const ti = ph * 4096;
+            const t0 = ti | 0;
+            const v = (SINE[t0] + (SINE[t0 + 1] - SINE[t0]) * (ti - t0)) * a;
+            l += v * (this.panL[idx] * iwm + 0.7071 * wm);
+            r += v * (this.panR[idx] * iwm + 0.7071 * wm);
+          }
+        }
+        const coef = s.gate ? atk : rel;
+        s.env += ((s.gate ? 1 : 0) - s.env) * coef;
+        const g = gain * s.env;
+        outL[smp] += l * g; outR[smp] += r * g;
+      }
+    }
+    this.tick = (this.tick + outL.length) & (TICK - 1);
+    for (let smp = 0; smp < outL.length; smp++) {
+      outL[smp] = Math.tanh(outL[smp]);
+      outR[smp] = Math.tanh(outR[smp]);
+    }
+  }
+}
+
+/* ================= Audio graph ================= */
+let ctx = null, spn = null, analyser = null, synth = null;
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+
+function powerOn() {
+  if (ctx) {
+    ctx.close(); ctx = null; spn = null; synth = null; analyser = null;
+    $('power').textContent = 'POWER ON'; $('power').classList.remove('on');
+    return;
+  }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    synth = new SpectraSynth(ctx.sampleRate);
+    pushAllParams();
+    spn = ctx.createScriptProcessor(1024, 0, 2);
+    spn.onaudioprocess = e => {
+      synth.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+    };
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    spn.connect(analyser);
+    analyser.connect(ctx.destination);
+    if (ctx.state === 'suspended') ctx.resume();
+    $('power').textContent = 'POWER OFF'; $('power').classList.add('on');
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = 'Audio failed to start: ' + err.message;
+    ctx = null;
+  }
+}
+$('power').addEventListener('click', powerOn);
+
+function send(k, v) { if (synth) synth.setParam(k, v); }
+
+/* ---- param wiring ---- */
+const fmt = {
+  partials: v => v,
+  tilt: v => '1/k^' + (+v).toFixed(2),
+  stretch: v => (+v) < 0.005 ? 'off' : 'B=' + (v * v * 0.002).toExponential(1),
+  cloud: v => v,
+  cwidth: v => {
+    const law = +$('wlaw').value;
+    return law === 0 ? '±' + (v * 40).toFixed(0) + ' ¢·kᵗ' : '±' + (v * 12).toFixed(1) + ' Hz·kᵗ';
+  },
+  wtilt: v => 'k^' + (+v).toFixed(2),
+  K: v => { const m = 4 * v * Math.abs(v); return (m >= 0 ? '+' : '−') + Math.abs(m).toFixed(2) + ' ×σ'; },
+  cascade: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  onset: v => (8 * v * v).toFixed(1) + ' ×σ',
+  dissolve: v => Math.pow(10, +v).toFixed(2) + ' s',
+  swidth: v => (+v).toFixed(2),
+  vol: v => (+v).toFixed(2)
+};
+const ranges = ['partials','tilt','stretch','cloud','cwidth','wtilt','K','cascade','onset','dissolve','swidth','vol'];
+const updaters = {};
+ranges.forEach(k => {
+  const el = $(k), out = $(k + '_o');
+  const update = () => {
+    let v = +el.value;
+    if (out && fmt[k]) out.textContent = fmt[k](v);
+    if (k === 'dissolve') v = Math.pow(10, v);
+    send(k, v);
+  };
+  updaters[k] = update;
+  el.addEventListener('input', update);
+  update();
+});
+$('wlaw').addEventListener('change', () => { send('wlaw', +$('wlaw').value); updaters['cwidth'](); });
+$('seed').addEventListener('change', () => send('seed', +$('seed').value));
+$('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
+$('retrig').addEventListener('change', () => send('retrig', $('retrig').checked ? 1 : 0));
+
+function pushAllParams() {
+  ranges.forEach(k => {
+    let v = +$(k).value;
+    if (k === 'dissolve') v = Math.pow(10, v);
+    send(k, v);
+  });
+  send('wlaw', +$('wlaw').value);
+  send('seed', +$('seed').value);
+  send('retrig', $('retrig').checked ? 1 : 0);
+}
+
+/* ================= Keyboard — Ableton Live layout ================= */
+const KMAP = {
+  'a': 0, 'w': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5, 't': 6,
+  'g': 7, 'y': 8, 'h': 9, 'u': 10, 'j': 11,
+  'k': 12, 'o': 13, 'l': 14, 'p': 15, ';': 16
+};
+const CAPS_BY_SEMITONE = { 0:'A',1:'W',2:'S',3:'E',4:'D',5:'F',6:'T',7:'G',8:'Y',9:'H',10:'U',11:'J',12:'K',13:'O',14:'L',15:'P',16:';' };
+let octaveBase = 48;
+const OCT_MIN = 12, OCT_MAX = 96;
+
+const heldNotes = [];
+const WHITE = [0, 2, 4, 5, 7, 9, 11];
+const BLACK = { 0: 1, 1: 3, 3: 6, 4: 8, 5: 10 };
+const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+const keysEl = $('keys');
+function buildKeys() {
+  keysEl.innerHTML = '';
+  const whites = [];
+  for (let o = 0; o < 2; o++) for (let w = 0; w < 7; w++) whites.push(octaveBase + o * 12 + WHITE[w]);
+  whites.push(octaveBase + 24);
+  whites.forEach(m => {
+    const k = document.createElement('div');
+    k.className = 'key'; k.dataset.midi = m;
+    const off = m - octaveBase;
+    const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+    k.innerHTML = cap + '<span>' + NAMES[m % 12] + (Math.floor(m / 12) - 1) + '</span>';
+    keysEl.appendChild(k);
+  });
+  const wCount = whites.length;
+  whites.forEach((m, idx) => {
+    const w = WHITE.indexOf(m % 12);
+    if (w !== -1 && BLACK[w] !== undefined && idx < wCount - 1) {
+      const midiB = m + (BLACK[w] - WHITE[w]);
+      const black = document.createElement('div');
+      black.className = 'key black'; black.dataset.midi = midiB;
+      black.style.left = ((idx + 1) / wCount * 100 - 2.9) + '%';
+      const off = midiB - octaveBase;
+      const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+      black.innerHTML = cap + '<span>' + NAMES[midiB % 12] + '</span>';
+      keysEl.appendChild(black);
+    }
+  });
+  const lo = Math.floor(octaveBase / 12) - 1, hi = lo + 2;
+  $('octlbl').textContent = 'octave: C' + lo + '–C' + hi + ' (Z − / X +)';
+}
+buildKeys();
+
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function noteOn(m) {
+  if (!synth) return;
+  if (heldNotes.includes(m)) return;
+  heldNotes.push(m);
+  synth.noteOn(m, mtof(m));
+  paintKeys();
+}
+function noteOff(m) {
+  const i = heldNotes.indexOf(m);
+  if (i !== -1) heldNotes.splice(i, 1);
+  if (synth) synth.noteOff(m);
+  paintKeys();
+}
+function paintKeys() {
+  keysEl.querySelectorAll('.key').forEach(k => {
+    k.classList.toggle('held', heldNotes.includes(+k.dataset.midi));
+  });
+}
+const pointerNotes = [];
+keysEl.addEventListener('pointerdown', e => {
+  const k = e.target.closest('.key'); if (!k) return;
+  keysEl.setPointerCapture(e.pointerId);
+  const m = +k.dataset.midi;
+  pointerNotes.push(m);
+  noteOn(m);
+});
+window.addEventListener('pointerup', () => { pointerNotes.splice(0).forEach(noteOff); });
+
+function shiftOctave(dir) {
+  const next = octaveBase + dir * 12;
+  if (next < OCT_MIN || next > OCT_MAX) return;
+  [...heldNotes].forEach(noteOff);
+  octaveBase = next;
+  buildKeys();
+}
+window.addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { shiftOctave(-1); return; }
+  if (key === 'x') { shiftOctave(1); return; }
+  const off = KMAP[key];
+  if (off !== undefined) noteOn(octaveBase + off);
+});
+window.addEventListener('keyup', e => {
+  const off = KMAP[e.key.toLowerCase()];
+  if (off !== undefined) noteOff(octaveBase + off);
+});
+
+/* ================= Visualization ================= */
+const st = $('stripCanvas'), stx = st.getContext('2d');
+const wv = $('waveCanvas'), wvx = wv.getContext('2d');
+
+function drawStrips() {
+  const w = st.width, h = st.height;
+  stx.fillStyle = 'rgba(11,14,20,0.35)';
+  stx.fillRect(0, 0, w, h);
+  if (!synth) return;
+  const s = synth.focus();
+  if (!s) return;
+  const P = synth.p.partials, M = synth.p.cloud;
+  const colW = w / P;
+  const topPad = 6, barH = 26, stripH = h - barH - topPad - 4;
+  for (let k = 0; k < P; k++) {
+    const cx = k * colW + colW / 2;
+    // strip guide
+    stx.strokeStyle = '#1a2030';
+    stx.beginPath(); stx.moveTo(cx, topPad); stx.lineTo(cx, topPad + stripH); stx.stroke();
+    // phase dots
+    const alpha = 0.35 + 0.65 * Math.min(1, synth.amp[k] * 2.2);
+    stx.fillStyle = 'rgba(95,242,224,' + alpha.toFixed(2) + ')';
+    for (let m = 0; m < M; m++) {
+      const ph = s.phase[k * M_MAX + m];
+      const y = topPad + ph * stripH;
+      stx.beginPath(); stx.arc(cx, y, 2.6, 0, Math.PI * 2); stx.fill();
+    }
+    // per-partial R bar
+    const rH = s.R[k] * barH;
+    stx.fillStyle = '#ff4fa3';
+    stx.fillRect(k * colW + 3, h - 4 - rH, colW - 6, rH);
+    // partial number every few
+    if (k === 0 || (k + 1) % 4 === 0) {
+      stx.fillStyle = '#7c8698'; stx.font = '9px monospace';
+      stx.fillText(String(k + 1), cx - 3, h - barH - 8 + barH);
+    }
+  }
+}
+
+const waveData = new Uint8Array(2048);
+function drawWave() {
+  const w = wv.width, h = wv.height;
+  wvx.fillStyle = '#0b0e14'; wvx.fillRect(0, 0, w, h);
+  if (!analyser) return;
+  analyser.getByteTimeDomainData(waveData);
+  wvx.strokeStyle = '#5ff2e0'; wvx.lineWidth = 1.2;
+  wvx.beginPath();
+  for (let px = 0; px < w; px++) {
+    const v = waveData[Math.floor(px / w * waveData.length)] / 255;
+    const y = h - v * (h - 4) - 2;
+    if (px === 0) wvx.moveTo(px, y); else wvx.lineTo(px, y);
+  }
+  wvx.stroke();
+  wvx.fillStyle = '#7c8698'; wvx.font = '9px monospace';
+  wvx.fillText('sum waveform — watch crest change as partials phase-align', 4, h - 4);
+}
+
+function loop() {
+  drawStrips();
+  drawWave();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

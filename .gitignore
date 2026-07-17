@@ -1,0 +1,14 @@
+# harness runtime state
+.harness/
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# build outputs (Phase 0+; Debug and Release are separate dirs on this machine)
+build/
+build-*/
+
+# source archive the kit arrived in — contents extracted to repo root 2026-07-17;
+# kept locally for reference, not tracked. Delete when comfortable.
+files.zip
