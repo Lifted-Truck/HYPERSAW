@@ -36,7 +36,7 @@ These are the reference implementation per ADR-003. The C++ port must match them
 *Last verified current: 2026-07-17 (spin-up + ratification day).*
 
 - **Spun up and ratified 2026-07-17** via `/spinup`: manifest in `project.manifest.json` (RATIFIED; rung 2 — thread + verifier), charter in `CLAUDE.md`, oracle dispatcher `./verify`, knowledge loop (`INDEX.md`/`LIBRARY.md`), `traces/`.
-- **Status: Phase 0 not started.** No C++ exists yet — the only running code is the three prototype HTMLs. `./verify fast` is honestly minimal (structure/manifest/leak checks); it grows the L0 suite in Phase 1.
+- **Status: Phase 0 in flight (same day).** The CLAP-first C++ skeleton builds and validates — pluginval strictness 10 SUCCESS (VST3), auval SUCCEEDED (AUv2), CLAP/VST3/AU installed locally; renderer spike run and decided-pending-ratification (bank, ADR-018); GUI stack proposed (choc webview, ADR-019). `./verify fast` is structure/manifest/leak checks; `full` adds the Release build; the L0 parity suite lands in Phase 1.
 - **Reference timeline** (ADR-011/012): the current `swarmsaw.html` is the v2 splay-legibility revision (dual R₁/Rₙ meters); the original v1 was deleted after ratification and both versions remain in git history at the initial commit. The change note is archived at `docs/change-notes/2026-07-17-splay-legibility.md`; SPEC §5.6 and ACCEPTANCE L0-3 carry its amendments.
 - **GUI is an early priority** (ADR-013): GUI v1 matching the prototype design language ships with Phase 2, not Phase 5.
 - Ecosystem briefs (Tonality, terrain sibling) deliberately deferred — see ADR-010.

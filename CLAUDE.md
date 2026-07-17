@@ -75,8 +75,12 @@ plugin, VST3 via clap-wrapper (ADR-002). Working product title SWARM✱; naming
 open until Phase 5. Design docs: SPEC.md (the instrument), ACCEPTANCE.md (the
 oracle contract), PRIOR-ART.md, PARKED.md.
 
-**Stack & entrypoints.** C++ plugin (Phase 0 will scaffold the CLAP skeleton;
-no C++ exists yet). Reference implementation: three single-file HTML
+**Stack & entrypoints.** C++20 CLAP-first plugin: impl in `src/hypersaw_clap.cpp`
+(static lib + exported entry, clap-first idiom), wrapped to VST3/AUv2 by
+clap-wrapper (`libs/` submodules pinned: clap 1.2.10, clap-wrapper v0.15.1).
+Build: `cmake -S . -B build-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release`
+then `cmake --build <abs>/build-release -j` (absolute path — sandbox resets cwd).
+Reference implementation: three single-file HTML
 prototypes — `swarmsaw.html` (SAW; v2 lineage, see ADR-011/012),
 `swarmspectra.html`, `swarmdynamics.html` — whose headless JS cores
 (`SwarmSynth` / `SpectraSynth` / `DynSynth`) are the spec-in-code (ADR-003).

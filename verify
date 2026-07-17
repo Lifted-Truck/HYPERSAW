@@ -92,11 +92,16 @@ PY
 full() {
   fast || return $?
   # ---- Layer-E: the whole gate. Run before closing a queue item. -----------
-  # Phase 1+: golden parity renders + trajectory suite. Phase 2+: Layer-E
-  # listening checks E-1..E-6 (ACCEPTANCE.md) — human sign-off, macOS-local
-  # pluginval/auval/host-load checks (not CI-able; see CLAUDE.md §Domain).
-  echo "verify[full]: no Layer-E checks exist yet (pre-Phase-1) — fast is the whole gate today" >&2
-  return 0
+  # Phase 0: the plugin builds cleanly (CI additionally runs pluginval on the
+  # artifact every push; auval/host loads stay human-run — CLAUDE.md §Domain).
+  # Phase 1+ adds golden parity renders + trajectory suite here.
+  local build_dir
+  build_dir="$(cd "$(dirname "$0")" && pwd)/build-release"
+  if [ ! -d "$build_dir" ]; then
+    cmake -S "$(dirname "$build_dir")" -B "$build_dir" -G "Unix Makefiles" \
+      -DCMAKE_BUILD_TYPE=Release || return 1
+  fi
+  cmake --build "$build_dir" -j"$(sysctl -n hw.ncpu 2>/dev/null || echo 4)" || return 1
 }
 
 case "$TARGET" in
