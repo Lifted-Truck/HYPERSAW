@@ -8,6 +8,11 @@ project(HYPERSAW VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Windows: static MSVC runtime project-wide. clap-wrapper sets this for its own
+# directory scope only, so without the root-level setting our targets get /MD
+# and its libs get /MT — LNK2038 at link. Static runtime is also what you ship
+# in a plugin (no VC redist dependency).
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 if(APPLE)
   enable_language(OBJC OBJCXX)
   # Apple Silicon + Intel; hosts are arm64-first but Live still ships x86_64 users.
