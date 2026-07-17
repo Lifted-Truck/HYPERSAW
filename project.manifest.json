@@ -1,6 +1,6 @@
 {
   "schema": "project-manifest.0 (draft — kit v2 will formalize)",
-  "status": "PROVISIONAL 2026-07-17 — survey conducted and answered in-session; awaiting final ratification at spin-up review",
+  "status": "RATIFIED 2026-07-17 (user go-ahead at spin-up review gate)",
   "name": "HYPERSAW",
   "naming_note": "Working product title SWARM✱ remains open until the Phase 5 naming decision (see kit README). Repo/manifest use HYPERSAW to match the directory and avoid the ✱ glyph in identifiers.",
   "survey": {

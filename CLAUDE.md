@@ -77,7 +77,7 @@ oracle contract), PRIOR-ART.md, PARKED.md.
 
 **Stack & entrypoints.** C++ plugin (Phase 0 will scaffold the CLAP skeleton;
 no C++ exists yet). Reference implementation: three single-file HTML
-prototypes — `swarmsaw_v2.html` (SAW; supersedes `swarmsaw.html`),
+prototypes — `swarmsaw.html` (SAW; v2 lineage, see ADR-011/012),
 `swarmspectra.html`, `swarmdynamics.html` — whose headless JS cores
 (`SwarmSynth` / `SpectraSynth` / `DynSynth`) are the spec-in-code (ADR-003).
 Build/test = `./verify fast|full`. This Mac: Command Line Tools only, CMake

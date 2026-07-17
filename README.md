@@ -33,13 +33,10 @@ These are the reference implementation per ADR-003. The C++ port must match them
 
 ## Repo status
 
-*Last verified current: 2026-07-17 (spin-up day).*
+*Last verified current: 2026-07-17 (spin-up + ratification day).*
 
-- **Spun up 2026-07-17** via `/spinup`: survey answers in `project.manifest.json` (rung 2 — thread + verifier), charter in `CLAUDE.md`, oracle dispatcher `./verify`, knowledge loop (`INDEX.md`/`LIBRARY.md`), `traces/`.
+- **Spun up and ratified 2026-07-17** via `/spinup`: manifest in `project.manifest.json` (RATIFIED; rung 2 — thread + verifier), charter in `CLAUDE.md`, oracle dispatcher `./verify`, knowledge loop (`INDEX.md`/`LIBRARY.md`), `traces/`.
 - **Status: Phase 0 not started.** No C++ exists yet — the only running code is the three prototype HTMLs. `./verify fast` is honestly minimal (structure/manifest/leak checks); it grows the L0 suite in Phase 1.
-- **Reference note:** `swarmsaw_v2.html` supersedes `swarmsaw.html` (ADR-011, splay-legibility change note); SPEC §5.6 and ACCEPTANCE L0-3 carry the amendments.
+- **Reference timeline** (ADR-011/012): the current `swarmsaw.html` is the v2 splay-legibility revision (dual R₁/Rₙ meters); the original v1 was deleted after ratification and both versions remain in git history at the initial commit. The change note is archived at `docs/change-notes/2026-07-17-splay-legibility.md`; SPEC §5.6 and ACCEPTANCE L0-3 carry its amendments.
+- **GUI is an early priority** (ADR-013): GUI v1 matching the prototype design language ships with Phase 2, not Phase 5.
 - Ecosystem briefs (Tonality, terrain-sibling) deliberately deferred — see ADR-010.
-
-## Spin-up (historical)
-
-This kit was fed to `/spinup` on 2026-07-17 — see `project.manifest.json` for the resulting manifest. Original seeds: engine core is judgment-light scoped execution once the spec is fixed (Sonnet-tier); parity-oracle design, ADR resolution, and DSP debugging are judgment-bearing (Opus-tier). Phase 0 gates before any feature work, per doctrine.

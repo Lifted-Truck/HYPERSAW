@@ -25,7 +25,7 @@ Tolerance: regime classification must match; R values ±0.08.
 
 K = −1.0, JP distribution, M = 7, 4 s settle: R₁ ≤ 0.10 (measured 0.04); splay order R_N ≥ 0.75 (measured 0.84); spectral projection at 7·f0 ≥ 5× the uncoupled baseline (measured 9×: 0.0017 → 0.0153, approaching f0's 0.0226). Intermediate check: K = −0.7 → R_N ≈ 0.44 ±0.1 (the continuum exists).
 
-**L0-3 extension — R₁/R_N regime classification** (added 2026-07-17 per CHANGE-NOTE-splay-legibility; measured on the reference at A3, defaults, settled; values ±0.08). R_N is computed per SPEC §5.6 and is parity-relevant (same loop order, same n as the reference):
+**L0-3 extension — R₁/R_N regime classification** (added 2026-07-17 per the splay-legibility change note, archived at `docs/change-notes/2026-07-17-splay-legibility.md`; measured on the reference at A3, defaults, settled; values ±0.08). R_N is computed per SPEC §5.6 and is parity-relevant (same loop order, same n as the reference):
 
 | Regime | K | R₁ | R_N |
 |---|---|---|---|

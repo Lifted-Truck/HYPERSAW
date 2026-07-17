@@ -9,8 +9,9 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 - CLAP-native skeleton; VST3 via clap-wrapper. Empty plugin builds on macOS + Windows, loads in target hosts (Live, Reaper, Bitwig), passes pluginval at strictness ≥ 5.
 - CI: build matrix + pluginval + `./verify fast` wiring (initially trivial-green).
 - **ADR-006 spike:** oscillator-bank vs iFFT additive renderer. Benchmark: 128 partials × 5 voices × 4 notes on target min-spec CPU; measure headroom both ways; decide and record. (Architecture note: coupling already runs at control rate, so iFFT frames are a natural fit if the bank loses.)
+- **GUI stack decision (ADR-013):** pick the plugin GUI framework in Phase 0 so Phase 2 can ship a real GUI that reproduces the prototype design language (canvas-style phase circle, meters). Record as an ADR.
 - Define target hardware envelope for E-6.
-- **Gate:** hosts load it, CI is real, ADR-006 closed.
+- **Gate:** hosts load it, CI is real, ADR-006 closed, GUI stack chosen.
 
 ## Phase 1 — SwarmCore port + parity oracle
 
@@ -22,8 +23,9 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 ## Phase 2 — SAW mode feature-complete
 
 - Distribution menu (even / JP / Gaussian / Cauchy / bimodal / clustered-pairs), detune laws (cents / Hz / ERB / tempo-grid with host-tempo sync), onset-lock/dissolve, retrigger, density comp, width + mono audition, digital↔clean, XY pad as macro pair.
+- **GUI v1 (ADR-013, pulled forward from Phase 5):** phase circle with dual R₁/Rₙ meters, seat rings, formation polygon, XY pad, live R/σ/pull readouts — the SPEC §5.6 contract, styled to match the prototype design language as closely as possible (extract palette/treatments from the prototype CSS, don't reinvent).
 - L0-12 green (grid law); Layer-E 1, 2, 5 sign-off.
-- **Gate:** SAW mode is a shippable instrument on its own.
+- **Gate:** SAW mode is a shippable instrument on its own — playable through its own GUI.
 
 ## Phase 3 — Dynamics integration
 
@@ -40,7 +42,7 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 ## Phase 5 — Performance layer & face
 
-- GUI: phase circle, phase carpet, partial strips, live R/σ/pull/gravity readouts — the §5.6 thesis, styled from the prototype design language.
+- GUI completion (v1 shipped in Phase 2 per ADR-013): phase carpet, partial strips, gravity readouts, mod-matrix UI — the full §5.6 thesis, same prototype design language.
 - MPE: pressure→K, slide→detune, per-note routing. Mod matrix with R and σ as sources. K envelopes/macros.
 - Presets with full provenance metadata; deterministic recall test added to L0-13.
 - Layer-E full pass; naming decision; demo patches (including the validated recipes: shimmer-K, zipper, erasure, gravity-settle, broken-symmetry pad).

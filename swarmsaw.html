@@ -51,6 +51,7 @@
   .rmeter { margin-top: 10px; }
   .rmeter .bar { height: 8px; background: var(--panel2); border: 1px solid var(--line); position: relative; }
   .rmeter .fill { position: absolute; inset: 0; width: 0%; background: linear-gradient(90deg, var(--swarm), var(--pull)); }
+  .rmeter .fill.amber { background: linear-gradient(90deg, #ffc24b, #ff8b3c); }
   .rmeter .lbl { display: flex; justify-content: space-between; color: var(--dim); font-size: 10px; margin-top: 4px; }
   .rmeter .lbl b { color: var(--text); font-weight: 500; }
 
@@ -119,7 +120,9 @@
     <canvas id="phaseCanvas" width="356" height="356"></canvas>
     <div class="rmeter">
       <div class="bar"><div class="fill" id="rfill"></div></div>
-      <div class="lbl"><span>sync R = <b id="rval">0.00</b></span><span>pull = <b id="kval">0.0</b> Hz · spread σ = <b id="sval">0.0</b> Hz</span></div>
+      <div class="lbl"><span>R₁ sync (clump) = <b id="rval">0.00</b></span><span>pull = <b id="kval">0.0</b> Hz · spread σ = <b id="sval">0.0</b> Hz</span></div>
+      <div class="bar" style="margin-top:6px;"><div class="fill amber" id="rnfill"></div></div>
+      <div class="lbl"><span>Rₙ splay (formation) = <b id="rnval">0.00</b></span><span>R₁ high = sync · R₁ low + Rₙ high = splay · both low = free</span></div>
     </div>
     <canvas id="specCanvas" width="356" height="90"></canvas>
   </div>
@@ -190,7 +193,7 @@
     Computer keys, Live-style: <b>A S D F G H J K L</b> = white keys from C, <b>W E · T Y U · O P</b> = black keys, <b>Z / X</b> = octave down / up. Hold chords — each note is its own swarm.<br>
     <span class="pu">Pull K</span> is calibrated in units of the swarm's own frequency spread σ, measured live — so the phase transition sits mid-slider at any detune, law, or register. Sweep slowly through <b>1.5–2.5×σ</b> while holding a note:
     free cloud → slow herding → shimmering partial lock → hollow static comb → single loud saw. The collapse into mono-ish width at full lock is the physics, not a bug: coherence <i>is</i> narrowness.
-    <b>K is bipolar</b>: negative pulls toward an even splay — fully splayed, N voices sum toward a saw N× higher (quieter: harmonic multiplication trades level; watch R fall while the pitch climbs). <b>Inertia</b> gives voices momentum, so the swarm overshoots and rings instead of snapping. <b>R → tone</b> routes sync order to a filter (▼lock = darkens as it locks, ▲lock = opens as it dissolves). Turn <b>retrigger</b> off to watch onset-lock herd a scattered swarm. <span class="dr">Drift</span> is a seeded random walk — same seed, same wander.
+    <b>K is bipolar</b>: negative pulls each voice toward its own evenly-spaced <b>seat</b> (amber rings) — locked splay of N saws sums toward a saw N× higher, quieter, because splay cancels every harmonic that isn't a multiple of N. <b>Reading the circle</b>: sync = dots clump to a point (R₁→1) · splay = a rigid regular polygon parked on its seats (R₁→0, Rₙ→1) · free = a drifting scribble, both meters low. <b>Inertia</b> gives voices momentum, so the swarm overshoots and rings instead of snapping. <b>R → tone</b> routes sync order to a filter (▼lock = darkens as it locks, ▲lock = opens as it dissolves). Turn <b>retrigger</b> off to watch onset-lock herd a scattered swarm. <span class="dr">Drift</span> is a seeded random walk — same seed, same wander.
   </div>
 </div>
 
@@ -217,7 +220,7 @@ class SwarmSynth {
         couple: new Float64Array(MAXV), vf: new Float64Array(MAXV),
         eff: new Float64Array(MAXV), mom: new Float64Array(MAXV),
         f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
-        R: 0, psi: 0, sigma: 0, age: -1, rngState: 1, fresh: 1,
+        R: 0, RN: 0, psi: 0, sigma: 0, age: -1, rngState: 1, fresh: 1,
         lpL: 0, lpR: 0, lpc: 1
       });
     }
@@ -344,6 +347,9 @@ class SwarmSynth {
     for (let i = 0; i < n; i++) { const a = s.phase[i] * 6.283185307; sx += Math.cos(a); sy += Math.sin(a); }
     sx /= n; sy /= n;
     s.R = Math.sqrt(sx * sx + sy * sy); s.psi = Math.atan2(sy, sx);
+    let nx = 0, ny = 0;
+    for (let i = 0; i < n; i++) { const a = s.phase[i] * 6.283185307 * n; nx += Math.cos(a); ny += Math.sin(a); }
+    s.RN = Math.sqrt(nx * nx + ny * ny) / n;
     const c0 = this.centerIdx < n ? this.centerIdx : 0;
     for (let i = 0; i < n; i++) {
       let c = s.KsmS * s.R * Math.sin(s.psi - s.phase[i] * 6.283185307);
@@ -663,11 +669,31 @@ function drawPhase() {
   const s = synth.focus();
   if (!s) return;
   const n = synth.p.n;
+  const px = [], py = [];
   for (let i = 0; i < n; i++) {
     const a = s.phase[i] * Math.PI * 2;
-    const x = cx + rad * Math.cos(a), y = cy - rad * Math.sin(a);
+    px.push(cx + rad * Math.cos(a)); py.push(cy - rad * Math.sin(a));
+  }
+  const seatAlpha = Math.min(0.7, s.KsmP / (s.KsmP + 2));
+  if (seatAlpha > 0.03) {
+    const c0 = synth.centerIdx < n ? synth.centerIdx : 0;
+    pctx.strokeStyle = 'rgba(255,194,75,' + seatAlpha.toFixed(2) + ')';
+    pctx.lineWidth = 1.2;
+    for (let i = 0; i < n; i++) {
+      const t = (s.phase[c0] + (i - c0) / n) * Math.PI * 2;
+      const x = cx + rad * Math.cos(t), y = cy - rad * Math.sin(t);
+      pctx.beginPath(); pctx.arc(x, y, 6.5, 0, Math.PI * 2); pctx.stroke();
+    }
+  }
+  pctx.strokeStyle = 'rgba(95,242,224,0.28)';
+  pctx.lineWidth = 1;
+  pctx.beginPath();
+  pctx.moveTo(px[0], py[0]);
+  for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
+  pctx.closePath(); pctx.stroke();
+  for (let i = 0; i < n; i++) {
     pctx.fillStyle = '#5ff2e0';
-    pctx.beginPath(); pctx.arc(x, y, 4, 0, Math.PI * 2); pctx.fill();
+    pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
   }
   const ax = cx + rad * s.R * Math.cos(s.psi);
   const ay = cy - rad * s.R * Math.sin(s.psi);
@@ -678,6 +704,8 @@ function drawPhase() {
 
   $('rfill').style.width = (s.R * 100).toFixed(1) + '%';
   $('rval').textContent = s.R.toFixed(2);
+  $('rnfill').style.width = (s.RN * 100).toFixed(1) + '%';
+  $('rnval').textContent = s.RN.toFixed(2);
   $('kval').textContent = (s.KsmS - s.KsmP).toFixed(1);
   $('sval').textContent = s.sigma.toFixed(1);
 }
