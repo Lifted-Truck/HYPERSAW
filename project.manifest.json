@@ -27,7 +27,7 @@
     "consumers_and_providers": {
       "consumes_future": [
         "Tonality (Layer-3 ratio priors / context-weighted basins) — brief deferred to Phase 3, before gravity ships; default 13-ratio set is the visibly-degraded placeholder",
-        "terrain-sibling (wavetable kernel / 'every preset is somewhere') — brief deferred to Phase 4; stubbed kernel is the placeholder"
+        "terrain sibling (private; wavetable kernel / 'every preset is somewhere') — brief deferred to Phase 4; stubbed kernel is the placeholder"
       ],
       "consumed_by": []
     },

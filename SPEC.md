@@ -14,7 +14,7 @@ One mechanism, three scales. The instrument's identity is that these are *the sa
 
 There is one engine: a **per-partial swarm over a kernel**.
 
-- `P` partials × `M` cloud voices per partial, each voice a phase accumulator rendering a **kernel**: saw (polyBLEP↔naive crossfade), sine (table), or wavetable (future: terrain-sibling terrain as kernel — "every preset is somewhere" crossover).
+- `P` partials × `M` cloud voices per partial, each voice a phase accumulator rendering a **kernel**: saw (polyBLEP↔naive crossfade), sine (table), or wavetable (future: the terrain sibling's terrain as kernel — "every preset is somewhere" crossover).
 - **SAW mode** is the engine at `P = 1`, saw kernel, `M = 1..32`.
 - **SPECTRA mode** is the engine at `P = 4..N_max`, sine kernel, `M = 1..7`, with per-partial amplitude tilt `1/k^t` and stretch inharmonicity `f_k = k·f0·√(1 + B·k²)`.
 - Prototype ceiling was P=24 (browser main thread). Target: 64–128 partials via oscillator bank, or unbounded via iFFT rendering — **ADR-006, open, Phase 0 spike**. Note the architecture favors iFFT unusually well: all coupling dynamics already run at control rate, so the swarm state can drive a spectral frame directly.
@@ -106,7 +106,7 @@ Once per render block: fold each held pair's ratio into [1,2), snap to nearest o
 - The GUI thesis: the user should *see the physics they are hearing.* These are the instrument's face, not debug views.
 
 ### 5.7 Provenance & preset identity
-Seed + distribution + topology + full parameter state = a nameable, exactly reproducible swarm. Presets embed provenance metadata (per terrain-sibling discipline). Deterministic guarantee: same seed, same note order → identical output (mulberry32 streams; per-note stream seeded seed + noteAge·7919 + 1; no wall-clock anywhere in the core).
+Seed + distribution + topology + full parameter state = a nameable, exactly reproducible swarm. Presets embed provenance metadata (per the terrain sibling's provenance discipline). Deterministic guarantee: same seed, same note order → identical output (mulberry32 streams; per-note stream seeded seed + noteAge·7919 + 1; no wall-clock anywhere in the core).
 
 ## 6. Implementation notes (hard-won, do not rediscover)
 

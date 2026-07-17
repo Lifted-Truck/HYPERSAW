@@ -11,8 +11,8 @@ Format: idea — why parked — revisit trigger.
 7. **Cross-note *phase* coupling (beyond ratio gravity)** — phase-locking distinct notes' fundamentals at simple ratios (true harmonic fusion, chord-as-one-timbre). Needs sample-accurate cross-swarm coupling. Revisit: after Phase 3 gravity ships and its CPU cost is known.
 8. **Designed mono fold-down** — optimize pan/phase assignment so mono sum is a deliberate alternate timbre. Revisit: Phase 2 (E-5 findings will motivate or dismiss).
 9. **Tempo-synced coupling** (K itself pulsing on the grid, distinct from tempo-grid detune law) — natural once K is a mod destination. Revisit: Phase 5 mod matrix.
-10. **terrain-sibling wavetable as swarm kernel** — the "every preset is somewhere" crossover; kernel abstraction lands Phase 4, integration after. Revisit: Phase 4 exit.
-11. **Weather data as coupling modulation** — terrain-sibling's open design question, doubly speculative here. Revisit: only if terrain-sibling ships it first.
+10. **Terrain-sibling wavetable as swarm kernel** — the "every preset is somewhere" crossover; kernel abstraction lands Phase 4, integration after. Revisit: Phase 4 exit.
+11. **Weather data as coupling modulation** — the terrain sibling's open design question, doubly speculative here. Revisit: only if it ships there first.
 12. **Per-voice spectral shading** (edge voices darker/thinner; saw→tri by |offset|) — spec'd as straightforward, no prototype needed; slotted Phase 2 stretch. Parked so it's tracked.
 13. **Tonality ratio priors for gravity** (context-weighted basins, higher-limit sets) — after Phase 3 baseline gravity; integration via Tonality MCP/exports per cross-repo policy ("writes stay home").
 14. **iFFT-mode partial ceiling past 128** — contingent on ADR-006 outcome.

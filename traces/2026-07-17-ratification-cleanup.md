@@ -24,6 +24,7 @@ clean; repo-visibility check of all referenced ecosystem projects via gh).
 structure check was updated for the rename in the same change — filename
 only, no gate weakened).
 
-**Open questions.** Pre-push sweep found one flag: "terrain-sibling" is a private
-repo (gh: Lifted-Truck/terrain-sibling = private) and its name appears in the kit docs
-going public — human decision pending on keep vs redact before push.
+**Open questions.** Pre-push sweep found one flag: one referenced sibling
+project is a private repo and was named in the kit docs going public — human
+ruled scrub-before-push; redacted to "terrain sibling" (ADR-014; alias map
+in PRIVATE-NOTES.md, untracked).

@@ -99,6 +99,11 @@ the global CLAUDE.md audio-plugin section before any build/install/validate.
 - Acceptance numbers in ACCEPTANCE.md are measured, not aspirational; they
   change only with a re-measurement on the reference implementation.
 
+**Alias note.** This repo is public. Private sibling projects are referred to
+by alias in all tracked files ("terrain sibling", …); the alias→name map
+lives in `PRIVATE-NOTES.md` (untracked, local-only — ADR-014). Never write a
+private sibling's real name into a tracked file.
+
 **Protected paths** (human gate to modify): `SPEC.md`, `ACCEPTANCE.md`,
 `PRIOR-ART.md`, the prototype HTMLs (they ARE the reference — an edit there
 is a spec change), `./verify`, golden render fixtures once they exist.
