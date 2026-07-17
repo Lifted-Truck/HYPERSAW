@@ -143,6 +143,14 @@
           <option value="2">two-cluster (A↔B)</option>
         </select>
       </div>
+      <div class="row compact"><label>poles q</label>
+        <select id="poles">
+          <option value="1" selected>1 — classic sync</option>
+          <option value="2">2 — anti-phase pair</option>
+          <option value="3">3 — triad clusters</option>
+          <option value="4">4 — quad clusters</option>
+        </select>
+      </div>
       <div class="row"><label>pull K</label><input type="range" id="K" min="0" max="1" step="0.001" value="0"><output id="K_o">+0.00 ×σ</output></div>
       <div class="row"><label>phase lag α</label><input type="range" id="alpha" min="-90" max="90" step="1" value="0"><output id="alpha_o">0°</output></div>
       <div class="row"><label>reach (ring)</label><input type="range" id="reach" min="1" max="8" step="1" value="5"><output id="reach_o">±5</output></div>
@@ -169,6 +177,7 @@
           <option value="2">2 per beat (eighths)</option>
         </select>
       </div>
+      <div class="hint" id="beatinfo" style="margin-top:6px;min-height:48px;"></div>
     </div>
 
     <div class="cluster">
@@ -187,6 +196,7 @@
   <div class="keys" id="keys"></div>
   <div class="hint">
     <b>A S D F G H J K L</b> whites, <b>W E · T Y U · O P</b> blacks, <b>Z / X</b> octave.<br>
+    <b>Poles q</b> (mean-field only) switches to Daido q-harmonic coupling: the swarm spontaneously splits into q clusters — watch q clumps form on the circle, R₁ low but R_q high. The population split between clusters is seed-dependent (re-strike with retrigger off to re-roll it), and with a saw kernel the balance sets how much fundamental survives against the q× harmonic. Retrigger ON from aligned phases stays in full sync instead — same knobs, two stable answers: that's bistability.
     <b>Broken-symmetry recipe</b> (verified): topology <span class="pu">two-cluster</span>, detune ~2¢, K max, μ 0.6, α ≈ <b>78°</b>, retrigger OFF —
     one cluster runs coherent (R≈0.8) while the other stays diffuse (R≈0.65), sustained. Push α to <b>86°</b> for seed-dependent switching between regimes; re-strike to re-roll initial conditions.
     On the <span class="pu">ring</span>, high α + mid reach gives spatial coexistence — verified local order spanning 0.1↔0.9 across the ring; the carpet shows it as frozen and boiling regions side by side.
@@ -206,7 +216,7 @@ const RATIO_NAMES = ['1/1','16/15','9/8','6/5','5/4','4/3','7/5','3/2','8/5','5/
 class DynSynth {
   constructor(sr) {
     this.sr = sr;
-    this.p = { n:24, detune:0.2, seed:1234, retrig:0, topo:0, reach:5, mu:0.6, K:0, alpha:0,
+    this.p = { n:24, detune:0.2, seed:1234, retrig:0, topo:0, poles:1, reach:5, mu:0.6, K:0, alpha:0,
                grav:0, basin:35, beatQ:0, bpm:120, beatMult:1, swidth:0.8, vol:0.4 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
@@ -219,7 +229,7 @@ class DynSynth {
       this.swarms.push({
         phase: new Float64Array(MAXV), vf: new Float64Array(MAXV), couple: new Float64Array(MAXV),
         f0: 220, f0cur: 220, midi: -1, gate: 0, env: 0, Ksm: 0,
-        R: 0, psi: 0, RA: 0, RB: 0, sigma: 0, age: -1, rngState: 1
+        R: 0, psi: 0, RA: 0, RB: 0, RQ: 0, sigma: 0, age: -1, rngState: 1
       });
     }
     this.rebuild();
@@ -336,9 +346,22 @@ class DynSynth {
     sx /= n; sy /= n;
     s.R = Math.sqrt(sx * sx + sy * sy); s.psi = Math.atan2(sy, sx);
     if (p.topo === 0) {
-      /* mean field with Sakaguchi lag */
-      for (let i = 0; i < n; i++) {
-        s.couple[i] = s.Ksm * s.R * Math.sin(s.psi - s.phase[i] * 6.283185307 - alpha);
+      /* mean field with Sakaguchi lag; poles q > 1 = Daido q-harmonic coupling */
+      const q = p.poles;
+      if (q > 1) {
+        let qx = 0, qy = 0;
+        for (let i = 0; i < n; i++) { const a = s.phase[i] * 6.283185307 * q; qx += Math.cos(a); qy += Math.sin(a); }
+        qx /= n; qy /= n;
+        s.RQ = Math.sqrt(qx * qx + qy * qy);
+        const psiQ = Math.atan2(qy, qx);
+        for (let i = 0; i < n; i++) {
+          s.couple[i] = s.Ksm * s.RQ * Math.sin(psiQ - s.phase[i] * 6.283185307 * q - alpha);
+        }
+      } else {
+        s.RQ = 0;
+        for (let i = 0; i < n; i++) {
+          s.couple[i] = s.Ksm * s.R * Math.sin(s.psi - s.phase[i] * 6.283185307 - alpha);
+        }
       }
       s.RA = 0; s.RB = 0;
     } else if (p.topo === 1) {
@@ -476,6 +499,7 @@ ranges.forEach(k => {
   update();
 });
 $('topo').addEventListener('change', () => send('topo', +$('topo').value));
+$('poles').addEventListener('change', () => send('poles', +$('poles').value));
 $('seed').addEventListener('change', () => send('seed', +$('seed').value));
 $('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
 $('retrig').addEventListener('change', () => send('retrig', $('retrig').checked ? 1 : 0));
@@ -486,6 +510,7 @@ $('beatMult').addEventListener('change', () => send('beatMult', +$('beatMult').v
 function pushAllParams() {
   ranges.forEach(k => send(k, +$(k).value));
   send('topo', +$('topo').value);
+  send('poles', +$('poles').value);
   send('seed', +$('seed').value);
   send('retrig', $('retrig').checked ? 1 : 0);
   send('beatQ', $('beatQ').checked ? 1 : 0);
@@ -617,7 +642,8 @@ function drawPhase() {
   pctx.fillStyle = '#ff4fa3';
   pctx.beginPath(); pctx.arc(ax, ay, 3.5, 0, Math.PI * 2); pctx.fill();
   $('rval').textContent = s.R.toFixed(2);
-  $('rab').textContent = twoClu ? ('· A ' + s.RA.toFixed(2) + ' / B ' + s.RB.toFixed(2)) : '';
+  $('rab').textContent = twoClu ? ('· A ' + s.RA.toFixed(2) + ' / B ' + s.RB.toFixed(2))
+    : (synth.p.topo === 0 && synth.p.poles > 1 ? ('· R' + synth.p.poles + ' ' + s.RQ.toFixed(2)) : '');
   $('kval').textContent = s.Ksm.toFixed(1);
   $('sval').textContent = s.sigma.toFixed(1);
 }
@@ -648,9 +674,26 @@ function drawCarpet() {
   }
 }
 
+function drawBeatInfo() {
+  const el = $('beatinfo');
+  if (!synth || !$('beatQ').checked) { if (el.textContent) el.textContent = ''; return; }
+  const s = synth.focus();
+  if (!s) { el.textContent = 'grid armed — play a note'; return; }
+  const u = (synth.p.bpm / 60) * synth.p.beatMult;
+  const n = synth.p.n;
+  const rungs = new Set();
+  for (let i = 0; i < n; i++) rungs.add(Math.round((s.vf[i] - s.f0cur) / u));
+  const coupled = s.Ksm > 0.05;
+  const locked = coupled && (s.R > 0.8 || s.RQ > 0.8 || (synth.p.topo === 2 && s.RA > 0.8 && s.RB > 0.8));
+  el.textContent = 'grid ' + u.toFixed(2) + ' Hz · ' + rungs.size + ' rung' + (rungs.size === 1 ? '' : 's')
+    + (rungs.size === 1 ? ' — raise detune to populate' : ' · beats at ×' + u.toFixed(2) + ' Hz')
+    + (locked ? ' · ⚠ swarm locked — lower K to hear the grid' : '');
+}
+
 function loop() {
   drawPhase();
   drawCarpet();
+  drawBeatInfo();
   requestAnimationFrame(loop);
 }
 loop();

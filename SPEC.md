@@ -43,6 +43,7 @@ Every control lives in exactly one layer. This is the UI's information architect
 |---|---|---|
 | **Pull K** | bipolar −1..+1, squared taper | + = sync attractor, − = splay attractor. Normalized: K_Hz = 4·K·\|K\|·σ_measured (sync); splay gets **3× authority** (ADR-007). Slewed. |
 | Topology | mean-field · ring (reach 1–8) · two-cluster (cross-link μ 0–1) | shapes the sync attractor; splay = assigned slots (≡ twisted state on ring) |
+| Poles q | 1–4 | Daido q-harmonic mean field (mean-field topology only). q=1 classic sync; q>1 splits the swarm into q clusters (R_q high, R₁ low) with seed-dependent demographics — the split ratio is a fundamental-vs-q·f mix the seed rolls — and bistable full sync from aligned starts (ADR-015). Emergent sibling of assigned-slot splay, which remains the deterministic mechanism (ADR-007) |
 | Phase lag α | −90°..+90° | Sakaguchi term sin(ψ−θ−α); bends locked frequency; doorway to broken-symmetry states |
 | Inertia | 0–1 | 2nd-order swing dynamics, ζ=0.45, mass ∝ knob; hunting/ringing approach to lock |
 | Onset lock / dissolve | 0–1 / 10 ms–8 s | K envelope: locked attack blooming into cloud (or the reverse with retrigger off) |
@@ -79,7 +80,7 @@ Every control lives in exactly one layer. This is the UI's information architect
 - **Cents-constant** (classic): beat rates ∝ f0; the familiar register-dependence.
 - **Hz-constant** (beat-flat): identical beat rates everywhere; static bass, subtle top.
 - **ERB-flat** (roughness-flat): Δf ∝ ERB(f0) = 24.7·(4.37·f0/1000 + 1); perceived roughness approximately constant across the keyboard. The law that "follows you."
-- **Tempo-grid** (ADR-005): voices placed by the distribution as usual, then each Hz offset snapped to the nearest multiple of u = (BPM/60)·cyclesPerBeat. All pairwise beat rates become exact grid multiples; spread stays under the detune knob; rung-sharing voices thicken with zero beating. Unit is **cycles per beat** (¼/beat = one pulse per 4/4 bar; 2/beat = eighths). Host-tempo synced.
+- **Tempo-grid** (ADR-005): voices placed by the distribution as usual, then each Hz offset snapped to the nearest multiple of u = (BPM/60)·cyclesPerBeat. All pairwise beat rates become exact grid multiples; spread stays under the detune knob; rung-sharing voices thicken with zero beating. Unit is **cycles per beat** (¼/beat = one pulse per 4/4 bar; 2/beat = eighths). Host-tempo synced. **Grid × coupling (ADR-016/017):** locking suppresses grid-rate beating (locked voices share one frequency) — intended negotiation, not a defect, but any surface exposing this law MUST show live grid status (unit, rungs occupied) plus a lock warning gated on coupling engaged (Ksm > ~0.05 Hz) AND coherence high (R or R_q > 0.8); grid-forward presets want K subcritical (≲ 1×σ).
 
 ## 5. Subsystem specifications
 
@@ -102,7 +103,7 @@ Once per render block: fold each held pair's ratio into [1,2), snap to nearest o
 - **Phase circle** (SAW/DYNAMICS hero) with: order vector R₁·e^{iψ}; **dual order meters** (R₁ sync/clump and the N-th Daido order parameter R_N = |(1/N)·Σ e^{iNθᵢ}| for splay/formation — orthogonal regime indicators: R₁ high = sync, R₁ low + R_N high = splay, both low = free); **seat rings** at assigned splay slots when splay is engaged (opacity ramps with engagement); **formation polygon** connecting voices in index order (collapsed point = sync · regular N-gon = splay · scribble = free). Amended per the splay-legibility change note (2026-07-17, archived at `docs/change-notes/2026-07-17-splay-legibility.md`): R₁ alone cannot distinguish locked splay from free — the instrument's most novel state was illegible. Forward-compatibility: if multi-pole (Daido) coupling lands, meters/formations generalize to an R_q family — design the GUI meter component to take q as a parameter, not hardcode N.
 - **Phase carpet** (voice index × phase) — where ring waves and broken-symmetry states are legible
 - **Partial strips** (per-partial phase columns + R bars) — where cascades and erasure are legible
-- Live readouts: R (per cluster where relevant), effective pull Hz, measured σ, gravity ratio + cents deviation
+- Live readouts: R (per cluster where relevant; R_q under Daido poles), effective pull Hz, measured σ, gravity ratio + cents deviation, and — whenever the tempo-grid law is exposed — grid status with the cause-AND-state lock warning on fixed-height reserve (ADR-016/017)
 - The GUI thesis: the user should *see the physics they are hearing.* These are the instrument's face, not debug views.
 
 ### 5.7 Provenance & preset identity

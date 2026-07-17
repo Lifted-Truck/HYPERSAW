@@ -30,6 +30,8 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 ## Phase 3 — Dynamics integration
 
 - Topology (mean-field / ring+reach / two-cluster+μ), Sakaguchi α, absolute-K mode, consonance gravity + basin + ratio readout.
+- Daido poles q (1–4) with R_q meter (ADR-015); tempo-grid status readout + cause-AND-state lock warning (ADR-016/017).
+- Formalize L0 criteria for q-cluster formation / demographics / bistability from the ADR-015 anchors (R_q = 0.97 at q∈{2,3} across seeds; 2f0 projection ~0.080 seed-invariant) and add them to ACCEPTANCE.md at this gate.
 - L0-8..11 green; Layer-E 3 sign-off.
 - **Gate:** the dynamics lab's verified states are reproducible in-plugin from preset recall.
 
