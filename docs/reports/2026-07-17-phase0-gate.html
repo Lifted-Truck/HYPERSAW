@@ -1,0 +1,135 @@
+<title>HYPERSAW — Phase 0 gate report</title>
+<style>
+  :root {
+    --paper: #f6f5f1; --ink: #17150f; --muted: #6b675c; --line: #dedbd2;
+    --accent: #b06f04; --accent-soft: #f3e3c3; --good: #23794a; --good-soft: #e0efe6;
+    --warn: #9a5b00; --warn-soft: #f6ead6; --card: #fdfcfa;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    --display: "Avenir Next", "Avenir", "Helvetica Neue", sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #14120d; --ink: #ece8dd; --muted: #9b968a; --line: #333027;
+      --accent: #ffb63d; --accent-soft: #2e2515; --good: #5dc389; --good-soft: #17281d;
+      --warn: #e0a34a; --warn-soft: #2c2210; --card: #1b1913; }
+  }
+  :root[data-theme="dark"] { --paper: #14120d; --ink: #ece8dd; --muted: #9b968a; --line: #333027;
+    --accent: #ffb63d; --accent-soft: #2e2515; --good: #5dc389; --good-soft: #17281d;
+    --warn: #e0a34a; --warn-soft: #2c2210; --card: #1b1913; }
+  :root[data-theme="light"] { --paper: #f6f5f1; --ink: #17150f; --muted: #6b675c; --line: #dedbd2;
+    --accent: #b06f04; --accent-soft: #f3e3c3; --good: #23794a; --good-soft: #e0efe6;
+    --warn: #9a5b00; --warn-soft: #f6ead6; --card: #fdfcfa; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--body);
+    line-height: 1.55; font-size: 15.5px; margin: 0; padding: 3rem 1.25rem 4rem; }
+  .page { max-width: 720px; margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.6rem; }
+  h1 { font-family: var(--display); font-weight: 600; font-size: 1.9rem;
+    letter-spacing: -0.01em; margin: 0 0 0.35rem; text-wrap: balance; }
+  .meta { color: var(--muted); font-size: 0.85rem; margin: 0; }
+  .meta code { font-family: var(--mono); font-size: 0.82rem; }
+  h2 { font-family: var(--display); font-weight: 600; font-size: 1.05rem;
+    margin: 2.4rem 0 0.8rem; padding-top: 1.3rem; border-top: 1px solid var(--line); }
+  p { margin: 0.6rem 0; }
+  .quiet { color: var(--muted); }
+  .checks { display: grid; gap: 0.5rem; margin: 1.4rem 0 0; }
+  .check { display: flex; gap: 0.8rem; align-items: baseline; background: var(--good-soft);
+    border-left: 3px solid var(--good); padding: 0.55rem 0.9rem; border-radius: 0 4px 4px 0; }
+  .check.pend { background: var(--warn-soft); border-left-color: var(--warn); }
+  .check .tag { font-family: var(--mono); font-weight: 700; font-size: 0.78rem;
+    color: var(--good); min-width: 4.6rem; }
+  .check.pend .tag { color: var(--warn); }
+  .check .what { font-size: 0.92rem; }
+  .check code { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem;
+    font-variant-numeric: tabular-nums; }
+  .tablewrap { overflow-x: auto; }
+  th { text-align: left; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+    padding: 0.45rem 0.9rem 0.45rem 0; border-bottom: 1px solid var(--line); }
+  td { padding: 0.5rem 0.9rem 0.5rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num { text-align: right; font-family: var(--mono); font-size: 0.84rem; }
+  th.num { text-align: right; }
+  .bar { display: inline-block; height: 0.62rem; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, transparent)); border-radius: 2px; vertical-align: middle; }
+  .adr { background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 0.9rem 1.1rem; margin: 0.9rem 0; }
+  .adr h3 { font-family: var(--display); font-size: 0.95rem; margin: 0 0 0.4rem; }
+  .adr .status { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em;
+    color: var(--warn); text-transform: uppercase; }
+  .adr p { font-size: 0.9rem; margin: 0.35rem 0; }
+  ul { padding-left: 1.2rem; margin: 0.6rem 0; }
+  li { margin: 0.3rem 0; }
+  .path { font-family: var(--mono); font-size: 0.82em; background: var(--card);
+    border: 1px solid var(--line); border-radius: 3px; padding: 0.05em 0.35em; }
+  .asks { counter-reset: ask; list-style: none; padding-left: 0; }
+  .asks li { counter-increment: ask; display: flex; gap: 0.75rem; margin: 0.7rem 0; align-items: baseline; }
+  .asks li::before { content: counter(ask); font-family: var(--mono); font-size: 0.75rem;
+    font-weight: 700; color: var(--accent); border: 1px solid var(--accent); border-radius: 50%;
+    width: 1.35rem; height: 1.35rem; flex: none; display: flex; align-items: center; justify-content: center; }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 0.8rem; font-family: var(--mono); }
+</style>
+
+<div class="page">
+  <p class="eyebrow">Phase 0 · platform gate · ratification request</p>
+  <h1>HYPERSAW builds, validates, and is a real plugin</h1>
+  <p class="meta">2026-07-17 · commit <code>a34f4b9</code> · CLAP + VST3 + AUv2 from one clap-first core · no JUCE</p>
+
+  <div class="checks">
+    <div class="check"><span class="tag">PASS</span><span class="what">Build — CLAP, VST3, AUv2 + bench tool, Release, Apple M3 <code>(Unix Makefiles, clap 1.2.10, clap-wrapper v0.15.1 pinned)</code></span></div>
+    <div class="check"><span class="tag">PASS</span><span class="what">pluginval on the VST3 — SUCCESS at strictness <b>10</b> <code>(gate asks ≥ 5)</code></span></div>
+    <div class="check"><span class="tag">PASS</span><span class="what">auval on the AUv2 — <code>aumu Hsaw LfTk</code> → AU VALIDATION SUCCEEDED</span></div>
+    <div class="check"><span class="tag">PASS</span><span class="what">Installed to user Library, all three formats, codesign seals verified <code>(re-signed post-install per the known JUCE-era seal gotcha)</code></span></div>
+    <div class="check"><span class="tag">PASS</span><span class="what">CI matrix — macOS + Windows builds + pluginval GREEN in Actions <code>(Windows needed static MSVC runtime + M_PI portability; fixed)</code></span></div>
+    <div class="check pend"><span class="tag">PENDING</span><span class="what">Host loads — Live picks up VST3/AU on next launch here; Reaper/Bitwig not installed locally (CI pluginval is the proxy)</span></div>
+  </div>
+
+  <h2>ADR-006 spike — the renderer decision data</h2>
+  <p>Single thread, Release −O3, 8-second renders, 44.1 kHz, Apple M3. Bars = × realtime (log-ish scale, capped for display).</p>
+  <div class="tablewrap"><table>
+    <tr><th>Load</th><th>Renderer</th><th class="num">× realtime</th><th></th></tr>
+    <tr><td rowspan="2">128 part × 5 vox × 4 notes <span class="quiet">(2560 osc — the target)</span></td>
+        <td>bank</td><td class="num">66×</td><td><span class="bar" style="width:66px"></span></td></tr>
+    <tr><td>iFFT (vDSP)</td><td class="num">216×</td><td><span class="bar" style="width:150px"></span></td></tr>
+    <tr><td rowspan="2">24 part × 5 × 4 <span class="quiet">(480 osc — prototype ceiling)</span></td>
+        <td>bank</td><td class="num">403×</td><td><span class="bar" style="width:190px"></span></td></tr>
+    <tr><td>iFFT (vDSP)</td><td class="num">947×</td><td><span class="bar" style="width:230px"></span></td></tr>
+    <tr><td rowspan="2">64 part × 5 × 8 notes <span class="quiet">(2560 osc)</span></td>
+        <td>bank</td><td class="num">75×</td><td><span class="bar" style="width:72px"></span></td></tr>
+    <tr><td>iFFT (vDSP)</td><td class="num">199×</td><td><span class="bar" style="width:145px"></span></td></tr>
+  </table></div>
+  <p><b>Reading:</b> iFFT is ~3× faster, but both have order-of-magnitude headroom even derated 4× for min-spec — so throughput doesn't decide. What decides: the L0-1 parity oracle (ε = 1e-6 vs the JS per-sample accumulators — structurally impossible through a windowed-OLA pipeline) and control-rate semantics (bank honors the 16-sample tick; iFFT quantizes control to a ~23 ms hop, smearing fast K gestures).</p>
+
+  <h2>Proposed decisions — for your ratification</h2>
+  <div class="adr">
+    <h3>ADR-018 — Renderer: oscillator bank <span class="status">· proposed</span></h3>
+    <p>Table + linear interp per SPEC §6.6. iFFT recorded as the escape hatch (revisit trigger: &gt; ~1k sines per note, or min-spec E-6 measurements falling short).</p>
+  </div>
+  <div class="adr">
+    <h3>ADR-019 — GUI stack: embedded webview (choc) <span class="status">· proposed</span></h3>
+    <p>Reuses the prototypes' canvas/JS/CSS nearly verbatim — the strongest possible fit to ADR-013's "match the prototype design language." Precedents: JUCE 8's WebView UI is built on choc; CLAP has a draft webview extension (1.2.7+); Cmajor's CLAP exporter defaults to webview.</p>
+    <p><b>Risks with owners:</b> keyboard-focus stealing in Live (known pattern → key-forwarding from day one); webview-through-clap-wrapper unconfirmed in the wild (→ smoke test before GUI work); multi-instance memory (→ measure with 8 instances in Phase 2). Fallback: iPlug2 IGraphics or Dear ImGui, at the cost of full visual reimplementation.</p>
+  </div>
+  <div class="adr">
+    <h3>E-6 hardware envelope <span class="status">· proposed</span></h3>
+    <p>Min-spec: Apple M1 base / 4-core 2018-class Intel ultrabook; Windows x64 AVX2. 44.1 kHz @ 128-sample buffer. The E-6 patch (8-voice poly, M = 32 SAW) must hold &lt; 50% of one core on min-spec.</p>
+  </div>
+
+  <h2>What was built</h2>
+  <ul>
+    <li><span class="path">src/hypersaw_clap.cpp</span> — clap-first impl: note/audio ports, sample-accurate event splitting, deterministic 8-voice placeholder (SwarmCore replaces it in Phase 1, parity-gated).</li>
+    <li><span class="path">CMakeLists.txt</span> + pinned submodules — one impl target wrapped to CLAP/VST3/AUv2 by <span class="path">make_clapfirst_plugins</span>.</li>
+    <li><span class="path">tools/renderer_bench.cpp</span> — the ADR-006 spike, reproducible (seeded, no wall-clock in render paths).</li>
+    <li>CI — macOS + Windows build matrix + pluginval 1.0.4 @ strictness 5 on every push; <span class="path">./verify full</span> now builds Release locally.</li>
+  </ul>
+
+  <h2>Your calls</h2>
+  <ol class="asks">
+    <li>Ratify <b>ADR-018</b> (bank renderer).</li>
+    <li>Ratify <b>ADR-019</b> (choc webview GUI) — or pick the native fallback now.</li>
+    <li>Ratify the <b>E-6 envelope</b> (it becomes the ACCEPTANCE E-6 text).</li>
+    <li>Launch Live once and confirm HYPERSAW appears (VST3 + AU) — the last local gate item.</li>
+  </ol>
+
+  <footer>traces/2026-07-17-phase0-platform.md · pluginval 10/10 · auval PASS · bench: bank 66× @ 2560 osc</footer>
+</div>

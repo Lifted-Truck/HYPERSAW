@@ -1,0 +1,207 @@
+<title>HYPERSAW — spin-up ratification report</title>
+<style>
+  :root {
+    --paper: #f6f5f1;
+    --ink: #17150f;
+    --muted: #6b675c;
+    --line: #dedbd2;
+    --accent: #b06f04;
+    --accent-soft: #f3e3c3;
+    --good: #23794a;
+    --good-soft: #e0efe6;
+    --card: #fdfcfa;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    --display: "Avenir Next", "Avenir", "Helvetica Neue", sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14120d; --ink: #ece8dd; --muted: #9b968a; --line: #333027;
+      --accent: #ffb63d; --accent-soft: #2e2515; --good: #5dc389;
+      --good-soft: #17281d; --card: #1b1913;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14120d; --ink: #ece8dd; --muted: #9b968a; --line: #333027;
+    --accent: #ffb63d; --accent-soft: #2e2515; --good: #5dc389;
+    --good-soft: #17281d; --card: #1b1913;
+  }
+  :root[data-theme="light"] {
+    --paper: #f6f5f1; --ink: #17150f; --muted: #6b675c; --line: #dedbd2;
+    --accent: #b06f04; --accent-soft: #f3e3c3; --good: #23794a;
+    --good-soft: #e0efe6; --card: #fdfcfa;
+  }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: var(--body); line-height: 1.55; font-size: 15.5px;
+    margin: 0; padding: 3rem 1.25rem 4rem;
+  }
+  .page { max-width: 720px; margin: 0 auto; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.6rem;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 600; font-size: 1.9rem;
+    letter-spacing: -0.01em; margin: 0 0 0.35rem; text-wrap: balance;
+  }
+  .meta { color: var(--muted); font-size: 0.85rem; margin: 0; }
+  .meta code { font-family: var(--mono); font-size: 0.82rem; }
+
+  .regimes { display: flex; gap: 1.5rem; margin: 1.8rem 0 0.4rem; flex-wrap: wrap; }
+  .regime { text-align: center; }
+  .regime .cap {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); margin-top: 0.35rem;
+  }
+  .regime .cap b { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: var(--display); font-weight: 600; font-size: 1.05rem;
+    letter-spacing: 0.01em; margin: 2.6rem 0 0.8rem;
+    padding-top: 1.4rem; border-top: 1px solid var(--line);
+  }
+  p { margin: 0.6rem 0; }
+  .quiet { color: var(--muted); }
+
+  .verdict {
+    display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap;
+    background: var(--good-soft); border-left: 3px solid var(--good);
+    padding: 0.8rem 1rem; margin: 1.6rem 0 0; border-radius: 0 4px 4px 0;
+  }
+  .verdict .pill {
+    font-family: var(--mono); font-weight: 700; font-size: 0.85rem;
+    color: var(--good); letter-spacing: 0.06em;
+  }
+  .verdict code { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  .tablewrap { overflow-x: auto; }
+  th {
+    text-align: left; font-family: var(--mono); font-size: 0.68rem;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+    font-weight: 600; padding: 0.45rem 0.9rem 0.45rem 0; border-bottom: 1px solid var(--line);
+  }
+  td { padding: 0.5rem 0.9rem 0.5rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.q { font-weight: 600; white-space: nowrap; font-size: 0.84rem; }
+  td:last-child, th:last-child { padding-right: 0; }
+  .ans { font-weight: 600; }
+  .ans .note { font-weight: 400; color: var(--muted); }
+
+  ul { padding-left: 1.2rem; margin: 0.6rem 0; }
+  li { margin: 0.35rem 0; }
+  code, .path { font-family: var(--mono); font-size: 0.84em; }
+  .path { background: var(--card); border: 1px solid var(--line); border-radius: 3px; padding: 0.05em 0.35em; }
+
+  .amend {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    padding: 0.8rem 1rem; border-radius: 0 4px 4px 0; margin: 1rem 0;
+  }
+  .amend p { margin: 0.4rem 0; font-size: 0.92rem; }
+
+  .asks { counter-reset: ask; list-style: none; padding-left: 0; }
+  .asks li {
+    counter-increment: ask; display: flex; gap: 0.75rem; margin: 0.7rem 0;
+    align-items: baseline;
+  }
+  .asks li::before {
+    content: counter(ask); font-family: var(--mono); font-size: 0.75rem;
+    font-weight: 700; color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 50%; width: 1.35rem; height: 1.35rem; flex: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  footer {
+    margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 0.8rem; font-family: var(--mono);
+  }
+</style>
+
+<div class="page">
+  <p class="eyebrow">Spin-up · ratification gate</p>
+  <h1>HYPERSAW — scaffolded from the SWARM✱ spec kit</h1>
+  <p class="meta">2026-07-17 · initial commit <code>b8eec0a</code> · 29 files · working title SWARM✱ stays open until Phase 5</p>
+
+  <div class="regimes" aria-hidden="true">
+    <!-- The instrument's three regimes, as the header motif: dots on the phase circle. -->
+    <div class="regime">
+      <svg width="84" height="84" viewBox="0 0 84 84">
+        <circle cx="42" cy="42" r="34" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+        <circle cx="72.2" cy="30.5" r="3.4" fill="var(--accent)"/><circle cx="74.6" cy="37.3" r="3.4" fill="var(--accent)"/>
+        <circle cx="75.8" cy="44.4" r="3.4" fill="var(--accent)"/><circle cx="73.9" cy="51.6" r="3.4" fill="var(--accent)"/>
+        <circle cx="70.8" cy="57.4" r="3.4" fill="var(--accent)"/><circle cx="74.9" cy="41" r="3.4" fill="var(--accent)"/>
+        <circle cx="73" cy="34" r="3.4" fill="var(--accent)"/>
+        <line x1="42" y1="42" x2="70" y2="43" stroke="var(--accent)" stroke-width="2"/>
+      </svg>
+      <div class="cap"><b>sync</b> R₁ 0.97</div>
+    </div>
+    <div class="regime">
+      <svg width="84" height="84" viewBox="0 0 84 84">
+        <circle cx="42" cy="42" r="34" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+        <polygon points="76,42 63.2,68.6 34.4,75.1 11.4,56.7 11.4,27.3 34.4,8.9 63.2,15.4" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.45"/>
+        <circle cx="76" cy="42" r="3.4" fill="var(--accent)"/><circle cx="63.2" cy="68.6" r="3.4" fill="var(--accent)"/>
+        <circle cx="34.4" cy="75.1" r="3.4" fill="var(--accent)"/><circle cx="11.4" cy="56.7" r="3.4" fill="var(--accent)"/>
+        <circle cx="11.4" cy="27.3" r="3.4" fill="var(--accent)"/><circle cx="34.4" cy="8.9" r="3.4" fill="var(--accent)"/>
+        <circle cx="63.2" cy="15.4" r="3.4" fill="var(--accent)"/>
+      </svg>
+      <div class="cap"><b>splay</b> Rₙ 0.84</div>
+    </div>
+    <div class="regime">
+      <svg width="84" height="84" viewBox="0 0 84 84">
+        <circle cx="42" cy="42" r="34" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+        <circle cx="70" cy="55" r="3.4" fill="var(--muted)"/><circle cx="21" cy="18" r="3.4" fill="var(--muted)"/>
+        <circle cx="55" cy="9.5" r="3.4" fill="var(--muted)"/><circle cx="9" cy="49" r="3.4" fill="var(--muted)"/>
+        <circle cx="47" cy="75.5" r="3.4" fill="var(--muted)"/><circle cx="75.5" cy="35" r="3.4" fill="var(--muted)"/>
+        <circle cx="27" cy="71" r="3.4" fill="var(--muted)"/>
+      </svg>
+      <div class="cap"><b>free</b> both low</div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <span class="pill">./verify fast — GREEN</span>
+    <code>{"target":"fast","exit":0,"git":"b8eec0a","ts":"2026-07-17T20:49:47Z"}</code>
+  </div>
+  <p class="quiet" style="font-size:0.85rem; margin-top:0.5rem;">Day-zero gate, honestly scoped: leak gate · structure (docs + prototypes present) · manifest pins (rung, models, tags) · INDEX↔LIBRARY integrity. The real L0 suite (parity + trajectories) lands in Phase 1 and only adds.</p>
+
+  <h2>The manifest, for ratification</h2>
+  <p>Survey conducted in-session; answers below are what <span class="path">project.manifest.json</span> now pins (status: provisional until you ratify).</p>
+  <div class="tablewrap"><table>
+    <tr><th>Question</th><th>Ratified answer</th></tr>
+    <tr><td class="q">1 · What is it</td><td><span class="ans">Audio plugin</span> — CLAP-native instrument, VST3 via clap-wrapper (ADR-002)</td></tr>
+    <tr><td class="q">2 · Architecture rung</td><td><span class="ans">Rung 2 — thread + verifier</span> <span class="note">· earned by the parity oracle; fleet not earned (one engine, ADR-001)</span></td></tr>
+    <tr><td class="q">3 · Domain core</td><td><span class="ans">The entire runtime DSP core</span> <span class="note">· coupling, kernels, laws, gravity, seeded determinism — no LLM in the runtime path</span></td></tr>
+    <tr><td class="q">4 · Oracle shape</td><td><span class="ans">Strict pinned goldens</span> <span class="note">· L0-1 parity ε=1e-6 + L0-2..13 in fast; Layer-E human sign-off in full; CI fast-only</span></td></tr>
+    <tr><td class="q">5 · Second impl</td><td><span class="ans">Yes — JS is the pin</span> <span class="note">· prototypes are the reference (ADR-003); divergence needs an ADR</span></td></tr>
+    <tr><td class="q">6 · Ecosystem seams</td><td><span class="ans">Defer both briefs</span> <span class="note">· Tonality at Phase 3, terrain sibling at Phase 4; visibly-degraded placeholders meanwhile</span></td></tr>
+    <tr><td class="q">7 · Audit thread</td><td><span class="ans">Not earned</span></td></tr>
+    <tr><td class="q">8 · Knowledge tags</td><td><span class="ans">swarm-dynamics · parity-oracle · plugin-platform · realtime-perf</span></td></tr>
+    <tr><td class="q">9 · Lifespan</td><td><span class="ans">Long-lived, interactive</span> <span class="note">· human at every phase gate and ADR</span></td></tr>
+    <tr><td class="q">Models</td><td><span class="ans">Lead/critic Opus · implementer Sonnet · verifier Haiku</span> <span class="note">· pinned in agent frontmatter + manifest, capped at Opus</span></td></tr>
+  </table></div>
+
+  <h2>Amendment folded in mid-session</h2>
+  <div class="amend">
+    <p><b>CHANGE-NOTE-splay-legibility</b> + <span class="path">swarmsaw_v2.html</span> arrived while scaffolding. Diff-verified as purely additive (R₁ alone can't tell locked splay from free — v2 adds the Rₙ Daido meter, seat rings, formation polygon; no audio-path changes).</p>
+    <p>Applied as the note directs: <b>SPEC §5.6</b> now specifies the dual-meter visualization contract; <b>ACCEPTANCE L0-3</b> gained the three-regime R₁/Rₙ table (the header motif above, values ±0.08) as regression anchors; <b>ADR-011</b> records that v2 supersedes v1 as the SAW reference. Rₙ is parity-relevant for the C++ port.</p>
+  </div>
+
+  <h2>What was written</h2>
+  <ul>
+    <li><b>Harness</b> — <span class="path">./verify</span> (leak gate + day-zero fast), <span class="path">.claude/</span> hooks (Stop gate, destructive-op deny, dirty tracking), agents (implementer/verifier/critic, models pinned), provenance skill.</li>
+    <li><b>Charter</b> — <span class="path">CLAUDE.md</span>: invariant layer verbatim; §Domain carries the determinism/parity/seconds-not-ticks invariants and protects SPEC, ACCEPTANCE, the prototypes, and <span class="path">./verify</span>.</li>
+    <li><b>Knowledge loop</b> — <span class="path">INDEX.md</span>/<span class="path">LIBRARY.md</span>, seeded with one real lesson (L0001: the reference moves by file-drop; pin it before generating goldens).</li>
+    <li><b>Kit docs adopted as canonical</b> — SPEC, ACCEPTANCE, ROADMAP (status line added), DECISIONS (+ADR-010/011), README (repo-status section, dated), PRIOR-ART, PARKED.</li>
+    <li><b>Plumbing</b> — <span class="path">traces/</span> (spin-up trace written), <span class="path">.gitignore</span>, CI workflow (runs <code>./verify fast</code>; inert until a remote exists), git repo on <code>main</code>.</li>
+  </ul>
+
+  <h2>Open — your call</h2>
+  <ol class="asks">
+    <li><b>Ratify the manifest</b> — flip <span class="path">project.manifest.json</span> status from PROVISIONAL on your word.</li>
+    <li><b>Delete <span class="path">swarmsaw.html</span>?</b> Superseded by v2 (ADR-011); kept pending your approval (deletion is a human gate). <span class="path">files.zip</span> is gitignored, not deleted — same question.</li>
+    <li><b>Register HYPERSAW in autonomous's ecosystem tracks?</b> That's a resident-only ROADMAP edit over there — say the word and I'll draft it for a resident session.</li>
+  </ol>
+
+  <p style="margin-top:1.6rem;"><b>Next:</b> Phase 0 — CLAP skeleton building on macOS + Windows, hosts load it, CI real, and the ADR-006 renderer spike (oscillator bank vs iFFT at 128 partials × 5 voices × 4 notes).</p>
+
+  <footer>traces/2026-07-17-spinup.md · ./verify report → exit 0 @ b8eec0a</footer>
+</div>
