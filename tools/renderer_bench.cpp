@@ -34,6 +34,7 @@
 namespace
 {
 constexpr double kSR = 44100.0;
+constexpr double kPi = 3.14159265358979323846;
 constexpr int kTick = 16;
 constexpr int kTableBits = 12;
 constexpr int kTableSize = 1 << kTableBits;  // 4096, per SPEC §6.6
@@ -82,7 +83,7 @@ double runBank(const OscSet &osc, double seconds, float *sink)
   const int N = (int)osc.freq.size();
   std::vector<float> table(kTableSize + 1);
   for (int i = 0; i <= kTableSize; ++i)
-    table[i] = (float)std::sin(2.0 * M_PI * i / kTableSize);
+    table[i] = (float)std::sin(2.0 * kPi * i / kTableSize);
 
   std::vector<float> phase(N), inc(N), amp(N);
   for (int i = 0; i < N; ++i)
@@ -135,7 +136,7 @@ double runIFFT(const OscSet &osc, double seconds, float *sink)
   // Blackman-Harris analysis/synthesis window
   for (int i = 0; i < kFFT; ++i)
   {
-    double t = 2.0 * M_PI * i / kFFT;
+    double t = 2.0 * kPi * i / kFFT;
     window[i] =
         (float)(0.35875 - 0.48829 * std::cos(t) + 0.14128 * std::cos(2 * t) - 0.01168 * std::cos(3 * t));
   }
@@ -165,8 +166,8 @@ double runIFFT(const OscSet &osc, double seconds, float *sink)
         re[b] += c * k;
         im[b] += s * k;
       }
-      phase[i] += 2.0 * M_PI * osc.freq[i] * kHop / kSR;
-      if (phase[i] > 1e9) phase[i] = std::fmod(phase[i], 2.0 * M_PI);
+      phase[i] += 2.0 * kPi * osc.freq[i] * kHop / kSR;
+      if (phase[i] > 1e9) phase[i] = std::fmod(phase[i], 2.0 * kPi);
     }
     DSPSplitComplex sc{re.data(), im.data()};
     vDSP_fft_zrip(setup, &sc, 1, 12, FFT_INVERSE);

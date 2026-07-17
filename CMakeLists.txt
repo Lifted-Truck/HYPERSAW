@@ -57,7 +57,9 @@ make_clapfirst_plugins(
 
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
-target_compile_options(renderer_bench PRIVATE -O3)
+if(NOT MSVC)
+  target_compile_options(renderer_bench PRIVATE -O3)
+endif()
 if(APPLE)
   target_link_libraries(renderer_bench PRIVATE "-framework Accelerate")
 endif()
