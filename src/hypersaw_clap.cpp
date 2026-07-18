@@ -454,7 +454,7 @@ bool plug_init(const clap_plugin_t *p)
 
 void plug_destroy(const clap_plugin_t *p)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_WIN32)
   delete self(p)->gui;
   self(p)->gui = nullptr;
 #endif
@@ -664,19 +664,25 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
 
 const clap_plugin_state_t s_state = {state_save, state_load};
 
-/* ---- gui extension (macOS/cocoa via the seam; other platforms: Phase 2
-       remainder — the shell exposes no gui ext there and hosts fall back to
-       their generic editor, exactly like the pre-GUI builds) ---- */
+/* ---- gui extension (macOS/cocoa + Windows/win32 via the seam; the win32
+       backend is CI-compile-verified, runtime validation is a recorded
+       residual — see the Phase 2 trace) ---- */
+#if defined(__APPLE__) || defined(_WIN32)
+
 #ifdef __APPLE__
+#define HYPERSAW_WINDOW_API CLAP_WINDOW_API_COCOA
+#else
+#define HYPERSAW_WINDOW_API CLAP_WINDOW_API_WIN32
+#endif
 
 bool gui_is_api_supported(const clap_plugin_t *, const char *api, bool is_floating)
 {
-  return !is_floating && !std::strcmp(api, CLAP_WINDOW_API_COCOA);
+  return !is_floating && !std::strcmp(api, HYPERSAW_WINDOW_API);
 }
 
 bool gui_get_preferred_api(const clap_plugin_t *, const char **api, bool *is_floating)
 {
-  *api = CLAP_WINDOW_API_COCOA;
+  *api = HYPERSAW_WINDOW_API;
   *is_floating = false;
   return true;
 }
@@ -746,7 +752,11 @@ bool gui_set_parent(const clap_plugin_t *p, const clap_window_t *window)
 {
   auto *pl = self(p);
   if (!pl->gui || !window) return false;
+#ifdef __APPLE__
   return pl->gui->attachToParent(window->cocoa);
+#else
+  return pl->gui->attachToParent(window->win32);
+#endif
 }
 
 bool gui_set_transient(const clap_plugin_t *, const clap_window_t *) { return false; }
@@ -760,7 +770,7 @@ const clap_plugin_gui_t s_gui = {gui_is_api_supported, gui_get_preferred_api, gu
                                  gui_set_size,         gui_set_parent,        gui_set_transient,
                                  gui_suggest_title,    gui_show,              gui_hide};
 
-#endif  // __APPLE__
+#endif  // __APPLE__ || _WIN32
 
 const void *plug_get_extension(const clap_plugin_t *, const char *id)
 {
@@ -768,7 +778,7 @@ const void *plug_get_extension(const clap_plugin_t *, const char *id)
   if (!std::strcmp(id, CLAP_EXT_NOTE_PORTS)) return &s_note_ports;
   if (!std::strcmp(id, CLAP_EXT_PARAMS)) return &s_params;
   if (!std::strcmp(id, CLAP_EXT_STATE)) return &s_state;
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_WIN32)
   if (!std::strcmp(id, CLAP_EXT_GUI)) return &s_gui;
 #endif
   return nullptr;
