@@ -155,6 +155,11 @@ struct Plugin
   hypersaw::HypersawGui *gui = nullptr;
   uint32_t guiW = 920, guiH = 600;  // resizable (clamped in gui_adjust_size)
   std::atomic<bool> processing{false};
+  // ADR-024: the inertia KNOB value (params/state domain). The core holds
+  // sqrt(knob) — squaring the core value back is not bit-exact, and
+  // state_check demands exact round-trips, so the knob domain gets this one
+  // documented slot. Everything else stays core.p-authoritative.
+  double inertiaKnob = 0;
 
   // Host note identity per swarm slot, for CLAP NOTE_END: hosts use note-end
   // to retire per-note bookkeeping, and without it some (Live via the VST3
@@ -324,6 +329,15 @@ struct Plugin
     {
       double v = std::max(d->minV, std::min(d->maxV, value));
       if (id == 23) v = snapGridStep(v);  // rational beat increments only
+      // Inertia knob taper (ADR-024): core w = sqrt(knob) spreads the useful
+      // heavy range across the knob (measured: the raw map leaves w in
+      // 0.02..0.3 a dead plateau at musical K). Core DSP untouched — the
+      // taper lives here; readParam inverts it.
+      if (id == 11)
+      {
+        inertiaKnob = v;
+        v = std::sqrt(v);
+      }
       core.setParam(d->coreKey, d->stepped ? std::round(v) : v);
     }
   }
@@ -345,7 +359,7 @@ struct Plugin
       if (k == "dissolve") return p.dissolve;
       if (k == "driftDepth") return p.driftDepth;
       if (k == "driftRate") return p.driftRate;
-      if (k == "inertia") return p.inertia;
+      if (k == "inertia") return inertiaKnob;  // ADR-024 knob domain
       if (k == "rtone") return p.rtone;
       if (k == "normExp") return p.normExp;
       if (k == "width") return p.width;
@@ -684,7 +698,17 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
     }
     else
     {
-      pl->core.setParam(key, val);
+      // Route through applyParam (not core.setParam) so layer mappings like
+      // the ADR-024 inertia taper apply identically on both load paths.
+      bool known = false;
+      for (const auto &d : kParams)
+        if (key == d.coreKey)
+        {
+          pl->applyParam(d.id, val);
+          known = true;
+          break;
+        }
+      if (!known) continue;  // unknown/future keys ignored (state_check pins this)
     }
   }
   return true;

@@ -1,25 +1,30 @@
-# SWARM✱ — spec kit
+# HYPERSAW
 
-**Working title:** SWARM✱ (naming open; the ✱ family — SWARMSAW / SWARM✱SPECTRA / SWARM✱DYNAMICS — carries over from the prototypes).
+**Working title:** SWARM✱ (naming open until Phase 5; the ✱ family — SWARMSAW / SWARM✱SPECTRA / SWARM✱DYNAMICS — carries over from the prototypes; the repo answers to HYPERSAW).
 
 **One-line pitch:** a synthesizer whose timbre, tuning, and performance gestures all emerge from a single coupled-oscillator dynamical system — the supersaw taken seriously as physics.
 
 **Elevator version:** every existing supersaw picks a fixed detune recipe and hides it. SWARM✱ makes the swarm itself the instrument: voices are Kuramoto-coupled oscillators you can herd into lock, dissolve into cloud, splay into harmonic multiplication, or erase by interference; the same coupling law operating between *notes* settles chords into just intonation; and every behavior is deterministic, seeded, and provenance-tracked.
 
-## What this kit is
+## What this repo is
 
-The design-complete handoff from three validated browser prototypes to a C++ CLAP/VST3 project driven by Claude Code under the autonomous-paradigm doctrine. Every claim in SPEC.md traces to a measured behavior in ACCEPTANCE.md; every measured behavior traces to a prototype you can open and hear.
+A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built from three validated browser prototypes, driven by Claude Code under the autonomous-paradigm doctrine. Correctness is defined as **bit-level parity with the prototypes** (L0-1, ε=1e-6 RMS — in practice most golden scenarios match to the exact bit), never as plausible-sounding audio. Every claim in SPEC.md traces to a measured behavior in ACCEPTANCE.md; every measured behavior traces to a prototype you can open and hear.
 
-## File map
+## Map
 
-| File | Purpose |
+| Path | Purpose |
 |---|---|
-| `SPEC.md` | The instrument: thesis, unified engine model, four-layer parameter surface, subsystem specs, implementation notes |
-| `ACCEPTANCE.md` | Layer-0 and Layer-E criteria with the exact measured numbers from prototype verification |
-| `ROADMAP.md` | Phase-gated build plan, Phase 0 → 5, with gates and exit criteria |
-| `DECISIONS.md` | Seeded ADR log (append-only from here) |
-| `PRIOR-ART.md` | Competitive/novelty analysis and freedom-to-operate flag |
-| `PARKED.md` | Ideas register — nothing gets silently dropped |
+| `SPEC.md` | The instrument: thesis, unified engine model, four-layer parameter surface, subsystem specs |
+| `ACCEPTANCE.md` | Layer-0 and Layer-E criteria with measured numbers (+ ratified protocol notes) |
+| `ROADMAP.md` | Phase-gated build plan, Phase 0 → 5 — **the single source of truth for status** |
+| `DECISIONS.md` | ADR log, append-only (ADR-001…) |
+| `PRIOR-ART.md` / `PARKED.md` | Competitive analysis · ideas register |
+| `src/swarm_core.h` | The engine: header-only, pure, statement-level port of the reference cores |
+| `src/hypersaw_clap.cpp` | CLAP shell: params, state, note handling, viz feed |
+| `src/gui/` | Webview GUI (ADR-019 seam: `hypersaw_gui.h` is the swappable boundary) |
+| `tools/` | The oracle: golden generator (Node, extracts the JS cores live), parity/trajectory/state checks, renderer bench |
+| `traces/` | Provenance log — one entry per merged change set |
+| `docs/` | Archived change notes, gate reports, (screenshots welcome: `docs/img/`) |
 
 ## Reference implementations (the oracle)
 
@@ -33,10 +38,11 @@ These are the reference implementation per ADR-003. The C++ port must match them
 
 ## Repo status
 
-*Last verified current: 2026-07-17 (spin-up + ratification day).*
+*Last verified current: 2026-07-18.*
 
-- **Spun up and ratified 2026-07-17** via `/spinup`: manifest in `project.manifest.json` (RATIFIED; rung 2 — thread + verifier), charter in `CLAUDE.md`, oracle dispatcher `./verify`, knowledge loop (`INDEX.md`/`LIBRARY.md`), `traces/`.
-- **Status: Phase 0 in flight (same day).** The CLAP-first C++ skeleton builds and validates — pluginval strictness 10 SUCCESS (VST3), auval SUCCEEDED (AUv2), CLAP/VST3/AU installed locally; renderer spike run and decided-pending-ratification (bank, ADR-018); GUI stack proposed (choc webview, ADR-019). `./verify fast` is structure/manifest/leak checks; `full` adds the Release build; the L0 parity suite lands in Phase 1.
-- **Reference timeline** (ADR-011/012): the current `swarmsaw.html` is the v2 splay-legibility revision (dual R₁/Rₙ meters); the original v1 was deleted after ratification and both versions remain in git history at the initial commit. The change note is archived at `docs/change-notes/2026-07-17-splay-legibility.md`; SPEC §5.6 and ACCEPTANCE L0-3 carry its amendments.
-- **GUI is an early priority** (ADR-013): GUI v1 matching the prototype design language ships with Phase 2, not Phase 5.
-- Ecosystem briefs (Tonality, terrain sibling) deliberately deferred — see ADR-010.
+- **Phases 0–2 CLOSED** (gates ratified; see ROADMAP for the authoritative trail). The plugin is a shippable SAW instrument: full parameter surface (all four detune laws incl. host-tempo-synced tempo-grid, seeded distributions, drift, ADSR per ADR-021, density comp, width/mono, digital↔clean), webview GUI in the prototype design language (phase circle with dual R₁/Rₙ meters, seat rings, formation polygon, XY pad, COPY/PASTE STATE), resizable editor, session persistence proven by a dedicated oracle (`state_check`: exact value round-trip + bit-identical restored audio).
+- **Phase 3 in flight**: the dynamics engine (topologies mean-field/ring/two-cluster + bimodal, Sakaguchi α, Daido poles, consonance gravity) is ported and parity-proven **51/51 against both references** (PR #12); the plugin surface for it (params, dynamics GUI cluster, R_q/R_A/R_B meters, gravity + grid-status readouts) is the next increment.
+- **The oracle** (`./verify fast|full`): leak/structure gates → Release build → golden self-check → L0-1 parity (dual-engine golden sets regenerated from the HTML references every run) → trajectory suite (L0-2..5, 8..13 + ADR-015 anchors) → state persistence. CI mirrors it on every push (macOS + Windows build + pluginval strictness 5).
+- **Validation**: pluginval strictness 10 SUCCESS · auval SUCCEEDED · Live load + play confirmed. Deferred by human direction: Windows runtime testing (until desktop coordination), Reaper/Bitwig loads.
+- **Reference timeline** (ADR-011/012): prototypes update by in-repo edits with an ADR; externally-authored change notes archive to `docs/change-notes/`. Current `swarmsaw.html` is the v2 splay-legibility revision (v1 recoverable at the initial commit).
+- Ecosystem briefs: Tonality intake brief due before consonance gravity ships (ADR-010); terrain-sibling brief due at Phase 4.
