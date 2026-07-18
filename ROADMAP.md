@@ -45,6 +45,7 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 - Per-partial engine at the ADR-006 renderer: amp tilt, stretch, width tilt, width law, cascade, splay-as-interference-gate with per-partial stereo narrowing.
 - Kernel abstraction landed: saw / sine share one voice path; wavetable kernel stubbed (terrain-sibling crossover parked until here).
 - L0-6, L0-7 green; Layer-E 4 sign-off.
+- **STATUS (2026-07-18):** SpectraCore ported (verbatim, own goldens): parity RMS 0.0 on 9/9 scenarios vs the live-sliced JS reference; L0-6 (monotone front, 7.21 s / 1.81 s) and L0-7 (−15.06 dB, narrowing engaged) GREEN, enforced in ./verify full (spectra_check). **OPEN QUESTION (ADR-037, human ruling needed):** the P=1 gate as written assumes one shared voice path, but the two references are distinct frozen programs — rule (a) measured-equivalence interpretation vs (b) SPEC amendment + re-measurement. Shell integration (engine select, GUI, viz) follows the ruling.
 - **Gate:** SAW provably = SPECTRA at P=1 (parity between modes on equivalent settings).
 
 ## Phase 5 — Performance layer & face

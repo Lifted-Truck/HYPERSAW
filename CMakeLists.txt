@@ -109,6 +109,13 @@ if(NOT MSVC)
   target_compile_options(force_check PRIVATE -O2)
 endif()
 
+# Phase 4 SPECTRA oracle (host-side tool, not shipped): SpectraCore parity vs
+# the JS reference + L0-6/7 behavioral checks.
+add_executable(spectra_check tools/spectra_check.cpp)
+if(NOT MSVC)
+  target_compile_options(spectra_check PRIVATE -O2)
+endif()
+
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)

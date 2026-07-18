@@ -121,6 +121,12 @@ full() {
   node tools/golden/gen_force_goldens.mjs --selfcheck || return 1
   node tools/golden/gen_force_goldens.mjs > /dev/null || return 1
   "$build_dir/force_check" "$(dirname "$build_dir")/build-golden/force" || return 1
+
+  # Phase 4 oracle chain: SPECTRA goldens (JS reference live from
+  # swarmspectra.html) -> spectra_check (L0-1-style parity + L0-6/7).
+  node tools/golden/gen_spectra_goldens.mjs --selfcheck || return 1
+  node tools/golden/gen_spectra_goldens.mjs > /dev/null || return 1
+  "$build_dir/spectra_check" "$(dirname "$build_dir")/build-golden/spectra" || return 1
 }
 
 case "$TARGET" in
