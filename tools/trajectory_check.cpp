@@ -757,6 +757,23 @@ int main()
           e15 / e10);
   }
 
+  std::printf("== ADR-027 live tune ==\n");
+  {
+    // tune = 2^(1/12) shifts a sounding note by one semitone (live bend).
+    SwarmCore c(kSR);
+    c.noteOn(kMidi, mtof(kMidi));
+    std::vector<float> L(kBlock), R(kBlock);
+    for (long off = 0; off < (long)(0.5 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
+    c.setParam("tune", std::pow(2.0, 1.0 / 12.0));
+    c.render(L.data(), R.data(), kBlock);
+    const auto *sw = c.focus();
+    double mean = 0;
+    for (int i = 0; i < 7; i++) mean += sw->vf[i];
+    mean /= 7;
+    const double cents = 1200 * std::log2(mean / 220.0);
+    check(std::fabs(cents - 100.0) <= 2.0, "ADR-027 tune bends sounding note +1 st", cents);
+  }
+
   std::printf("trajectory_check: %s (%d failure%s)\n", g_failures ? "RED" : "GREEN", g_failures,
               g_failures == 1 ? "" : "s");
   return g_failures ? 1 : 0;

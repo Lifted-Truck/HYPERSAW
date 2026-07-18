@@ -97,6 +97,11 @@ static const ParamDef kParams[] = {
     {33, "glide", "Glide (s)", 0, 2.0, 0, false, nullptr},
     {34, "voiceLegato", "Voice: Legato", 0, 1, 1, true, kOffOn},
     {35, "octave", "Octave", -2, 2, 0, true, nullptr},
+    // Transposition suite (ADR-027): all four combine into ONE live core tune
+    // factor — the pitch knob bends sounding notes, not just new ones.
+    {36, "semi", "Semitones", -12, 12, 0, true, nullptr},
+    {37, "fineCents", "Fine (c)", -100, 100, 0, false, nullptr},
+    {38, "pitchBend", "Pitch", -12, 12, 0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -170,6 +175,13 @@ struct Plugin
   double inertiaKnob = 0;
   // ADR-026 shell voice-mode state (audio-thread only)
   double voiceMono = 0, voiceLegato = 1, octave = 0;
+  double semi = 0, fineCents = 0, pitchBend = 0;
+
+  void updateTune()
+  {
+    const double st = 12.0 * octave + semi + pitchBend + fineCents / 100.0;
+    core.setParam("tune", st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0));
+  }
   struct Held
   {
     int16_t key;
@@ -376,6 +388,25 @@ struct Plugin
       if (id == 35)
       {
         octave = applied;
+        updateTune();
+        return;
+      }
+      if (id == 36)
+      {
+        semi = applied;
+        updateTune();
+        return;
+      }
+      if (id == 37)
+      {
+        fineCents = applied;
+        updateTune();
+        return;
+      }
+      if (id == 38)
+      {
+        pitchBend = applied;
+        updateTune();
         return;
       }
       core.setParam(d->coreKey, applied);
@@ -403,6 +434,9 @@ struct Plugin
       if (d->id == 32) return voiceMono;
       if (d->id == 34) return voiceLegato;
       if (d->id == 35) return octave;
+      if (d->id == 36) return semi;
+      if (d->id == 37) return fineCents;
+      if (d->id == 38) return pitchBend;
       if (k == "glide") return p.glide;
       if (k == "rtone") return p.rtone;
       if (k == "normExp") return p.normExp;
@@ -428,23 +462,23 @@ struct Plugin
       case CLAP_EVENT_NOTE_ON:
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
-        const double freq =
-            440.0 * std::pow(2.0, (n->key + 12.0 * octave - 69) / 12.0);  // ADR-026 octave
+        const double freq = 440.0 * std::pow(2.0, (n->key - 69) / 12.0);
         if (voiceMono != 0)
         {
+          // Glide/legato engage only when another key is still HELD (human
+          // clarification 2026-07-18) — a ringing release tail alone gets a
+          // fresh strike on a new slot, overlapping the tail naturally.
+          const bool anotherHeld = heldCount > 0;
           if (heldCount < 16) heldStack[heldCount++] = {n->key, freq};
-          const bool voiceLive = monoSlot >= 0 && (core.swarmAt(monoSlot).gate ||
-                                                   core.swarmAt(monoSlot).env >= 1e-4);
-          if (!voiceLive)
+          const bool voiceGated = monoSlot >= 0 && core.swarmAt(monoSlot).gate;
+          if (anotherHeld && voiceGated)
           {
-            monoSlot = core.noteOn(n->key, freq);
+            const bool keep = voiceLegato != 0;
+            core.retargetNote(monoSlot, n->key, freq, keep);
           }
           else
           {
-            // legato keeps the phases/envelope; non-legato re-strikes in
-            // place; either way glide applies (core p.glide)
-            const bool keep = voiceLegato != 0 && heldCount > 1;
-            core.retargetNote(monoSlot, n->key, freq, keep);
+            monoSlot = core.noteOn(n->key, freq);
           }
           tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};
         }
@@ -697,6 +731,18 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   else if (id == 35)  // octave
   {
     std::snprintf(out, cap, "%+d oct", (int)std::round(value));
+  }
+  else if (id == 36)
+  {
+    std::snprintf(out, cap, "%+d st", (int)std::round(value));
+  }
+  else if (id == 37)
+  {
+    std::snprintf(out, cap, "%+.1f c", value);
+  }
+  else if (id == 38)
+  {
+    std::snprintf(out, cap, "%+.2f st", value);
   }
   else if (id == 23)  // grid cycles/beat: named rational division
   {
