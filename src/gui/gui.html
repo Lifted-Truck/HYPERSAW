@@ -210,7 +210,8 @@ controls.forEach(el => {
     const v = toParam();
     bridge.setParam(id, v);
     displayValue(el, v);
-    if (id === DETUNE_ID || id === K_ID) xyDirty = true;
+    if (id === DETUNE_ID) { curDetune = v; xyDirty = true; }
+    if (id === K_ID) { curK = v; xyDirty = true; }
   });
   if (!isCheck && !isSelect) {
     el.addEventListener('pointerdown', () => bridge.gesture(id, true));
@@ -219,6 +220,8 @@ controls.forEach(el => {
 });
 
 function setControl(id, v) {
+  if (id === DETUNE_ID) { curDetune = v; xyDirty = true; }
+  if (id === K_ID) { curK = v; xyDirty = true; }
   const el = document.querySelector(`[data-p="${id}"]`);
   if (!el) return;
   if (el.type === 'checkbox') el.checked = v > 0.5;
@@ -356,7 +359,10 @@ function drawPhase(s) {
   $('#sval').textContent = s.sigma.toFixed(1);
 }
 
-let vizBusy = false;
+let vizBusy = false, dragging = false, frameCount = 0;
+document.addEventListener('pointerdown', () => { dragging = true; });
+document.addEventListener('pointerup', () => { dragging = false; });
+
 async function loop() {
   if (xyDirty) { drawXY(); xyDirty = false; }
   if (!vizBusy) {
@@ -364,6 +370,9 @@ async function loop() {
     try { drawPhase(JSON.parse(await bridge.getViz())); } catch (e) {}
     vizBusy = false;
   }
+  // Host automation / device-panel moves reflect back into the GUI: poll
+  // params ~2x/s, but never fight an active drag.
+  if (++frameCount % 30 === 0 && !dragging) syncFromEngine().catch(() => {});
   requestAnimationFrame(loop);
 }
 
