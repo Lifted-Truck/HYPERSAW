@@ -73,6 +73,10 @@ struct Params
   // identical-oscillator experiments; L0-10 note). Guarded — default 0 is
   // bit-inert.
   double absK = 0;
+  // Phase scatter (ADR-033): partial-random phase init. 0 = follow the
+  // legacy retrig toggle EXACTLY (bit-inert, rng untouched); > 0 overrides:
+  // phase_i = rng * scatter (so 1.0 reproduces the retrig-off stream).
+  double scatter = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -201,7 +205,10 @@ class SwarmCore
     for (int i = 0; i < kMaxV; i++)
     {
       s.driftS[i] = 0;
-      s.phase[i] = (p.retrig != 0) ? 0.0 : rngNext(s.rngState);
+      if (p.scatter > 0)
+        s.phase[i] = rngNext(s.rngState) * p.scatter;  // ADR-033 partial scatter
+      else
+        s.phase[i] = (p.retrig != 0) ? 0.0 : rngNext(s.rngState);
     }
     s.glideActive = 0;
   }
@@ -435,6 +442,7 @@ class SwarmCore
     if (k == "glide") return &p.glide;
     if (k == "tune") return &p.tune;
     if (k == "absK") return &p.absK;
+    if (k == "scatter") return &p.scatter;
     return nullptr;
   }
 
@@ -584,9 +592,10 @@ class SwarmCore
     }
     s.sigma = std::max(0.08, std::sqrt(varsum / n));
     const double km = 4 * p.K * std::fabs(p.K);
-    // absK (ADR-004): coupling in absolute Hz units (sigma -> 1.0) so
-    // identical-oscillator states are reachable; default path untouched.
-    const double sigmaU = (p.absK != 0) ? 1.0 : s.sigma;
+    // absK (ADR-004/ADR-033): coupling in absolute units of 2.5 Hz (max
+    // pull 4*K^2*2.5 = 10 Hz at knob 1) so identical-oscillator states are
+    // reachable with real authority; default path untouched.
+    const double sigmaU = (p.absK != 0) ? 2.5 : s.sigma;
     const double syncT = (std::max(0.0, km) + s.Kenv) * sigmaU;
     const double splayT = std::max(0.0, -km) * 3 * sigmaU;
     s.KsmS += (syncT - s.KsmS) * 0.08;
