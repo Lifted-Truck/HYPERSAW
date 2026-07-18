@@ -21,6 +21,7 @@
 #include <atomic>
 #include <string>
 #include <clap/clap.h>
+#include <clapwrapper/vst3.h>
 
 #include "swarm_core.h"
 #include "gui/hypersaw_gui.h"
@@ -230,6 +231,14 @@ struct Plugin
     bool active = false;
   };
   VoiceTag tags[hypersaw::kPoly];
+
+  // ADR-038: latched per-channel MPE pitch bend, in semitones. MPE hosts
+  // send member-channel bend BEFORE the note-on it modifies, so the latch —
+  // not the event — is what a fresh strike must read. Channel index 0 is the
+  // MPE manager / plain single-channel MIDI and is deliberately excluded:
+  // member channels are 2-16 (indices 1-15), and applying the ±48 st MPE
+  // range to a normal ±2 st bend wheel on channel 1 would be wildly wrong.
+  double mpeBendSemis[16] = {0};
 
   void emitNoteEnds(const clap_output_events_t *out, uint32_t time)
   {
@@ -577,6 +586,7 @@ struct Plugin
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
         const double freq = 440.0 * std::pow(2.0, (n->key - 69) / 12.0);
+        int struck;
         if (voiceMono != 0)
         {
           // Glide/legato engage only when another key is still HELD (human
@@ -595,12 +605,18 @@ struct Plugin
             monoSlot = core.noteOn(n->key, freq);
           }
           tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};
+          struck = monoSlot;
         }
         else
         {
           const int slot = core.noteOn(n->key, freq);
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
+          struck = slot;
         }
+        // ADR-038: a fresh strike resets noteTune (ADR-036), so re-apply the
+        // channel's latched MPE bend — MPE hosts sent it before this note-on.
+        if (n->channel >= 1 && n->channel < 16 && mpeBendSemis[n->channel] != 0.0)
+          core.setNoteExpr(struck, mpeBendSemis[n->channel]);
         break;
       }
       case CLAP_EVENT_NOTE_OFF:
@@ -659,6 +675,23 @@ struct Plugin
               (x->key == -1 || x->key == t.key))
             core.setNoteExpr(i, x->value);
         }
+        break;
+      }
+      case CLAP_EVENT_MIDI:
+      {
+        // MPE member-channel pitch bend (ADR-038). Live (VST3, via the
+        // wrapper's IMidiMapping params) and Logic (AU, raw MIDI) deliver
+        // MPE bend as per-channel 0xE0 on rotating member channels 2-16 —
+        // NOT as note expressions — at the MPE default range of ±48 st.
+        // Channel 1 (index 0) is excluded: see mpeBendSemis.
+        auto *m = reinterpret_cast<const clap_event_midi_t *>(ev);
+        const int ch = m->data[0] & 0x0F;
+        if ((m->data[0] & 0xF0) != 0xE0 || ch == 0) break;
+        const int v14 = (int)m->data[1] | ((int)m->data[2] << 7);
+        const double semis = (v14 - 8192) * (48.0 / 8192.0);
+        mpeBendSemis[ch] = semis;
+        for (int i = 0; i < hypersaw::kPoly; i++)
+          if (tags[i].active && tags[i].channel == ch) core.setNoteExpr(i, semis);
         break;
       }
       case CLAP_EVENT_PARAM_VALUE:
@@ -794,7 +827,12 @@ void plug_stop_processing(const clap_plugin_t *p)
 {
   self(p)->processing.store(false, std::memory_order_release);
 }
-void plug_reset(const clap_plugin_t *p) { self(p)->core.allOff(); }
+void plug_reset(const clap_plugin_t *p)
+{
+  auto *pl = self(p);
+  pl->core.allOff();
+  for (double &b : pl->mpeBendSemis) b = 0.0;
+}
 
 clap_process_status plug_process(const clap_plugin_t *p, const clap_process_t *proc)
 {
@@ -1146,12 +1184,26 @@ const clap_plugin_gui_t s_gui = {gui_is_api_supported, gui_get_preferred_api, gu
 
 #endif  // __APPLE__ || _WIN32
 
+/* ---- clap-wrapper VST3 specifics (ADR-038) ----
+ * Without this extension the VST3 wrapper advertises only PRESSURE through
+ * INoteExpressionController (its CLAP_SUPPORTS_ALL_NOTE_EXPRESSIONS compile
+ * flag defaults OFF and make_clapfirst_plugins never forwards it), so
+ * note-expression-speaking hosts never send the per-note TUNING stream
+ * ADR-036 listens for. PRESSURE is kept to match the wrapper's default. */
+uint32_t v3spec_num_midi_channels(const clap_plugin *, uint32_t) { return 16; }
+uint32_t v3spec_note_expressions(const clap_plugin *)
+{
+  return AS_VST3_NOTE_EXPRESSION_TUNING | AS_VST3_NOTE_EXPRESSION_PRESSURE;
+}
+const clap_plugin_as_vst3_t s_vst3_specifics = {v3spec_num_midi_channels, v3spec_note_expressions};
+
 const void *plug_get_extension(const clap_plugin_t *, const char *id)
 {
   if (!std::strcmp(id, CLAP_EXT_AUDIO_PORTS)) return &s_audio_ports;
   if (!std::strcmp(id, CLAP_EXT_NOTE_PORTS)) return &s_note_ports;
   if (!std::strcmp(id, CLAP_EXT_PARAMS)) return &s_params;
   if (!std::strcmp(id, CLAP_EXT_STATE)) return &s_state;
+  if (!std::strcmp(id, CLAP_PLUGIN_AS_VST3)) return &s_vst3_specifics;
 #if defined(__APPLE__) || defined(_WIN32)
   if (!std::strcmp(id, CLAP_EXT_GUI)) return &s_gui;
 #endif
