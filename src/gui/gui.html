@@ -461,10 +461,11 @@ const SOFT_GATES = {
 };
 // Engine gating (ADR-037): SPECTRA-only vs SAW-only controls swap with id 43.
 const SPECTRA_ONLY = [44,45,46,47,48,49,50,51];
-const SAW_ONLY = [1,2,4,5,9,10,11,12,13,14,16,23,24,25,26,27,28,29,30,31,32,33,34,39,42];
+const SAW_ONLY = [1,2,4,5,9,10,11,12,13,14,15,16,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,42];
 let lastParams = {};
 function applyGates() {
   const spectraOn = (lastParams[43] | 0) === 1;
+  const engineHidden = new Set(spectraOn ? SAW_ONLY : SPECTRA_ONLY);
   for (const id of SPECTRA_ONLY) {
     const el = document.querySelector(`[data-p="${id}"]`);
     const row = el && el.closest('.row');
@@ -482,7 +483,15 @@ function applyGates() {
   for (const [id, pred] of Object.entries(HARD_GATES)) {
     const el = document.querySelector(`[data-p="${id}"]`);
     const row = el && el.closest('.row');
-    if (row) row.style.display = pred(lastParams) ? '' : 'none';
+    if (row) row.style.display = (pred(lastParams) && !engineHidden.has(+id)) ? '' : 'none';
+  }
+  // A cluster with every control hidden is an empty box (2026-07-18 report:
+  // the bare SPECTRA panel in SAW mode) — hide the whole panel.
+  for (const cl of document.querySelectorAll('.controls .cluster')) {
+    const items = cl.querySelectorAll('.row, .togs label');
+    let any = false;
+    for (const it of items) if (it.style.display !== 'none') { any = true; break; }
+    cl.style.display = any ? '' : 'none';
   }
   for (const [id, pred] of Object.entries(SOFT_GATES)) {
     const el = document.querySelector(`[data-p="${id}"]`);
