@@ -20,43 +20,44 @@ namespace hypersaw::detail
 constexpr uint32_t kGuiWidth = 920;
 constexpr uint32_t kGuiHeight = 600;
 
-inline std::string vizToJson(const VizSnapshot &v)
+inline choc::value::Value vizToValue(const VizSnapshot &v)
 {
-  std::string out;
-  out.reserve(1024);
-  // 160: the grid-status line alone is ~71 chars — a 64-byte buffer silently
-  // truncated it, malforming the JSON and killing ALL viz (2026-07-18 bug).
-  char buf[160];
-  std::snprintf(buf, sizeof(buf), "{\"active\":%s,\"n\":%d,\"centerIdx\":%d,",
-                v.active ? "true" : "false", v.n, v.centerIdx);
-  out += buf;
-  std::snprintf(buf, sizeof(buf), "\"R\":%.4f,\"RN\":%.4f,\"psi\":%.4f,\"sigma\":%.2f,", v.R,
-                v.RN, v.psi, v.sigma);
-  out += buf;
-  std::snprintf(buf, sizeof(buf), "\"KsmS\":%.3f,\"KsmP\":%.3f,", v.KsmS, v.KsmP);
-  out += buf;
-  std::snprintf(buf, sizeof(buf), "\"topo\":%d,\"poles\":%d,\"RA\":%.3f,\"RB\":%.3f,\"RQ\":%.3f,",
-                v.topo, v.poles, v.RA, v.RB, v.RQ);
-  out += buf;
-  std::snprintf(buf, sizeof(buf), "\"gridActive\":%s,\"gridLockWarn\":%s,\"gridU\":%.3f,\"gridRungs\":%d,",
-                v.gridActive ? "true" : "false", v.gridLockWarn ? "true" : "false", v.gridU,
-                v.gridRungs);
-  out += buf;
-  out += "\"grav\":[";
+  // Structured choc::value crosses the bridge as a native JS object — no JSON
+  // string on the C++ side, no JSON.parse per frame on the JS side. (The
+  // former string path also hid a truncation bug — 2026-07-18.)
+  auto obj = choc::value::createObject("Viz");
+  obj.addMember("active", v.active);
+  obj.addMember("n", (int32_t)v.n);
+  obj.addMember("centerIdx", (int32_t)v.centerIdx);
+  obj.addMember("R", v.R);
+  obj.addMember("RN", v.RN);
+  obj.addMember("psi", v.psi);
+  obj.addMember("sigma", v.sigma);
+  obj.addMember("KsmS", v.KsmS);
+  obj.addMember("KsmP", v.KsmP);
+  obj.addMember("topo", (int32_t)v.topo);
+  obj.addMember("poles", (int32_t)v.poles);
+  obj.addMember("RA", v.RA);
+  obj.addMember("RB", v.RB);
+  obj.addMember("RQ", v.RQ);
+  obj.addMember("gridActive", v.gridActive);
+  obj.addMember("gridLockWarn", v.gridLockWarn);
+  obj.addMember("gridU", v.gridU);
+  obj.addMember("gridRungs", (int32_t)v.gridRungs);
+  auto grav = choc::value::createEmptyArray();
   for (int i = 0; i < v.gravCount; i++)
   {
-    std::snprintf(buf, sizeof(buf), "%s[%d,%d,%.1f]", i ? "," : "", v.gravRatio[i], v.gravOct[i],
-                  v.gravErr[i]);
-    out += buf;
+    auto pair = choc::value::createEmptyArray();
+    pair.addArrayElement((int32_t)v.gravRatio[i]);
+    pair.addArrayElement((int32_t)v.gravOct[i]);
+    pair.addArrayElement(v.gravErr[i]);
+    grav.addArrayElement(pair);
   }
-  out += "],\"phase\":[";
-  for (int i = 0; i < v.n && i < 32; i++)
-  {
-    std::snprintf(buf, sizeof(buf), i ? ",%.5f" : "%.5f", v.phase[i]);
-    out += buf;
-  }
-  out += "]}";
-  return out;
+  obj.addMember("grav", grav);
+  auto phase = choc::value::createEmptyArray();
+  for (int i = 0; i < v.n && i < 32; i++) phase.addArrayElement(v.phase[i]);
+  obj.addMember("phase", phase);
+  return obj;
 }
 
 inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
@@ -66,7 +67,7 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   auto web = std::make_unique<choc::ui::WebView>(opts);
 
   web->bind("hzGetViz", [&host](const choc::value::ValueView &) -> choc::value::Value {
-    return choc::value::createString(vizToJson(host.getViz()));
+    return vizToValue(host.getViz());
   });
   web->bind("hzGetParams", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getParamsJson());
@@ -86,15 +87,9 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   web->bind("hzGetSpec", [&host](const choc::value::ValueView &) -> choc::value::Value {
     float bins[96];
     host.getSpectrum(bins, 96);
-    std::string out = "[";
-    char b[16];
-    for (int i = 0; i < 96; i++)
-    {
-      std::snprintf(b, sizeof(b), i ? ",%.3f" : "%.3f", bins[i]);
-      out += b;
-    }
-    out += "]";
-    return choc::value::createString(out);
+    auto arr = choc::value::createEmptyArray();
+    for (int i = 0; i < 96; i++) arr.addArrayElement(bins[i]);
+    return arr;
   });
   web->bind("hzGetState", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getStateJson());
