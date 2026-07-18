@@ -178,6 +178,11 @@ struct Plugin
   std::atomic<int> vizPublished{0};
 
   hypersaw::HypersawGui *gui = nullptr;
+  // Spectrum feed: mono ring written on the audio thread (write-only, cheap);
+  // the FFT runs on the GUI thread on demand — zero audio-thread analysis
+  // cost, torn reads are cosmetic-only (visualizer).
+  float specRing[4096] = {0};
+  std::atomic<uint32_t> specPos{0};
   uint32_t guiW = 920, guiH = 600;  // resizable (clamped in gui_adjust_size)
   std::atomic<bool> processing{false};
   // ADR-024: the inertia KNOB value (params/state domain). The core holds
@@ -346,6 +351,67 @@ struct Plugin
       }
     }
     vizPublished.store(writeIdx, std::memory_order_release);
+  }
+
+  // GUI-thread spectrum: last 2048 ring samples, Hann, radix-2 FFT, then
+  // 96 log-spaced bins 30 Hz..16 kHz normalized from a -80 dB floor.
+  void computeSpectrum(float *out, int nBins)
+  {
+    constexpr int N = 2048;
+    static thread_local double re[N], im[N];
+    const uint32_t w = specPos.load(std::memory_order_acquire);
+    for (int i = 0; i < N; i++)
+    {
+      const double hann = 0.5 - 0.5 * std::cos(2 * 3.141592653589793 * i / N);
+      re[i] = (double)specRing[(w - N + i) & 4095] * hann;
+      im[i] = 0;
+    }
+    // iterative radix-2
+    for (int i = 1, j = 0; i < N; i++)
+    {
+      int bit = N >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j)
+      {
+        std::swap(re[i], re[j]);
+        std::swap(im[i], im[j]);
+      }
+    }
+    for (int len = 2; len <= N; len <<= 1)
+    {
+      const double ang = -2 * 3.141592653589793 / len;
+      const double wr = std::cos(ang), wi = std::sin(ang);
+      for (int i = 0; i < N; i += len)
+      {
+        double cr = 1, ci = 0;
+        for (int k = 0; k < len / 2; k++)
+        {
+          const double ur = re[i + k], ui = im[i + k];
+          const double vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci;
+          const double vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
+          re[i + k] = ur + vr;
+          im[i + k] = ui + vi;
+          re[i + k + len / 2] = ur - vr;
+          im[i + k + len / 2] = ui - vi;
+          const double ncr = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr;
+          cr = ncr;
+        }
+      }
+    }
+    const double binHz = sampleRate / N;
+    for (int b = 0; b < nBins; b++)
+    {
+      const double f = 30.0 * std::pow(16000.0 / 30.0, (double)b / (nBins - 1));
+      int bin = (int)(f / binHz);
+      if (bin < 1) bin = 1;
+      if (bin > N / 2 - 1) bin = N / 2 - 1;
+      const double mag = std::hypot(re[bin], im[bin]) / (N / 4);
+      const double db = 20 * std::log10(mag + 1e-9);
+      double v = (db + 80.0) / 80.0;
+      out[b] = (float)(v < 0 ? 0 : (v > 1 ? 1 : v));
+    }
   }
 
   std::string paramsJson() const
@@ -603,6 +669,12 @@ struct Plugin
     }
 
     publishViz();
+    {
+      uint32_t w = specPos.load(std::memory_order_relaxed);
+      for (uint32_t i = 0; i < nframes; i++)
+        specRing[(w + i) & 4095] = outL[i] + outR[i];
+      specPos.store(w + nframes, std::memory_order_release);
+    }
     emitNoteEnds(p->out_events, nframes > 0 ? nframes - 1 : 0);
 
     if (core.focus()) return CLAP_PROCESS_CONTINUE;
@@ -930,6 +1002,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.getViz = [pl]() {
     return pl->vizBuf[pl->vizPublished.load(std::memory_order_acquire)];
   };
+  hostIf.getSpectrum = [pl](float *out, int n) { pl->computeSpectrum(out, n); };
   hostIf.getParamsJson = [pl]() { return pl->paramsJson(); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };

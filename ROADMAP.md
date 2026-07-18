@@ -36,7 +36,8 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 - Topology (mean-field / ring+reach / two-cluster+μ), Sakaguchi α, absolute-K mode, consonance gravity + basin + ratio readout.
 - Daido poles q (1–4) with R_q meter (ADR-015); tempo-grid status readout + cause-AND-state lock warning (ADR-016/017).
 - Formalize L0 criteria for q-cluster formation / demographics / bistability from the ADR-015 anchors (R_q = 0.97 at q∈{2,3} across seeds; 2f0 projection ~0.080 seed-invariant) and add them to ACCEPTANCE.md at this gate.
-- L0-8..11 green; Layer-E 3 sign-off.
+- L0-8..11 green; **Layer-E 3 SIGNED OFF (human, 2026-07-18: "I hear it. Sounds great")**.
+- **Tonality brief ON HOLD (human, 2026-07-18):** the human will prime Tonality directly; integration scope under discussion (see traces — possible outcome: HYPERSAW owns a richer static ratio table itself and only context-weighting ever involves Tonality, or the integration is skipped). Gravity ships on the default set either way.
 - **Gate:** the dynamics lab's verified states are reproducible in-plugin from preset recall.
 
 ## Phase 4 — SPECTRA mode & kernel abstraction

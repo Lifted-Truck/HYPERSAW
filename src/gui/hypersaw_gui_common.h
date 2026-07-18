@@ -24,7 +24,9 @@ inline std::string vizToJson(const VizSnapshot &v)
 {
   std::string out;
   out.reserve(1024);
-  char buf[64];
+  // 160: the grid-status line alone is ~71 chars — a 64-byte buffer silently
+  // truncated it, malforming the JSON and killing ALL viz (2026-07-18 bug).
+  char buf[160];
   std::snprintf(buf, sizeof(buf), "{\"active\":%s,\"n\":%d,\"centerIdx\":%d,",
                 v.active ? "true" : "false", v.n, v.centerIdx);
   out += buf;
@@ -80,6 +82,19 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
       host.gesture((uint32_t)args[0].getWithDefault<int64_t>(0),
                    args[1].getWithDefault<bool>(false));
     return {};
+  });
+  web->bind("hzGetSpec", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    float bins[96];
+    host.getSpectrum(bins, 96);
+    std::string out = "[";
+    char b[16];
+    for (int i = 0; i < 96; i++)
+    {
+      std::snprintf(b, sizeof(b), i ? ",%.3f" : "%.3f", bins[i]);
+      out += b;
+    }
+    out += "]";
+    return choc::value::createString(out);
   });
   web->bind("hzGetState", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getStateJson());
