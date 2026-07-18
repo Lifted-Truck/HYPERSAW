@@ -38,7 +38,7 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 - Formalize L0 criteria for q-cluster formation / demographics / bistability from the ADR-015 anchors (R_q = 0.97 at q∈{2,3} across seeds; 2f0 projection ~0.080 seed-invariant) and add them to ACCEPTANCE.md at this gate as L0-22+ (L0-14..21 are taken by Track E, ingested 2026-07-18).
 - L0-8..11 green; **Layer-E 3 SIGNED OFF (human, 2026-07-18: "I hear it. Sounds great")**.
 - **Tonality brief ON HOLD (human, 2026-07-18):** the human will prime Tonality directly; integration scope under discussion (see traces — possible outcome: HYPERSAW owns a richer static ratio table itself and only context-weighting ever involves Tonality, or the integration is skipped). Gravity ships on the default set either way.
-- **Gate:** the dynamics lab's verified states are reproducible in-plugin from preset recall.
+- **Gate:** the dynamics lab's verified states are reproducible in-plugin from preset recall. **GATE CLOSE PROPOSED (2026-07-18):** engine parity 51/51 both references; L0-8..12 green; ADR-015 anchors formalized as L0-22 and enforced in trajectory_check (q-cluster R_q, bistability, split-as-timbre projections); surface complete (params 24-31, meters, gravity + grid readouts per ADR-016/017); Layer-E 3 signed off; preset-recall reproducibility guaranteed by state_check's bit-identical-restored-audio requirement. Merging the gate PR = ratification.
 
 ## Phase 4 — SPECTRA mode & kernel abstraction
 

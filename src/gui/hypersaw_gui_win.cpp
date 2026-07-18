@@ -21,7 +21,14 @@ struct HypersawGui::Impl
   GuiHost host;
   std::unique_ptr<choc::ui::WebView> web;
 
-  explicit Impl(GuiHost h) : host(std::move(h)) { web = detail::makeWebView(host); }
+  explicit Impl(GuiHost h) : host(std::move(h))
+  {
+    web = detail::makeWebView(host);
+    web->bind("hzGrabKeys", [this](const choc::value::ValueView &) -> choc::value::Value {
+      if (HWND h = (HWND)web->getViewHandle()) SetFocus(h);
+      return {};
+    });
+  }
 };
 
 HypersawGui::HypersawGui(GuiHost host) : impl(new Impl(std::move(host))) {}

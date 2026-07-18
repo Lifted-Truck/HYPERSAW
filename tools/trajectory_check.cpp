@@ -621,6 +621,47 @@ int main()
       for (long off = 0; off < (long)(6 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
       check(c.focus()->R >= 0.95, "ADR-015 bistability: aligned start stays full sync",
             c.focus()->R);
+
+      // ADR-015(c) / L0-22: at q=2 the 2f0 projection is seed-invariant
+      // (~0.080) while the f0 residual varies with the seed-rolled split.
+      double p2min = 1e9, p2max = -1e9, p1min = 1e9, p1max = -1e9;
+      for (double seed : {1234.0, 777.0, 42.0})
+      {
+        SwarmCore cc(kSR);
+        dynBase(cc);
+        cc.setParam("seed", seed);
+        cc.setParam("poles", 2);
+        cc.setParam("K", 1.0);
+        cc.noteOn(kMidi, mtof(kMidi));
+        const long total = (long)(8 * kSR), keepFrom = (long)(6 * kSR);
+        double re1 = 0, im1 = 0, re2 = 0, im2 = 0;
+        long n = 0;
+        for (long off = 0; off < total; off += kBlock)
+        {
+          cc.render(L.data(), R.data(), kBlock);
+          for (int i = 0; i < kBlock; i++)
+          {
+            const long idx = off + i;
+            if (idx < keepFrom) continue;
+            const double sgn = (double)L[i];
+            const double a1 = 2 * kPi * 220.0 * (double)idx / kSR;
+            const double a2 = 2 * kPi * 440.0 * (double)idx / kSR;
+            re1 += sgn * std::cos(a1);
+            im1 += sgn * std::sin(a1);
+            re2 += sgn * std::cos(a2);
+            im2 += sgn * std::sin(a2);
+            n++;
+          }
+        }
+        const double p1 = std::hypot(re1, im1) / n, p2 = std::hypot(re2, im2) / n;
+        p1min = std::min(p1min, p1);
+        p1max = std::max(p1max, p1);
+        p2min = std::min(p2min, p2);
+        p2max = std::max(p2max, p2);
+      }
+      check(std::fabs(p2min - 0.080) <= 0.015 && std::fabs(p2max - 0.080) <= 0.015,
+            "L0-22 q=2: 2f0 projection ~0.080 seed-invariant", p2max);
+      check((p1max - p1min) >= 0.01, "L0-22 q=2: f0 residual varies with seed", p1max - p1min);
     }
   }
 

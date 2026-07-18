@@ -112,3 +112,12 @@ Room→note: K=+1, regen 0.85 — IR comb at 1/L̄ ≥ 10 dB over off-comb probe
 
 ## L0-21 · Time-family stability & DC
 Room 12 s at regen 0.95 with note held: bounded output, per-line DC ≤ 0.01, NaN-clean. DC-blocker corner ≤ (lowest intended comb)/6; blocker cost at a 26 Hz comb ≤ 3 dB (reference 2.8).
+
+
+## L0-22 · Daido q-clusters, bistability, split-as-timbre (ratified at the Phase 3 gate)
+
+Protocol: mean-field, even spread, lpOut 0, n = 24, detune 0.2, retrig off, K = +1.0, A3.
+- q ∈ {2, 3}: R_q >= 0.95 after 6 s across seeds {1234, 777, 42} (reference 0.97; ADR-015a).
+- Bistability: same knobs with retrig ON (aligned start) sustains full sync R1 >= 0.95 (ADR-015d).
+- Split-as-timbre (q = 2, final 2 s of 8 s): the 2f0 projection is seed-invariant at 0.080 +/- 0.015 while the f0 residual varies across seeds by >= 0.01 (ADR-015c; the cluster split is a fundamental-vs-octave mix the seed rolls).
+Enforced in trajectory_check; numbers per ADR-015's independently re-verified measurements.
