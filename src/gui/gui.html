@@ -306,9 +306,6 @@ function displayValue(el, v) {
   else out.textContent = v.toFixed(2);
 }
 
-let shiftHeld = false;
-document.addEventListener('keydown', e => { if (e.key === 'Shift') shiftHeld = true; });
-document.addEventListener('keyup', e => { if (e.key === 'Shift') shiftHeld = false; });
 // ADR-032: Escape = panic (blur everything + all notes off)
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !(document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'text')) {
@@ -343,7 +340,11 @@ controls.forEach(el => {
     let fine = null;
     el.addEventListener('pointerdown', e => {
       bridge.gesture(id, true);
-      if (shiftHeld) {
+      // Read the modifier off the event, never a globally-tracked flag: in
+      // Live the webview gets the shift keydown but not always the keyup, so
+      // a tracked `shiftHeld` sticks true and every drag runs the 20x-fine
+      // path — the 2026-07-18 "sliders crawl" report. e.shiftKey is exact.
+      if (e.shiftKey) {
         e.preventDefault();
         el.setPointerCapture(e.pointerId);
         fine = { startX: e.clientX, startV: +el.value };
