@@ -17,7 +17,19 @@ struct HypersawGui::Impl
   GuiHost host;
   std::unique_ptr<choc::ui::WebView> web;
 
-  explicit Impl(GuiHost h) : host(std::move(h)) { web = detail::makeWebView(host); }
+  explicit Impl(GuiHost h) : host(std::move(h))
+  {
+    web = detail::makeWebView(host);
+    // Hosts often do not hand the plugin view keyboard focus on click; the
+    // GUI's text-entry path requests it explicitly (2026-07-18 report: edit
+    // boxes lost focus instantly in Live — the INVERSE of the classic
+    // webview-steals-keys problem).
+    web->bind("hzGrabKeys", [this](const choc::value::ValueView &) -> choc::value::Value {
+      NSView *v = (__bridge NSView *)web->getViewHandle();
+      if (v && v.window) [v.window makeFirstResponder:v];
+      return {};
+    });
+  }
 };
 
 HypersawGui::HypersawGui(GuiHost host) : impl(new Impl(std::move(host))) {}

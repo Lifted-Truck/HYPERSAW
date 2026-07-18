@@ -357,8 +357,11 @@ controls.forEach(el => {
       inp.style.cssText = 'width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--swarm);font:inherit;font-size:10px;text-align:right;';
       out.textContent = '';
       out.appendChild(inp);
-      inp.focus();
-      inp.select();
+      if (window.hzGrabKeys) window.hzGrabKeys();  // ask the host for keyboard focus
+      let hadFocus = false;
+      inp.addEventListener('focus', () => { hadFocus = true; });
+      inp.addEventListener('pointerdown', e => { e.stopPropagation(); if (window.hzGrabKeys) window.hzGrabKeys(); inp.focus(); });
+      setTimeout(() => { inp.focus(); inp.select(); }, 30);
       const done = commit => {
         let v = parseFloat(inp.value);
         inp.remove();
@@ -381,7 +384,10 @@ controls.forEach(el => {
         if (e.key === 'Enter') done(true);
         else if (e.key === 'Escape') done(false);
       });
-      inp.addEventListener('blur', () => done(true));
+      // Only commit-on-blur if the field genuinely held focus — a blur
+      // before focus means the HOST refused us keys (don't destroy the box;
+      // clicking it retries the grab).
+      inp.addEventListener('blur', () => { if (hadFocus) done(true); });
     });
   }
 });

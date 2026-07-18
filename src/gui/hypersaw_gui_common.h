@@ -64,6 +64,7 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
 {
   choc::ui::WebView::Options opts;
   opts.enableDebugMode = false;
+  opts.acceptsFirstMouseClick = true;  // click-through focus in hosts
   auto web = std::make_unique<choc::ui::WebView>(opts);
 
   web->bind("hzGetViz", [&host](const choc::value::ValueView &) -> choc::value::Value {
