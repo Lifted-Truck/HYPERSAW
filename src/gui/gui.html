@@ -147,6 +147,16 @@
       <div class="row"><label>release</label><input type="range" data-p="22" min="-2.3" max="0.903" step="0.001" data-log10="1" data-time="1"><output>0.16s</output></div>
     </div>
 
+    <div class="cluster">
+      <h2>Voice</h2>
+      <div class="row"><label>octave</label><input type="range" data-p="35" min="-2" max="2" step="1"><output>+0</output></div>
+      <div class="row"><label>glide</label><input type="range" data-p="33" min="0" max="2" step="0.01"><output>off</output></div>
+      <div class="togs">
+        <label><input type="checkbox" data-p="32"> mono</label>
+        <label><input type="checkbox" data-p="34" checked> legato</label>
+      </div>
+    </div>
+
     <div class="cluster drift">
       <h2>Drift</h2>
       <div class="row"><label>depth</label><input type="range" data-p="9" min="0" max="100" step="0.1"><output>0.0c</output></div>
@@ -157,7 +167,7 @@
       <h2>Output &amp; perception</h2>
       <div class="row"><label>R→tone</label><input type="range" data-p="12" min="-1" max="1" step="0.01"><output>0.00</output></div>
       <div class="row"><label>density comp</label><input type="range" data-p="13" min="0.5" max="1" step="0.01"><output>0.75</output></div>
-      <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1" step="0.01"><output>0.80</output></div>
+      <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1.5" step="0.01"><output>0.80</output></div>
       <div class="row"><label>digital</label><input type="range" data-p="16" min="0" max="1" step="0.01"><output>1.00</output></div>
       <div class="row"><label>volume</label><input type="range" data-p="17" min="0" max="1" step="0.01"><output>0.40</output></div>
       <div class="togs">
@@ -191,6 +201,9 @@ function displayValue(el, v) {
   else if (el.dataset.p === '9') out.textContent = v.toFixed(1) + 'c';
   else if (el.dataset.p === '10') out.textContent = (0.2 + v * 8).toFixed(1) + '/s';  // walk speed
   else if (el.dataset.p === '23') out.textContent = v.toFixed(2) + '/b';
+  else if (el.dataset.p === '33') out.textContent = v < 0.001 ? 'off' : (v < 0.01 ? (v * 1000).toFixed(1) + 'ms' : v.toFixed(2) + 's');
+  else if (el.dataset.p === '35') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + ' oct';
+  else if (el.dataset.p === '14' && v > 1) out.textContent = v.toFixed(2) + ' S+';
   else if (el.step === '1') out.textContent = String(Math.round(v));
   else out.textContent = v.toFixed(2);
 }
