@@ -26,11 +26,14 @@ add_subdirectory(libs/clap EXCLUDE_FROM_ALL)
 add_subdirectory(libs/clap-wrapper EXCLUDE_FROM_ALL)
 
 # GUI HTML is embedded at build time (self-contained bundle, no file deps).
+# find_package resolves the interpreter portably — bare `python3` is absent
+# from Windows CI runners' PATH (same trap family as L0003).
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(GUI_HTML_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/gui_html.h)
 add_custom_command(
   OUTPUT ${GUI_HTML_HEADER}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
-  COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/embed_file.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/embed_file.py
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/gui.html ${GUI_HTML_HEADER} kGuiHtml
   DEPENDS src/gui/gui.html tools/embed_file.py
   COMMENT "Embedding gui.html")
@@ -45,6 +48,12 @@ if(APPLE)
   target_sources(${PROJECT_NAME}-impl PRIVATE src/gui/hypersaw_gui.mm ${GUI_HTML_HEADER})
   target_include_directories(${PROJECT_NAME}-impl PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
   target_link_libraries(${PROJECT_NAME}-impl PUBLIC "-framework WebKit" "-framework Cocoa")
+elseif(WIN32)
+  # WebView2 via choc (COM declarations embedded — no external SDK).
+  # CI-compile-verified; runtime validation is a recorded residual.
+  target_sources(${PROJECT_NAME}-impl PRIVATE src/gui/hypersaw_gui_win.cpp ${GUI_HTML_HEADER})
+  target_include_directories(${PROJECT_NAME}-impl PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+  target_link_libraries(${PROJECT_NAME}-impl PUBLIC ole32 shlwapi version)
 endif()
 
 set(HYPERSAW_PLUGIN_FORMATS CLAP VST3 AUV2)
