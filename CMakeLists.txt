@@ -25,10 +25,27 @@ set(CLAP_WRAPPER_DOWNLOAD_DEPENDENCIES ON CACHE BOOL "" FORCE)
 add_subdirectory(libs/clap EXCLUDE_FROM_ALL)
 add_subdirectory(libs/clap-wrapper EXCLUDE_FROM_ALL)
 
+# GUI HTML is embedded at build time (self-contained bundle, no file deps).
+set(GUI_HTML_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/gui_html.h)
+add_custom_command(
+  OUTPUT ${GUI_HTML_HEADER}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
+  COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/embed_file.py
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/gui.html ${GUI_HTML_HEADER} kGuiHtml
+  DEPENDS src/gui/gui.html tools/embed_file.py
+  COMMENT "Embedding gui.html")
+
 # clap-first idiom (see libs/clap-wrapper/tests/clap-first-example): a static
 # impl lib carrying the factory, wrapped per-format by make_clapfirst_plugins.
+# The webview GUI module (ADR-019) compiles on macOS only for now; elsewhere
+# the shell exposes no gui extension and hosts use their generic editor.
 add_library(${PROJECT_NAME}-impl STATIC src/hypersaw_clap.cpp)
 target_link_libraries(${PROJECT_NAME}-impl PUBLIC clap clap-wrapper-extensions)
+if(APPLE)
+  target_sources(${PROJECT_NAME}-impl PRIVATE src/gui/hypersaw_gui.mm ${GUI_HTML_HEADER})
+  target_include_directories(${PROJECT_NAME}-impl PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+  target_link_libraries(${PROJECT_NAME}-impl PUBLIC "-framework WebKit" "-framework Cocoa")
+endif()
 
 set(HYPERSAW_PLUGIN_FORMATS CLAP VST3 AUV2)
 
