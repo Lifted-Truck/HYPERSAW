@@ -600,6 +600,9 @@ struct Plugin
         spectra.setParam(d->coreKey, applied);
         return;
       }
+      // Width: the SAW core calls it "width", SPECTRA calls it "swidth" — same
+      // stereo-spread control, so one slider (id 14) drives both.
+      if (id == 14) spectra.setParam("swidth", applied);
       core.setParam(d->coreKey, applied);
       spectra.setParam(d->coreKey, applied);  // shared-name knobs mirror; unknown keys no-op
     }

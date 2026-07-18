@@ -34,7 +34,11 @@ namespace hypersaw
 class SpectraCore
 {
  public:
-  static constexpr int kPMax = 24, kMMax = 7, kSPoly = 4, kSTick = 16;
+  // kSPoly raised from the reference's 4 to 8 (2026-07-18 polyphony report).
+  // Must stay <= SwarmCore::kPoly: the shell's VoiceTag/NOTE_END array is
+  // sized by kPoly and indexed by the active core's slot. Worst case
+  // 8 x 24 partials x 7 cloud = 1344 sine osc — inside ADR-006 headroom.
+  static constexpr int kPMax = 24, kMMax = 7, kSPoly = 8, kSTick = 16;
   static constexpr double kSTau = 6.283185307;
   static constexpr double kSPiRef = 3.14159265;
 

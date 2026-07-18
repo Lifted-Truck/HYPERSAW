@@ -122,11 +122,6 @@
     <h2>Log spectrum · 30 Hz – 16 kHz</h2>
     <canvas id="specCanvas" width="256" height="58"></canvas>
   </div>
-  <div class="scope">
-    <h2>XY · x=detune y=pull K</h2>
-    <canvas id="xyPad" width="256" height="120"></canvas>
-    <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
-  </div>
 </div>
 
 <div class="grid">
@@ -242,6 +237,12 @@
         <label><input type="checkbox" data-p="40"> bass mono</label>
       </div>
     </div>
+
+    <div class="cluster">
+      <h2>XY · x=detune y=pull K</h2>
+      <canvas id="xyPad" width="256" height="150"></canvas>
+      <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
+    </div>
   </div>
 </div>
 </div>
@@ -306,9 +307,6 @@ function displayValue(el, v) {
   else out.textContent = v.toFixed(2);
 }
 
-let shiftHeld = false;
-document.addEventListener('keydown', e => { if (e.key === 'Shift') shiftHeld = true; });
-document.addEventListener('keyup', e => { if (e.key === 'Shift') shiftHeld = false; });
 // ADR-032: Escape = panic (blur everything + all notes off)
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !(document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'text')) {
@@ -343,7 +341,10 @@ controls.forEach(el => {
     let fine = null;
     el.addEventListener('pointerdown', e => {
       bridge.gesture(id, true);
-      if (shiftHeld) {
+      // e.shiftKey off the event, not a tracked flag: Live delivers the shift
+      // keydown but not always the keyup, so a global flag sticks true and
+      // every drag crawls in fine mode (2026-07-18 report).
+      if (e.shiftKey) {
         e.preventDefault();
         el.setPointerCapture(e.pointerId);
         fine = { startX: e.clientX, startV: +el.value };
@@ -461,7 +462,8 @@ const SOFT_GATES = {
 };
 // Engine gating (ADR-037): SPECTRA-only vs SAW-only controls swap with id 43.
 const SPECTRA_ONLY = [44,45,46,47,48,49,50,51];
-const SAW_ONLY = [1,2,4,5,9,10,11,12,13,14,15,16,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,42];
+// width (14) drives SAW width AND SPECTRA swidth — shared, shown in both.
+const SAW_ONLY = [1,2,4,5,9,10,11,12,13,15,16,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,42];
 let lastParams = {};
 function applyGates() {
   const spectraOn = (lastParams[43] | 0) === 1;
@@ -485,10 +487,13 @@ function applyGates() {
     const row = el && el.closest('.row');
     if (row) row.style.display = (pred(lastParams) && !engineHidden.has(+id)) ? '' : 'none';
   }
-  // A cluster with every control hidden is an empty box (2026-07-18 report:
-  // the bare SPECTRA panel in SAW mode) — hide the whole panel.
+  // A cluster whose every gateable control is hidden is an empty box
+  // (2026-07-18 report: the bare SPECTRA panel in SAW mode) — hide the whole
+  // panel. Clusters with NO gateable rows (e.g. the XY pad, a pure canvas)
+  // are never "empty" in this sense — leave them alone.
   for (const cl of document.querySelectorAll('.controls .cluster')) {
     const items = cl.querySelectorAll('.row, .togs label');
+    if (items.length === 0) continue;
     let any = false;
     for (const it of items) if (it.style.display !== 'none') { any = true; break; }
     cl.style.display = any ? '' : 'none';
