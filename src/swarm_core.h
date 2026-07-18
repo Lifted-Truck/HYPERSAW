@@ -30,6 +30,8 @@
 #include <cstring>
 #include <string>
 
+#include "force_core.h"
+
 namespace hypersaw
 {
 
@@ -396,14 +398,10 @@ class SwarmCore
  private:
   static int32_t toInt32(double v) { return (int32_t)(int64_t)v; }
 
-  // mulberry32 under JS int semantics; uint32 ops are bit-identical
-  static double rngNext(uint32_t &state)
-  {
-    state += 0x6D2B79F5u;
-    uint32_t t = (uint32_t)(state ^ (state >> 15)) * (uint32_t)(1u | state);
-    t = (uint32_t)(t + (uint32_t)((uint32_t)(t ^ (t >> 7)) * (uint32_t)(61u | t))) ^ t;
-    return (double)(t ^ (t >> 14)) / 4294967296.0;
-  }
+  // mulberry32 shared with the Track E force system (ADR-034 unification —
+  // the one piece of arithmetic the two dynamics families genuinely share).
+  // Parity 51/51 proves the delegation is bit-neutral.
+  static double rngNext(uint32_t &state) { return forcecore::rngNext(state); }
 
   double *paramSlot(const std::string &k)
   {

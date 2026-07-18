@@ -114,6 +114,13 @@ full() {
   "$build_dir/parity_check" "$(dirname "$build_dir")/build-golden" || return 1
   "$build_dir/trajectory_check" || return 1
   "$build_dir/state_check" || return 1
+
+  # Track E0 oracle chain: force goldens (extracted live from the effect
+  # labs' HTMLs) -> force_check (seed-for-seed trajectories + the population
+  # halves of L0-14/15/17/19/20).
+  node tools/golden/gen_force_goldens.mjs --selfcheck || return 1
+  node tools/golden/gen_force_goldens.mjs > /dev/null || return 1
+  "$build_dir/force_check" "$(dirname "$build_dir")/build-golden/force" || return 1
 }
 
 case "$TARGET" in

@@ -102,6 +102,13 @@ if(NOT MSVC)
   target_compile_options(state_check PRIVATE -O2)
 endif()
 
+# Track E0 force-core oracle (host-side tool, not shipped): forcecore vs the
+# effect labs' population trajectories + L0-14/15/17/19/20 population criteria.
+add_executable(force_check tools/force_check.cpp)
+if(NOT MSVC)
+  target_compile_options(force_check PRIVATE -O2)
+endif()
+
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)
