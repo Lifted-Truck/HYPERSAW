@@ -641,6 +641,50 @@ struct Plugin
     return 0;
   }
 
+  // Shared by NOTE_OFF, NOTE_CHOKE, and the MIDI 1.0 vel-0 convention below.
+  void handleNoteOff(const clap_event_note_t *n)
+  {
+    if (n->key < 0)
+    {
+      core.allOff();
+      spectra.allOff();
+      heldCount = 0;
+      return;
+    }
+    if (spectraMode())
+    {
+      spectra.noteOff(n->key);
+      return;
+    }
+    if (voiceMono != 0)
+    {
+      for (int i = 0; i < heldCount; i++)
+        if (heldStack[i].key == n->key)
+        {
+          for (int j = i; j < heldCount - 1; j++) heldStack[j] = heldStack[j + 1];
+          heldCount--;
+          break;
+        }
+      if (monoSlot >= 0 && core.swarmAt(monoSlot).midi == n->key)
+      {
+        if (heldCount > 0)
+        {
+          const Held &top = heldStack[heldCount - 1];
+          core.retargetNote(monoSlot, top.key, top.freq, voiceLegato != 0);
+          tags[monoSlot].key = top.key;
+        }
+        else
+        {
+          core.noteOff(n->key);
+        }
+      }
+    }
+    else
+    {
+      core.noteOff(n->key);
+    }
+  }
+
   void handleEvent(const clap_event_header_t *ev)
   {
     if (ev->space_id != CLAP_CORE_EVENT_SPACE_ID) return;
@@ -649,6 +693,16 @@ struct Plugin
       case CLAP_EVENT_NOTE_ON:
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
+        // MIDI 1.0: note-on velocity 0 IS a note-off, and the AU wrapper
+        // forwards controller 0x90-vel-0 releases verbatim (ADR-038). This
+        // synth ignores velocity, so without the remap such a release struck
+        // a fresh full-gain voice that no note-off ever ends — the
+        // 2026-07-18 "doesn't stop when you let go" hang.
+        if (n->velocity <= 0.0)
+        {
+          handleNoteOff(n);
+          break;
+        }
         const double freq = 440.0 * std::pow(2.0, (n->key - 69) / 12.0);
         if (spectraMode())
         {
@@ -695,46 +749,9 @@ struct Plugin
       case CLAP_EVENT_NOTE_OFF:
       case CLAP_EVENT_NOTE_CHOKE:
       {
-        auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
-        if (n->key < 0)
-        {
-          core.allOff();
-          spectra.allOff();
-          heldCount = 0;
-          break;
-        }
-        if (spectraMode())
-        {
-          spectra.noteOff(n->key);
-          break;
-        }
-        if (voiceMono != 0)
-        {
-          for (int i = 0; i < heldCount; i++)
-            if (heldStack[i].key == n->key)
-            {
-              for (int j = i; j < heldCount - 1; j++) heldStack[j] = heldStack[j + 1];
-              heldCount--;
-              break;
-            }
-          if (monoSlot >= 0 && core.swarmAt(monoSlot).midi == n->key)
-          {
-            if (heldCount > 0)
-            {
-              const Held &top = heldStack[heldCount - 1];
-              core.retargetNote(monoSlot, top.key, top.freq, voiceLegato != 0);
-              tags[monoSlot].key = top.key;
-            }
-            else
-            {
-              core.noteOff(n->key);
-            }
-          }
-        }
-        else
-        {
-          core.noteOff(n->key);
-        }
+        // Single note-off path (spectra dispatch lives inside handleNoteOff;
+        // the vel-0 NOTE_ON remap above routes through the same code).
+        handleNoteOff(reinterpret_cast<const clap_event_note_t *>(ev));
         break;
       }
       case CLAP_EVENT_NOTE_EXPRESSION:
