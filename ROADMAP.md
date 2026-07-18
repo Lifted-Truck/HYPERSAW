@@ -24,6 +24,7 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 - Distribution menu (even / JP / Gaussian / Cauchy / bimodal / clustered-pairs), detune laws (cents / Hz / ERB / tempo-grid with host-tempo sync), onset-lock/dissolve, retrigger, density comp, width + mono audition, digital↔clean, XY pad as macro pair.
 - **GUI v1 (ADR-013, pulled forward from Phase 5):** phase circle with dual R₁/Rₙ meters, seat rings, formation polygon, XY pad, live R/σ/pull readouts — the SPEC §5.6 contract, styled to match the prototype design language as closely as possible (extract palette/treatments from the prototype CSS, don't reinvent).
+- **Dev state button (human request, 2026-07-17):** a GUI-v1 affordance that copies the current full parameter state as JSON to the clipboard (for debugging / pasting into a session) plus a manual "save preset" action. Design position: the debug dump IS the preset format — one Layer-schema JSON with provenance metadata (SPEC §5.7), no second serialization mechanism.
 - L0-12 green (grid law); Layer-E 1, 2, 5 sign-off.
 - **Gate:** SAW mode is a shippable instrument on its own — playable through its own GUI.
 

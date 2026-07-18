@@ -119,5 +119,14 @@ if (selfcheck) {
   console.log(`gen_goldens: ${SCENARIOS.length * SEEDS.length} scenarios deterministic`);
 } else {
   writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  // TSV twin of the manifest for the C++ parity harness: params serialized in
+  // APPLICATION ORDER (seed first, then scenario keys in object order) — the
+  // C++ side must call setParam in this exact order to reproduce rebuild()
+  // RNG draws.
+  const tsv = manifest.entries.map(e =>
+    [e.name, e.file, e.seed,
+     Object.entries({ seed: e.seed, ...e.params }).map(([k, v]) => `${k}=${v}`).join(',')].join('\t')
+  ).join('\n') + '\n';
+  writeFileSync(join(outDir, 'manifest.tsv'), tsv);
   console.log(`manifest: ${manifest.entries.length} goldens -> build-golden/`);
 }

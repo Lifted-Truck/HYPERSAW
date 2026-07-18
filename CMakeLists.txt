@@ -55,6 +55,18 @@ make_clapfirst_plugins(
         AUV2_INSTRUMENT_TYPE "aumu"
 )
 
+# L0-1 parity harness (host-side tool, not shipped): SwarmCore vs JS goldens.
+add_executable(parity_check tools/parity_check.cpp)
+if(NOT MSVC)
+  target_compile_options(parity_check PRIVATE -O2)
+endif()
+
+# L0-2..5 + L0-13 trajectory suite (host-side tool, not shipped).
+add_executable(trajectory_check tools/trajectory_check.cpp)
+if(NOT MSVC)
+  target_compile_options(trajectory_check PRIVATE -O2)
+endif()
+
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)
