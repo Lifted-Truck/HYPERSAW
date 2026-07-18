@@ -61,6 +61,10 @@ struct Params
   // R->tone output pole — the one structural difference between the two
   // references (DynSynth has no output filter).
   double topo = 0, reach = 5, mu = 0.6, alpha = 0, poles = 1, grav = 0, basin = 35, lpOut = 1;
+  // Voice-mode support (ADR-026): glide time in seconds for retargetNote().
+  // Pure superset — the poly/default path never sets a glide target, so all
+  // reference expressions stay bit-untouched.
+  double glide = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -86,6 +90,8 @@ class SwarmCore
     uint32_t rngState = 1;
     int fresh = 1;
     int inAttack = 1;  // ADSR phase flag; unread on the reference-exact path
+    int glideActive = 0;
+    double glideTarget = 0;
     double lpL = 0, lpR = 0, lpc = 1;
   };
 
@@ -119,6 +125,48 @@ class SwarmCore
   {
     Swarm &s = alloc();
     const int slot = (int)(&s - &swarms[0]);
+    initVoice(s, midi, f);
+    return slot;
+  }
+
+  // Mono/legato retarget (ADR-026): reuse a sounding voice for a new note.
+  // legatoKeepPhase: keep phases/envelope running (classic legato); false
+  // re-strikes the voice in place (phases/rng/attack) but still glides.
+  // With p.glide <= 0 the pitch change is immediate.
+  void retargetNote(int slot, int midi, double f, bool legatoKeepPhase)
+  {
+    Swarm &s = swarms[slot];
+    if (!legatoKeepPhase)
+    {
+      const double keepF0 = s.f0, keepF0cur = s.f0cur;
+      initVoice(s, midi, f);
+      if (p.glide > 0)
+      {
+        s.f0 = keepF0;      // strike from the CURRENT pitch, glide to the new
+        s.f0cur = keepF0cur;
+      }
+    }
+    else
+    {
+      s.midi = midi;
+      s.gate = 1;
+    }
+    if (p.glide > 0)
+    {
+      s.glideTarget = f;
+      s.glideActive = 1;
+    }
+    else
+    {
+      const double ratio = f / s.f0;
+      s.f0 = f;
+      s.f0cur *= ratio;  // preserve gravity offsets multiplicatively
+      s.glideActive = 0;
+    }
+  }
+
+  void initVoice(Swarm &s, int midi, double f)
+  {
     s.midi = midi;
     s.f0 = f;
     s.f0cur = f;
@@ -139,7 +187,7 @@ class SwarmCore
       s.driftS[i] = 0;
       s.phase[i] = (p.retrig != 0) ? 0.0 : rngNext(s.rngState);
     }
-    return slot;
+    s.glideActive = 0;
   }
 
   void noteOff(int midi)
@@ -300,6 +348,19 @@ class SwarmCore
       }
     }
     this->tick = (this->tick + frames) & (kTick - 1);
+    if (p.width > 1.0)
+    {
+      // Super-width (ADR-025): mid/side side-boost ahead of the soft clip.
+      // Only reachable at width > 1 — the reference range is bit-untouched.
+      const double sideGain = 1 + (p.width - 1) * 2;  // up to 2x at 1.5
+      for (int smp = 0; smp < frames; smp++)
+      {
+        const double mid = ((double)outL[smp] + (double)outR[smp]) * 0.5;
+        const double side = ((double)outL[smp] - (double)outR[smp]) * 0.5 * sideGain;
+        outL[smp] = (float)(mid + side);
+        outR[smp] = (float)(mid - side);
+      }
+    }
     for (int smp = 0; smp < frames; smp++)
     {
       outL[smp] = (float)std::tanh((double)outL[smp]);
@@ -355,6 +416,7 @@ class SwarmCore
     if (k == "grav") return &p.grav;
     if (k == "basin") return &p.basin;
     if (k == "lpOut") return &p.lpOut;
+    if (k == "glide") return &p.glide;
     return nullptr;
   }
 
@@ -419,7 +481,7 @@ class SwarmCore
       if (std::fabs(x[i]) < std::fabs(x[centerIdx])) centerIdx = i;
     for (int i = 0; i < n; i++)
     {
-      const double pan = std::max(-1.0, std::min(1.0, x[i])) * p.width;
+      const double pan = std::max(-1.0, std::min(1.0, x[i])) * std::min(1.0, p.width);
       const double th = (pan + 1) * 0.25 * kPiRef;
       panL[i] = std::cos(th);
       panR[i] = std::sin(th);
@@ -444,6 +506,22 @@ class SwarmCore
   {
     const int n = (int)p.n;
     const double dt = kTick / sr;
+    if (s.glideActive)
+    {
+      // seconds -> per-tick coefficient (ADR-009 discipline)
+      const double coef = 1 - std::exp(-dt / std::max(1e-3, p.glide));
+      const double newF0 = s.f0 + (s.glideTarget - s.f0) * coef;
+      const double ratio = newF0 / s.f0;
+      s.f0 = newF0;
+      s.f0cur *= ratio;
+      if (std::fabs(s.f0 - s.glideTarget) < 0.01)
+      {
+        const double snap = s.glideTarget / s.f0;
+        s.f0 = s.glideTarget;
+        s.f0cur *= snap;
+        s.glideActive = 0;
+      }
+    }
     s.Kenv *= std::exp(-dt / std::max(0.01, p.dissolve));
     if (p.driftDepth > 0)
     {

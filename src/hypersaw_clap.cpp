@@ -77,8 +77,8 @@ static const ParamDef kParams[] = {
     {11, "inertia", "Inertia", 0, 1, 0, false, nullptr},
     {12, "rtone", "R->Tone", -1, 1, 0, false, nullptr},
     {13, "normExp", "Density Comp", 0.5, 1, 0.75, false, nullptr},
-    {14, "width", "Width", 0, 1, 0.8, false, nullptr},
-    {15, "mono", "Mono", 0, 1, 0, true, kOffOn},
+    {14, "width", "Width", 0, 1.5, 0.8, false, nullptr},  // >1 = super-width (ADR-025)
+    {15, "mono", "Mono Fold", 0, 1, 0, true, kOffOn},
     {16, "digital", "Digital", 0, 1, 1, false, nullptr},
     {17, "vol", "Volume", 0, 1, 0.4, false, nullptr},
     {18, "retrig", "Retrigger", 0, 1, 1, true, kOffOn},
@@ -89,6 +89,14 @@ static const ParamDef kParams[] = {
     {22, "release", "Release (s)", 0.005, 8.0, 0.16, false, nullptr},
     // Tempo-grid law (ADR-022): bpm is host-owned (transport), not a param
     {23, "beatMult", "Grid Cycles/Beat", 0.25, 8.0, 1.0, false, nullptr},
+    // IDs 24-30 reserved for the dynamics surface (topology/alpha/poles/
+    // gravity — Phase 3 increment 2).
+    // Voice mode (ADR-026): mono/glide/legato are SHELL note-routing plus the
+    // core's glide param; octave is a pure shell transpose.
+    {32, "voiceMono", "Voice: Mono", 0, 1, 0, true, kOffOn},
+    {33, "glide", "Glide (s)", 0, 2.0, 0, false, nullptr},
+    {34, "voiceLegato", "Voice: Legato", 0, 1, 1, true, kOffOn},
+    {35, "octave", "Octave", -2, 2, 0, true, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -160,6 +168,16 @@ struct Plugin
   // state_check demands exact round-trips, so the knob domain gets this one
   // documented slot. Everything else stays core.p-authoritative.
   double inertiaKnob = 0;
+  // ADR-026 shell voice-mode state (audio-thread only)
+  double voiceMono = 0, voiceLegato = 1, octave = 0;
+  struct Held
+  {
+    int16_t key;
+    double freq;
+  };
+  Held heldStack[16];
+  int heldCount = 0;
+  int monoSlot = -1;
 
   // Host note identity per swarm slot, for CLAP NOTE_END: hosts use note-end
   // to retire per-note bookkeeping, and without it some (Live via the VST3
@@ -338,7 +356,29 @@ struct Plugin
         inertiaKnob = v;
         v = std::sqrt(v);
       }
-      core.setParam(d->coreKey, d->stepped ? std::round(v) : v);
+      const double applied = d->stepped ? std::round(v) : v;
+      if (id == 32)
+      {
+        if (applied != voiceMono)
+        {
+          core.allOff();
+          heldCount = 0;
+          monoSlot = -1;
+        }
+        voiceMono = applied;
+        return;
+      }
+      if (id == 34)
+      {
+        voiceLegato = applied;
+        return;
+      }
+      if (id == 35)
+      {
+        octave = applied;
+        return;
+      }
+      core.setParam(d->coreKey, applied);
     }
   }
 
@@ -360,6 +400,10 @@ struct Plugin
       if (k == "driftDepth") return p.driftDepth;
       if (k == "driftRate") return p.driftRate;
       if (k == "inertia") return inertiaKnob;  // ADR-024 knob domain
+      if (d->id == 32) return voiceMono;
+      if (d->id == 34) return voiceLegato;
+      if (d->id == 35) return octave;
+      if (k == "glide") return p.glide;
       if (k == "rtone") return p.rtone;
       if (k == "normExp") return p.normExp;
       if (k == "width") return p.width;
@@ -384,16 +428,70 @@ struct Plugin
       case CLAP_EVENT_NOTE_ON:
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
-        const int slot = core.noteOn(n->key, 440.0 * std::pow(2.0, (n->key - 69) / 12.0));
-        tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
+        const double freq =
+            440.0 * std::pow(2.0, (n->key + 12.0 * octave - 69) / 12.0);  // ADR-026 octave
+        if (voiceMono != 0)
+        {
+          if (heldCount < 16) heldStack[heldCount++] = {n->key, freq};
+          const bool voiceLive = monoSlot >= 0 && (core.swarmAt(monoSlot).gate ||
+                                                   core.swarmAt(monoSlot).env >= 1e-4);
+          if (!voiceLive)
+          {
+            monoSlot = core.noteOn(n->key, freq);
+          }
+          else
+          {
+            // legato keeps the phases/envelope; non-legato re-strikes in
+            // place; either way glide applies (core p.glide)
+            const bool keep = voiceLegato != 0 && heldCount > 1;
+            core.retargetNote(monoSlot, n->key, freq, keep);
+          }
+          tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};
+        }
+        else
+        {
+          const int slot = core.noteOn(n->key, freq);
+          tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
+        }
         break;
       }
       case CLAP_EVENT_NOTE_OFF:
       case CLAP_EVENT_NOTE_CHOKE:
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
-        if (n->key < 0) core.allOff();
-        else core.noteOff(n->key);
+        if (n->key < 0)
+        {
+          core.allOff();
+          heldCount = 0;
+          break;
+        }
+        if (voiceMono != 0)
+        {
+          for (int i = 0; i < heldCount; i++)
+            if (heldStack[i].key == n->key)
+            {
+              for (int j = i; j < heldCount - 1; j++) heldStack[j] = heldStack[j + 1];
+              heldCount--;
+              break;
+            }
+          if (monoSlot >= 0 && core.swarmAt(monoSlot).midi == n->key)
+          {
+            if (heldCount > 0)
+            {
+              const Held &top = heldStack[heldCount - 1];
+              core.retargetNote(monoSlot, top.key, top.freq, voiceLegato != 0);
+              tags[monoSlot].key = top.key;
+            }
+            else
+            {
+              core.noteOff(n->key);
+            }
+          }
+        }
+        else
+        {
+          core.noteOff(n->key);
+        }
         break;
       }
       case CLAP_EVENT_PARAM_VALUE:
@@ -589,6 +687,16 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   {
     if (value < 0.01) std::snprintf(out, cap, "%.1f ms", value * 1000);
     else std::snprintf(out, cap, "%.2f s", value);
+  }
+  else if (id == 33)  // glide seconds
+  {
+    if (value < 0.001) std::snprintf(out, cap, "off");
+    else if (value < 0.01) std::snprintf(out, cap, "%.1f ms", value * 1000);
+    else std::snprintf(out, cap, "%.2f s", value);
+  }
+  else if (id == 35)  // octave
+  {
+    std::snprintf(out, cap, "%+d oct", (int)std::round(value));
   }
   else if (id == 23)  // grid cycles/beat: named rational division
   {

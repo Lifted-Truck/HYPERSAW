@@ -698,6 +698,65 @@ int main()
     check(ok, "L0-13 fuzz grid: finite, peak <= 1.0 post-tanh", ok ? 1 : 0);
   }
 
+  std::printf("== ADR-025/026 voice mode & super-width ==\n");
+  {
+    // Glide: retarget 220 -> 440 at glide 0.2 s reaches within 1 cent in 1 s.
+    SwarmCore c(kSR);
+    c.setParam("glide", 0.2);
+    const int slot = c.noteOn(57, 220.0);
+    std::vector<float> L(kBlock), R(kBlock);
+    for (long off = 0; off < (long)(0.5 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
+    c.retargetNote(slot, 69, 440.0, true);
+    double envMin = 1;
+    // exponential approach: tau = glide, so ~2.5 s (12 tau) settles a full
+    // octave to well under a cent (1 s = 5 tau leaves ~7c of 1200c)
+    for (long off = 0; off < (long)(2.5 * kSR); off += kBlock)
+    {
+      c.render(L.data(), R.data(), kBlock);
+      envMin = std::min(envMin, c.swarmAt(slot).env);
+    }
+    const double cents = 1200 * std::log2(c.swarmAt(slot).f0 / 440.0);
+    check(std::fabs(cents) <= 1.0, "ADR-026 glide reaches target within 1c (12 tau)", cents);
+    check(envMin > 0.5, "ADR-026 legato retarget keeps the envelope up", envMin);
+
+    // Non-legato retarget re-strikes (attack flag) but still glides from the
+    // current pitch: right after retarget the pitch is near the OLD note.
+    SwarmCore c2(kSR);
+    c2.setParam("glide", 0.5);
+    const int s2 = c2.noteOn(57, 220.0);
+    for (long off = 0; off < (long)(0.5 * kSR); off += kBlock) c2.render(L.data(), R.data(), kBlock);
+    c2.retargetNote(s2, 69, 440.0, false);
+    c2.render(L.data(), R.data(), kBlock);
+    check(c2.swarmAt(s2).f0 < 260.0, "ADR-026 non-legato glide starts from current pitch",
+          c2.swarmAt(s2).f0);
+
+    // Super-width: width 1.5 widens (|L-R| energy up vs width 1.0) and stays
+    // finite/bounded; width <= 1 is covered by parity.
+    auto sideEnergy = [&](double w) {
+      SwarmCore cc(kSR);
+      cc.setParam("width", w);
+      cc.setParam("detune", 0.6);
+      cc.noteOn(kMidi, mtof(kMidi));
+      double e = 0;
+      bool finite = true;
+      for (long off = 0; off < (long)(2 * kSR); off += kBlock)
+      {
+        cc.render(L.data(), R.data(), kBlock);
+        if (off < (long)(1 * kSR)) continue;
+        for (int i = 0; i < kBlock; i++)
+        {
+          const double sd = (double)L[i] - (double)R[i];
+          e += sd * sd;
+          if (!std::isfinite(L[i]) || std::fabs(L[i]) > 1.0) finite = false;
+        }
+      }
+      return finite ? e : -1.0;
+    };
+    const double e10 = sideEnergy(1.0), e15 = sideEnergy(1.5);
+    check(e15 > 1.5 * e10 && e15 > 0, "ADR-025 width 1.5 side energy > 1.5x width 1.0",
+          e15 / e10);
+  }
+
   std::printf("trajectory_check: %s (%d failure%s)\n", g_failures ? "RED" : "GREEN", g_failures,
               g_failures == 1 ? "" : "s");
   return g_failures ? 1 : 0;
