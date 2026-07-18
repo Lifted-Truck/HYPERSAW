@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HYPERSAW</title>
+<style>
+  /* Design language lifted from swarmsaw.html (the reference face, ADR-013/019).
+     Webfonts omitted deliberately: the plugin webview is offline by design, so
+     the prototype's Space Grotesk / IBM Plex Mono fall back to system stacks. */
+  :root {
+    --ink: #0b0e14;
+    --panel: #11151f;
+    --panel2: #161b28;
+    --line: #232a3a;
+    --text: #e8ecf2;
+    --dim: #7c8698;
+    --swarm: #5ff2e0;   /* phosphor cyan: the voices */
+    --pull: #ff4fa3;    /* magenta: coupling / order */
+    --drift: #ffc24b;   /* amber: drift & warnings */
+    --mono-f: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --disp-f: system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--text); font-family: var(--mono-f); font-size: 12px; }
+  body { padding: 10px; user-select: none; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  h1 { font-family: var(--disp-f); font-weight: 700; font-size: 18px; letter-spacing: 0.06em; }
+  h1 .star { color: var(--pull); }
+  .tagline { color: var(--dim); font-size: 10px; }
+  header .spacer { margin-left: auto; }
+  button.mini {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 10px; padding: 4px 8px; cursor: pointer; border-radius: 2px;
+  }
+  button.mini:hover { border-color: var(--swarm); }
+  .grid { display: grid; grid-template-columns: 280px 1fr; gap: 10px; }
+  .scope, .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 10px; }
+  .scope h2, .cluster h2 {
+    font-family: var(--disp-f); font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .cluster.pull h2 { color: var(--pull); }
+  .cluster.drift h2 { color: var(--drift); }
+  canvas { display: block; width: 100%; }
+  #phaseCanvas { aspect-ratio: 1; }
+  #xyPad { aspect-ratio: 1.6; margin-top: 8px; background: var(--panel2); border: 1px solid var(--line); cursor: crosshair; }
+  .rmeter { margin-top: 8px; }
+  .rmeter .bar { height: 7px; background: var(--panel2); border: 1px solid var(--line); position: relative; }
+  .rmeter .fill { position: absolute; inset: 0; width: 0%; background: linear-gradient(90deg, var(--swarm), var(--pull)); }
+  .rmeter .fill.amber { background: linear-gradient(90deg, #ffc24b, #ff8b3c); }
+  .rmeter .lbl { display: flex; justify-content: space-between; color: var(--dim); font-size: 9px; margin-top: 3px; }
+  .rmeter .lbl b { color: var(--text); font-weight: 500; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
+  .row { display: grid; grid-template-columns: 78px 1fr 52px; align-items: center; gap: 6px; margin: 5px 0; }
+  .row label { color: var(--dim); font-size: 10px; }
+  .row output { text-align: right; font-size: 10px; color: var(--text); }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--line); border-radius: 2px; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--swarm); border: 2px solid var(--ink); cursor: pointer;
+  }
+  .pull input[type=range]::-webkit-slider-thumb { background: var(--pull); }
+  .drift input[type=range]::-webkit-slider-thumb { background: var(--drift); }
+  select {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 10px; padding: 3px 5px; border-radius: 2px; width: 100%;
+  }
+  .togs { display: flex; gap: 12px; margin-top: 6px; }
+  .togs label { display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 10px; cursor: pointer; }
+  .togs input { accent-color: var(--pull); }
+  #statebox {
+    display: none; width: 100%; height: 70px; margin-top: 8px; background: var(--panel2);
+    color: var(--text); border: 1px solid var(--line); font-family: var(--mono-f); font-size: 9px;
+  }
+  #toast { color: var(--drift); font-size: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>HYPER<span class="star">✱</span>SAW</h1>
+  <div class="tagline">kuramoto-coupled unison · seeded swarms · 8-voice poly</div>
+  <span id="toast"></span>
+  <span class="spacer"></span>
+  <button class="mini" id="copyState" title="copy full state as JSON (debug / preset)">COPY STATE</button>
+  <button class="mini" id="pasteState" title="apply state JSON from the box below">PASTE STATE</button>
+</header>
+
+<div class="grid">
+  <div class="scope">
+    <h2>Phase circle · <span style="color:var(--pull)">R·e^iψ</span></h2>
+    <canvas id="phaseCanvas" width="256" height="256"></canvas>
+    <div class="rmeter">
+      <div class="bar"><div class="fill" id="rfill"></div></div>
+      <div class="lbl"><span>R₁ sync (clump) <b id="rval">0.00</b></span><span>pull <b id="kval">0.0</b> Hz · σ <b id="sval">0.0</b> Hz</span></div>
+      <div class="bar" style="margin-top:5px"><div class="fill amber" id="rnfill"></div></div>
+      <div class="lbl"><span>Rₙ splay (formation) <b id="rnval">0.00</b></span></div>
+    </div>
+    <h2 style="margin-top:10px">XY · x=detune y=pull K</h2>
+    <canvas id="xyPad" width="256" height="160"></canvas>
+    <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
+  </div>
+
+  <div class="controls">
+    <div class="cluster">
+      <h2>The swarm</h2>
+      <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1"><output>7</output></div>
+      <div class="row"><label>distribution</label><select data-p="2">
+        <option value="0">even spread</option><option value="1">JP-8000 curve</option>
+        <option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option>
+      </select><output></output></div>
+      <div class="row"><label>seed</label><input type="range" data-p="3" min="0" max="99999" step="1"><output>1234</output></div>
+      <div class="row"><label>detune</label><input type="range" data-p="4" min="0" max="1" step="0.001"><output>0.28</output></div>
+      <div class="row"><label>law</label><select data-p="5">
+        <option value="0">cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option>
+      </select><output></output></div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>The coupling</h2>
+      <div class="row"><label>pull K</label><input type="range" data-p="6" min="-1" max="1" step="0.001"><output>0.00</output></div>
+      <div class="row"><label>onset lock</label><input type="range" data-p="7" min="0" max="1" step="0.001"><output>0.00</output></div>
+      <div class="row"><label>dissolve</label><input type="range" data-p="8" min="-1.3" max="0.9" step="0.01" data-log10="1"><output>0.63s</output></div>
+      <div class="row"><label>inertia</label><input type="range" data-p="11" min="0" max="1" step="0.01"><output>0.00</output></div>
+      <div class="togs">
+        <label><input type="checkbox" data-p="18"> retrigger</label>
+      </div>
+    </div>
+
+    <div class="cluster drift">
+      <h2>Drift</h2>
+      <div class="row"><label>depth</label><input type="range" data-p="9" min="0" max="25" step="0.1"><output>0.0c</output></div>
+      <div class="row"><label>rate</label><input type="range" data-p="10" min="0" max="1" step="0.01"><output>0.40</output></div>
+    </div>
+
+    <div class="cluster">
+      <h2>Output &amp; perception</h2>
+      <div class="row"><label>R→tone</label><input type="range" data-p="12" min="-1" max="1" step="0.01"><output>0.00</output></div>
+      <div class="row"><label>density comp</label><input type="range" data-p="13" min="0.5" max="1" step="0.01"><output>0.75</output></div>
+      <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1" step="0.01"><output>0.80</output></div>
+      <div class="row"><label>digital</label><input type="range" data-p="16" min="0" max="1" step="0.01"><output>1.00</output></div>
+      <div class="row"><label>volume</label><input type="range" data-p="17" min="0" max="1" step="0.01"><output>0.40</output></div>
+      <div class="togs">
+        <label><input type="checkbox" data-p="15"> mono audition</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const bridge = {
+  getViz: () => window.hzGetViz(),
+  getParams: () => window.hzGetParams(),
+  setParam: (id, v) => window.hzSetParam(id, v),
+  gesture: (id, begin) => window.hzGesture(id, begin),
+  getState: () => window.hzGetState(),
+  applyState: (s) => window.hzApplyState(s),
+};
+
+/* ---- controls -> params ---- */
+const DETUNE_ID = 4, K_ID = 6;
+const controls = document.querySelectorAll('[data-p]');
+
+function displayValue(el, v) {
+  const out = el.closest('.row') ? el.closest('.row').querySelector('output') : null;
+  if (!out) return;
+  if (el.dataset.log10) out.textContent = v.toFixed(2) + 's';
+  else if (el.dataset.p === '9') out.textContent = v.toFixed(1) + 'c';
+  else if (el.step === '1') out.textContent = String(Math.round(v));
+  else out.textContent = v.toFixed(2);
+}
+
+controls.forEach(el => {
+  const id = +el.dataset.p;
+  const isCheck = el.type === 'checkbox';
+  const isSelect = el.tagName === 'SELECT';
+  const toParam = () => {
+    if (isCheck) return el.checked ? 1 : 0;
+    if (isSelect) return +el.value;
+    const raw = +el.value;
+    return el.dataset.log10 ? Math.pow(10, raw) : raw;
+  };
+  const ev = (isCheck || isSelect) ? 'change' : 'input';
+  el.addEventListener(ev, () => {
+    const v = toParam();
+    bridge.setParam(id, v);
+    displayValue(el, v);
+    if (id === DETUNE_ID || id === K_ID) xyDirty = true;
+  });
+  if (!isCheck && !isSelect) {
+    el.addEventListener('pointerdown', () => bridge.gesture(id, true));
+    el.addEventListener('pointerup', () => bridge.gesture(id, false));
+  }
+});
+
+function setControl(id, v) {
+  const el = document.querySelector(`[data-p="${id}"]`);
+  if (!el) return;
+  if (el.type === 'checkbox') el.checked = v > 0.5;
+  else if (el.tagName === 'SELECT') el.value = String(Math.round(v));
+  else el.value = el.dataset.log10 ? Math.log10(Math.max(1e-6, v)) : v;
+  displayValue(el, v);
+}
+
+async function syncFromEngine() {
+  const ps = JSON.parse(await bridge.getParams());
+  for (const [id, v] of Object.entries(ps)) setControl(+id, v);
+  xyDirty = true;
+}
+
+/* ---- state buttons (dev affordance: dump IS the preset format) ---- */
+$('#copyState').addEventListener('click', async () => {
+  const json = await bridge.getState();
+  const box = $('#statebox');
+  box.style.display = 'block';
+  box.value = json;
+  box.select();
+  let copied = false;
+  try { copied = document.execCommand('copy'); } catch (e) {}
+  if (!copied && navigator.clipboard) {
+    try { await navigator.clipboard.writeText(json); copied = true; } catch (e) {}
+  }
+  $('#toast').textContent = copied ? 'state copied to clipboard' : 'copy manually from the box';
+  setTimeout(() => { $('#toast').textContent = ''; }, 2500);
+});
+$('#pasteState').addEventListener('click', async () => {
+  const box = $('#statebox');
+  if (box.style.display === 'none' || !box.value.trim()) {
+    box.style.display = 'block';
+    box.focus();
+    $('#toast').textContent = 'paste JSON in the box, press PASTE STATE again';
+    return;
+  }
+  const ok = await bridge.applyState(box.value);
+  $('#toast').textContent = ok ? 'state applied' : 'invalid state JSON';
+  if (ok) syncFromEngine();
+  setTimeout(() => { $('#toast').textContent = ''; }, 2500);
+});
+
+/* ---- XY pad: x=detune, y=bipolar K (SPEC performance layer) ---- */
+const xy = $('#xyPad'), xyctx = xy.getContext('2d');
+let xyDirty = true, xyDown = false;
+let curDetune = 0.28, curK = 0;
+function drawXY() {
+  const w = xy.width, h = xy.height;
+  xyctx.fillStyle = '#161b28'; xyctx.fillRect(0, 0, w, h);
+  xyctx.strokeStyle = '#232a3a';
+  xyctx.beginPath(); xyctx.moveTo(0, h / 2); xyctx.lineTo(w, h / 2); xyctx.stroke();
+  const x = curDetune * w, y = (1 - (curK + 1) / 2) * h;
+  xyctx.strokeStyle = '#5ff2e0';
+  xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h); xyctx.stroke();
+  xyctx.strokeStyle = '#ff4fa3';
+  xyctx.beginPath(); xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();
+  xyctx.fillStyle = '#e8ecf2';
+  xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
+}
+function xyApply(e) {
+  const r = xy.getBoundingClientRect();
+  curDetune = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  curK = Math.min(1, Math.max(-1, 1 - 2 * (e.clientY - r.top) / r.height));
+  bridge.setParam(DETUNE_ID, curDetune);
+  bridge.setParam(K_ID, curK);
+  setControl(DETUNE_ID, curDetune);
+  setControl(K_ID, curK);
+  xyDirty = true;
+}
+xy.addEventListener('pointerdown', e => { xyDown = true; xy.setPointerCapture(e.pointerId); bridge.gesture(DETUNE_ID, true); bridge.gesture(K_ID, true); xyApply(e); });
+xy.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
+xy.addEventListener('pointerup', e => { xyDown = false; bridge.gesture(DETUNE_ID, false); bridge.gesture(K_ID, false); });
+
+/* ---- phase circle: ported verbatim from swarmsaw.html drawPhase(), fed by
+       the engine snapshot instead of the in-page synth ---- */
+const pc = $('#phaseCanvas'), pctx = pc.getContext('2d');
+function drawPhase(s) {
+  const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
+  pctx.fillStyle = 'rgba(11,14,20,0.32)';
+  pctx.fillRect(0, 0, w, h);
+  pctx.strokeStyle = '#232a3a';
+  pctx.lineWidth = 1;
+  pctx.beginPath(); pctx.arc(cx, cy, rad, 0, Math.PI * 2); pctx.stroke();
+  pctx.beginPath(); pctx.moveTo(cx - rad - 8, cy); pctx.lineTo(cx + rad + 8, cy);
+  pctx.moveTo(cx, cy - rad - 8); pctx.lineTo(cx, cy + rad + 8); pctx.stroke();
+  if (!s || !s.active) return;
+  const n = s.n;
+  const px = [], py = [];
+  for (let i = 0; i < n; i++) {
+    const a = s.phase[i] * Math.PI * 2;
+    px.push(cx + rad * Math.cos(a)); py.push(cy - rad * Math.sin(a));
+  }
+  const seatAlpha = Math.min(0.7, s.KsmP / (s.KsmP + 2));
+  if (seatAlpha > 0.03) {
+    const c0 = s.centerIdx < n ? s.centerIdx : 0;
+    pctx.strokeStyle = 'rgba(255,194,75,' + seatAlpha.toFixed(2) + ')';
+    pctx.lineWidth = 1.2;
+    for (let i = 0; i < n; i++) {
+      const t = (s.phase[c0] + (i - c0) / n) * Math.PI * 2;
+      const x = cx + rad * Math.cos(t), y = cy - rad * Math.sin(t);
+      pctx.beginPath(); pctx.arc(x, y, 6.5, 0, Math.PI * 2); pctx.stroke();
+    }
+  }
+  pctx.strokeStyle = 'rgba(95,242,224,0.28)';
+  pctx.lineWidth = 1;
+  pctx.beginPath();
+  pctx.moveTo(px[0], py[0]);
+  for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
+  pctx.closePath(); pctx.stroke();
+  for (let i = 0; i < n; i++) {
+    pctx.fillStyle = '#5ff2e0';
+    pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
+  }
+  const ax = cx + rad * s.R * Math.cos(s.psi);
+  const ay = cy - rad * s.R * Math.sin(s.psi);
+  pctx.strokeStyle = '#ff4fa3'; pctx.lineWidth = 2;
+  pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(ax, ay); pctx.stroke();
+  pctx.fillStyle = '#ff4fa3';
+  pctx.beginPath(); pctx.arc(ax, ay, 3.5, 0, Math.PI * 2); pctx.fill();
+
+  $('#rfill').style.width = (s.R * 100).toFixed(1) + '%';
+  $('#rval').textContent = s.R.toFixed(2);
+  $('#rnfill').style.width = (s.RN * 100).toFixed(1) + '%';
+  $('#rnval').textContent = s.RN.toFixed(2);
+  $('#kval').textContent = (s.KsmS - s.KsmP).toFixed(1);
+  $('#sval').textContent = s.sigma.toFixed(1);
+}
+
+let vizBusy = false;
+async function loop() {
+  if (xyDirty) { drawXY(); xyDirty = false; }
+  if (!vizBusy) {
+    vizBusy = true;
+    try { drawPhase(JSON.parse(await bridge.getViz())); } catch (e) {}
+    vizBusy = false;
+  }
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('load', () => { syncFromEngine().catch(() => {}); loop(); });
+</script>
+</body>
+</html>

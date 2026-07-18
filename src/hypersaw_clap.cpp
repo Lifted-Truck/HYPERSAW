@@ -18,10 +18,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <atomic>
 #include <string>
 #include <clap/clap.h>
 
 #include "swarm_core.h"
+#include "gui/hypersaw_gui.h"
 #include "hypersaw_clap_entry.h"
 
 namespace
@@ -92,8 +94,156 @@ struct Plugin
 {
   clap_plugin_t plugin{};
   const clap_host_t *host = nullptr;
+  const clap_host_params_t *hostParams = nullptr;
   hypersaw::SwarmCore core{44100.0};
   double sampleRate = 44100.0;
+
+  // GUI -> audio param queue (producer: GUI main thread; consumer: process on
+  // the audio thread, or flush on main when inactive — never concurrent per
+  // the CLAP threading contract).
+  struct ParamMsg
+  {
+    uint32_t id;
+    double value;
+    uint8_t kind;  // 0=value, 1=gesture begin, 2=gesture end
+  };
+  static constexpr uint32_t kQCap = 256;
+  ParamMsg queue[kQCap];
+  std::atomic<uint32_t> qHead{0}, qTail{0};
+
+  // Engine -> GUI viz feed: classic double buffer; writer alternates, reader
+  // only ever copies the published side.
+  hypersaw::VizSnapshot vizBuf[2];
+  std::atomic<int> vizPublished{0};
+
+  hypersaw::HypersawGui *gui = nullptr;
+
+  void enqueueParam(uint32_t id, double value, uint8_t kind)
+  {
+    const uint32_t head = qHead.load(std::memory_order_relaxed);
+    if (head - qTail.load(std::memory_order_acquire) >= kQCap) return;  // drop on overflow
+    queue[head % kQCap] = {id, value, kind};
+    qHead.store(head + 1, std::memory_order_release);
+    if (hostParams && hostParams->request_flush) hostParams->request_flush(host);
+  }
+
+  void drainQueue(const clap_output_events_t *out)
+  {
+    uint32_t tail = qTail.load(std::memory_order_relaxed);
+    const uint32_t head = qHead.load(std::memory_order_acquire);
+    while (tail != head)
+    {
+      const ParamMsg &m = queue[tail % kQCap];
+      if (m.kind == 0)
+      {
+        applyParam(m.id, m.value);
+        if (out)
+        {
+          clap_event_param_value_t ev{};
+          ev.header.size = sizeof(ev);
+          ev.header.time = 0;
+          ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+          ev.header.type = CLAP_EVENT_PARAM_VALUE;
+          ev.param_id = m.id;
+          ev.cookie = nullptr;
+          ev.note_id = -1;
+          ev.port_index = -1;
+          ev.channel = -1;
+          ev.key = -1;
+          ev.value = m.value;
+          out->try_push(out, &ev.header);
+        }
+      }
+      else if (out)
+      {
+        clap_event_param_gesture_t ev{};
+        ev.header.size = sizeof(ev);
+        ev.header.time = 0;
+        ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+        ev.header.type =
+            m.kind == 1 ? CLAP_EVENT_PARAM_GESTURE_BEGIN : CLAP_EVENT_PARAM_GESTURE_END;
+        ev.param_id = m.id;
+        out->try_push(out, &ev.header);
+      }
+      tail++;
+    }
+    qTail.store(tail, std::memory_order_release);
+  }
+
+  void publishViz()
+  {
+    const int writeIdx = 1 - vizPublished.load(std::memory_order_relaxed);
+    hypersaw::VizSnapshot &v = vizBuf[writeIdx];
+    const auto *s = core.focus();
+    if (!s)
+    {
+      v = hypersaw::VizSnapshot{};
+    }
+    else
+    {
+      v.active = true;
+      v.n = (int)core.p.n;
+      v.centerIdx = core.centerIndex();
+      v.R = s->R;
+      v.RN = s->RN;
+      v.psi = s->psi;
+      v.sigma = s->sigma;
+      v.KsmS = s->KsmS;
+      v.KsmP = s->KsmP;
+      for (int i = 0; i < v.n && i < 32; i++) v.phase[i] = s->phase[i];
+    }
+    vizPublished.store(writeIdx, std::memory_order_release);
+  }
+
+  std::string paramsJson() const
+  {
+    std::string out = "{";
+    char buf[48];
+    for (const auto &d : kParams)
+    {
+      std::snprintf(buf, sizeof(buf), "%s\"%u\":%.6g", out.size() > 1 ? "," : "", d.id,
+                    readParam(d.id));
+      out += buf;
+    }
+    return out + "}";
+  }
+
+  std::string stateJson() const
+  {
+    // The debug dump IS the preset format (ROADMAP Phase 2 design position):
+    // one schema, provenance included (SPEC §5.7).
+    std::string out = "{\"plugin\":\"HYPERSAW\",\"schema\":1,\"params\":{";
+    char buf[64];
+    bool first = true;
+    for (const auto &d : kParams)
+    {
+      std::snprintf(buf, sizeof(buf), "%s\"%s\":%.17g", first ? "" : ",", d.coreKey,
+                    readParam(d.id));
+      out += buf;
+      first = false;
+    }
+    return out + "}}";
+  }
+
+  bool applyStateJson(const std::string &json)
+  {
+    // Tolerant flat scan of our own schema: for each known coreKey, find
+    // "key" and parse the number after the colon. Queued to the audio
+    // thread — never applied directly from the GUI thread.
+    if (json.find("\"params\"") == std::string::npos) return false;
+    bool any = false;
+    for (const auto &d : kParams)
+    {
+      const std::string needle = "\"" + std::string(d.coreKey) + "\"";
+      size_t pos = json.find(needle);
+      if (pos == std::string::npos) continue;
+      pos = json.find(':', pos + needle.size());
+      if (pos == std::string::npos) continue;
+      enqueueParam(d.id, std::atof(json.c_str() + pos + 1), 0);
+      any = true;
+    }
+    return any;
+  }
 
   void applyParam(clap_id id, double value)
   {
@@ -165,6 +315,8 @@ struct Plugin
 
   clap_process_status process(const clap_process_t *p)
   {
+    drainQueue(p->out_events);
+
     float *outL = p->audio_outputs[0].data32[0];
     float *outR = p->audio_outputs[0].data32[1];
     const uint32_t nframes = p->frames_count;
@@ -189,6 +341,8 @@ struct Plugin
       frame = until;
     }
 
+    publishViz();
+
     if (core.focus()) return CLAP_PROCESS_CONTINUE;
     return CLAP_PROCESS_SLEEP;
   }
@@ -198,8 +352,23 @@ Plugin *self(const clap_plugin_t *p) { return static_cast<Plugin *>(p->plugin_da
 
 /* ---- lifecycle ---- */
 
-bool plug_init(const clap_plugin_t *) { return true; }
-void plug_destroy(const clap_plugin_t *p) { delete self(p); }
+bool plug_init(const clap_plugin_t *p)
+{
+  auto *pl = self(p);
+  if (pl->host)
+    pl->hostParams = static_cast<const clap_host_params_t *>(
+        pl->host->get_extension(pl->host, CLAP_EXT_PARAMS));
+  return true;
+}
+
+void plug_destroy(const clap_plugin_t *p)
+{
+#ifdef __APPLE__
+  delete self(p)->gui;
+  self(p)->gui = nullptr;
+#endif
+  delete self(p);
+}
 
 bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
 {
@@ -325,8 +494,9 @@ bool params_text_to_value(const clap_plugin_t *, clap_id id, const char *text, d
 }
 
 void params_flush(const clap_plugin_t *p, const clap_input_events_t *in,
-                  const clap_output_events_t *)
+                  const clap_output_events_t *out)
 {
+  self(p)->drainQueue(out);
   const uint32_t nev = in->size(in);
   for (uint32_t i = 0; i < nev; i++) self(p)->handleEvent(in->get(in, i));
 }
@@ -381,12 +551,94 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
 
 const clap_plugin_state_t s_state = {state_save, state_load};
 
+/* ---- gui extension (macOS/cocoa via the seam; other platforms: Phase 2
+       remainder — the shell exposes no gui ext there and hosts fall back to
+       their generic editor, exactly like the pre-GUI builds) ---- */
+#ifdef __APPLE__
+
+bool gui_is_api_supported(const clap_plugin_t *, const char *api, bool is_floating)
+{
+  return !is_floating && !std::strcmp(api, CLAP_WINDOW_API_COCOA);
+}
+
+bool gui_get_preferred_api(const clap_plugin_t *, const char **api, bool *is_floating)
+{
+  *api = CLAP_WINDOW_API_COCOA;
+  *is_floating = false;
+  return true;
+}
+
+bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
+{
+  if (!gui_is_api_supported(p, api, is_floating)) return false;
+  auto *pl = self(p);
+  if (pl->gui) return true;
+  hypersaw::GuiHost hostIf;
+  hostIf.getViz = [pl]() {
+    return pl->vizBuf[pl->vizPublished.load(std::memory_order_acquire)];
+  };
+  hostIf.getParamsJson = [pl]() { return pl->paramsJson(); };
+  hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
+  hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
+  hostIf.getStateJson = [pl]() { return pl->stateJson(); };
+  hostIf.applyStateJson = [pl](const std::string &s) { return pl->applyStateJson(s); };
+  pl->gui = new hypersaw::HypersawGui(std::move(hostIf));
+  return true;
+}
+
+void gui_destroy(const clap_plugin_t *p)
+{
+  auto *pl = self(p);
+  delete pl->gui;
+  pl->gui = nullptr;
+}
+
+bool gui_set_scale(const clap_plugin_t *, double) { return true; }
+
+bool gui_get_size(const clap_plugin_t *p, uint32_t *w, uint32_t *h)
+{
+  if (!self(p)->gui) return false;
+  self(p)->gui->getSize(*w, *h);
+  return true;
+}
+
+bool gui_can_resize(const clap_plugin_t *) { return false; }
+bool gui_get_resize_hints(const clap_plugin_t *, clap_gui_resize_hints_t *) { return false; }
+bool gui_adjust_size(const clap_plugin_t *p, uint32_t *w, uint32_t *h)
+{
+  return gui_get_size(p, w, h);
+}
+bool gui_set_size(const clap_plugin_t *, uint32_t, uint32_t) { return true; }
+
+bool gui_set_parent(const clap_plugin_t *p, const clap_window_t *window)
+{
+  auto *pl = self(p);
+  if (!pl->gui || !window) return false;
+  return pl->gui->attachToParent(window->cocoa);
+}
+
+bool gui_set_transient(const clap_plugin_t *, const clap_window_t *) { return false; }
+void gui_suggest_title(const clap_plugin_t *, const char *) {}
+bool gui_show(const clap_plugin_t *) { return true; }
+bool gui_hide(const clap_plugin_t *) { return true; }
+
+const clap_plugin_gui_t s_gui = {gui_is_api_supported, gui_get_preferred_api, gui_create,
+                                 gui_destroy,          gui_set_scale,         gui_get_size,
+                                 gui_can_resize,       gui_get_resize_hints,  gui_adjust_size,
+                                 gui_set_size,         gui_set_parent,        gui_set_transient,
+                                 gui_suggest_title,    gui_show,              gui_hide};
+
+#endif  // __APPLE__
+
 const void *plug_get_extension(const clap_plugin_t *, const char *id)
 {
   if (!std::strcmp(id, CLAP_EXT_AUDIO_PORTS)) return &s_audio_ports;
   if (!std::strcmp(id, CLAP_EXT_NOTE_PORTS)) return &s_note_ports;
   if (!std::strcmp(id, CLAP_EXT_PARAMS)) return &s_params;
   if (!std::strcmp(id, CLAP_EXT_STATE)) return &s_state;
+#ifdef __APPLE__
+  if (!std::strcmp(id, CLAP_EXT_GUI)) return &s_gui;
+#endif
   return nullptr;
 }
 

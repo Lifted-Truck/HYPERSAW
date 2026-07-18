@@ -120,6 +120,10 @@ class SwarmCore
     for (auto &s : swarms) s.gate = 0;
   }
 
+  // Read-only accessor for the visualization feed (seat rings need the splay
+  // anchor). Not used by the DSP path; parity-neutral.
+  int centerIndex() const { return centerIdx; }
+
   const Swarm *focus() const
   {
     const Swarm *best = nullptr;
