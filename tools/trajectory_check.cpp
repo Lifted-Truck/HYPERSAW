@@ -298,6 +298,116 @@ int main()
           meanTail(t.lpc, 1));
   }
 
+  std::printf("== L0-12 tempo-grid law ==\n");
+  {
+    // Protocol per ACCEPTANCE: 120 BPM, 1 cycle/beat (u = 2 Hz), M = 16.
+    // Even spread (the DYNAMICS reference's placement — it has no
+    // distribution selector), drift 0. "10c"/"60c" = detune knob 0.1/0.6
+    // (x*detune*100 cents mapping).
+    auto gridCore = [](double detune) {
+      SwarmCore c(kSR);
+      c.setParam("n", 16);
+      c.setParam("dist", 0);
+      c.setParam("law", 3);
+      c.setParam("bpm", 120);
+      c.setParam("beatMult", 1);
+      c.setParam("detune", detune);
+      c.noteOn(kMidi, mtof(kMidi));
+      std::vector<float> L(kBlock), R(kBlock);
+      for (int b = 0; b < 8; b++) c.render(L.data(), R.data(), kBlock);  // settle ticks
+      return c;
+    };
+    const double u = 2.0;
+
+    // Exact multiples (machine precision) + rung/spread scaling.
+    for (auto [detune, wantRungs, wantSpread] :
+         {std::tuple<double, int, double>{0.1, 3, 4.0}, {0.6, 9, 16.0}})
+    {
+      auto c = gridCore(detune);
+      const auto *s = c.focus();
+      bool exact = true;
+      double fmin = 1e9, fmax = -1e9;
+      std::vector<double> rungs;
+      for (int i = 0; i < 16; i++)
+      {
+        const double gap = (s->vf[i] - mtof(kMidi)) / u;
+        if (std::fabs(gap - std::round(gap)) > 1e-9) exact = false;
+        fmin = std::min(fmin, s->vf[i]);
+        fmax = std::max(fmax, s->vf[i]);
+        bool seen = false;
+        for (double r : rungs)
+          if (std::fabs(r - gap) < 0.5) seen = true;
+        if (!seen) rungs.push_back(std::round(gap));
+      }
+      char what[80];
+      std::snprintf(what, sizeof(what), "L0-12 detune=%.1f exact multiples of u", detune);
+      check(exact, what, exact ? 1 : 0);
+      std::snprintf(what, sizeof(what), "L0-12 detune=%.1f rungs (want %d)", detune, wantRungs);
+      check((int)rungs.size() == wantRungs, what, (double)rungs.size());
+      std::snprintf(what, sizeof(what), "L0-12 detune=%.1f spread (want %.0f Hz)", detune,
+                    wantSpread);
+      check(std::fabs((fmax - fmin) - wantSpread) < 0.01, what, fmax - fmin);
+    }
+
+    // Envelope periodicity: squared-signal DFT power at u vs incommensurate
+    // 1.37 Hz probe, >= 6x (reference 10.2x). K = 0, detune 0.6, last 6 of 8 s.
+    {
+      SwarmCore c(kSR);
+      c.setParam("n", 16);
+      c.setParam("dist", 0);
+      c.setParam("law", 3);
+      c.setParam("bpm", 120);
+      c.setParam("beatMult", 1);
+      c.setParam("detune", 0.6);
+      c.noteOn(kMidi, mtof(kMidi));
+      std::vector<float> L(kBlock), R(kBlock);
+      const long total = (long)(8 * kSR), keepFrom = (long)(2 * kSR);
+      std::vector<double> env;
+      double acc = 0;
+      long cnt = 0;
+      for (long off = 0; off < total; off += kBlock)
+      {
+        c.render(L.data(), R.data(), kBlock);
+        if (off < keepFrom) continue;
+        for (int i = 0; i < kBlock; i++)
+        {
+          const double sig = (double)L[i] + (double)R[i];
+          acc += sig * sig;
+          if (++cnt == 64)  // ~689 Hz envelope sampling
+          {
+            env.push_back(acc / 64);
+            acc = 0;
+            cnt = 0;
+          }
+        }
+      }
+      const double fsEnv = kSR / 64.0;
+      auto proj = [&](double f) {
+        double re = 0, im = 0;
+        for (size_t k = 0; k < env.size(); k++)
+        {
+          const double a = 2 * kPi * f * (double)k / fsEnv;
+          re += env[k] * std::cos(a);
+          im += env[k] * std::sin(a);
+        }
+        return std::hypot(re, im) / (double)env.size();
+      };
+      const double atU = proj(2.0), probe = proj(1.37);
+      check(atU >= 6 * probe, "L0-12 envelope periodicity >= 6x at u vs 1.37 Hz probe",
+            atU / probe);
+    }
+
+    // Coherence reachable over the grid: K = +0.85 locks to R >= 0.88 within
+    // 2 s (reference 0.92 in ~1 s).
+    {
+      auto t = run({{"n", 16.0}, {"dist", 0.0}, {"law", 3.0}, {"bpm", 120.0},
+                    {"beatMult", 1.0}, {"detune", 0.6}, {"K", 0.85}},
+                   3);
+      check(denseMax(t.denseR, 0, 2) >= 0.88, "L0-12 K=+0.85 over grid: R >= 0.88 within 2 s",
+            denseMax(t.denseR, 0, 2));
+    }
+  }
+
   std::printf("== L0-13 determinism & stability ==\n");
   {
     // Same seed + note sequence -> identical audio across runs (bitwise on

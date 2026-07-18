@@ -49,6 +49,10 @@ struct Params
   // and attackS/releaseS defaults are the reference's own constants. L0-1
   // goldens are the regression proof; change defaults only with an ADR.
   double attackS = 0.003, decayS = 0.16, sustainL = 1.0, releaseS = 0.16;
+  // Tempo-grid law (law == 3; ADR-005/ADR-022): ported expression-for-
+  // expression from the DYNAMICS reference (swarmdynamics.html beatQ path).
+  // bpm is host-owned (CLAP transport), beatMult is cycles-per-beat.
+  double bpm = 120, beatMult = 1;
 };
 
 class SwarmCore
@@ -256,6 +260,8 @@ class SwarmCore
     if (k == "decay") return &p.decayS;
     if (k == "sustain") return &p.sustainL;
     if (k == "release") return &p.releaseS;
+    if (k == "bpm") return &p.bpm;
+    if (k == "beatMult") return &p.beatMult;
     return nullptr;
   }
 
@@ -341,6 +347,16 @@ class SwarmCore
       const double xv = x[i];
       if (p.law == 0) { f = s.f0 * std::pow(2, (xv * p.detune * 100) / 1200); }
       else if (p.law == 1) { f = s.f0 + xv * p.detune * 20; }
+      else if (p.law == 3)
+      {
+        // tempo-grid (ADR-022): cents placement, then snap the Hz offset to
+        // the nearest multiple of u — every pairwise beat rate becomes an
+        // exact grid multiple. Expression ported verbatim from the DYNAMICS
+        // reference. Drift (below) deliberately loosens the grid when used.
+        const double u = (p.bpm / 60.0) * p.beatMult;
+        const double df = s.f0 * (std::pow(2, (xv * p.detune * 100) / 1200) - 1);
+        f = s.f0 + std::round(df / u) * u;
+      }
       else { f = s.f0 + xv * p.detune * 0.35 * erb(s.f0); }
       if (p.driftDepth > 0) f *= std::pow(2, (s.driftS[i] * p.driftDepth) / 1200);
       s.vf[i] = std::max(1.0, f);
