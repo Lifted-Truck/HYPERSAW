@@ -118,7 +118,14 @@
       <div class="row"><label>law</label><select data-p="5">
         <option value="0">cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option><option value="3">tempo-grid</option>
       </select><output></output></div>
-      <div class="row"><label>grid cyc/beat</label><input type="range" data-p="23" min="0.25" max="8" step="0.25"><output>1.0/b</output></div>
+      <div class="row"><label>grid cyc/beat</label><select data-p="23">
+        <option value="0.25">1/4 per beat</option><option value="0.3333333333333333">1/3 per beat</option>
+        <option value="0.5">1/2 per beat</option><option value="0.6666666666666666">2/3 per beat</option>
+        <option value="0.75">3/4 per beat</option><option value="1" selected>1 per beat</option>
+        <option value="1.5">3/2 per beat</option><option value="2">2 per beat</option>
+        <option value="3">3 per beat</option><option value="4">4 per beat</option>
+        <option value="6">6 per beat</option><option value="8">8 per beat</option>
+      </select><output></output></div>
     </div>
 
     <div class="cluster pull">
@@ -215,7 +222,15 @@ function setControl(id, v) {
   const el = document.querySelector(`[data-p="${id}"]`);
   if (!el) return;
   if (el.type === 'checkbox') el.checked = v > 0.5;
-  else if (el.tagName === 'SELECT') el.value = String(Math.round(v));
+  else if (el.tagName === 'SELECT') {
+    // nearest option by numeric value (grid divisions are non-integer)
+    let best = null, bd = Infinity;
+    for (const o of el.options) {
+      const d = Math.abs(+o.value - v);
+      if (d < bd) { bd = d; best = o; }
+    }
+    if (best) el.value = best.value;
+  }
   else el.value = el.dataset.log10 ? Math.log10(Math.max(1e-6, v)) : v;
   displayValue(el, v);
 }

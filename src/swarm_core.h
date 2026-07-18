@@ -96,9 +96,12 @@ class SwarmCore
     return true;
   }
 
-  void noteOn(int midi, double f)
+  // Returns the swarm slot index so the shell can track host note identity
+  // (CLAP NOTE_END bookkeeping). DSP behavior unchanged — parity-neutral.
+  int noteOn(int midi, double f)
   {
     Swarm &s = alloc();
+    const int slot = (int)(&s - &swarms[0]);
     s.midi = midi;
     s.f0 = f;
     s.gate = 1;
@@ -118,6 +121,7 @@ class SwarmCore
       s.driftS[i] = 0;
       s.phase[i] = (p.retrig != 0) ? 0.0 : rngNext(s.rngState);
     }
+    return slot;
   }
 
   void noteOff(int midi)
@@ -131,9 +135,10 @@ class SwarmCore
     for (auto &s : swarms) s.gate = 0;
   }
 
-  // Read-only accessor for the visualization feed (seat rings need the splay
-  // anchor). Not used by the DSP path; parity-neutral.
+  // Read-only accessors for the shell (viz feed; NOTE_END bookkeeping).
+  // Not used by the DSP path; parity-neutral.
   int centerIndex() const { return centerIdx; }
+  const Swarm &swarmAt(int i) const { return swarms[i]; }
 
   const Swarm *focus() const
   {

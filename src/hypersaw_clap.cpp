@@ -99,6 +99,33 @@ const ParamDef *findParam(clap_id id)
   return nullptr;
 }
 
+// Grid cycles/beat quantizes to musical (rational) divisions — the param
+// stores the actual cycles-per-beat value (state stays forward-compatible),
+// but applyParam snaps and value_to_text names the fraction.
+static const double kGridSteps[] = {0.25, 1.0 / 3, 0.5, 2.0 / 3, 0.75, 1, 1.5, 2, 3, 4, 6, 8};
+static const char *const kGridStepNames[] = {"1/4", "1/3", "1/2", "2/3", "3/4", "1",
+                                             "3/2", "2",   "3",   "4",   "6",   "8"};
+constexpr int kNumGridSteps = 12;
+
+double snapGridStep(double v)
+{
+  double best = kGridSteps[0], bd = 1e9;
+  for (double s : kGridSteps)
+    if (std::fabs(v - s) < bd)
+    {
+      bd = std::fabs(v - s);
+      best = s;
+    }
+  return best;
+}
+
+const char *gridStepName(double v)
+{
+  for (int i = 0; i < kNumGridSteps; i++)
+    if (std::fabs(v - kGridSteps[i]) < 1e-6) return kGridStepNames[i];
+  return nullptr;
+}
+
 struct Plugin
 {
   clap_plugin_t plugin{};
@@ -127,6 +154,41 @@ struct Plugin
 
   hypersaw::HypersawGui *gui = nullptr;
   uint32_t guiW = 920, guiH = 600;  // resizable (clamped in gui_adjust_size)
+
+  // Host note identity per swarm slot, for CLAP NOTE_END: hosts use note-end
+  // to retire per-note bookkeeping, and without it some (Live via the VST3
+  // wrapper) withhold retriggering a pitch until they believe the previous
+  // note ended — the 2026-07-18 "retrigger doesn't overlap" report.
+  struct VoiceTag
+  {
+    int32_t noteId = -1;
+    int16_t port = -1, channel = -1, key = -1;
+    bool active = false;
+  };
+  VoiceTag tags[hypersaw::kPoly];
+
+  void emitNoteEnds(const clap_output_events_t *out, uint32_t time)
+  {
+    for (int i = 0; i < hypersaw::kPoly; i++)
+    {
+      if (!tags[i].active) continue;
+      const auto &s = core.swarmAt(i);
+      const bool nowActive = s.gate || s.env >= 1e-4;  // matches render's skip test
+      if (nowActive) continue;
+      clap_event_note_t ev{};
+      ev.header.size = sizeof(ev);
+      ev.header.time = time;
+      ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      ev.header.type = CLAP_EVENT_NOTE_END;
+      ev.note_id = tags[i].noteId;
+      ev.port_index = tags[i].port;
+      ev.channel = tags[i].channel;
+      ev.key = tags[i].key;
+      ev.velocity = 0;
+      out->try_push(out, &ev.header);
+      tags[i].active = false;
+    }
+  }
 
   void enqueueParam(uint32_t id, double value, uint8_t kind)
   {
@@ -259,7 +321,8 @@ struct Plugin
   {
     if (const ParamDef *d = findParam(id))
     {
-      const double v = std::max(d->minV, std::min(d->maxV, value));
+      double v = std::max(d->minV, std::min(d->maxV, value));
+      if (id == 23) v = snapGridStep(v);  // rational beat increments only
       core.setParam(d->coreKey, d->stepped ? std::round(v) : v);
     }
   }
@@ -306,7 +369,8 @@ struct Plugin
       case CLAP_EVENT_NOTE_ON:
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
-        core.noteOn(n->key, 440.0 * std::pow(2.0, (n->key - 69) / 12.0));
+        const int slot = core.noteOn(n->key, 440.0 * std::pow(2.0, (n->key - 69) / 12.0));
+        tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
         break;
       }
       case CLAP_EVENT_NOTE_OFF:
@@ -368,6 +432,7 @@ struct Plugin
     }
 
     publishViz();
+    emitNoteEnds(p->out_events, nframes > 0 ? nframes - 1 : 0);
 
     if (core.focus()) return CLAP_PROCESS_CONTINUE;
     return CLAP_PROCESS_SLEEP;
@@ -502,6 +567,11 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   {
     if (value < 0.01) std::snprintf(out, cap, "%.1f ms", value * 1000);
     else std::snprintf(out, cap, "%.2f s", value);
+  }
+  else if (id == 23)  // grid cycles/beat: named rational division
+  {
+    const char *name = gridStepName(snapGridStep(value));
+    std::snprintf(out, cap, "%s/beat", name ? name : "?");
   }
   else if (id == 9)  // drift depth: cents
   {
