@@ -115,6 +115,11 @@ static const ParamDef kParams[] = {
     {37, "fineCents", "Fine (c)", -100, 100, 0, false, nullptr},
     {38, "pitchBend", "Pitch", -12, 12, 0, false, nullptr},
     {39, "scatter", "Phase Scatter", 0, 1, 0, false, nullptr},  // ADR-033
+    // Output stage + pan order (ADR-035). bassMono/bassMonoHz are SHELL
+    // post-processing (side-channel high-pass, M/S); panScatter is core.
+    {40, "bassMono", "Bass Mono", 0, 1, 0, true, kOffOn},
+    {41, "bassMonoHz", "Bass XOver (Hz)", 60, 500, 120, false, nullptr},
+    {42, "panScatter", "Pan Scatter", 0, 1, 0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -194,6 +199,11 @@ struct Plugin
   // ADR-026 shell voice-mode state (audio-thread only)
   double voiceMono = 0, voiceLegato = 1, octave = 0;
   double semi = 0, fineCents = 0, pitchBend = 0;
+  // ADR-035 bass-mono output stage: ONE 2nd-order TPT SVF high-pass on the
+  // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
+  // no crossover phase mismatch, the classic vinyl-elliptic routing.
+  double bassMonoOn = 0, bassMonoHz = 120;
+  double bmIc1 = 0, bmIc2 = 0;
 
   void updateTune()
   {
@@ -521,6 +531,17 @@ struct Plugin
         updateTune();
         return;
       }
+      if (id == 40)
+      {
+        if (applied != 0 && bassMonoOn == 0) bmIc1 = bmIc2 = 0;  // clean engage
+        bassMonoOn = applied;
+        return;
+      }
+      if (id == 41)
+      {
+        bassMonoHz = applied;
+        return;
+      }
       core.setParam(d->coreKey, applied);
     }
   }
@@ -540,6 +561,8 @@ struct Plugin
       if (d->id == 36) return semi;
       if (d->id == 37) return fineCents;
       if (d->id == 38) return pitchBend;
+      if (d->id == 40) return bassMonoOn;
+      if (d->id == 41) return bassMonoHz;
       return core.getParam(d->coreKey);
     }
     return 0;
@@ -667,6 +690,30 @@ struct Plugin
       }
       core.render(outL + frame, outR + frame, (int)(until - frame));
       frame = until;
+    }
+
+    // ADR-035 bass mono: runs BEFORE the spectrum feed so the visualizer
+    // shows what actually leaves the plugin.
+    if (bassMonoOn != 0)
+    {
+      constexpr double kPi = 3.141592653589793;
+      const double fc = std::min(bassMonoHz, 0.45 * sampleRate);
+      const double g = std::tan(kPi * fc / sampleRate);
+      const double k = 1.4142135623730951;  // Butterworth 2nd order
+      const double a0 = 1.0 / (1.0 + g * (g + k));
+      for (uint32_t i = 0; i < nframes; i++)
+      {
+        const double m = 0.5 * (outL[i] + outR[i]);
+        const double sIn = 0.5 * (outL[i] - outR[i]);
+        const double hp = (sIn - (g + k) * bmIc1 - bmIc2) * a0;
+        const double v1 = g * hp;
+        const double bp = v1 + bmIc1;
+        bmIc1 = bp + v1;
+        const double v2 = g * bp;
+        bmIc2 = v2 + bmIc2 + v2;
+        outL[i] = (float)(m + hp);
+        outR[i] = (float)(m - hp);
+      }
     }
 
     publishViz();

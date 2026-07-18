@@ -79,6 +79,12 @@ struct Params
   // legacy retrig toggle EXACTLY (bit-inert, rng untouched); > 0 overrides:
   // phase_i = rng * scatter (so 1.0 reproduces the retrig-off stream).
   double scatter = 0;
+  // Pan scatter (ADR-035): blend pan positions toward a seeded permutation.
+  // Legacy pan order is monotone in the detune offset (pan = x[i]*width), so
+  // spatial order == frequency order and sweeps march across the field in
+  // series — the 2026-07-18 report. 0 = bit-inert legacy; the permutation
+  // draws from its OWN stream, never the phase/drift stream.
+  double panScatter = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -137,7 +143,9 @@ class SwarmCore
     double *slot = paramSlot(k);
     if (!slot) return false;
     *slot = v;
-    if (k == "n" || k == "dist" || k == "seed" || k == "width" || k == "topo") rebuild();
+    if (k == "n" || k == "dist" || k == "seed" || k == "width" || k == "topo" ||
+        k == "panScatter")
+      rebuild();
     return true;
   }
 
@@ -441,6 +449,7 @@ class SwarmCore
     if (k == "tune") return &p.tune;
     if (k == "absK") return &p.absK;
     if (k == "scatter") return &p.scatter;
+    if (k == "panScatter") return &p.panScatter;
     return nullptr;
   }
 
@@ -503,9 +512,32 @@ class SwarmCore
     centerIdx = 0;
     for (int i = 1; i < n; i++)
       if (std::fabs(x[i]) < std::fabs(x[centerIdx])) centerIdx = i;
+    // Pan scatter (ADR-035): at 0 the arithmetic below is the legacy path
+    // exactly (goldens are the proof). At > 0, blend each voice's pan
+    // position toward a seeded permutation of the legacy positions — the
+    // permutation stream is derived from the seed but INDEPENDENT of the
+    // phase/drift stream, so engaging it never shifts any other draw.
+    int perm[kMaxV];
+    const double ps = p.panScatter;
+    if (ps > 0)
+    {
+      for (int i = 0; i < n; i++) perm[i] = i;
+      uint32_t prng = (uint32_t)(int64_t)p.seed * 2654435761u ^ 0x9E3779B9u;
+      for (int i = n - 1; i > 0; i--)
+      {
+        const int j = (int)(rngNext(prng) * (i + 1));
+        const int t = perm[i];
+        perm[i] = perm[j];
+        perm[j] = t;
+      }
+    }
+    double pos[kMaxV];
+    for (int i = 0; i < n; i++)
+      pos[i] = std::max(-1.0, std::min(1.0, x[i])) * std::min(1.0, p.width);
     for (int i = 0; i < n; i++)
     {
-      const double pan = std::max(-1.0, std::min(1.0, x[i])) * std::min(1.0, p.width);
+      double pan = pos[i];
+      if (ps > 0) pan += (pos[perm[i]] - pos[i]) * ps;
       const double th = (pan + 1) * 0.25 * kPiRef;
       panL[i] = std::cos(th);
       panR[i] = std::sin(th);
