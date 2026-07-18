@@ -31,8 +31,23 @@ inline std::string vizToJson(const VizSnapshot &v)
   std::snprintf(buf, sizeof(buf), "\"R\":%.4f,\"RN\":%.4f,\"psi\":%.4f,\"sigma\":%.2f,", v.R,
                 v.RN, v.psi, v.sigma);
   out += buf;
-  std::snprintf(buf, sizeof(buf), "\"KsmS\":%.3f,\"KsmP\":%.3f,\"phase\":[", v.KsmS, v.KsmP);
+  std::snprintf(buf, sizeof(buf), "\"KsmS\":%.3f,\"KsmP\":%.3f,", v.KsmS, v.KsmP);
   out += buf;
+  std::snprintf(buf, sizeof(buf), "\"topo\":%d,\"poles\":%d,\"RA\":%.3f,\"RB\":%.3f,\"RQ\":%.3f,",
+                v.topo, v.poles, v.RA, v.RB, v.RQ);
+  out += buf;
+  std::snprintf(buf, sizeof(buf), "\"gridActive\":%s,\"gridLockWarn\":%s,\"gridU\":%.3f,\"gridRungs\":%d,",
+                v.gridActive ? "true" : "false", v.gridLockWarn ? "true" : "false", v.gridU,
+                v.gridRungs);
+  out += buf;
+  out += "\"grav\":[";
+  for (int i = 0; i < v.gravCount; i++)
+  {
+    std::snprintf(buf, sizeof(buf), "%s[%d,%d,%.1f]", i ? "," : "", v.gravRatio[i], v.gravOct[i],
+                  v.gravErr[i]);
+    out += buf;
+  }
+  out += "],\"phase\":[";
   for (int i = 0; i < v.n && i < 32; i++)
   {
     std::snprintf(buf, sizeof(buf), i ? ",%.5f" : "%.5f", v.phase[i]);

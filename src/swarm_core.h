@@ -69,6 +69,10 @@ struct Params
   // cents/bend, applied to the fundamental at law evaluation so it bends
   // SOUNDING notes. Default 1.0 is bit-inert (x * 1.0 == x in IEEE754).
   double tune = 1.0;
+  // Absolute-K mode (ADR-004): bypass sigma-normalization (strict-chimera /
+  // identical-oscillator experiments; L0-10 note). Guarded — default 0 is
+  // bit-inert.
+  double absK = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -111,6 +115,14 @@ class SwarmCore
       std::memset(s.mom, 0, sizeof(s.mom));
     }
     rebuild();
+  }
+
+  // Read back any param by key — same map as setParam, so the two can never
+  // drift apart (the 2026-07-18 readParam bug class).
+  double getParam(const std::string &k) const
+  {
+    const double *slot = const_cast<SwarmCore *>(this)->paramSlot(k);
+    return slot ? *slot : 0.0;
   }
 
   // Mirrors the JS setParam(k, v) including its rebuild triggers.
@@ -422,6 +434,7 @@ class SwarmCore
     if (k == "lpOut") return &p.lpOut;
     if (k == "glide") return &p.glide;
     if (k == "tune") return &p.tune;
+    if (k == "absK") return &p.absK;
     return nullptr;
   }
 
@@ -571,8 +584,11 @@ class SwarmCore
     }
     s.sigma = std::max(0.08, std::sqrt(varsum / n));
     const double km = 4 * p.K * std::fabs(p.K);
-    const double syncT = (std::max(0.0, km) + s.Kenv) * s.sigma;
-    const double splayT = std::max(0.0, -km) * 3 * s.sigma;
+    // absK (ADR-004): coupling in absolute Hz units (sigma -> 1.0) so
+    // identical-oscillator states are reachable; default path untouched.
+    const double sigmaU = (p.absK != 0) ? 1.0 : s.sigma;
+    const double syncT = (std::max(0.0, km) + s.Kenv) * sigmaU;
+    const double splayT = std::max(0.0, -km) * 3 * sigmaU;
     s.KsmS += (syncT - s.KsmS) * 0.08;
     s.KsmP += (splayT - s.KsmP) * 0.08;
     double sx = 0, sy = 0;
