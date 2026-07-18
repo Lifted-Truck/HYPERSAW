@@ -102,6 +102,8 @@
       <div class="lbl" id="gravline" style="min-height:14px"></div>
       <div class="lbl" id="beatinfo" style="min-height:28px;color:var(--drift)"></div>
     </div>
+    <h2 style="margin-top:10px">Phase carpet · voice × phase</h2>
+    <canvas id="carpetCanvas" width="256" height="90"></canvas>
     <h2 style="margin-top:10px">Log spectrum · 30 Hz – 16 kHz</h2>
     <canvas id="specCanvas" width="256" height="70"></canvas>
     <h2 style="margin-top:10px">XY · x=detune y=pull K</h2>
@@ -215,13 +217,13 @@ const DEFAULTS = {1:7,2:1,3:1234,4:0.28,5:0,6:0,7:0,8:0.63,9:0,10:0.4,11:0,12:0,
 if (!window.hzGetViz) {
   let t = 0;
   window.hzGetViz = async () => { t += 0.03;
-    const n = 7, phase = [];
-    for (let i = 0; i < n; i++) phase.push(((t * (1 + i * 0.01)) % 1));
-    return JSON.stringify({active:true,n,centerIdx:3,R:0.5+0.4*Math.sin(t),RN:0.2,psi:t%6.28,
-      sigma:3.2,KsmS:2,KsmP:0,topo:0,poles:1,RA:0,RB:0,RQ:0,gridActive:true,gridLockWarn:(t|0)%8<4,
-      gridU:2,gridRungs:5,grav:[[7,0,0.2]],phase}); };
+    const n = 24, phase = [];
+    for (let i = 0; i < n; i++) phase.push(((t * (1 + i * 0.015) + i * 0.04) % 1));
+    return {active:true,n,centerIdx:3,R:0.5+0.4*Math.sin(t),RN:0.2,psi:t%6.28,
+      sigma:3.2,KsmS:2,KsmP:0,topo:2,poles:1,RA:0.8,RB:0.6,RQ:0,gridActive:true,gridLockWarn:(t|0)%8<4,
+      gridU:2,gridRungs:5,grav:[[7,0,0.2]],phase}; };
   window.hzGetParams = async () => JSON.stringify(DEFAULTS);
-  window.hzGetSpec = async () => JSON.stringify(Array.from({length:96},(_,i)=>Math.max(0,0.8-Math.abs(i-20)/30)+0.1*Math.random()));
+  window.hzGetSpec = async () => Array.from({length:96},(_,i)=>Math.max(0,0.8-Math.abs(i-20)/30)+0.1*Math.random());
   window.hzSetParam = async () => {}; window.hzGesture = async () => {};
   window.hzGetState = async () => '{"plugin":"HYPERSAW","schema":1,"params":{}}';
   window.hzApplyState = async () => true;
@@ -508,13 +510,31 @@ function drawPhase(s) {
     : '';
 }
 
+// Chimera/phase carpet — ported verbatim from swarmdynamics.html drawCarpet:
+// trail-fade columns, cluster B in amber under two-cluster topology. This is
+// where ring waves and broken-symmetry states are legible (SPEC §5.6).
+const cc2 = $('#carpetCanvas'), cctx2 = cc2.getContext('2d');
+function drawCarpet(s) {
+  const w = cc2.width, h = cc2.height;
+  cctx2.fillStyle = 'rgba(11,14,20,0.25)';
+  cctx2.fillRect(0, 0, w, h);
+  if (!s || !s.active) return;
+  const n = s.n, twoClu = s.topo === 2, half = n >> 1;
+  const colW = w / n;
+  for (let i = 0; i < n; i++) {
+    const y = 4 + s.phase[i] * (h - 8);
+    cctx2.fillStyle = (twoClu && i >= half) ? '#ffc24b' : '#5ff2e0';
+    cctx2.beginPath(); cctx2.arc(i * colW + colW / 2, y, 2.6, 0, Math.PI * 2); cctx2.fill();
+  }
+}
+
 const sc = $('#specCanvas'), sctx = sc.getContext('2d');
 let specBusy = false;
 async function drawSpec() {
   if (specBusy) return;
   specBusy = true;
   try {
-    const bins = JSON.parse(await bridge.getSpec());
+    const bins = await bridge.getSpec();
     const w = sc.width, h = sc.height;
     sctx.fillStyle = '#0b0e14';
     sctx.fillRect(0, 0, w, h);
@@ -543,7 +563,7 @@ async function loop() {
   if (xyDirty) { drawXY(); xyDirty = false; }
   if (!vizBusy) {
     vizBusy = true;
-    try { drawPhase(JSON.parse(await bridge.getViz())); } catch (e) {}
+    try { const v = await bridge.getViz(); drawPhase(v); drawCarpet(v); } catch (e) {}
     vizBusy = false;
   }
   // Host automation / device-panel moves reflect back into the GUI: poll
