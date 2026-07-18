@@ -102,6 +102,12 @@ full() {
       -DCMAKE_BUILD_TYPE=Release || return 1
   fi
   cmake --build "$build_dir" -j"$(sysctl -n hw.ncpu 2>/dev/null || echo 4)" || return 1
+
+  # Phase 1: the golden generator must be deterministic (renders every L0-1
+  # scenario twice, byte-compares). The C++-vs-golden comparison joins here
+  # once the SwarmCore port exists.
+  command -v node >/dev/null || { echo "verify[full]: node required for golden self-check" >&2; return 1; }
+  node tools/golden/gen_goldens.mjs --selfcheck || return 1
 }
 
 case "$TARGET" in

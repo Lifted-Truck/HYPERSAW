@@ -80,4 +80,4 @@ Same seed + note sequence → bit-identical control-path state and ε-identical 
 - E-3: Gravity settling on a held ET major third is audible as decelerating-then-stopped beating within ~2 s.
 - E-4: Splay erasure residue (sine kernel) reads as "shimmering silence," not artifact.
 - E-5: Mono fold-down of a wide patch is usable, not comb-hollow.
-- E-6: 8-voice poly at M = 32 (SAW) sustains without dropouts on target hardware envelope (define in Phase 0).
+- E-6: 8-voice poly at M = 32 (SAW) sustains without dropouts on the target hardware envelope (ratified 2026-07-17 at the Phase 0 gate): min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook; Windows x64 AVX2; 44.1 kHz at 128-sample buffer; the patch must hold < 50% of one core on min-spec.

@@ -6,6 +6,8 @@
 .DS_Store
 
 # build outputs (Phase 0+; Debug and Release are separate dirs on this machine)
+# build-*/ also covers build-golden/ — goldens are generated artifacts, only
+# the generator is committed (ROADMAP Phase 1)
 build/
 build-*/
 
