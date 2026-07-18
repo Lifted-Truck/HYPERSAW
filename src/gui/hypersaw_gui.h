@@ -26,6 +26,16 @@ struct VizSnapshot
   int centerIdx = 0;
   double R = 0, RN = 0, psi = 0, sigma = 0, KsmS = 0, KsmP = 0;
   double phase[32] = {0};
+  // dynamics layer (Phase 3)
+  int topo = 0, poles = 1;
+  double RA = 0, RB = 0, RQ = 0;
+  int gravCount = 0;
+  int gravRatio[4] = {0};
+  int gravOct[4] = {0};
+  double gravErr[4] = {0};
+  bool gridActive = false, gridLockWarn = false;
+  double gridU = 0;
+  int gridRungs = 0;
 };
 
 struct GuiHost

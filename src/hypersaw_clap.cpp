@@ -61,6 +61,11 @@ static const char *const kDistLabels[] = {"even spread", "JP-8000 curve", "gauss
 static const char *const kLawLabels[] = {"cents-constant", "Hz-constant", "ERB-flat",
                                          "tempo-grid"};
 static const char *const kOffOn[] = {"off", "on"};
+static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
+static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
+// Display names for the gravity ratio readout (indices match core kRatios)
+static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
+                                            "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
 
 static const ParamDef kParams[] = {
     {1, "n", "Voices", 1, 32, 7, true, nullptr},
@@ -89,8 +94,15 @@ static const ParamDef kParams[] = {
     {22, "release", "Release (s)", 0.005, 8.0, 0.16, false, nullptr},
     // Tempo-grid law (ADR-022): bpm is host-owned (transport), not a param
     {23, "beatMult", "Grid Cycles/Beat", 0.25, 8.0, 1.0, false, nullptr},
-    // IDs 24-30 reserved for the dynamics surface (topology/alpha/poles/
-    // gravity — Phase 3 increment 2).
+    // Dynamics surface (Phase 3 increment 2; engine per ADR-023)
+    {24, "topo", "Topology", 0, 2, 0, true, kTopoLabels},
+    {25, "reach", "Ring Reach", 1, 8, 5, true, nullptr},
+    {26, "mu", "Cluster Link", 0, 1, 0.6, false, nullptr},
+    {27, "alpha", "Phase Lag", -90, 90, 0, false, nullptr},
+    {28, "poles", "Poles q", 1, 4, 1, true, kPolesLabels},
+    {29, "grav", "Gravity", 0, 1, 0, false, nullptr},
+    {30, "basin", "Basin (c)", 10, 50, 35, false, nullptr},
+    {31, "absK", "Absolute K", 0, 1, 0, true, kOffOn},
     // Voice mode (ADR-026): mono/glide/legato are SHELL note-routing plus the
     // core's glide param; octave is a pure shell transpose.
     {32, "voiceMono", "Voice: Mono", 0, 1, 0, true, kOffOn},
@@ -299,6 +311,39 @@ struct Plugin
       v.KsmS = s->KsmS;
       v.KsmP = s->KsmP;
       for (int i = 0; i < v.n && i < 32; i++) v.phase[i] = s->phase[i];
+      // dynamics layer
+      v.topo = (int)core.p.topo;
+      v.poles = (int)core.p.poles;
+      v.RA = s->RA;
+      v.RB = s->RB;
+      v.RQ = s->RQ;
+      v.gravCount = core.gravCount < 4 ? core.gravCount : 4;
+      for (int i = 0; i < v.gravCount; i++)
+      {
+        v.gravRatio[i] = core.gravPairs[i][0];
+        v.gravOct[i] = core.gravPairs[i][1];
+        v.gravErr[i] = core.gravErr[i];
+      }
+      // grid status (ADR-016/017): unit, occupied rungs, cause-AND-state lock
+      v.gridActive = ((int)core.p.law == 3);
+      if (v.gridActive)
+      {
+        v.gridU = (core.p.bpm / 60.0) * core.p.beatMult;
+        int rungCount = 0;
+        double seen[32];
+        for (int i = 0; i < v.n && i < 32; i++)
+        {
+          const double rung = std::round((s->vf[i] - s->f0cur * core.p.tune) / v.gridU);
+          bool dup = false;
+          for (int j = 0; j < rungCount; j++)
+            if (seen[j] == rung) dup = true;
+          if (!dup && rungCount < 32) seen[rungCount++] = rung;
+        }
+        v.gridRungs = rungCount;
+        const bool coupled = s->KsmS > 0.05;
+        const bool coherent = s->R > 0.8 || s->RQ > 0.8 || (v.topo == 2 && s->RA > 0.8 && s->RB > 0.8);
+        v.gridLockWarn = coupled && coherent;
+      }
     }
     vizPublished.store(writeIdx, std::memory_order_release);
   }
@@ -417,39 +462,18 @@ struct Plugin
   {
     if (const ParamDef *d = findParam(id))
     {
-      // core.p is the single source of truth; mirror of setParam's mapping
-      const hypersaw::Params &p = core.p;
-      const std::string k = d->coreKey;
-      if (k == "n") return p.n;
-      if (k == "dist") return p.dist;
-      if (k == "seed") return p.seed;
-      if (k == "detune") return p.detune;
-      if (k == "law") return p.law;
-      if (k == "K") return p.K;
-      if (k == "onset") return p.onset;
-      if (k == "dissolve") return p.dissolve;
-      if (k == "driftDepth") return p.driftDepth;
-      if (k == "driftRate") return p.driftRate;
-      if (k == "inertia") return inertiaKnob;  // ADR-024 knob domain
+      // Shell-domain params first; everything else reads the core through the
+      // SAME key map setParam uses — no parallel chain to drift (the
+      // 2026-07-18 state bug: dynamics params were missing from a duplicated
+      // read chain, so get_value fell through to 0 and state saved lies).
+      if (d->id == 11) return inertiaKnob;  // ADR-024 knob domain
       if (d->id == 32) return voiceMono;
       if (d->id == 34) return voiceLegato;
       if (d->id == 35) return octave;
       if (d->id == 36) return semi;
       if (d->id == 37) return fineCents;
       if (d->id == 38) return pitchBend;
-      if (k == "glide") return p.glide;
-      if (k == "rtone") return p.rtone;
-      if (k == "normExp") return p.normExp;
-      if (k == "width") return p.width;
-      if (k == "mono") return p.mono;
-      if (k == "digital") return p.digital;
-      if (k == "vol") return p.vol;
-      if (k == "retrig") return p.retrig;
-      if (k == "attack") return p.attackS;
-      if (k == "decay") return p.decayS;
-      if (k == "sustain") return p.sustainL;
-      if (k == "release") return p.releaseS;
-      if (k == "beatMult") return p.beatMult;
+      return core.getParam(d->coreKey);
     }
     return 0;
   }
@@ -704,10 +728,10 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   if (!d) return false;
   if (d->labels)
   {
-    const int idx = (int)std::round(value);
+    const int idx = (int)std::round(value) - (int)d->minV;
     const int span = (int)(d->maxV - d->minV);
     if (idx >= 0 && idx <= span) std::snprintf(out, cap, "%s", d->labels[idx]);
-    else std::snprintf(out, cap, "%d", idx);
+    else std::snprintf(out, cap, "%d", (int)std::round(value));
   }
   else if (d->stepped)
   {
@@ -735,6 +759,10 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   else if (id == 36)
   {
     std::snprintf(out, cap, "%+d st", (int)std::round(value));
+  }
+  else if (id == 27)
+  {
+    std::snprintf(out, cap, "%+.0f deg", value);
   }
   else if (id == 37)
   {

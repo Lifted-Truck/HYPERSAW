@@ -98,7 +98,9 @@
       <div class="bar"><div class="fill" id="rfill"></div></div>
       <div class="lbl"><span>R₁ sync (clump) <b id="rval">0.00</b></span><span>pull <b id="kval">0.0</b> Hz · σ <b id="sval">0.0</b> Hz</span></div>
       <div class="bar" style="margin-top:5px"><div class="fill amber" id="rnfill"></div></div>
-      <div class="lbl"><span>Rₙ splay (formation) <b id="rnval">0.00</b></span></div>
+      <div class="lbl"><span>Rₙ splay (formation) <b id="rnval">0.00</b></span><span id="dynval"></span></div>
+      <div class="lbl" id="gravline" style="min-height:14px"></div>
+      <div class="lbl" id="beatinfo" style="min-height:28px;color:var(--drift)"></div>
     </div>
     <h2 style="margin-top:10px">XY · x=detune y=pull K</h2>
     <canvas id="xyPad" width="256" height="160"></canvas>
@@ -136,6 +138,25 @@
       <div class="row"><label>inertia</label><input type="range" data-p="11" min="0" max="1" step="0.01"><output>0.00</output></div>
       <div class="togs">
         <label><input type="checkbox" data-p="18"> retrigger</label>
+      </div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>Dynamics</h2>
+      <div class="row"><label>topology</label><select data-p="24">
+        <option value="0">mean-field</option><option value="1">nonlocal ring</option><option value="2">two-cluster</option>
+      </select><output></output></div>
+      <div class="row"><label>reach</label><input type="range" data-p="25" min="1" max="8" step="1"><output>5</output></div>
+      <div class="row"><label>link μ</label><input type="range" data-p="26" min="0" max="1" step="0.01"><output>0.60</output></div>
+      <div class="row"><label>lag α</label><input type="range" data-p="27" min="-90" max="90" step="1"><output>+0°</output></div>
+      <div class="row"><label>poles q</label><select data-p="28">
+        <option value="1">1 — classic</option><option value="2">2 — pair</option>
+        <option value="3">3 — triad</option><option value="4">4 — quad</option>
+      </select><output></output></div>
+      <div class="row"><label>gravity</label><input type="range" data-p="29" min="0" max="1" step="0.01"><output>0.00</output></div>
+      <div class="row"><label>basin</label><input type="range" data-p="30" min="10" max="50" step="1"><output>35c</output></div>
+      <div class="togs">
+        <label><input type="checkbox" data-p="31"> absolute K</label>
       </div>
     </div>
 
@@ -209,6 +230,8 @@ function displayValue(el, v) {
   else if (el.dataset.p === '36') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + ' st';
   else if (el.dataset.p === '37') out.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + 'c';
   else if (el.dataset.p === '38') out.textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + ' st';
+  else if (el.dataset.p === '27') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + '°';
+  else if (el.dataset.p === '30') out.textContent = Math.round(v) + 'c';
   else if (el.dataset.p === '14' && v > 1) out.textContent = v.toFixed(2) + ' S+';
   else if (el.step === '1') out.textContent = String(Math.round(v));
   else out.textContent = v.toFixed(2);
@@ -376,6 +399,22 @@ function drawPhase(s) {
   $('#rnval').textContent = s.RN.toFixed(2);
   $('#kval').textContent = (s.KsmS - s.KsmP).toFixed(1);
   $('#sval').textContent = s.sigma.toFixed(1);
+  // dynamics readouts: cluster orders / Daido order
+  const RATIO_NAMES = ['1/1','16/15','9/8','6/5','5/4','4/3','7/5','3/2','8/5','5/3','16/9','15/8','2/1'];
+  let dyn = '';
+  if (s.topo === 2) dyn = 'A ' + s.RA.toFixed(2) + ' / B ' + s.RB.toFixed(2);
+  else if (s.poles > 1) dyn = 'R' + s.poles + ' ' + s.RQ.toFixed(2);
+  $('#dynval').textContent = dyn;
+  // gravity: captured pairs (ratio name, octave fold, live cents)
+  $('#gravline').textContent = (s.grav && s.grav.length)
+    ? 'gravity: ' + s.grav.map(p => RATIO_NAMES[p[0]] + (p[1] ? '+' + p[1] + 'oct' : '') + ' ' + (p[2] >= 0 ? '+' : '') + p[2].toFixed(1) + 'c').join(' · ')
+    : '';
+  // grid status (ADR-016/017): unit, rungs, cause-AND-state lock warning;
+  // fixed-height line so the warning cannot reflow the layout
+  $('#beatinfo').textContent = s.gridActive
+    ? ('grid ' + s.gridU.toFixed(2) + ' Hz · ' + s.gridRungs + ' rung' + (s.gridRungs === 1 ? ' — raise detune to populate' : 's')
+       + (s.gridLockWarn ? ' · ⚠ swarm locked — lower K to hear the grid' : ''))
+    : '';
 }
 
 let vizBusy = false, dragging = false, frameCount = 0;

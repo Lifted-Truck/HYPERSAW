@@ -774,6 +774,20 @@ int main()
     check(std::fabs(cents - 100.0) <= 2.0, "ADR-027 tune bends sounding note +1 st", cents);
   }
 
+  std::printf("== ADR-004 absolute-K mode ==\n");
+  {
+    // Identical oscillators (detune 0): absK on locks solidly from scatter.
+    SwarmCore c(kSR);
+    c.setParam("detune", 0.0);
+    c.setParam("retrig", 0);
+    c.setParam("absK", 1);
+    c.setParam("K", 0.7);
+    c.noteOn(kMidi, mtof(kMidi));
+    std::vector<float> L(kBlock), R(kBlock);
+    for (long off = 0; off < (long)(4 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
+    check(c.focus()->R >= 0.95, "ADR-004 absK locks identical oscillators", c.focus()->R);
+  }
+
   std::printf("trajectory_check: %s (%d failure%s)\n", g_failures ? "RED" : "GREEN", g_failures,
               g_failures == 1 ? "" : "s");
   return g_failures ? 1 : 0;
