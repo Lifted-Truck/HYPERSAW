@@ -154,6 +154,7 @@ struct Plugin
 
   hypersaw::HypersawGui *gui = nullptr;
   uint32_t guiW = 920, guiH = 600;  // resizable (clamped in gui_adjust_size)
+  std::atomic<bool> processing{false};
 
   // Host note identity per swarm slot, for CLAP NOTE_END: hosts use note-end
   // to retire per-note bookkeeping, and without it some (Live via the VST3
@@ -475,8 +476,15 @@ bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
 }
 
 void plug_deactivate(const clap_plugin_t *) {}
-bool plug_start_processing(const clap_plugin_t *) { return true; }
-void plug_stop_processing(const clap_plugin_t *) {}
+bool plug_start_processing(const clap_plugin_t *p)
+{
+  self(p)->processing.store(true, std::memory_order_release);
+  return true;
+}
+void plug_stop_processing(const clap_plugin_t *p)
+{
+  self(p)->processing.store(false, std::memory_order_release);
+}
 void plug_reset(const clap_plugin_t *p) { self(p)->core.allOff(); }
 
 clap_process_status plug_process(const clap_plugin_t *p, const clap_process_t *proc)
@@ -657,7 +665,27 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
     pos = eol == std::string::npos ? blob.size() : eol + 1;
     const size_t eq = line.find('=');
     if (eq == std::string::npos) continue;
-    pl->core.setParam(line.substr(0, eq), std::atof(line.c_str() + eq + 1));
+    const std::string key = line.substr(0, eq);
+    const double val = std::atof(line.c_str() + eq + 1);
+    // Thread safety (2026-07-18): state_load is main-thread and MAY run while
+    // the audio thread is in process() — a direct setParam would race
+    // rebuild() against render(). Idle: apply directly (hosts read values
+    // back immediately after setState). Processing: route through the param
+    // queue; the audio thread applies next block and drainQueue's outgoing
+    // param events tell the host the new values.
+    if (pl->processing.load(std::memory_order_acquire))
+    {
+      for (const auto &d : kParams)
+        if (key == d.coreKey)
+        {
+          pl->enqueueParam(d.id, val, 0);
+          break;
+        }
+    }
+    else
+    {
+      pl->core.setParam(key, val);
+    }
   }
   return true;
 }

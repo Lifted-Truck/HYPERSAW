@@ -112,6 +112,7 @@ full() {
   node tools/golden/gen_goldens.mjs > /dev/null || return 1
   "$build_dir/parity_check" "$(dirname "$build_dir")/build-golden" || return 1
   "$build_dir/trajectory_check" || return 1
+  "$build_dir/state_check" || return 1
 }
 
 case "$TARGET" in
