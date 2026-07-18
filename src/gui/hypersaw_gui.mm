@@ -26,7 +26,16 @@ struct HypersawGui::Impl
     // webview-steals-keys problem).
     web->bind("hzGrabKeys", [this](const choc::value::ValueView &) -> choc::value::Value {
       NSView *v = (__bridge NSView *)web->getViewHandle();
-      if (v && v.window) [v.window makeFirstResponder:v];
+      if (v && v.window)
+      {
+        // makeFirstResponder on a non-key window never receives keys — Live
+        // keeps key status on its main window, so claim it first. Live also
+        // re-takes it moments later (2026-07-18 report: "focus for a split
+        // second"), which is why the JS side re-grabs for the edit's lifetime
+        // rather than trusting one call.
+        if (![v.window isKeyWindow]) [v.window makeKeyWindow];
+        [v.window makeFirstResponder:v];
+      }
       return {};
     });
   }

@@ -357,12 +357,26 @@ controls.forEach(el => {
       inp.style.cssText = 'width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--swarm);font:inherit;font-size:10px;text-align:right;';
       out.textContent = '';
       out.appendChild(inp);
-      if (window.hzGrabKeys) window.hzGrabKeys();  // ask the host for keyboard focus
-      let hadFocus = false;
-      inp.addEventListener('focus', () => { hadFocus = true; });
-      inp.addEventListener('pointerdown', e => { e.stopPropagation(); if (window.hzGrabKeys) window.hzGrabKeys(); inp.focus(); });
-      setTimeout(() => { inp.focus(); inp.select(); }, 30);
+      // Live GRANTS key focus then re-takes it a beat later (2026-07-18
+      // report: "focus for a split second, then taken away") — so one grab
+      // loses the race, and commit-on-blur destroys the box the moment the
+      // host steals. HOLD focus instead: re-grab on every steal for the
+      // edit's lifetime; the edit ends only on Enter/Escape or a click
+      // outside the field.
+      let closed = false;
+      const grab = () => { if (window.hzGrabKeys) window.hzGrabKeys(); inp.focus(); };
+      const hold = setInterval(() => {
+        if (!closed && document.activeElement !== inp) grab();
+      }, 120);
+      inp.addEventListener('pointerdown', e => { e.stopPropagation(); grab(); });
+      inp.addEventListener('blur', () => { if (!closed) setTimeout(() => { if (!closed) grab(); }, 0); });
+      setTimeout(() => { grab(); inp.select(); }, 30);
+      const outsideClick = e => { if (e.target !== inp) done(true); };
+      document.addEventListener('pointerdown', outsideClick, true);
       const done = commit => {
+        closed = true;
+        clearInterval(hold);
+        document.removeEventListener('pointerdown', outsideClick, true);
         let v = parseFloat(inp.value);
         inp.remove();
         if (!commit || !isFinite(v)) { displayValue(el, el.dataset.log10 ? Math.pow(10, +el.value) : +el.value); return; }
@@ -384,10 +398,6 @@ controls.forEach(el => {
         if (e.key === 'Enter') done(true);
         else if (e.key === 'Escape') done(false);
       });
-      // Only commit-on-blur if the field genuinely held focus — a blur
-      // before focus means the HOST refused us keys (don't destroy the box;
-      // clicking it retries the grab).
-      inp.addEventListener('blur', () => { if (hadFocus) done(true); });
     });
   }
 });
