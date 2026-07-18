@@ -150,6 +150,9 @@
     <div class="cluster">
       <h2>Voice</h2>
       <div class="row"><label>octave</label><input type="range" data-p="35" min="-2" max="2" step="1"><output>+0</output></div>
+      <div class="row"><label>semi</label><input type="range" data-p="36" min="-12" max="12" step="1"><output>+0</output></div>
+      <div class="row"><label>fine</label><input type="range" data-p="37" min="-100" max="100" step="0.5"><output>+0.0c</output></div>
+      <div class="row"><label>pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.01"><output>+0.00</output></div>
       <div class="row"><label>glide</label><input type="range" data-p="33" min="0" max="2" step="0.01"><output>off</output></div>
       <div class="togs">
         <label><input type="checkbox" data-p="32"> mono</label>
@@ -203,6 +206,9 @@ function displayValue(el, v) {
   else if (el.dataset.p === '23') out.textContent = v.toFixed(2) + '/b';
   else if (el.dataset.p === '33') out.textContent = v < 0.001 ? 'off' : (v < 0.01 ? (v * 1000).toFixed(1) + 'ms' : v.toFixed(2) + 's');
   else if (el.dataset.p === '35') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + ' oct';
+  else if (el.dataset.p === '36') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + ' st';
+  else if (el.dataset.p === '37') out.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + 'c';
+  else if (el.dataset.p === '38') out.textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + ' st';
   else if (el.dataset.p === '14' && v > 1) out.textContent = v.toFixed(2) + ' S+';
   else if (el.step === '1') out.textContent = String(Math.round(v));
   else out.textContent = v.toFixed(2);

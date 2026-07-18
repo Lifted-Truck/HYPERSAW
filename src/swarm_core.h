@@ -65,6 +65,10 @@ struct Params
   // Pure superset — the poly/default path never sets a glide target, so all
   // reference expressions stay bit-untouched.
   double glide = 0;
+  // Live tune factor (ADR-027): one multiplicative pitch for octave/semi/
+  // cents/bend, applied to the fundamental at law evaluation so it bends
+  // SOUNDING notes. Default 1.0 is bit-inert (x * 1.0 == x in IEEE754).
+  double tune = 1.0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -417,6 +421,7 @@ class SwarmCore
     if (k == "basin") return &p.basin;
     if (k == "lpOut") return &p.lpOut;
     if (k == "glide") return &p.glide;
+    if (k == "tune") return &p.tune;
     return nullptr;
   }
 
@@ -535,12 +540,13 @@ class SwarmCore
       }
     }
     double mean = 0;
+    const double f0c = s.f0cur * p.tune;  // ADR-027; tune == 1.0 -> bit-identical
     for (int i = 0; i < n; i++)
     {
       double f;
       const double xv = x[i];
-      if (p.law == 0) { f = s.f0cur * std::pow(2, (xv * p.detune * 100) / 1200); }
-      else if (p.law == 1) { f = s.f0cur + xv * p.detune * 20; }
+      if (p.law == 0) { f = f0c * std::pow(2, (xv * p.detune * 100) / 1200); }
+      else if (p.law == 1) { f = f0c + xv * p.detune * 20; }
       else if (p.law == 3)
       {
         // tempo-grid (ADR-022): cents placement, then snap the Hz offset to
@@ -548,10 +554,10 @@ class SwarmCore
         // exact grid multiple. Expression ported verbatim from the DYNAMICS
         // reference. Drift (below) deliberately loosens the grid when used.
         const double u = (p.bpm / 60.0) * p.beatMult;
-        const double df = s.f0cur * (std::pow(2, (xv * p.detune * 100) / 1200) - 1);
-        f = s.f0cur + std::round(df / u) * u;
+        const double df = f0c * (std::pow(2, (xv * p.detune * 100) / 1200) - 1);
+        f = f0c + std::round(df / u) * u;
       }
-      else { f = s.f0cur + xv * p.detune * 0.35 * erb(s.f0cur); }
+      else { f = f0c + xv * p.detune * 0.35 * erb(f0c); }
       if (p.driftDepth > 0) f *= std::pow(2, (s.driftS[i] * p.driftDepth) / 1200);
       s.vf[i] = std::max(1.0, f);
       mean += s.vf[i];
