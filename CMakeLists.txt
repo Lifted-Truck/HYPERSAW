@@ -93,6 +93,15 @@ if(NOT MSVC)
   target_compile_options(trajectory_check PRIVATE -O2)
 endif()
 
+# Session-persistence oracle: drives the impl through the CLAP params/state
+# extensions with a stub host (save -> fresh instance -> load -> identical
+# values AND identical audio).
+add_executable(state_check tools/state_check.cpp)
+target_link_libraries(state_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(state_check PRIVATE -O2)
+endif()
+
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)
