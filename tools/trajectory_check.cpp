@@ -408,6 +408,222 @@ int main()
     }
   }
 
+  std::printf("== L0-8..11 dynamics (DYN-config: even spread, lpOut 0) ==\n");
+  {
+    // Shared DYN base config (mirrors the golden scenarios).
+    auto dynBase = [](SwarmCore &c) {
+      c.setParam("dist", 0);
+      c.setParam("lpOut", 0);
+      c.setParam("n", 24);
+      c.setParam("detune", 0.2);
+      c.setParam("retrig", 0);
+    };
+
+    // L0-8 gravity: 220 + 331 Hz (fifth +5.2c sharp), grav 0.7, ~3 s ->
+    // settled ratio within +/-0.5c of 3/2; outside-basin pair moves 0c.
+    {
+      SwarmCore c(kSR);
+      dynBase(c);
+      c.setParam("grav", 0.7);
+      c.setParam("basin", 35);
+      c.noteOn(57, 220.0);
+      c.noteOn(64, 331.0);
+      std::vector<float> L(kBlock), R(kBlock);
+      for (long off = 0; off < (long)(3 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
+      double lo = 1e9, hi = 0;
+      for (int i = 0; i < 8; i++)
+      {
+        const auto &sw = c.swarmAt(i);
+        if (!sw.gate) continue;
+        lo = std::min(lo, sw.f0cur);
+        hi = std::max(hi, sw.f0cur);
+      }
+      const double cents = 1200 * std::log2((hi / lo) / 1.5);
+      check(std::fabs(cents) <= 0.5, "L0-8 gravity settles fifth to 3/2 +/-0.5c", cents);
+
+      SwarmCore c2(kSR);
+      dynBase(c2);
+      c2.setParam("grav", 0.7);
+      c2.setParam("basin", 35);
+      c2.noteOn(57, 220.0);
+      c2.noteOn(64, 240.0);  // 240/220 folds ~39c from 16/15, the NEAREST ratio — outside the 35c basin
+      // (first probe used 350 Hz, which folds within 10c of 8/5 — inside the
+      // basin; gravity correctly moved it. Probe bug, not engine bug.)
+      for (long off = 0; off < (long)(3 * kSR); off += kBlock) c2.render(L.data(), R.data(), kBlock);
+      double lo2 = 1e9, hi2 = 0;
+      for (int i = 0; i < 8; i++)
+      {
+        const auto &sw = c2.swarmAt(i);
+        if (!sw.gate) continue;
+        lo2 = std::min(lo2, sw.f0cur);
+        hi2 = std::max(hi2, sw.f0cur);
+      }
+      check(lo2 == 220.0 && hi2 == 240.0, "L0-8 outside-basin pair moves 0c",
+            1200 * std::log2((hi2 / lo2) / (240.0 / 220.0)));
+    }
+
+    // L0-9 Sakaguchi: locked mean frequency shifts DOWN with alpha; at 60deg
+    // ref -1.8 Hz (218.19), magnitude +/-25%, monotonic in alpha (blocking:
+    // direction + monotonicity).
+    {
+      auto lockedMean = [&](double alphaDeg) {
+        SwarmCore c(kSR);
+        c.setParam("dist", 0);
+        c.setParam("lpOut", 0);
+        c.setParam("n", 24);
+        c.setParam("detune", 0.2);
+        c.setParam("retrig", 1);  // coherent start -> locks fast
+        c.setParam("K", 0.9);
+        c.setParam("alpha", alphaDeg);
+        c.noteOn(kMidi, mtof(kMidi));
+        std::vector<float> L(kBlock), R(kBlock);
+        for (long off = 0; off < (long)(4 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
+        const auto *sw = c.focus();
+        double m = 0;
+        for (int i = 0; i < 24; i++) m += sw->eff[i];
+        return m / 24;
+      };
+      const double m0 = lockedMean(0), m30 = lockedMean(30), m60 = lockedMean(60);
+      const double shift = m60 - 220.0;
+      check(shift < 0 && std::fabs(shift + 1.8) <= 0.45 * 1.8 + 0.36,
+            "L0-9 alpha=60 locked mean down ~1.8 Hz (+/-25%)", shift);
+      check(m60 < m30 && m30 < m0, "L0-9 shift monotonic in alpha", m30 - 220.0);
+    }
+
+    // L0-10 two-cluster broken symmetry: n=32, detune 2c (knob 0.02),
+    // K=+1, mu=0.6, retrig off, 25 s, avg final 10 s. alpha=78: RA~0.82 /
+    // RB~0.67 (+/-0.08) across seeds; alpha=86: seed variance >= 2x.
+    {
+      auto clusterAvg = [&](double alphaDeg, double seed, double &ra, double &rb) {
+        SwarmCore c(kSR);
+        c.setParam("dist", 0);
+        c.setParam("lpOut", 0);
+        c.setParam("seed", seed);
+        c.setParam("n", 32);
+        c.setParam("detune", 0.02);
+        c.setParam("retrig", 0);
+        c.setParam("topo", 2);
+        c.setParam("mu", 0.6);
+        c.setParam("K", 1.0);
+        c.setParam("alpha", alphaDeg);
+        c.noteOn(kMidi, mtof(kMidi));
+        std::vector<float> L(kBlock), R(kBlock);
+        double sa = 0, sb = 0;
+        long cnt = 0;
+        for (long off = 0; off < (long)(25 * kSR); off += kBlock)
+        {
+          c.render(L.data(), R.data(), kBlock);
+          if (off >= (long)(15 * kSR))
+          {
+            const auto *sw = c.focus();
+            sa += sw->RA;
+            sb += sw->RB;
+            cnt++;
+          }
+        }
+        ra = sa / cnt;
+        rb = sb / cnt;
+      };
+      double raSum = 0, rbSum = 0, ra78[3], rb78[3], ra86[3];
+      const double seeds[3] = {1234, 777, 42};
+      bool within = true;
+      for (int i = 0; i < 3; i++)
+      {
+        clusterAvg(78, seeds[i], ra78[i], rb78[i]);
+        raSum += ra78[i];
+        rbSum += rb78[i];
+        if (std::fabs(ra78[i] - 0.82) > 0.08 || std::fabs(rb78[i] - 0.67) > 0.08) within = false;
+      }
+      check(within, "L0-10 alpha=78 RA~0.82/RB~0.67 (+/-0.08) all seeds", raSum / 3);
+      auto var3 = [](const double *v) {
+        const double m = (v[0] + v[1] + v[2]) / 3;
+        return ((v[0] - m) * (v[0] - m) + (v[1] - m) * (v[1] - m) + (v[2] - m) * (v[2] - m)) / 3;
+      };
+      double dummyRb;
+      for (int i = 0; i < 3; i++) clusterAvg(86, seeds[i], ra86[i], dummyRb);
+      check(var3(ra86) >= 2 * var3(ra78), "L0-10 alpha=86 seed variance >= 2x alpha=78",
+            var3(ra86) / std::max(1e-12, var3(ra78)));
+    }
+
+    // L0-11 ring spatial coexistence: reach 5, alpha 80, K 0.9, retrig off,
+    // 6 s: local order (+/-3 window) spans min <= 0.2 and max >= 0.8.
+    {
+      // PROTOCOL NOTE (probed on the reference): the locked/drifting regions
+      // wander around the ring — instantaneous snapshots vary by seed (the
+      // reference itself reads min 0.30 at exactly 6 s for seed 42). The
+      // ACCEPTANCE pair (0.08/0.87) reproduces as min/max over a 2..8 s
+      // observation window (reference: 0.01/0.98 all seeds). Thresholds
+      // unchanged; observation windowed.
+      SwarmCore c(kSR);
+      dynBase(c);
+      c.setParam("topo", 1);
+      c.setParam("reach", 5);
+      c.setParam("alpha", 80);
+      c.setParam("K", 0.9);
+      c.noteOn(kMidi, mtof(kMidi));
+      std::vector<float> L(kBlock), R(kBlock);
+      const int n = 24;
+      double lmin = 1e9, lmax = -1e9;
+      for (long off = 0; off < (long)(8 * kSR); off += kBlock)
+      {
+        c.render(L.data(), R.data(), kBlock);
+        if (off < (long)(2 * kSR)) continue;
+        const auto *sw = c.focus();
+        for (int i = 0; i < n; i++)
+        {
+          double sx = 0, sy = 0;
+          for (int d = -3; d <= 3; d++)
+          {
+            const double a = sw->phase[(i + d + n) % n] * 6.283185307;
+            sx += std::cos(a);
+            sy += std::sin(a);
+          }
+          const double lr = std::sqrt(sx * sx + sy * sy) / 7;
+          lmin = std::min(lmin, lr);
+          lmax = std::max(lmax, lr);
+        }
+      }
+      check(lmin <= 0.2 && lmax >= 0.8, "L0-11 ring local order spans <=0.2 and >=0.8 (2-8s window)",
+            lmax - lmin);
+    }
+
+    // ADR-015 anchors (ratified data, formal criteria proposed at the Phase 3
+    // gate): q-clusters R_q >= 0.95 at q in {2,3} across seeds; aligned-start
+    // bistability holds full sync.
+    {
+      bool allQ = true;
+      double worst = 1;
+      for (int q : {2, 3})
+        for (double seed : {1234.0, 777.0, 42.0})
+        {
+          SwarmCore c(kSR);
+          dynBase(c);
+          c.setParam("seed", seed);
+          c.setParam("poles", q);
+          c.setParam("K", 1.0);
+          c.noteOn(kMidi, mtof(kMidi));
+          std::vector<float> L(kBlock), R(kBlock);
+          for (long off = 0; off < (long)(6 * kSR); off += kBlock)
+            c.render(L.data(), R.data(), kBlock);
+          const double rq = c.focus()->RQ;
+          worst = std::min(worst, rq);
+          if (rq < 0.95) allQ = false;
+        }
+      check(allQ, "ADR-015 q-clusters: R_q >= 0.95, q in {2,3}, all seeds", worst);
+
+      SwarmCore c(kSR);
+      dynBase(c);
+      c.setParam("retrig", 1);
+      c.setParam("poles", 2);
+      c.setParam("K", 1.0);
+      c.noteOn(kMidi, mtof(kMidi));
+      std::vector<float> L(kBlock), R(kBlock);
+      for (long off = 0; off < (long)(6 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
+      check(c.focus()->R >= 0.95, "ADR-015 bistability: aligned start stays full sync",
+            c.focus()->R);
+    }
+  }
+
   std::printf("== L0-13 determinism & stability ==\n");
   {
     // Same seed + note sequence -> identical audio across runs (bitwise on

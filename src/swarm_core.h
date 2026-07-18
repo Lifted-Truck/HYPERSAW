@@ -53,7 +53,24 @@ struct Params
   // expression from the DYNAMICS reference (swarmdynamics.html beatQ path).
   // bpm is host-owned (CLAP transport), beatMult is cycles-per-beat.
   double bpm = 120, beatMult = 1;
+  // Dynamics layer (Phase 3, ADR-023): topology / Sakaguchi lag / Daido
+  // poles / consonance gravity, ported expression-for-expression from the
+  // DYNAMICS reference. Defaults reproduce the SAW reference bit-exactly
+  // (topo 0, alpha 0, poles 1, grav 0 leave every SAW expression untouched);
+  // the DYN golden set proves the non-default paths. lpOut=0 bypasses the
+  // R->tone output pole — the one structural difference between the two
+  // references (DynSynth has no output filter).
+  double topo = 0, reach = 5, mu = 0.6, alpha = 0, poles = 1, grav = 0, basin = 35, lpOut = 1;
 };
+
+// Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
+// reference's exact values; octave-folded snap targets.
+constexpr double kRatios[13] = {1.0,       16.0 / 15, 9.0 / 8, 6.0 / 5, 5.0 / 4,
+                                4.0 / 3,   7.0 / 5,   3.0 / 2, 8.0 / 5, 5.0 / 3,
+                                16.0 / 9,  15.0 / 8,  2.0};
+// Math.PI (full precision) — the DYNAMICS reference uses it for the alpha
+// degrees->radians conversion, unlike the truncated kPiRef literals.
+constexpr double kPiFull = 3.141592653589793;
 
 class SwarmCore
 {
@@ -61,10 +78,10 @@ class SwarmCore
   struct Swarm
   {
     double phase[kMaxV], driftS[kMaxV], couple[kMaxV], vf[kMaxV], eff[kMaxV], mom[kMaxV];
-    double f0 = 220;
+    double f0 = 220, f0cur = 220;
     int midi = -1, gate = 0;
     double env = 0, Kenv = 0, KsmS = 0, KsmP = 0;
-    double R = 0, RN = 0, psi = 0, sigma = 0;
+    double R = 0, RN = 0, psi = 0, sigma = 0, RA = 0, RB = 0, RQ = 0;
     long age = -1;
     uint32_t rngState = 1;
     int fresh = 1;
@@ -92,7 +109,7 @@ class SwarmCore
     double *slot = paramSlot(k);
     if (!slot) return false;
     *slot = v;
-    if (k == "n" || k == "dist" || k == "seed" || k == "width") rebuild();
+    if (k == "n" || k == "dist" || k == "seed" || k == "width" || k == "topo") rebuild();
     return true;
   }
 
@@ -104,6 +121,7 @@ class SwarmCore
     const int slot = (int)(&s - &swarms[0]);
     s.midi = midi;
     s.f0 = f;
+    s.f0cur = f;
     s.gate = 1;
     s.age = noteCounter++;
     s.Kenv = 8 * p.onset * p.onset;
@@ -148,8 +166,60 @@ class SwarmCore
     return best;
   }
 
+  // Consonance gravity (ADR-008; DYN reference exact): once per render call,
+  // pull each gated pair's f0cur toward the nearest folded ratio inside the
+  // basin. grav < 0.005 returns untouched — the SAW-parity path.
+  void gravityStep(double dtB)
+  {
+    gravCount = 0;
+    const double g = p.grav;
+    if (g < 0.005) return;
+    Swarm *act[kPoly];
+    int na = 0;
+    for (auto &s : swarms)
+      if (s.gate) act[na++] = &s;
+    if (na < 2) return;
+    // insertion sort ascending by f0cur (stable; matches JS sort for the
+    // distinct-frequency case)
+    for (int i = 1; i < na; i++)
+      for (int j = i; j > 0 && act[j]->f0cur < act[j - 1]->f0cur; j--) std::swap(act[j], act[j - 1]);
+    const double rate = g * 3;
+    for (int a = 0; a < na - 1; a++)
+      for (int b = a + 1; b < na; b++)
+      {
+        Swarm *lo = act[a], *hi = act[b];
+        const double r = hi->f0cur / lo->f0cur;
+        const double oct = std::floor(std::log2(r));
+        const double rf = r / std::pow(2, oct);
+        int bi = 0;
+        double be = 1e9;
+        for (int i = 0; i < 13; i++)
+        {
+          const double e = std::fabs(1200 * std::log2(rf / kRatios[i]));
+          if (e < be)
+          {
+            be = e;
+            bi = i;
+          }
+        }
+        const double err = 1200 * std::log2(rf / kRatios[bi]);
+        if (std::fabs(err) > p.basin) continue;
+        const double move = err * rate * dtB * 0.5;
+        hi->f0cur *= std::pow(2, -move / 1200);
+        lo->f0cur *= std::pow(2, move / 1200);
+        if (gravCount < 32)
+        {
+          gravPairs[gravCount][0] = bi;
+          gravPairs[gravCount][1] = (int)oct;
+          gravErr[gravCount] = err;
+          gravCount++;
+        }
+      }
+  }
+
   void render(float *outL, float *outR, int frames)
   {
+    gravityStep((double)frames / sr);
     const int n = (int)p.n;
     const double gain = p.vol * 0.9 / std::pow((double)n, p.normExp);
     // ADR-021: at the defaults these are the reference's exact expressions
@@ -187,8 +257,18 @@ class SwarmCore
           if (p.mono != 0) { l += v * 0.7071; r += v * 0.7071; }
           else { l += v * panL[i]; r += v * panR[i]; }
         }
-        s.lpL += s.lpc * (l - s.lpL);
-        s.lpR += s.lpc * (r - s.lpR);
+        if (p.lpOut != 0)
+        {
+          s.lpL += s.lpc * (l - s.lpL);
+          s.lpR += s.lpc * (r - s.lpR);
+        }
+        else
+        {
+          // DYN-reference config: no output pole (the one structural
+          // difference between the references; ADR-023)
+          s.lpL = l;
+          s.lpR = r;
+        }
         // ADR-021 envelope. sustainL >= 1: the reference's exact arithmetic
         // ((1-env)*atk while gated, (0-env)*rel released) — decay never
         // engages, parity preserved. sustainL < 1: attack->decay machine,
@@ -267,6 +347,14 @@ class SwarmCore
     if (k == "release") return &p.releaseS;
     if (k == "bpm") return &p.bpm;
     if (k == "beatMult") return &p.beatMult;
+    if (k == "topo") return &p.topo;
+    if (k == "reach") return &p.reach;
+    if (k == "mu") return &p.mu;
+    if (k == "alpha") return &p.alpha;
+    if (k == "poles") return &p.poles;
+    if (k == "grav") return &p.grav;
+    if (k == "basin") return &p.basin;
+    if (k == "lpOut") return &p.lpOut;
     return nullptr;
   }
 
@@ -274,6 +362,24 @@ class SwarmCore
   {
     const int n = (int)p.n;
     grng = (uint32_t)(toInt32(p.seed) + 1);
+    if ((int)p.topo == 2)
+    {
+      // bimodal placement tied to the two-cluster topology (DYN reference
+      // exact): cluster A on [-0.85,-0.35], cluster B on [0.35,0.85].
+      const int h = n >> 1;
+      for (int i = 0; i < h; i++)
+      {
+        const double t = h == 1 ? 0.5 : (double)i / (h - 1);
+        x[i] = -0.85 + 0.5 * t;
+      }
+      for (int i = h; i < n; i++)
+      {
+        const double t = (n - h) == 1 ? 0.5 : (double)(i - h) / (n - h - 1);
+        x[i] = 0.35 + 0.5 * t;
+      }
+      finishRebuild(n);
+      return;
+    }
     static const double JP[7] = {-1, -0.5715, -0.1774, 0, 0.181, 0.565, 0.9766};
     for (int i = 0; i < n; i++)
     {
@@ -303,6 +409,11 @@ class SwarmCore
       x[i] = xv;
     }
     if (n == 1) x[0] = 0;
+    finishRebuild(n);
+  }
+
+  void finishRebuild(int n)
+  {
     centerIdx = 0;
     for (int i = 1; i < n; i++)
       if (std::fabs(x[i]) < std::fabs(x[centerIdx])) centerIdx = i;
@@ -350,8 +461,8 @@ class SwarmCore
     {
       double f;
       const double xv = x[i];
-      if (p.law == 0) { f = s.f0 * std::pow(2, (xv * p.detune * 100) / 1200); }
-      else if (p.law == 1) { f = s.f0 + xv * p.detune * 20; }
+      if (p.law == 0) { f = s.f0cur * std::pow(2, (xv * p.detune * 100) / 1200); }
+      else if (p.law == 1) { f = s.f0cur + xv * p.detune * 20; }
       else if (p.law == 3)
       {
         // tempo-grid (ADR-022): cents placement, then snap the Hz offset to
@@ -359,10 +470,10 @@ class SwarmCore
         // exact grid multiple. Expression ported verbatim from the DYNAMICS
         // reference. Drift (below) deliberately loosens the grid when used.
         const double u = (p.bpm / 60.0) * p.beatMult;
-        const double df = s.f0 * (std::pow(2, (xv * p.detune * 100) / 1200) - 1);
-        f = s.f0 + std::round(df / u) * u;
+        const double df = s.f0cur * (std::pow(2, (xv * p.detune * 100) / 1200) - 1);
+        f = s.f0cur + std::round(df / u) * u;
       }
-      else { f = s.f0 + xv * p.detune * 0.35 * erb(s.f0); }
+      else { f = s.f0cur + xv * p.detune * 0.35 * erb(s.f0cur); }
       if (p.driftDepth > 0) f *= std::pow(2, (s.driftS[i] * p.driftDepth) / 1200);
       s.vf[i] = std::max(1.0, f);
       mean += s.vf[i];
@@ -399,13 +510,99 @@ class SwarmCore
       ny += std::sin(a);
     }
     s.RN = std::sqrt(nx * nx + ny * ny) / n;
-    const int c0 = centerIdx < n ? centerIdx : 0;
-    for (int i = 0; i < n; i++)
+    // Topology / Sakaguchi / Daido (ADR-023, DYN reference exact). SAW
+    // defaults (topo 0, alpha 0, poles 1) reduce every expression to the SAW
+    // reference's own: sin(psi - theta - 0.0) is bit-equal to sin(psi -
+    // theta), and the splay term only exists on the mean-field path (the SAW
+    // reference has no topologies; the DYN reference has no splay).
+    const double alphaR = p.alpha * kPiFull / 180;
+    const int topo = (int)p.topo;
+    if (topo == 0)
     {
-      double c = s.KsmS * s.R * std::sin(s.psi - s.phase[i] * kTau);
-      if (s.KsmP > 0.001)
-        c += s.KsmP * std::sin(kTau * (s.phase[c0] + (double)(i - c0) / n - s.phase[i]));
-      s.couple[i] = c;
+      const int q = (int)p.poles;
+      if (q > 1)
+      {
+        double qx = 0, qy = 0;
+        for (int i = 0; i < n; i++)
+        {
+          const double a = s.phase[i] * kTau * q;
+          qx += std::cos(a);
+          qy += std::sin(a);
+        }
+        qx /= n;
+        qy /= n;
+        s.RQ = std::sqrt(qx * qx + qy * qy);
+        const double psiQ = std::atan2(qy, qx);
+        for (int i = 0; i < n; i++)
+          s.couple[i] = s.KsmS * s.RQ * std::sin(psiQ - s.phase[i] * kTau * q - alphaR);
+      }
+      else
+      {
+        s.RQ = 0;
+        const int c0 = centerIdx < n ? centerIdx : 0;
+        for (int i = 0; i < n; i++)
+        {
+          double c = s.KsmS * s.R * std::sin(s.psi - s.phase[i] * kTau - alphaR);
+          if (s.KsmP > 0.001)
+            c += s.KsmP * std::sin(kTau * (s.phase[c0] + (double)(i - c0) / n - s.phase[i]));
+          s.couple[i] = c;
+        }
+      }
+      s.RA = 0;
+      s.RB = 0;
+    }
+    else if (topo == 1)
+    {
+      const int r = std::min((int)p.reach, (n - 1) >> 1);
+      for (int i = 0; i < n; i++)
+      {
+        const double ti = s.phase[i] * kTau;
+        double acc = 0;
+        for (int d = 1; d <= r; d++)
+        {
+          const int jl = (i - d + n) % n, jr = (i + d) % n;
+          acc += std::sin(s.phase[jl] * kTau - ti - alphaR);
+          acc += std::sin(s.phase[jr] * kTau - ti - alphaR);
+        }
+        s.couple[i] = s.KsmS * acc / (2 * r);
+      }
+      s.RA = 0;
+      s.RB = 0;
+    }
+    else
+    {
+      const int h = n >> 1;
+      const double m = p.mu;
+      double ax = 0, ay = 0, bx = 0, by = 0;
+      for (int i = 0; i < h; i++)
+      {
+        const double a = s.phase[i] * kTau;
+        ax += std::cos(a);
+        ay += std::sin(a);
+      }
+      for (int i = h; i < n; i++)
+      {
+        const double a = s.phase[i] * kTau;
+        bx += std::cos(a);
+        by += std::sin(a);
+      }
+      ax /= h;
+      ay /= h;
+      bx /= (n - h);
+      by /= (n - h);
+      const double RA = std::hypot(ax, ay), psiA = std::atan2(ay, ax);
+      const double RB = std::hypot(bx, by), psiB = std::atan2(by, bx);
+      s.RA = RA;
+      s.RB = RB;
+      const double norm = 1 + m;
+      for (int i = 0; i < n; i++)
+      {
+        const double ti = s.phase[i] * kTau;
+        double c;
+        if (i < h) c = (RA * std::sin(psiA - ti - alphaR) + m * RB * std::sin(psiB - ti - alphaR)) / norm;
+        else c = (RB * std::sin(psiB - ti - alphaR) + m * RA * std::sin(psiA - ti - alphaR)) / norm;
+        s.couple[i] = s.KsmS * c;
+      }
     }
     const double w = p.inertia;
     if (w <= 0.001)
@@ -446,6 +643,15 @@ class SwarmCore
   }
 
   double sr;
+
+ public:
+  // Gravity readout (per render call): ratio index into kRatios, octave
+  // fold, live cents error. Display feed only — never read by the DSP.
+  int gravCount = 0;
+  int gravPairs[32][2] = {{0}};
+  double gravErr[32] = {0};
+
+ private:
   double x[kMaxV] = {0}, panL[kMaxV] = {0}, panR[kMaxV] = {0};
   long noteCounter = 0;
   int tick = 0;
