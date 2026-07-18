@@ -81,6 +81,11 @@ static const ParamDef kParams[] = {
     {16, "digital", "Digital", 0, 1, 1, false, nullptr},
     {17, "vol", "Volume", 0, 1, 0.4, false, nullptr},
     {18, "retrig", "Retrigger", 0, 1, 1, true, kOffOn},
+    // ADR-021 envelope: defaults reproduce the reference AR bit-exactly
+    {19, "attack", "Attack (s)", 0.001, 2.0, 0.003, false, nullptr},
+    {20, "decay", "Decay (s)", 0.005, 4.0, 0.16, false, nullptr},
+    {21, "sustain", "Sustain", 0, 1, 1.0, false, nullptr},
+    {22, "release", "Release (s)", 0.005, 8.0, 0.16, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -281,6 +286,10 @@ struct Plugin
       if (k == "digital") return p.digital;
       if (k == "vol") return p.vol;
       if (k == "retrig") return p.retrig;
+      if (k == "attack") return p.attackS;
+      if (k == "decay") return p.decayS;
+      if (k == "sustain") return p.sustainL;
+      if (k == "release") return p.releaseS;
     }
     return 0;
   }
@@ -473,6 +482,11 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   else if (id == 8)  // dissolve: seconds
   {
     std::snprintf(out, cap, "%.2f s", value);
+  }
+  else if (id == 19 || id == 20 || id == 22)  // envelope times
+  {
+    if (value < 0.01) std::snprintf(out, cap, "%.1f ms", value * 1000);
+    else std::snprintf(out, cap, "%.2f s", value);
   }
   else if (id == 9)  // drift depth: cents
   {
