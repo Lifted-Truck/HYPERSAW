@@ -34,6 +34,12 @@ Three single-file HTML prototypes, each with a headless-testable DSP core (`Swar
 - `swarmspectra.html` — per-partial swarm: cascade locking, interference gating, width geography, stretch, 4-voice poly
 - `swarmdynamics.html` — topology (mean-field / nonlocal ring / two-cluster), Sakaguchi α, consonance gravity, tempo-grid law, 4-voice poly
 
+Track E (effects line, ingested 2026-07-18 — SPEC-EFFECTS.md):
+
+- `swarmfilter.html` — resonator bank on the shared force core (`FilterLab`)
+- `swarmphaser.html` — notch swarm, exact SVF nulls (`PhaserLab`)
+- `swarmtime.html` — tap-swarm delay + FDN room (`TimeLab`)
+
 These are the reference implementation per ADR-003. The C++ port must match them (parity oracle), and their headless test harnesses are the templates for `./verify fast`.
 
 ## Repo status

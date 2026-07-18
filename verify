@@ -63,7 +63,8 @@ fast() {
   local f
   for f in SPEC.md ACCEPTANCE.md ROADMAP.md DECISIONS.md README.md CLAUDE.md \
            INDEX.md LIBRARY.md project.manifest.json \
-           swarmsaw.html swarmspectra.html swarmdynamics.html; do
+           swarmsaw.html swarmspectra.html swarmdynamics.html \
+           swarmfilter.html swarmphaser.html swarmtime.html SPEC-EFFECTS.md; do
     [ -f "$f" ] || { echo "verify: MISSING $f" >&2; ok=1; }
   done
 

@@ -35,7 +35,7 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 - Topology (mean-field / ring+reach / two-cluster+μ), Sakaguchi α, absolute-K mode, consonance gravity + basin + ratio readout.
 - Daido poles q (1–4) with R_q meter (ADR-015); tempo-grid status readout + cause-AND-state lock warning (ADR-016/017).
-- Formalize L0 criteria for q-cluster formation / demographics / bistability from the ADR-015 anchors (R_q = 0.97 at q∈{2,3} across seeds; 2f0 projection ~0.080 seed-invariant) and add them to ACCEPTANCE.md at this gate.
+- Formalize L0 criteria for q-cluster formation / demographics / bistability from the ADR-015 anchors (R_q = 0.97 at q∈{2,3} across seeds; 2f0 projection ~0.080 seed-invariant) and add them to ACCEPTANCE.md at this gate as L0-22+ (L0-14..21 are taken by Track E, ingested 2026-07-18).
 - L0-8..11 green; **Layer-E 3 SIGNED OFF (human, 2026-07-18: "I hear it. Sounds great")**.
 - **Tonality brief ON HOLD (human, 2026-07-18):** the human will prime Tonality directly; integration scope under discussion (see traces — possible outcome: HYPERSAW owns a richer static ratio table itself and only context-weighting ever involves Tonality, or the integration is skipped). Gravity ships on the default set either way.
 - **Gate:** the dynamics lab's verified states are reproducible in-plugin from preset recall.
@@ -58,3 +58,19 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 ## Prior art & positioning
 
 Maintained in PRIOR-ART.md; revisit at Phase 3 (before gravity ships) for the freedom-to-operate check flagged there, and at Phase 5 for marketing claims accuracy.
+
+## Track E — effects line (parallel track; ingested 2026-07-18, packet UPDATE-001)
+
+Track E depends only on Phase 0 platform infrastructure and the control-tick scaffolding from Phase 1; it does not depend on the third oscillator engine and can proceed alongside it.
+
+**E0 · Force-core module.** Port the shared force system (home/sync/splay/gravity/drift/inertia on log2 coordinates, per-tick) as a standalone, engine-agnostic module consumed by all four effect engines. Gate: force-core unit tests reproduce the JS labs' population trajectories (collapse σ ratios, gap CVs, equilibrium-law residuals) within L0-14/15/19/20 tolerances, seed-for-seed.
+
+**E1 · Frequency engines.** Resonator bank + notch swarm on the force core, external audio input. Gate: L0-14 through L0-18 green; notch-exactness regression guard (L0-16) in CI.
+
+**E2 · Time engines.** Tap-swarm delay (host tempo sync replaces the bpm field) + FDN room swarm. Gate: L0-19 through L0-21 green, including the LF-stability and DC-boundedness long-run checks; matrix-sign regression guard (L0-20) in CI.
+
+**E3 · Integration.** Effects as sections of the instrument (post-oscillator) *and* as standalone effect plugin(s) — same cores, two shells. Collapse/comb-regularity/in-basin-error exposed as mod sources. Visualization per SPEC-EFFECTS §7, warnings per ADR-017 (cause AND state).
+
+**Sequencing note:** E0 is small and high-leverage — the force core is the same mathematics the dynamics engine already needs, so if the third original engine is the dynamics engine, build E0 first and have both consume it. If the third engine is already underway with its own force implementation, unify at E0 rather than maintaining two.
+
+**Local sequencing ruling (per the packet's own note):** the dynamics engine is already built inside SwarmCore with its own force implementation — so E0 is a UNIFICATION: extract/share the force mathematics rather than build a second copy.
