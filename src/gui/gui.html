@@ -81,6 +81,8 @@
   .togs { display: flex; gap: 12px; margin-top: 6px; }
   .togs label { display: flex; align-items: center; gap: 5px; color: var(--dim); font-size: 10px; cursor: pointer; }
   .togs input { accent-color: var(--pull); }
+  .togs label.modewarn { color: var(--drift); font-weight: 600; }
+  .togs label.modewarn::after { content: " — K in absolute Hz"; font-weight: 400; }
   #statebox {
     display: none; width: 100%; height: 70px; margin-top: 8px; background: var(--panel2);
     color: var(--text); border: 1px solid var(--line); font-family: var(--mono-f); font-size: 9px;
@@ -177,7 +179,7 @@
       <div class="row"><label>gravity</label><input type="range" data-p="29" min="0" max="1" step="0.01"><output>0.00</output></div>
       <div class="row"><label>basin</label><input type="range" data-p="30" min="10" max="50" step="1"><output>35c</output></div>
       <div class="togs">
-        <label><input type="checkbox" data-p="31"> absolute K</label>
+        <label id="abskLabel"><input type="checkbox" data-p="31"> absolute K</label>
       </div>
     </div>
 
@@ -418,6 +420,10 @@ const SOFT_GATES = {
 };
 let lastParams = {};
 function applyGates() {
+  // absolute K redefines the pull-K knob's units — make its active state loud
+  const abskEl = document.querySelector('[data-p="31"]');
+  const abskLabel = $('#abskLabel');
+  if (abskEl && abskLabel) abskLabel.classList.toggle('modewarn', abskEl.checked || lastParams[31] > 0.5);
   for (const [id, pred] of Object.entries(HARD_GATES)) {
     const el = document.querySelector(`[data-p="${id}"]`);
     const row = el && el.closest('.row');
