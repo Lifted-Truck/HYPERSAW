@@ -528,7 +528,7 @@ xy.addEventListener('pointerdown', e => { xyDown = true; xy.setPointerCapture(e.
 xy.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
 xy.addEventListener('pointerup', e => { xyDown = false; bridge.gesture(DETUNE_ID, false); bridge.gesture(K_ID, false); });
 
-let kSmX = 0, kSmY = 0;  // smoothed display state of the pink K vector
+let kSmX = 0, kSmY = 0, kSmR = 0;  // smoothed display state of the pink K vector
 /* ---- phase circle: ported verbatim from swarmsaw.html drawPhase(), fed by
        the engine snapshot instead of the in-page synth ---- */
 const pc = $('#phaseCanvas'), pctx = pc.getContext('2d');
@@ -577,8 +577,15 @@ function drawPhase(s) {
   const kx = s.R * Math.cos(s.psi), ky = s.R * Math.sin(s.psi);
   kSmX += (kx - kSmX) * 0.18;  // ~90 ms at 60 fps
   kSmY += (ky - kSmY) * 0.18;
-  const ax = cx + rad * kSmX;
-  const ay = cy - rad * kSmY;
+  // Direction from the Cartesian-smoothed vector (fluid, wrap-safe), but
+  // LENGTH from a separately smoothed scalar R — averaging positions of a
+  // rotating vector shortens it toward the center, which misread as low R
+  // (2026-07-18 follow-up).
+  kSmR += (s.R - kSmR) * 0.35;
+  const kLen = Math.hypot(kSmX, kSmY);
+  const ux = kLen > 1e-6 ? kSmX / kLen : 0, uy = kLen > 1e-6 ? kSmY / kLen : 0;
+  const ax = cx + rad * kSmR * ux;
+  const ay = cy - rad * kSmR * uy;
   pctx.strokeStyle = '#ff4fa3'; pctx.lineWidth = 2;
   pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(ax, ay); pctx.stroke();
   pctx.fillStyle = '#ff4fa3';
