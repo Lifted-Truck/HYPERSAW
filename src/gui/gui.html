@@ -159,8 +159,9 @@
       <div class="row"><label>onset lock</label><input type="range" data-p="7" min="0" max="1" step="0.001"><output>0.00</output></div>
       <div class="row"><label>dissolve</label><input type="range" data-p="8" min="-1.3" max="0.9" step="0.01" data-log10="1"><output>0.63s</output></div>
       <div class="row"><label>inertia</label><input type="range" data-p="11" min="0" max="1" step="0.01"><output>0.00</output></div>
+      <div class="row"><label>scatter</label><input type="range" data-p="39" min="0" max="1" step="0.01"><output>0%</output></div>
       <div class="togs">
-        <label><input type="checkbox" data-p="18"> retrigger</label>
+        <label id="retrigLabel"><input type="checkbox" data-p="18"> retrigger</label>
       </div>
     </div>
 
@@ -278,6 +279,7 @@ function displayValue(el, v) {
   else if (el.dataset.p === '38') out.textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + ' st';
   else if (el.dataset.p === '27') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + '°';
   else if (el.dataset.p === '30') out.textContent = Math.round(v) + 'c';
+  else if (el.dataset.p === '39') out.textContent = Math.round(v * 100) + '%';
   else if (el.dataset.p === '14' && v > 1) out.textContent = v.toFixed(2) + ' S+';
   else if (el.step === '1') out.textContent = String(Math.round(v));
   else out.textContent = v.toFixed(2);
@@ -413,6 +415,7 @@ const HARD_GATES = {   // id -> predicate over current params
   23: p => (p[5] | 0) === 3,    // grid cyc/beat: tempo-grid law only
 };
 const SOFT_GATES = {
+  18: p => !(p[39] > 0),        // retrigger: overridden by scatter > 0
   30: p => p[29] > 0.005,       // basin: inert without gravity
   8:  p => p[7] > 0.001,        // dissolve: inert without onset lock
   33: p => p[32] > 0.5,         // glide: mono only

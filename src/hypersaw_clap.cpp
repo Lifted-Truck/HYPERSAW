@@ -114,6 +114,7 @@ static const ParamDef kParams[] = {
     {36, "semi", "Semitones", -12, 12, 0, true, nullptr},
     {37, "fineCents", "Fine (c)", -100, 100, 0, false, nullptr},
     {38, "pitchBend", "Pitch", -12, 12, 0, false, nullptr},
+    {39, "scatter", "Phase Scatter", 0, 1, 0, false, nullptr},  // ADR-033
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
