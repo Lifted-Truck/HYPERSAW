@@ -183,7 +183,7 @@ struct Plugin
   // cost, torn reads are cosmetic-only (visualizer).
   float specRing[4096] = {0};
   std::atomic<uint32_t> specPos{0};
-  uint32_t guiW = 920, guiH = 600;  // resizable (clamped in gui_adjust_size)
+  uint32_t guiW = 980, guiH = 720;  // resizable (clamped in gui_adjust_size)
   std::atomic<bool> processing{false};
   // ADR-024: the inertia KNOB value (params/state domain). The core holds
   // sqrt(knob) — squaring the core value back is not bit-exact, and

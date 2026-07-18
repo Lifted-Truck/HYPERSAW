@@ -17,8 +17,8 @@
 namespace hypersaw::detail
 {
 
-constexpr uint32_t kGuiWidth = 920;
-constexpr uint32_t kGuiHeight = 600;
+constexpr uint32_t kGuiWidth = 980;
+constexpr uint32_t kGuiHeight = 720;
 
 inline choc::value::Value vizToValue(const VizSnapshot &v)
 {
