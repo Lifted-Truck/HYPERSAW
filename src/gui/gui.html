@@ -116,8 +116,9 @@
       <div class="row"><label>seed</label><input type="range" data-p="3" min="0" max="99999" step="1"><output>1234</output></div>
       <div class="row"><label>detune</label><input type="range" data-p="4" min="0" max="1" step="0.001"><output>0.28</output></div>
       <div class="row"><label>law</label><select data-p="5">
-        <option value="0">cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option>
+        <option value="0">cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option><option value="3">tempo-grid</option>
       </select><output></output></div>
+      <div class="row"><label>grid cyc/beat</label><input type="range" data-p="23" min="0.25" max="8" step="0.25"><output>1.0/b</output></div>
     </div>
 
     <div class="cluster pull">
@@ -182,6 +183,7 @@ function displayValue(el, v) {
   if (el.dataset.log10) out.textContent = v < 0.01 ? (v * 1000).toFixed(1) + 'ms' : v.toFixed(2) + 's';
   else if (el.dataset.p === '9') out.textContent = v.toFixed(1) + 'c';
   else if (el.dataset.p === '10') out.textContent = (0.2 + v * 8).toFixed(1) + '/s';  // walk speed
+  else if (el.dataset.p === '23') out.textContent = v.toFixed(2) + '/b';
   else if (el.step === '1') out.textContent = String(Math.round(v));
   else out.textContent = v.toFixed(2);
 }

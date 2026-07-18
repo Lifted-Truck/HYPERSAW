@@ -58,7 +58,8 @@ struct ParamDef
 
 static const char *const kDistLabels[] = {"even spread", "JP-8000 curve", "gaussian (seeded)",
                                           "cauchy (seeded)"};
-static const char *const kLawLabels[] = {"cents-constant", "Hz-constant", "ERB-flat"};
+static const char *const kLawLabels[] = {"cents-constant", "Hz-constant", "ERB-flat",
+                                         "tempo-grid"};
 static const char *const kOffOn[] = {"off", "on"};
 
 static const ParamDef kParams[] = {
@@ -66,7 +67,7 @@ static const ParamDef kParams[] = {
     {2, "dist", "Distribution", 0, 3, 1, true, kDistLabels},
     {3, "seed", "Seed", 0, 999999, 1234, true, nullptr},
     {4, "detune", "Detune", 0, 1, 0.28, false, nullptr},
-    {5, "law", "Detune Law", 0, 2, 0, true, kLawLabels},
+    {5, "law", "Detune Law", 0, 3, 0, true, kLawLabels},
     {6, "K", "Pull K", -1, 1, 0, false, nullptr},
     {7, "onset", "Onset Lock", 0, 1, 0, false, nullptr},
     {8, "dissolve", "Dissolve (s)", 0.05, 7.94, 0.63, false, nullptr},
@@ -86,6 +87,8 @@ static const ParamDef kParams[] = {
     {20, "decay", "Decay (s)", 0.005, 4.0, 0.16, false, nullptr},
     {21, "sustain", "Sustain", 0, 1, 1.0, false, nullptr},
     {22, "release", "Release (s)", 0.005, 8.0, 0.16, false, nullptr},
+    // Tempo-grid law (ADR-022): bpm is host-owned (transport), not a param
+    {23, "beatMult", "Grid Cycles/Beat", 0.25, 8.0, 1.0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -290,6 +293,7 @@ struct Plugin
       if (k == "decay") return p.decayS;
       if (k == "sustain") return p.sustainL;
       if (k == "release") return p.releaseS;
+      if (k == "beatMult") return p.beatMult;
     }
     return 0;
   }
@@ -319,6 +323,12 @@ struct Plugin
         applyParam(pv->param_id, pv->value);
         break;
       }
+      case CLAP_EVENT_TRANSPORT:
+      {
+        auto *tr = reinterpret_cast<const clap_event_transport_t *>(ev);
+        if (tr->flags & CLAP_TRANSPORT_HAS_TEMPO) core.p.bpm = tr->tempo;
+        break;
+      }
       default:
         break;
     }
@@ -326,6 +336,11 @@ struct Plugin
 
   clap_process_status process(const clap_process_t *p)
   {
+    // Host tempo drives the grid law (ADR-022); fallback stays at the last
+    // known (or default 120) when the host provides none.
+    if (p->transport && (p->transport->flags & CLAP_TRANSPORT_HAS_TEMPO))
+      core.p.bpm = p->transport->tempo;
+
     drainQueue(p->out_events);
 
     float *outL = p->audio_outputs[0].data32[0];
