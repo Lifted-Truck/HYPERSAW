@@ -33,11 +33,17 @@
     font-family: var(--mono-f); font-size: 10px; padding: 4px 8px; cursor: pointer; border-radius: 2px;
   }
   button.mini:hover { border-color: var(--swarm); }
-  /* Viz elements live in their OWN cards so they reflow with the window's
-     aspect ratio instead of stacking below the fold (2026-07-18 request). */
-  .vizgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 10px; margin-bottom: 10px; max-width: 100%; align-items: start; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; max-width: 100%; }
-  .scope, .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 10px; }
+  /* Two-hierarchy layout (2026-07-18 v2): visualizers stack in one LEFT
+     column, control clusters flow in the right column — no mixed rows. */
+  .layout { display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); gap: 10px; align-items: start; max-width: 100%; }
+  @media (max-width: 640px) { .layout { grid-template-columns: 1fr; } }
+  .vizcol { display: grid; gap: 10px; }
+  .vizcol canvas { width: 100%; }
+  #carpetCanvas { height: 58px; }
+  #specCanvas { height: 58px; }
+  #xyPad { aspect-ratio: 2.6; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 10px; align-items: start; }
+  .scope, .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
   .scope h2, .cluster h2 {
     font-family: var(--disp-f); font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
     color: var(--dim); text-transform: uppercase; margin-bottom: 6px;
@@ -45,7 +51,7 @@
   .cluster.pull h2 { color: var(--pull); }
   .cluster.drift h2 { color: var(--drift); }
   canvas { display: block; width: 100%; }
-  #phaseCanvas { aspect-ratio: 1; }
+  #phaseCanvas { aspect-ratio: 1; max-width: 232px; margin: 0 auto; display: block; }
   #xyPad { aspect-ratio: 1.6; background: var(--panel2); border: 1px solid var(--line); cursor: crosshair; }
   .rmeter { margin-top: 8px; }
   .rmeter .bar { height: 7px; background: var(--panel2); border: 1px solid var(--line); position: relative; }
@@ -92,7 +98,8 @@
   <button class="mini" id="pasteState" title="apply state JSON from the box below">PASTE STATE</button>
 </header>
 
-<div class="vizgrid">
+<div class="layout">
+<div class="vizcol">
   <div class="scope">
     <h2>Phase circle · <span style="color:var(--pull)">R·e^iψ</span></h2>
     <canvas id="phaseCanvas" width="256" height="256"></canvas>
@@ -102,26 +109,26 @@
       <div class="bar" style="margin-top:5px"><div class="fill amber" id="rnfill"></div></div>
       <div class="lbl"><span>Rₙ splay (formation) <b id="rnval">0.00</b></span><span id="dynval"></span></div>
       <div class="lbl" id="gravline" style="min-height:14px"></div>
-      <div class="lbl" id="beatinfo" style="min-height:28px;color:var(--drift)"></div>
+      <div class="lbl" id="beatinfo" style="min-height:24px;color:var(--drift)"></div>
     </div>
   </div>
   <div class="scope">
     <h2>Phase carpet · voice × phase</h2>
-    <canvas id="carpetCanvas" width="256" height="180"></canvas>
+    <canvas id="carpetCanvas" width="256" height="58"></canvas>
   </div>
   <div class="scope">
     <h2>Log spectrum · 30 Hz – 16 kHz</h2>
-    <canvas id="specCanvas" width="256" height="180"></canvas>
+    <canvas id="specCanvas" width="256" height="58"></canvas>
   </div>
   <div class="scope">
     <h2>XY · x=detune y=pull K</h2>
-    <canvas id="xyPad" width="256" height="180"></canvas>
+    <canvas id="xyPad" width="256" height="120"></canvas>
     <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
   </div>
 </div>
 
 <div class="grid">
-  <div class="controls">
+  <div class="controls" style="display:contents">
     <div class="cluster">
       <h2>The swarm</h2>
       <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1"><output>7</output></div>
@@ -214,6 +221,7 @@
     </div>
   </div>
 </div>
+</div>
 
 <script>
 "use strict";
@@ -300,6 +308,8 @@ controls.forEach(el => {
     const v = toParam();
     bridge.setParam(id, v);
     displayValue(el, v);
+    lastParams[id] = v;
+    applyGates();
     if (id === DETUNE_ID) { curDetune = v; xyDirty = true; }
     if (id === K_ID) { curK = v; xyDirty = true; }
   });
@@ -391,9 +401,40 @@ function setControl(id, v) {
   displayValue(el, v);
 }
 
+// Mode-gated visibility (2026-07-18): controls that cannot affect the
+// current engine state HIDE (hard gates) or DIM (soft gates) instead of
+// sitting around stale.
+const HARD_GATES = {   // id -> predicate over current params
+  25: p => (p[24] | 0) === 1,   // reach: ring only
+  26: p => (p[24] | 0) === 2,   // link mu: two-cluster only
+  28: p => (p[24] | 0) === 0,   // poles: mean-field only
+  23: p => (p[5] | 0) === 3,    // grid cyc/beat: tempo-grid law only
+};
+const SOFT_GATES = {
+  30: p => p[29] > 0.005,       // basin: inert without gravity
+  8:  p => p[7] > 0.001,        // dissolve: inert without onset lock
+  33: p => p[32] > 0.5,         // glide: mono only
+  34: p => p[32] > 0.5,         // legato: mono only
+};
+let lastParams = {};
+function applyGates() {
+  for (const [id, pred] of Object.entries(HARD_GATES)) {
+    const el = document.querySelector(`[data-p="${id}"]`);
+    const row = el && el.closest('.row');
+    if (row) row.style.display = pred(lastParams) ? '' : 'none';
+  }
+  for (const [id, pred] of Object.entries(SOFT_GATES)) {
+    const el = document.querySelector(`[data-p="${id}"]`);
+    const holder = el && (el.closest('.row') || el.closest('label'));
+    if (holder) holder.style.opacity = pred(lastParams) ? '' : '0.35';
+  }
+}
+
 async function syncFromEngine() {
   const ps = JSON.parse(await bridge.getParams());
+  lastParams = ps;
   for (const [id, v] of Object.entries(ps)) setControl(+id, v);
+  applyGates();
   xyDirty = true;
 }
 
@@ -493,8 +534,9 @@ function drawPhase(s) {
   pctx.moveTo(px[0], py[0]);
   for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
   pctx.closePath(); pctx.stroke();
+  const twoClu = s.topo === 2, halfN = n >> 1;
   for (let i = 0; i < n; i++) {
-    pctx.fillStyle = '#5ff2e0';
+    pctx.fillStyle = (twoClu && i >= halfN) ? '#ffc24b' : '#5ff2e0';  // cluster B amber, matching the carpet
     pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
   }
   const ax = cx + rad * s.R * Math.cos(s.psi);
