@@ -70,7 +70,8 @@ static const ParamDef kParams[] = {
     {6, "K", "Pull K", -1, 1, 0, false, nullptr},
     {7, "onset", "Onset Lock", 0, 1, 0, false, nullptr},
     {8, "dissolve", "Dissolve (s)", 0.05, 7.94, 0.63, false, nullptr},
-    {9, "driftDepth", "Drift Depth (c)", 0, 25, 0, false, nullptr},
+    {9, "driftDepth", "Drift Depth (c)", 0, 100, 0, false, nullptr},  // widened from the
+    // prototype's 25c at human request (ADR-020); core takes any cents value
     {10, "driftRate", "Drift Rate", 0, 1, 0.4, false, nullptr},
     {11, "inertia", "Inertia", 0, 1, 0, false, nullptr},
     {12, "rtone", "R->Tone", -1, 1, 0, false, nullptr},
@@ -117,6 +118,7 @@ struct Plugin
   std::atomic<int> vizPublished{0};
 
   hypersaw::HypersawGui *gui = nullptr;
+  uint32_t guiW = 920, guiH = 600;  // resizable (clamped in gui_adjust_size)
 
   void enqueueParam(uint32_t id, double value, uint8_t kind)
   {
@@ -468,6 +470,18 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   {
     std::snprintf(out, cap, "%d", (int)std::round(value));
   }
+  else if (id == 8)  // dissolve: seconds
+  {
+    std::snprintf(out, cap, "%.2f s", value);
+  }
+  else if (id == 9)  // drift depth: cents
+  {
+    std::snprintf(out, cap, "%.1f c", value);
+  }
+  else if (id == 10)  // drift rate knob 0..1 -> walk speed 0.2..8.2 per second
+  {
+    std::snprintf(out, cap, "%.1f /s", 0.2 + value * 8);
+  }
   else
   {
     std::snprintf(out, cap, "%.3f", value);
@@ -597,18 +611,37 @@ bool gui_set_scale(const clap_plugin_t *, double) { return true; }
 
 bool gui_get_size(const clap_plugin_t *p, uint32_t *w, uint32_t *h)
 {
-  if (!self(p)->gui) return false;
-  self(p)->gui->getSize(*w, *h);
+  *w = self(p)->guiW;
+  *h = self(p)->guiH;
   return true;
 }
 
-bool gui_can_resize(const clap_plugin_t *) { return false; }
-bool gui_get_resize_hints(const clap_plugin_t *, clap_gui_resize_hints_t *) { return false; }
-bool gui_adjust_size(const clap_plugin_t *p, uint32_t *w, uint32_t *h)
+bool gui_can_resize(const clap_plugin_t *) { return true; }
+
+bool gui_get_resize_hints(const clap_plugin_t *, clap_gui_resize_hints_t *hints)
 {
-  return gui_get_size(p, w, h);
+  hints->can_resize_horizontally = true;
+  hints->can_resize_vertically = true;
+  hints->preserve_aspect_ratio = false;
+  hints->aspect_ratio_width = 0;
+  hints->aspect_ratio_height = 0;
+  return true;
 }
-bool gui_set_size(const clap_plugin_t *, uint32_t, uint32_t) { return true; }
+
+bool gui_adjust_size(const clap_plugin_t *, uint32_t *w, uint32_t *h)
+{
+  *w = std::max(720u, std::min(1600u, *w));
+  *h = std::max(440u, std::min(1000u, *h));
+  return true;
+}
+
+bool gui_set_size(const clap_plugin_t *p, uint32_t w, uint32_t h)
+{
+  auto *pl = self(p);
+  pl->guiW = w;
+  pl->guiH = h;
+  return true;  // the webview child autoresizes with the reparented view
+}
 
 bool gui_set_parent(const clap_plugin_t *p, const clap_window_t *window)
 {
