@@ -36,7 +36,9 @@ namespace hypersaw
 {
 
 constexpr int kMaxV = 32;
-constexpr int kPoly = 8;
+constexpr int kPoly = 16;  // raised from 8 (2026-07-18: user hit the ceiling
+                           // at ~6-7 held notes). 16 voices x 32 osc = trivial
+                           // CPU; well inside the ADR-006 spike headroom.
 constexpr int kTick = 16;
 constexpr double kTau = 6.283185307;   // matches the reference's literal
 constexpr double kPiRef = 3.14159265;  // ditto — NOT M_PI, parity over precision
