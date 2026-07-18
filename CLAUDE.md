@@ -108,9 +108,11 @@ by alias in all tracked files ("terrain sibling", …); the alias→name map
 lives in `PRIVATE-NOTES.md` (untracked, local-only — ADR-014). Never write a
 private sibling's real name into a tracked file.
 
-**Protected paths** (human gate to modify): `SPEC.md`, `ACCEPTANCE.md`,
-`PRIOR-ART.md`, the prototype HTMLs (they ARE the reference — an edit there
-is a spec change), `./verify`, golden render fixtures once they exist.
+**Protected paths** (human gate to modify): `SPEC.md`, `SPEC-EFFECTS.md`,
+`ACCEPTANCE.md`, `PRIOR-ART.md`, the prototype HTMLs — now six: the three
+oscillator labs plus swarmfilter/swarmphaser/swarmtime (Track E, ingested
+2026-07-18) — (they ARE the reference — an edit there is a spec change),
+`./verify`, golden render fixtures once they exist.
 
 **Verify targets.** `fast`: leak gate + structure/manifest sanity now; grows
 the L0 suite (parity + trajectories) from Phase 1 — seconds-to-minutes,

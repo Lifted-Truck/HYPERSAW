@@ -83,3 +83,32 @@ Same seed + note sequence → bit-identical control-path state and ε-identical 
 - E-4: Splay erasure residue (sine kernel) reads as "shimmering silence," not artifact.
 - E-5: Mono fold-down of a wide patch is usable, not comb-hollow.
 - E-6: 8-voice poly at M = 32 (SAW) sustains without dropouts on the target hardware envelope (ratified 2026-07-17 at the Phase 0 gate): min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook; Windows x64 AVX2; 44.1 kHz at 128-sample buffer; the patch must hold < 50% of one core on min-spec.
+
+
+<!-- Track E criteria ingested 2026-07-18 (packet UPDATE-001); numbering L0-14..21 continues the sequence — the Phase 3 Daido formalization planned in ROADMAP will take L0-22+ -->
+
+# ACCEPTANCE delta — APPEND to ACCEPTANCE.md (numbering continues; skip any already present)
+
+## L0-14 · Filter bank dynamics (SPEC-FILTER §3)
+K=+1: σ(log2 fc) reduced to 0.20 ±0.05 of free value (spring-ratio law), collapse meter ≥ 0.75. K=−1: sorted-gap CV ≤ 0.02 (reference 0.009). Regression anchor: free-run σ 0.755, CV 0.123 at defaults.
+
+## L0-15 · Harmonic gravity, bank
+Gravity +0.8, basin 45¢, f0 = 110: in-basin mean |cents to nearest harmonic| = h/(h+g) of initial ±20% (reference 28.8¢ → 6.9¢ at h=1.5, g=4.8). Anti-gravity −0.8: zero filters remain within 40¢ of any harmonic (from ≥3 initially). The equilibrium-law prediction itself is the criterion — if h or g change, the target changes with them.
+
+## L0-16 · Notch exactness (SPEC-FILTER §4)
+True-notch cascade, mix 1: measured null at each swarm frequency ≥ 60 dB below the adjacent ridge (reference ~150 dB; criterion is loose because window/leakage-dependent). Regression guard: values scattering below 15 dB or going negative indicate the allpass-topology defect has returned.
+
+## L0-17 · Tuned harmonic rejection
+Gravity +0.9, basin 60¢, f0 = 110: every gravity-captured notch (within 12¢ of a harmonic) rejects ≥ 15 dB at the harmonic vs 90¢ off (reference 19–24 dB). Shared-core check: gather σ and comb CV match L0-14 within tolerance.
+
+## L0-18 · Filter-family stability
+Bank: K + inertia 0.7 + drift 150¢ + Q ceiling simultaneously — bounded, NaN-clean, 4 s. Notch swarm: feedback 0.85 + K 0.8 + drift 150¢ + stage Q 3 — peak ≤ 0.7 post-tanh, NaN-clean, 4 s.
+
+## L0-19 · Tap swarm (SPEC-EFFECTS §5)
+Gather σ to 0.20 ±0.05 of free; grid CV ≤ 0.08 (reference 0.055). Rhythmic gravity: in-basin error = h/(h+g)·initial ±20% (reference 34.9→8.3¢, law-exact). Impulse honesty: echoes detected at every tap time ±2 ms. **LF stability (regression guard for the √N trap):** 12 s sustained note at regen 0.50 and 0.97 — buffer mean |amplitude| flat and ≤ 0.15 (runaway reference: 0.42 and climbing at 10 s).
+
+## L0-20 · FDN room swarm (SPEC-EFFECTS §6)
+Room→note: K=+1, regen 0.85 — IR comb at 1/L̄ ≥ 10 dB over off-comb probe (reference 13.5 dB with 4 Hz blocker). Sympathetic: gravity +0.9, basin 80¢, f0=110 — captured lines settle per equilibrium law ±20% (reference 34.3→7.4¢); IR f0-vs-off ratio improves ≥ 2.5 dB over free (reference +3.7). Matrix regression guard: comb probe at 1/L̄ measuring ≤ 0 dB indicates the Householder sign defect has returned (anti-resonance reference −1.4 dB).
+
+## L0-21 · Time-family stability & DC
+Room 12 s at regen 0.95 with note held: bounded output, per-line DC ≤ 0.01, NaN-clean. DC-blocker corner ≤ (lowest intended comb)/6; blocker cost at a 26 Hz comb ≤ 3 dB (reference 2.8).

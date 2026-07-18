@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWARM✱FILTER — coupled resonator bank lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b0e14; --panel: #11151f; --panel2: #161b28; --line: #232a3a;
+    --text: #e8ecf2; --dim: #7c8698;
+    --swarm: #5ff2e0; --pull: #ff4fa3; --drift: #ffc24b;
+    --mono-f: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --disp-f: "Space Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--text); font-family: var(--mono-f); font-size: 13px; }
+  body { padding: 14px; min-height: 100vh; }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--disp-f); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; }
+  h1 .star { color: var(--pull); }
+  .tagline { color: var(--dim); font-size: 11px; }
+  #power { margin-left: auto; font-family: var(--mono-f); font-size: 12px; letter-spacing: 0.08em;
+    background: var(--swarm); color: var(--ink); border: none; padding: 8px 18px; cursor: pointer; font-weight: 600; border-radius: 2px; }
+  #power.on { background: var(--panel2); color: var(--swarm); border: 1px solid var(--swarm); }
+  .grid { display: grid; grid-template-columns: 440px 1fr; gap: 12px; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+  .scope { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .scope h2, .cluster h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 8px; }
+  canvas { display: block; width: 100%; }
+  #bankCanvas { height: 250px; }
+  #meterline { color: var(--dim); font-size: 10px; margin-top: 8px; min-height: 28px; }
+  #meterline b { color: var(--text); font-weight: 500; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 12px; align-content: start; }
+  .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .cluster.pull h2 { color: var(--pull); }
+  .cluster.grav h2 { color: var(--drift); }
+  .row { display: grid; grid-template-columns: 92px 1fr 62px; align-items: center; gap: 8px; margin: 7px 0; }
+  .row label { color: var(--dim); font-size: 11px; }
+  .row output { text-align: right; font-size: 11px; color: var(--text); }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--line); border-radius: 2px; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  .pull input[type=range]::-webkit-slider-thumb { background: var(--pull); }
+  .grav input[type=range]::-webkit-slider-thumb { background: var(--drift); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  select, input[type=number] { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 6px; border-radius: 2px; width: 100%; }
+  .row.compact { grid-template-columns: 92px 1fr auto; }
+  button.mini { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 8px; cursor: pointer; border-radius: 2px; }
+  button.mini:hover { border-color: var(--swarm); }
+  .kbd { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .kbd .bar-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .kbd .bar-top h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase; }
+  #octlbl { color: var(--swarm); font-size: 11px; }
+  .keys { display: flex; height: 96px; position: relative; user-select: none; touch-action: none; }
+  .key { flex: 1; background: #e8ecf2; border: 1px solid var(--ink); border-radius: 0 0 3px 3px; position: relative; cursor: pointer; }
+  .key.black { position: absolute; width: 5.8%; height: 58%; background: #1a2030; border: 1px solid #000; z-index: 2; border-radius: 0 0 3px 3px; }
+  .key.held { background: var(--swarm); }
+  .key.black.held { background: var(--pull); }
+  .key span { position: absolute; bottom: 3px; left: 0; right: 0; text-align: center; font-size: 9px; color: #555; pointer-events: none; }
+  .key.black span { color: var(--dim); }
+  .key em { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 9px; font-style: normal; color: #999; pointer-events: none; }
+  .key.black em { color: var(--dim); }
+  .hint { color: var(--dim); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+  .hint b { color: var(--text); font-weight: 500; }
+  .hint .sw { color: var(--swarm); } .hint .pu { color: var(--pull); } .hint .dr { color: var(--drift); }
+  #status { color: var(--drift); font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SWARM<span class="star">✱</span>FILTER</h1>
+  <div class="tagline">coupled resonator bank · formant herding · harmonic gravity · collapse→Q</div>
+  <span id="status"></span>
+  <button id="power">POWER ON</button>
+</header>
+
+<div class="grid">
+  <div class="scope">
+    <h2>Bank — cyan bars: filters (x = freq, height = energy) · <span style="color:var(--drift)">amber ticks: harmonics of last note</span> · <span style="color:var(--pull)">magenta: bank mean</span></h2>
+    <canvas id="bankCanvas" width="416" height="250"></canvas>
+    <div id="meterline"></div>
+  </div>
+
+  <div class="controls">
+    <div class="cluster">
+      <h2>Bank</h2>
+      <div class="row"><label>filters</label><input type="range" id="nb" min="4" max="24" step="1" value="16"><output id="nb_o">16</output></div>
+      <div class="row compact"><label>placement</label>
+        <select id="place">
+          <option value="0" selected>ERB spread (auditory)</option>
+          <option value="1">log spread (octaves)</option>
+          <option value="2">harmonic (n · f0 of note)</option>
+        </select>
+      </div>
+      <div class="row compact"><label>distribution</label>
+        <select id="dist">
+          <option value="0" selected>even</option>
+          <option value="1">gaussian (seeded)</option>
+          <option value="2">cauchy (seeded)</option>
+        </select>
+      </div>
+      <div class="row"><label>center</label><input type="range" id="center" min="7.0" max="11.3" step="0.01" value="9.64"><output id="center_o">800 Hz</output></div>
+      <div class="row"><label>spread</label><input type="range" id="spread" min="0" max="1" step="0.01" value="0.5"><output id="spread_o">0.50</output></div>
+      <div class="row compact"><label>seed</label><input type="number" id="seed" value="1234" min="0" max="999999"><button class="mini" id="dice">⚄</button></div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>Dynamics</h2>
+      <div class="row"><label>pull K ±</label><input type="range" id="K" min="-1" max="1" step="0.001" value="0"><output id="K_o">free</output></div>
+      <div class="row"><label>inertia</label><input type="range" id="inertia" min="0" max="1" step="0.01" value="0"><output id="inertia_o">off</output></div>
+      <div class="row"><label>drift depth</label><input type="range" id="driftDepth" min="0" max="200" step="1" value="0"><output id="driftDepth_o">0 ¢</output></div>
+      <div class="row"><label>drift rate</label><input type="range" id="driftRate" min="0" max="1" step="0.01" value="0.4"><output id="driftRate_o">0.40</output></div>
+    </div>
+
+    <div class="cluster grav">
+      <h2>Harmonic gravity</h2>
+      <div class="row"><label>gravity ±</label><input type="range" id="grav" min="-1" max="1" step="0.01" value="0"><output id="grav_o">off</output></div>
+      <div class="row"><label>basin</label><input type="range" id="basin" min="15" max="90" step="1" value="45"><output id="basin_o">±45 ¢</output></div>
+    </div>
+
+    <div class="cluster">
+      <h2>Exciter &amp; output</h2>
+      <div class="row"><label>noise mix</label><input type="range" id="noise" min="0" max="1" step="0.01" value="0.15"><output id="noise_o">0.15</output></div>
+      <div class="row"><label>base Q</label><input type="range" id="qbase" min="0" max="1" step="0.01" value="0.5"><output id="qbase_o">9</output></div>
+      <div class="row"><label>collapse→Q</label><input type="range" id="q2col" min="0" max="1" step="0.01" value="0.4"><output id="q2col_o">0.40</output></div>
+      <div class="row"><label>dry / wet</label><input type="range" id="wet" min="0" max="1" step="0.01" value="1"><output id="wet_o">1.00</output></div>
+      <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.5"><output id="vol_o">0.50</output></div>
+    </div>
+  </div>
+</div>
+
+<div class="kbd">
+  <div class="bar-top">
+    <h2>Keyboard — Ableton layout · 4-voice poly exciter</h2>
+    <span id="octlbl"></span>
+  </div>
+  <div class="keys" id="keys"></div>
+  <div class="hint">
+    <b>A S D F G H J K L</b> whites, <b>W E · T Y U · O P</b> blacks, <b>Z / X</b> octave. A small saw stack + noise excites the bank; the bank is where the physics lives.<br>
+    <span class="pu">Pull K</span> positive herds every resonance toward one point — the bank collapses into a single formant. Negative enforces an even comb across the spread.
+    <span class="dr">Gravity</span> positive pulls each filter (within the basin) onto the nearest harmonic of the last note — an inharmonic bank <i>resolves into a tone</i>; negative shoves filters off the harmonics — a harmonic bank curdles. Amber ticks show the targets; watch bars land on them.
+    <b>Inertia</b> makes formants overshoot and ring as they move. <b>Collapse→Q</b> sharpens the whole bank as it gathers. Try: ERB spread · hold a low note · gravity +0.8 · listen to the bell become a chord.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= DSP: coupled resonator bank ================= */
+const NB_MAX = 24, POLY = 4, TICK = 16;
+const EX_DET = [-8, -4, 0, 4, 8]; // exciter unison cents
+
+function erbN(f) { return 21.4 * Math.log10(1 + 0.00437 * f); }
+function erbInv(E) { return (Math.pow(10, E / 21.4) - 1) / 0.00437; }
+
+class FilterLab {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { nb:16, place:0, dist:0, center:9.64, spread:0.5, seed:1234,
+               K:0, inertia:0, driftDepth:0, driftRate:0.4, grav:0, basin:45,
+               noise:0.15, qbase:0.5, q2col:0.4, wet:1, vol:0.5 };
+    // bank state
+    this.v = new Float64Array(NB_MAX);      // log2(fc)
+    this.mom = new Float64Array(NB_MAX);
+    this.tHome = new Float64Array(NB_MAX);  // placement targets
+    this.dOff = new Float64Array(NB_MAX);   // drift offsets (log2 units)
+    this.ic1 = new Float64Array(NB_MAX);
+    this.ic2 = new Float64Array(NB_MAX);
+    this.cA1 = new Float64Array(NB_MAX);
+    this.cA2 = new Float64Array(NB_MAX);
+    this.cA3 = new Float64Array(NB_MAX);
+    this.cK = new Float64Array(NB_MAX);
+    this.eEnv = new Float64Array(NB_MAX);   // per-band energy for viz
+    this.x = new Float64Array(NB_MAX);      // distribution offsets
+    this.rng = 1;
+    this.collapse = 0; this.combReg = 0; this.qEff = 0;
+    this.f0last = 110;
+    this.tick = 0;
+    // exciter
+    this.notes = [];
+    for (let i = 0; i < POLY; i++) {
+      this.notes.push({ midi: -1, f0: 110, gate: 0, env: 0, age: -1, phase: new Float64Array(EX_DET.length) });
+    }
+    this.noteCounter = 0;
+    this.rebuild();
+    for (let i = 0; i < NB_MAX; i++) { this.v[i] = this.tHome[i]; this.mom[i] = 0; }
+  }
+  setParam(k, val) {
+    this.p[k] = val;
+    if (k === 'nb' || k === 'place' || k === 'dist' || k === 'center' || k === 'spread' || k === 'seed') {
+      this.rebuild();
+      if (k === 'nb' || k === 'seed' || k === 'dist') {
+        for (let i = 0; i < NB_MAX; i++) { this.v[i] = this.tHome[i]; this.mom[i] = 0; this.ic1[i] = 0; this.ic2[i] = 0; this.dOff[i] = 0; }
+      }
+    }
+  }
+  rngNext() {
+    this.rng |= 0; this.rng = (this.rng + 0x6D2B79F5) | 0;
+    let t = Math.imul(this.rng ^ (this.rng >>> 15), 1 | this.rng);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  rebuild() {
+    const n = this.p.nb;
+    this.rng = (this.p.seed | 0) + 1;
+    for (let i = 0; i < n; i++) {
+      const u = n === 1 ? 0.5 : i / (n - 1);
+      let x;
+      if (this.p.dist === 0) x = 2 * u - 1;
+      else if (this.p.dist === 1) {
+        const u1 = Math.max(this.rngNext(), 1e-9), u2 = this.rngNext();
+        x = Math.sqrt(-2 * Math.log(u1)) * Math.cos(6.283185307 * u2) / 2.5;
+        if (x > 1) x = 1; if (x < -1) x = -1;
+      } else {
+        x = Math.tan(3.14159265 * (this.rngNext() - 0.5)) / 4;
+        if (x > 1) x = 1; if (x < -1) x = -1;
+      }
+      this.x[i] = x;
+    }
+    const xs = Array.from(this.x.slice(0, n)).sort((a, b) => a - b);
+    for (let i = 0; i < n; i++) this.x[i] = xs[i];
+    this.placeTargets();
+  }
+  placeTargets() {
+    const n = this.p.nb, cF = Math.pow(2, this.p.center);
+    for (let i = 0; i < n; i++) {
+      let f;
+      if (this.p.place === 0) {
+        f = erbInv(Math.max(1, erbN(cF) + this.x[i] * this.p.spread * 12));
+      } else if (this.p.place === 1) {
+        f = cF * Math.pow(2, this.x[i] * this.p.spread * 2.5);
+      } else {
+        f = (i + 1) * this.f0last * Math.pow(2, this.x[i] * this.p.spread * 0.12);
+      }
+      this.tHome[i] = Math.log2(Math.min(11000, Math.max(40, f)));
+    }
+  }
+  noteOn(midi, f) {
+    let s = null;
+    for (const nt of this.notes) if (!nt.gate && nt.env < 1e-3) { if (!s || nt.age < s.age) s = nt; }
+    if (!s) for (const nt of this.notes) { if (!s || nt.age < s.age) s = nt; }
+    s.midi = midi; s.f0 = f; s.gate = 1; s.age = this.noteCounter++;
+    for (let i = 0; i < EX_DET.length; i++) s.phase[i] = 0;
+    this.f0last = f;
+    if (this.p.place === 2) this.placeTargets();
+  }
+  noteOff(midi) { for (const nt of this.notes) if (nt.gate && nt.midi === midi) nt.gate = 0; }
+  controlTick() {
+    const p = this.p, n = p.nb, dt = TICK / this.sr;
+    // drift walks on home offsets
+    if (p.driftDepth > 0) {
+      const rate = 0.2 + p.driftRate * 8, amp = p.driftDepth / 1200;
+      for (let i = 0; i < n; i++) {
+        this.dOff[i] += (this.rngNext() - 0.5) * 2 * Math.sqrt(rate * dt) * amp;
+        this.dOff[i] -= this.dOff[i] * 0.4 * dt;
+      }
+    }
+    // stats
+    let mean = 0;
+    for (let i = 0; i < n; i++) mean += this.v[i];
+    mean /= n;
+    let hMin = 1e9, hMax = -1e9;
+    for (let i = 0; i < n; i++) { if (this.tHome[i] < hMin) hMin = this.tHome[i]; if (this.tHome[i] > hMax) hMax = this.tHome[i]; }
+    const span = Math.max(0.15, hMax - hMin);
+    const km = p.K;
+    const syncR = km > 0 ? 6 * km * km : 0;
+    const splayR = km < 0 ? 18 * km * km : 0;
+    const gravR = Math.abs(p.grav) * 6;
+    const lf0 = Math.log2(this.f0last);
+    for (let i = 0; i < n; i++) {
+      let F = 1.5 * (this.tHome[i] + this.dOff[i] - this.v[i]); // home spring
+      if (syncR > 0) F += syncR * (mean - this.v[i]);
+      if (splayR > 0) {
+        const slot = mean - span / 2 + span * (n === 1 ? 0.5 : i / (n - 1));
+        F += splayR * (slot - this.v[i]);
+      }
+      if (gravR > 0) {
+        const f = Math.pow(2, this.v[i]);
+        const h = Math.round(f / this.f0last);
+        if (h >= 1) {
+          const tgt = lf0 + Math.log2(h);
+          const errC = 1200 * (this.v[i] - tgt);
+          if (Math.abs(errC) < p.basin) {
+            F += (p.grav > 0 ? -1 : 1) * gravR * (this.v[i] - tgt);
+          }
+        }
+      }
+      // integrate
+      if (p.inertia <= 0.001) {
+        this.v[i] += F * dt;
+        this.mom[i] = 0;
+      } else {
+        const w0 = 6.283185307 * (6 * (1 - p.inertia) + 0.5);
+        this.mom[i] += F * w0 * dt;
+        this.mom[i] *= Math.exp(-0.9 * w0 * dt);
+        this.v[i] += this.mom[i] * dt * w0;
+      }
+      if (this.v[i] < 5.32) this.v[i] = 5.32;      // 40 Hz
+      if (this.v[i] > 13.42) this.v[i] = 13.42;    // ~11 kHz
+    }
+    // collapse & comb metrics
+    let vv = 0, hv = 0;
+    for (let i = 0; i < n; i++) { const d = this.v[i] - mean; vv += d * d; }
+    let hMean = 0;
+    for (let i = 0; i < n; i++) hMean += this.tHome[i];
+    hMean /= n;
+    for (let i = 0; i < n; i++) { const d = this.tHome[i] - hMean; hv += d * d; }
+    this.collapse = 1 - Math.min(1, Math.sqrt(vv / n) / Math.max(0.03, Math.sqrt(hv / n)));
+    const sorted = Array.from(this.v.slice(0, n)).sort((a, b) => a - b);
+    let gm = 0; const gaps = [];
+    for (let i = 1; i < n; i++) { const g = sorted[i] - sorted[i - 1]; gaps.push(g); gm += g; }
+    gm /= Math.max(1, gaps.length);
+    let gv = 0;
+    for (const g of gaps) { const d = g - gm; gv += d * d; }
+    this.combReg = gm > 1e-6 ? Math.max(0, 1 - Math.sqrt(gv / gaps.length) / gm) : 0;
+    // filter coefficients
+    const Qb = 2 * Math.pow(20, p.qbase); // 2..40
+    this.qEff = Math.min(60, Qb * (1 + p.q2col * 3 * Math.max(0, this.collapse)));
+    const k = 1 / this.qEff;
+    for (let i = 0; i < n; i++) {
+      const fc = Math.pow(2, this.v[i]);
+      const g = Math.tan(3.14159265 * Math.min(0.24, fc / this.sr));
+      const a1 = 1 / (1 + g * (g + k));
+      this.cA1[i] = a1; this.cA2[i] = g * a1; this.cA3[i] = g * this.cA2[i]; this.cK[i] = k;
+    }
+  }
+  render(outL, outR) {
+    const sr = this.sr, p = this.p, n = p.nb;
+    const atk = 1 - Math.exp(-1 / (0.003 * sr));
+    const rel = 1 - Math.exp(-1 / (0.15 * sr));
+    for (let smp = 0; smp < outL.length; smp++) {
+      if (this.tick === 0) this.controlTick();
+      this.tick = (this.tick + 1) & (TICK - 1);
+      // exciter
+      let dry = 0;
+      for (const nt of this.notes) {
+        if (!nt.gate && nt.env < 1e-4) continue;
+        let vsum = 0;
+        for (let i = 0; i < EX_DET.length; i++) {
+          const f = nt.f0 * Math.pow(2, EX_DET[i] / 1200);
+          const dph = f / sr;
+          let ph = nt.phase[i] + dph; ph -= Math.floor(ph);
+          nt.phase[i] = ph;
+          const naive = 2 * ph - 1;
+          const d = Math.max(dph, 1e-6);
+          let bl = 0;
+          if (ph < d) { const t = ph / d; bl = t + t - t * t - 1; }
+          else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
+          vsum += naive - bl;
+        }
+        vsum *= 0.2;
+        if (p.noise > 0) vsum = vsum * (1 - p.noise) + (Math.random() * 2 - 1) * p.noise;
+        nt.env += ((nt.gate ? 1 : 0) - nt.env) * (nt.gate ? atk : rel);
+        dry += vsum * nt.env * 0.5;
+      }
+      // bank
+      let wetS = 0;
+      for (let i = 0; i < n; i++) {
+        const v3 = dry - this.ic2[i];
+        const v1 = this.cA1[i] * this.ic1[i] + this.cA2[i] * v3;
+        const v2 = this.ic2[i] + this.cA2[i] * this.ic1[i] + this.cA3[i] * v3;
+        this.ic1[i] = 2 * v1 - this.ic1[i];
+        this.ic2[i] = 2 * v2 - this.ic2[i];
+        const band = v1 * this.cK[i]; // unity-gain bandpass
+        wetS += band;
+        const ab = Math.abs(band);
+        this.eEnv[i] += 0.004 * (ab - this.eEnv[i]);
+      }
+      wetS *= 1.6 / Math.sqrt(n);
+      const y = Math.tanh((dry * (1 - p.wet) + wetS * p.wet) * p.vol * 2);
+      outL[smp] = y; outR[smp] = y;
+    }
+  }
+}
+
+/* ================= Audio graph ================= */
+let ctx = null, spn = null, lab = null;
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+
+function powerOn() {
+  if (ctx) {
+    ctx.close(); ctx = null; spn = null; lab = null;
+    $('power').textContent = 'POWER ON'; $('power').classList.remove('on');
+    return;
+  }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    lab = new FilterLab(ctx.sampleRate);
+    pushAllParams();
+    spn = ctx.createScriptProcessor(1024, 0, 2);
+    spn.onaudioprocess = e => lab.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+    spn.connect(ctx.destination);
+    if (ctx.state === 'suspended') ctx.resume();
+    $('power').textContent = 'POWER OFF'; $('power').classList.add('on');
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = 'Audio failed to start: ' + err.message;
+    ctx = null;
+  }
+}
+$('power').addEventListener('click', powerOn);
+function send(k, v) { if (lab) lab.setParam(k, v); }
+
+const fmt = {
+  nb: v => v,
+  center: v => Math.round(Math.pow(2, v)) + ' Hz',
+  spread: v => (+v).toFixed(2),
+  K: v => { const a = Math.abs(+v); if (a < 0.005) return 'free'; return (v > 0 ? 'collapse ' : 'comb ') + a.toFixed(2); },
+  inertia: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  driftDepth: v => v + ' ¢',
+  driftRate: v => (+v).toFixed(2),
+  grav: v => { const a = Math.abs(+v); if (a < 0.005) return 'off'; return (v > 0 ? '→harm ' : '←away ') + a.toFixed(2); },
+  basin: v => '±' + v + ' ¢',
+  noise: v => (+v).toFixed(2),
+  qbase: v => Math.round(2 * Math.pow(20, +v)),
+  q2col: v => (+v).toFixed(2),
+  wet: v => (+v).toFixed(2),
+  vol: v => (+v).toFixed(2)
+};
+const ranges = ['nb','center','spread','K','inertia','driftDepth','driftRate','grav','basin','noise','qbase','q2col','wet','vol'];
+const updaters = {};
+ranges.forEach(k => {
+  const el = $(k), out = $(k + '_o');
+  const update = () => {
+    const v = +el.value;
+    if (out && fmt[k]) out.textContent = fmt[k](v);
+    send(k, v);
+  };
+  updaters[k] = update;
+  el.addEventListener('input', update);
+  update();
+});
+$('place').addEventListener('change', () => send('place', +$('place').value));
+$('dist').addEventListener('change', () => send('dist', +$('dist').value));
+$('seed').addEventListener('change', () => send('seed', +$('seed').value));
+$('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
+
+function pushAllParams() {
+  ranges.forEach(k => send(k, +$(k).value));
+  send('place', +$('place').value);
+  send('dist', +$('dist').value);
+  send('seed', +$('seed').value);
+}
+
+/* ================= Keyboard ================= */
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12,'o':13,'l':14,'p':15,';':16 };
+const CAPS_BY_SEMITONE = { 0:'A',1:'W',2:'S',3:'E',4:'D',5:'F',6:'T',7:'G',8:'Y',9:'H',10:'U',11:'J',12:'K',13:'O',14:'L',15:'P',16:';' };
+let octaveBase = 36; // C2 — low notes suit the bank
+const OCT_MIN = 12, OCT_MAX = 96;
+const heldNotes = [];
+const WHITE = [0,2,4,5,7,9,11];
+const BLACK = { 0:1, 1:3, 3:6, 4:8, 5:10 };
+const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const keysEl = $('keys');
+function buildKeys() {
+  keysEl.innerHTML = '';
+  const whites = [];
+  for (let o = 0; o < 2; o++) for (let w = 0; w < 7; w++) whites.push(octaveBase + o * 12 + WHITE[w]);
+  whites.push(octaveBase + 24);
+  whites.forEach(m => {
+    const k = document.createElement('div');
+    k.className = 'key'; k.dataset.midi = m;
+    const off = m - octaveBase;
+    const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+    k.innerHTML = cap + '<span>' + NAMES[m % 12] + (Math.floor(m / 12) - 1) + '</span>';
+    keysEl.appendChild(k);
+  });
+  const wCount = whites.length;
+  whites.forEach((m, idx) => {
+    const w = WHITE.indexOf(m % 12);
+    if (w !== -1 && BLACK[w] !== undefined && idx < wCount - 1) {
+      const midiB = m + (BLACK[w] - WHITE[w]);
+      const b = document.createElement('div');
+      b.className = 'key black'; b.dataset.midi = midiB;
+      b.style.left = ((idx + 1) / wCount * 100 - 2.9) + '%';
+      const off = midiB - octaveBase;
+      const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+      b.innerHTML = cap + '<span>' + NAMES[midiB % 12] + '</span>';
+      keysEl.appendChild(b);
+    }
+  });
+  const lo = Math.floor(octaveBase / 12) - 1;
+  $('octlbl').textContent = 'octave: C' + lo + '–C' + (lo + 2) + ' (Z − / X +)';
+}
+buildKeys();
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function noteOn(m) {
+  if (!lab) return;
+  if (heldNotes.includes(m)) return;
+  heldNotes.push(m);
+  lab.noteOn(m, mtof(m));
+  paintKeys();
+}
+function noteOff(m) {
+  const i = heldNotes.indexOf(m);
+  if (i !== -1) heldNotes.splice(i, 1);
+  if (lab) lab.noteOff(m);
+  paintKeys();
+}
+function paintKeys() {
+  keysEl.querySelectorAll('.key').forEach(k => k.classList.toggle('held', heldNotes.includes(+k.dataset.midi)));
+}
+const pointerNotes = [];
+keysEl.addEventListener('pointerdown', e => {
+  const k = e.target.closest('.key'); if (!k) return;
+  keysEl.setPointerCapture(e.pointerId);
+  const m = +k.dataset.midi;
+  pointerNotes.push(m);
+  noteOn(m);
+});
+window.addEventListener('pointerup', () => { pointerNotes.splice(0).forEach(noteOff); });
+function shiftOctave(dir) {
+  const next = octaveBase + dir * 12;
+  if (next < OCT_MIN || next > OCT_MAX) return;
+  [...heldNotes].forEach(noteOff);
+  octaveBase = next;
+  buildKeys();
+}
+window.addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { shiftOctave(-1); return; }
+  if (key === 'x') { shiftOctave(1); return; }
+  const off = KMAP[key];
+  if (off !== undefined) noteOn(octaveBase + off);
+});
+window.addEventListener('keyup', e => {
+  const off = KMAP[e.key.toLowerCase()];
+  if (off !== undefined) noteOff(octaveBase + off);
+});
+
+/* ================= Visualization ================= */
+const bc = $('bankCanvas'), bx = bc.getContext('2d');
+const FMIN = 50, FMAX = 12000;
+function fx(f) { return Math.log(f / FMIN) / Math.log(FMAX / FMIN) * bc.width; }
+function drawBank() {
+  const w = bc.width, h = bc.height;
+  bx.fillStyle = 'rgba(11,14,20,0.35)';
+  bx.fillRect(0, 0, w, h);
+  bx.strokeStyle = '#1a2030';
+  for (const f of [100, 1000, 10000]) {
+    bx.beginPath(); bx.moveTo(fx(f), 0); bx.lineTo(fx(f), h); bx.stroke();
+  }
+  bx.fillStyle = '#7c8698'; bx.font = '9px monospace';
+  bx.fillText('100', fx(100) + 3, h - 4); bx.fillText('1k', fx(1000) + 3, h - 4); bx.fillText('10k', fx(10000) + 3, h - 4);
+  if (!lab) return;
+  // harmonic targets of last note
+  bx.strokeStyle = 'rgba(255,194,75,0.45)';
+  for (let n = 1; n <= 64; n++) {
+    const f = n * lab.f0last;
+    if (f > FMAX) break;
+    const x = fx(f);
+    bx.beginPath(); bx.moveTo(x, h - 26); bx.lineTo(x, h - 8); bx.stroke();
+  }
+  // bank mean
+  let mean = 0;
+  const n = lab.p.nb;
+  for (let i = 0; i < n; i++) mean += lab.v[i];
+  mean /= n;
+  const mx = fx(Math.pow(2, mean));
+  bx.strokeStyle = 'rgba(255,79,163,0.6)'; bx.lineWidth = 1;
+  bx.beginPath(); bx.moveTo(mx, 8); bx.lineTo(mx, h - 30); bx.stroke();
+  // filters
+  let eMax = 1e-6;
+  for (let i = 0; i < n; i++) if (lab.eEnv[i] > eMax) eMax = lab.eEnv[i];
+  for (let i = 0; i < n; i++) {
+    const f = Math.pow(2, lab.v[i]);
+    const x = fx(f);
+    const e = Math.sqrt(lab.eEnv[i] / eMax);
+    const bh = 10 + e * (h - 60);
+    bx.fillStyle = 'rgba(95,242,224,0.85)';
+    bx.fillRect(x - 1.5, h - 30 - bh, 3, bh);
+  }
+  $('meterline').innerHTML = 'collapse <b>' + lab.collapse.toFixed(2) + '</b> · comb regularity <b>' + lab.combReg.toFixed(2) +
+    '</b> · Q<sub>eff</sub> <b>' + lab.qEff.toFixed(0) + '</b> · f0 <b>' + lab.f0last.toFixed(1) + ' Hz</b>' +
+    (lab.p.place === 2 ? ' · harmonic placement retargets on each note' : '');
+}
+function loop() { drawBank(); requestAnimationFrame(loop); }
+loop();
+
+/* focus-trap fix: sliders and selects release keyboard focus after use so the
+   musical keyboard never goes silently dead; Escape = panic (all notes off) */
+document.addEventListener('pointerup', () => {
+  const t = document.activeElement;
+  if (t && t.tagName === 'INPUT' && t.type === 'range') t.blur();
+});
+document.addEventListener('change', e => {
+  if (e.target.tagName === 'SELECT') e.target.blur();
+});
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.activeElement) document.activeElement.blur();
+    [...heldNotes].forEach(noteOff);
+  }
+}, true);
+</script>
+</body>
+</html>
