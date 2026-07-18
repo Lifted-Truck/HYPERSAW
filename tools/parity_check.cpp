@@ -59,19 +59,25 @@ int main(int argc, char **argv)
   while (std::getline(tsv, line))
   {
     if (line.empty()) continue;
-    // name \t file \t seed \t k=v,k=v,...
+    // name \t engine \t file \t seed \t k=v,k=v,... \t note+note
     std::vector<std::string> cols;
     {
       std::stringstream ss(line);
       std::string c;
       while (std::getline(ss, c, '\t')) cols.push_back(c);
     }
-    if (cols.size() != 4)
+    if (cols.size() != 6)
     {
       std::fprintf(stderr, "parity_check: malformed manifest line: %s\n", line.c_str());
       return 1;
     }
-    const std::string &name = cols[0], &file = cols[1], &paramList = cols[3];
+    const std::string &name = cols[0], &file = cols[2], &paramList = cols[4];
+    std::vector<int> notes;
+    {
+      std::stringstream ss(cols[5]);
+      std::string c;
+      while (std::getline(ss, c, '+')) notes.push_back(std::atoi(c.c_str()));
+    }
 
     hypersaw::SwarmCore core(kSR);
     {
@@ -91,7 +97,7 @@ int main(int argc, char **argv)
         }
       }
     }
-    core.noteOn(kMidi, mtof(kMidi));
+    for (int m : notes) core.noteOn(m, mtof(m));
 
     std::ifstream gf(dir + "/" + file, std::ios::binary);
     if (!gf)
@@ -109,7 +115,7 @@ int main(int argc, char **argv)
     {
       if (!noteOffDone && off >= (long)(kNoteOffAt * kSR))
       {
-        core.noteOff(kMidi);
+        for (int m : notes) core.noteOff(m);
         noteOffDone = true;
       }
       core.render(L.data(), R.data(), kBlock);
