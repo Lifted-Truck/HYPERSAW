@@ -26,6 +26,9 @@ namespace
 constexpr double kSR = 44100.0;
 constexpr int kBlock = 1024;
 constexpr int kMidi = 57;
+// MSVC has no M_PI without _USE_MATH_DEFINES — this bit CI twice now (see
+// renderer_bench). Harness-side probe math only; not parity-relevant.
+constexpr double kPi = 3.14159265358979323846;
 
 int g_failures = 0;
 
@@ -158,7 +161,7 @@ double projectAt(const std::vector<std::pair<std::string, double>> &params, doub
       const long idx = off + i;
       if (idx < keepFrom) continue;
       const double s = (double)L[i] + (double)R[i];
-      const double a = 2 * M_PI * f * (double)idx / kSR;
+      const double a = 2 * kPi * f * (double)idx / kSR;
       re += s * std::cos(a);
       im += s * std::sin(a);
       n++;
