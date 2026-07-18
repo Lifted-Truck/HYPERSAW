@@ -216,10 +216,13 @@
       <div class="row"><label>R→tone</label><input type="range" data-p="12" min="-1" max="1" step="0.01"><output>0.00</output></div>
       <div class="row"><label>density comp</label><input type="range" data-p="13" min="0.5" max="1" step="0.01"><output>0.75</output></div>
       <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1.5" step="0.01"><output>0.80</output></div>
+      <div class="row"><label>pan scatter</label><input type="range" data-p="42" min="0" max="1" step="0.01"><output>0%</output></div>
+      <div class="row"><label>bass xover</label><input type="range" data-p="41" min="60" max="500" step="1"><output>120Hz</output></div>
       <div class="row"><label>digital</label><input type="range" data-p="16" min="0" max="1" step="0.01"><output>1.00</output></div>
       <div class="row"><label>volume</label><input type="range" data-p="17" min="0" max="1" step="0.01"><output>0.40</output></div>
       <div class="togs">
         <label><input type="checkbox" data-p="15"> mono audition</label>
+        <label><input type="checkbox" data-p="40"> bass mono</label>
       </div>
     </div>
   </div>
@@ -232,7 +235,7 @@ const $ = s => document.querySelector(s);
 // Param defaults (mirror of the shell's kParams) for double-click reset.
 const DEFAULTS = {1:7,2:1,3:1234,4:0.28,5:0,6:0,7:0,8:0.63,9:0,10:0.4,11:0,12:0,13:0.75,14:0.8,
   15:0,16:1,17:0.4,18:1,19:0.003,20:0.16,21:1,22:0.16,23:1,24:0,25:5,26:0.6,27:0,28:1,29:0,
-  30:35,31:0,32:0,33:0,34:1,35:0,36:0,37:0,38:0};
+  30:35,31:0,32:0,33:0,34:1,35:0,36:0,37:0,38:0,39:0,40:0,41:120,42:0};
 
 // Standalone/dev mock so layout & interaction testing works in a browser.
 if (!window.hzGetViz) {
@@ -279,7 +282,8 @@ function displayValue(el, v) {
   else if (el.dataset.p === '38') out.textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + ' st';
   else if (el.dataset.p === '27') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + '°';
   else if (el.dataset.p === '30') out.textContent = Math.round(v) + 'c';
-  else if (el.dataset.p === '39') out.textContent = Math.round(v * 100) + '%';
+  else if (el.dataset.p === '39' || el.dataset.p === '42') out.textContent = Math.round(v * 100) + '%';
+  else if (el.dataset.p === '41') out.textContent = Math.round(v) + 'Hz';
   else if (el.dataset.p === '14' && v > 1) out.textContent = v.toFixed(2) + ' S+';
   else if (el.step === '1') out.textContent = String(Math.round(v));
   else out.textContent = v.toFixed(2);
@@ -436,6 +440,7 @@ const SOFT_GATES = {
   8:  p => p[7] > 0.001,        // dissolve: inert without onset lock
   33: p => p[32] > 0.5,         // glide: mono only
   34: p => p[32] > 0.5,         // legato: mono only
+  41: p => p[40] > 0.5,         // bass xover: inert without bass mono
 };
 let lastParams = {};
 function applyGates() {
