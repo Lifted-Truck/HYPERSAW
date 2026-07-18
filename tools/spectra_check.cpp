@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "../src/spectra_core.h"
+#include "../src/swarm_core.h"
 
 using hypersaw::SpectraCore;
 
@@ -183,6 +184,44 @@ int main(int argc, char **argv)
     const auto *s = splay.focus();
     for (int k = 0; k < 12; k++) wm = std::max(wm, s->wmix[k]);
     check(wm > 0.5, "L0-7 narrowing active: max wmix got=%g", wm);
+  }
+
+  /* ---- 4. Phase 4 gate (ADR-037 ruling a): SAW = SPECTRA at P=1, measured.
+     Equivalent settings: SAW n=5/even/cents/detune 0.1 vs SPECTRA P=1/
+     cloud 5/cwidth 0.25/wlaw 0 — both put voices at x*10 cents around A3.
+     At P=1 the references' dynamics expressions coincide (coupling, slews,
+     Kenv, rng stream, initial phases); the kernel is the only difference,
+     so R must track tick-for-tick. Everything inert stays at defaults on
+     the SAW side (drift/gravity/glide/tune off; lpOut 0). ---- */
+  {
+    hypersaw::SwarmCore saw(kSR);
+    saw.setParam("n", 5);
+    saw.setParam("dist", 0);
+    saw.setParam("law", 0);
+    saw.setParam("detune", 0.1);
+    saw.setParam("lpOut", 0);
+    saw.setParam("retrig", 0);
+    saw.setParam("K", 0.8);
+    SpectraCore spc(kSR);
+    spc.setParam("partials", 1);
+    spc.setParam("cloud", 5);
+    spc.setParam("cwidth", 0.25);
+    spc.setParam("wlaw", 0);
+    spc.setParam("retrig", 0);
+    spc.setParam("K", 0.8);
+    const int sawSlot = saw.noteOn(kNoteM, kNoteF);
+    const int spcSlot = spc.noteOn(kNoteM, kNoteF);
+    float L[kBlock], R2[kBlock];
+    double worstR = 0;
+    for (int b = 0; b < (int)(kSR * 4) / kBlock; b++)
+    {
+      saw.render(L, R2, kBlock);
+      spc.render(L, R2, kBlock);
+      worstR = std::max(worstR,
+                        std::fabs(saw.swarmAt(sawSlot).R - spc.swarmAt(spcSlot).R[0]));
+    }
+    check(worstR <= 1e-9, "P=1 gate (ADR-037a): SAW vs SPECTRA R tick-locked, worst dR=%g",
+          worstR);
   }
 
   std::printf("spectra_check: %s (%d failure%s; worst parity rms %g)\n",
