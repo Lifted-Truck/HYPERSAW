@@ -102,6 +102,15 @@ if(NOT MSVC)
   target_compile_options(state_check PRIVATE -O2)
 endif()
 
+# Note-lifecycle oracle (ADR-038): seeded random note streams through the
+# CLAP process path (poly/mono/legato + MIDI vel-0 note-off convention);
+# output must decay to silence after all keys are up.
+add_executable(notefuzz_check tools/notefuzz_check.cpp)
+target_link_libraries(notefuzz_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(notefuzz_check PRIVATE -O2)
+endif()
+
 # Track E0 force-core oracle (host-side tool, not shipped): forcecore vs the
 # effect labs' population trajectories + L0-14/15/17/19/20 population criteria.
 add_executable(force_check tools/force_check.cpp)

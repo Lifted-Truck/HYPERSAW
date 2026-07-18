@@ -8,3 +8,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0003] plugin-platform — every new C++ tool target repeats the MSVC traps (M_PI, -O3, runtime mismatch); grep before pushing, guards in CMake.
 - [L0004] plugin-platform — a filed PR branch is frozen; follow-up pushes race the async merge (bit twice). New work = new branch; verify ancestry after merges.
 - [L0005] plugin-platform/parity-oracle — duplicated key chains drift and symmetric lies pass value checks; single-source the maps, trust the audio-identity oracle.
+- [L0006] plugin-platform — "note doesn't stop" reports: exonerate core→shell→wrapper headlessly; AU wrapper forwards 0x90-vel-0 as NOTE_ON (shell must remap); fuzz timestamps drawn sorted or acausal orders fake hangs.
