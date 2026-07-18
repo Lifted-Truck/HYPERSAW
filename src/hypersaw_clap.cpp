@@ -24,6 +24,7 @@
 
 #include "swarm_core.h"
 #include "gui/hypersaw_gui.h"
+#include "spectra_core.h"
 #include "hypersaw_clap_entry.h"
 
 namespace
@@ -67,6 +68,8 @@ static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 —
 static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
                                             "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
 
+static const char *const kEngineLabels[] = {"SAW", "SPECTRA"};
+static const char *const kWlawLabels[] = {"cents", "Hz"};
 static const ParamDef kParams[] = {
     {1, "n", "Voices", 1, 32, 7, true, nullptr},
     {2, "dist", "Distribution", 0, 3, 1, true, kDistLabels},
@@ -120,6 +123,18 @@ static const ParamDef kParams[] = {
     {40, "bassMono", "Bass Mono", 0, 1, 0, true, kOffOn},
     {41, "bassMonoHz", "Bass XOver (Hz)", 60, 500, 120, false, nullptr},
     {42, "panScatter", "Pan Scatter", 0, 1, 0, false, nullptr},
+    // Phase 4 (ADR-037): engine select + SPECTRA surface. Shared knobs
+    // (K/onset/dissolve/seed/vol/retrig) are mirrored into both cores by
+    // applyParam; ids 44-51 are SPECTRA-only.
+    {43, "engine", "Engine", 0, 1, 0, true, kEngineLabels},
+    {44, "partials", "Partials", 1, 24, 12, true, nullptr},
+    {45, "tilt", "Amp Tilt", 0.5, 2, 1, false, nullptr},
+    {46, "stretch", "Stretch", 0, 1, 0, false, nullptr},
+    {47, "cloud", "Cloud Voices", 1, 7, 5, true, nullptr},
+    {48, "cwidth", "Cloud Width", 0, 1, 0.25, false, nullptr},
+    {49, "wtilt", "Width Tilt", -1, 1, 0, false, nullptr},
+    {50, "wlaw", "Width Law", 0, 1, 0, true, kWlawLabels},
+    {51, "cascade", "Cascade", 0, 1, 0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -163,6 +178,9 @@ struct Plugin
   const clap_host_t *host = nullptr;
   const clap_host_params_t *hostParams = nullptr;
   hypersaw::SwarmCore core{44100.0};
+  hypersaw::SpectraCore spectra{44100.0};
+  double engineSel = 0;  // 0 SAW, 1 SPECTRA (ADR-037; shell dispatch)
+  bool spectraMode() const { return engineSel != 0; }
   double sampleRate = 44100.0;
 
   // GUI -> audio param queue (producer: GUI main thread; consumer: process on
@@ -236,9 +254,10 @@ struct Plugin
     for (int i = 0; i < hypersaw::kPoly; i++)
     {
       if (!tags[i].active) continue;
-      const auto &s = core.swarmAt(i);
-      const bool nowActive = s.gate || s.env >= 1e-4;  // matches render's skip test
-      if (nowActive) continue;
+      const bool dead = spectraMode()
+                            ? (!spectra.swarmAt(i).gate && spectra.swarmAt(i).env < 1e-4)
+                            : (!core.swarmAt(i).gate && core.swarmAt(i).env < 1e-4);
+      if (!dead) continue;  // thresholds match each core's render skip test
       clap_event_note_t ev{};
       ev.header.size = sizeof(ev);
       ev.header.time = time;
@@ -310,6 +329,27 @@ struct Plugin
   {
     const int writeIdx = 1 - vizPublished.load(std::memory_order_relaxed);
     hypersaw::VizSnapshot &v = vizBuf[writeIdx];
+    if (spectraMode())
+    {
+      // SPECTRA v1 viz: partial-0's cloud on the phase circle; R = its order.
+      // Per-partial lock-front display is a recorded follow-up (ADR-037).
+      const auto *fs = spectra.focus();
+      v = hypersaw::VizSnapshot{};
+      if (fs)
+      {
+        v.active = true;
+        const int M = (int)spectra.p.cloud;
+        v.n = M;
+        v.R = fs->R[0];
+        v.psi = fs->psi[0];
+        v.sigma = fs->sigma[0];
+        v.KsmS = fs->KsmS[0];
+        v.KsmP = fs->KsmP[0];
+        for (int i = 0; i < M && i < 32; i++) v.phase[i] = fs->phase[i];
+      }
+      vizPublished.store(writeIdx, std::memory_order_release);
+      return;
+    }
     const auto *s = core.focus();
     if (!s)
     {
@@ -542,7 +582,26 @@ struct Plugin
         bassMonoHz = applied;
         return;
       }
+      if (id == 43)
+      {
+        if (applied != engineSel)
+        {
+          core.allOff();
+          spectra.allOff();
+          heldCount = 0;
+          monoSlot = -1;
+          for (auto &t : tags) t.active = false;
+        }
+        engineSel = applied;
+        return;
+      }
+      if (id >= 44 && id <= 51)
+      {
+        spectra.setParam(d->coreKey, applied);
+        return;
+      }
       core.setParam(d->coreKey, applied);
+      spectra.setParam(d->coreKey, applied);  // shared-name knobs mirror; unknown keys no-op
     }
   }
 
@@ -563,6 +622,8 @@ struct Plugin
       if (d->id == 38) return pitchBend;
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
+      if (d->id == 43) return engineSel;
+      if (d->id >= 44 && d->id <= 51) return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
       return core.getParam(d->coreKey);
     }
     return 0;
@@ -577,6 +638,13 @@ struct Plugin
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
         const double freq = 440.0 * std::pow(2.0, (n->key - 69) / 12.0);
+        if (spectraMode())
+        {
+          // SPECTRA v1: plain poly (mono/glide are SAW-side features; ADR-037)
+          const int slot = spectra.noteOn(n->key, freq);
+          tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
+          break;
+        }
         if (voiceMono != 0)
         {
           // Glide/legato engage only when another key is still HELD (human
@@ -610,7 +678,13 @@ struct Plugin
         if (n->key < 0)
         {
           core.allOff();
+          spectra.allOff();
           heldCount = 0;
+          break;
+        }
+        if (spectraMode())
+        {
+          spectra.noteOff(n->key);
           break;
         }
         if (voiceMono != 0)
@@ -707,7 +781,10 @@ struct Plugin
         handleEvent(ev);
         ++evIndex;
       }
-      core.render(outL + frame, outR + frame, (int)(until - frame));
+      if (spectraMode())
+        spectra.render(outL + frame, outR + frame, (int)(until - frame));
+      else
+        core.render(outL + frame, outR + frame, (int)(until - frame));
       frame = until;
     }
 
@@ -744,7 +821,8 @@ struct Plugin
     }
     emitNoteEnds(p->out_events, nframes > 0 ? nframes - 1 : 0);
 
-    if (core.focus()) return CLAP_PROCESS_CONTINUE;
+    if (spectraMode() ? (spectra.focus() != nullptr) : (core.focus() != nullptr))
+      return CLAP_PROCESS_CONTINUE;
     return CLAP_PROCESS_SLEEP;
   }
 };
@@ -781,6 +859,10 @@ bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
   pl->core = hypersaw::SwarmCore(sr);
   pl->core.p = saved;
   pl->core.setParam("seed", saved.seed);  // re-trigger rebuild() with saved state
+  hypersaw::SpectraCore::SParams sp = pl->spectra.p;
+  pl->spectra = hypersaw::SpectraCore(sr);
+  pl->spectra.p = sp;
+  pl->spectra.rebuild();
   return true;
 }
 
