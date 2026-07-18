@@ -30,8 +30,10 @@ K = −1.0, JP distribution, M = 7, 4 s settle: R₁ ≤ 0.10 (measured 0.04); s
 | Regime | K | R₁ | R_N |
 |---|---|---|---|
 | Sync | +1.0 | 0.97 | 0.07 |
-| Free | 0.0 | 0.39 | 0.16 |
+| Free | 0.0 | see erratum | see erratum |
 | Splay | −1.0 | 0.04 | 0.84 |
+
+*Erratum (ratified at the Phase 1 gate, 2026-07-18 — see traces/2026-07-17-phase1-swarmcore-parity.md):* the free-row single values originally recorded here (R₁ 0.39 / R_N 0.16) were snapshots of a fluctuating observable — for n = 7 free oscillators both orders fluctuate around ~1/√n ≈ 0.38 — and do not reproduce even on the reference. Free is classified by time average: dense-sampled ⟨R₁⟩ and ⟨R_N⟩ over a ≥5 s settled window both in (0.1, 0.6) (reference: ≈0.33/0.33). Protocol notes for the other rows: the shimmer pair (L0-2, K=+0.7) is the dense-sampled min/max — 1/s sampling aliases it flat; the K=+0.6 dissolve figures describe the initial transient, with "subcritical" meaning no sustained lock afterwards.
 
 ## L0-4 · Inertia
 
