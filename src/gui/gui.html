@@ -528,6 +528,7 @@ xy.addEventListener('pointerdown', e => { xyDown = true; xy.setPointerCapture(e.
 xy.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
 xy.addEventListener('pointerup', e => { xyDown = false; bridge.gesture(DETUNE_ID, false); bridge.gesture(K_ID, false); });
 
+let kSmX = 0, kSmY = 0;  // smoothed display state of the pink K vector
 /* ---- phase circle: ported verbatim from swarmsaw.html drawPhase(), fed by
        the engine snapshot instead of the in-page synth ---- */
 const pc = $('#phaseCanvas'), pctx = pc.getContext('2d');
@@ -569,8 +570,15 @@ function drawPhase(s) {
     pctx.fillStyle = (twoClu && i >= halfN) ? '#ffc24b' : '#5ff2e0';  // cluster B amber, matching the carpet
     pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
   }
-  const ax = cx + rad * s.R * Math.cos(s.psi);
-  const ay = cy - rad * s.R * Math.sin(s.psi);
+  // K-vector smoothing (2026-07-18 request): psi wraps at ±π and jitters at
+  // low R, so the raw arrow teleports. Smooth the DISPLAYED vector in
+  // Cartesian space — angle wrap becomes a sweep through the center, and the
+  // motion's real fluidity reads. Viz-only; readouts stay raw.
+  const kx = s.R * Math.cos(s.psi), ky = s.R * Math.sin(s.psi);
+  kSmX += (kx - kSmX) * 0.18;  // ~90 ms at 60 fps
+  kSmY += (ky - kSmY) * 0.18;
+  const ax = cx + rad * kSmX;
+  const ay = cy - rad * kSmY;
   pctx.strokeStyle = '#ff4fa3'; pctx.lineWidth = 2;
   pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(ax, ay); pctx.stroke();
   pctx.fillStyle = '#ff4fa3';

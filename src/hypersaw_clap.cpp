@@ -642,6 +642,25 @@ struct Plugin
         }
         break;
       }
+      case CLAP_EVENT_NOTE_EXPRESSION:
+      {
+        // MPE per-note pitch (ADR-036): hosts deliver per-note bend as the
+        // TUNING expression in relative semitones; CLAP wildcard matching
+        // (-1) applies. Reaches the core through the ADR-027 live-tune seam.
+        auto *x = reinterpret_cast<const clap_event_note_expression_t *>(ev);
+        if (x->expression_id != CLAP_NOTE_EXPRESSION_TUNING) break;
+        for (int i = 0; i < hypersaw::kPoly; i++)
+        {
+          if (!tags[i].active) continue;
+          const VoiceTag &t = tags[i];
+          if ((x->note_id == -1 || x->note_id == t.noteId) &&
+              (x->port_index == -1 || x->port_index == t.port) &&
+              (x->channel == -1 || x->channel == t.channel) &&
+              (x->key == -1 || x->key == t.key))
+            core.setNoteExpr(i, x->value);
+        }
+        break;
+      }
       case CLAP_EVENT_PARAM_VALUE:
       {
         auto *pv = reinterpret_cast<const clap_event_param_value_t *>(ev);

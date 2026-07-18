@@ -113,6 +113,9 @@ class SwarmCore
     int glideActive = 0;
     double glideTarget = 0;
     double lpL = 0, lpR = 0, lpc = 1;
+    // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
+    // (x * 1.0 == x in IEEE), same guarantee ADR-027 leans on for p.tune.
+    double noteTune = 1.0;
   };
 
   explicit SwarmCore(double sampleRate) : sr(sampleRate)
@@ -209,6 +212,9 @@ class SwarmCore
     s.inAttack = 1;
     s.lpL = 0;
     s.lpR = 0;
+    s.noteTune = 1.0;  // per-note expression resets with a fresh strike;
+                       // legato retargets keep the incoming bend (MPE streams
+                       // continue across mono retargets)
     for (int i = 0; i < kMaxV; i++) s.mom[i] = 0;
     // (seed|0) + age*7919 + 1 under ToInt32 — uint32 wrap is bit-identical
     s.rngState = (uint32_t)((int64_t)toInt32(p.seed) + (int64_t)s.age * 7919 + 1);
@@ -221,6 +227,14 @@ class SwarmCore
         s.phase[i] = (p.retrig != 0) ? 0.0 : rngNext(s.rngState);
     }
     s.glideActive = 0;
+  }
+
+  // MPE per-note tuning (ADR-036): relative semitones from the host's
+  // note-expression stream; 0 restores the exactly-inert 1.0 factor.
+  void setNoteExpr(int slot, double semis)
+  {
+    if (slot < 0 || slot >= kPoly) return;
+    swarms[slot].noteTune = semis == 0.0 ? 1.0 : std::pow(2.0, semis / 12.0);
   }
 
   void noteOff(int midi)
@@ -591,7 +605,8 @@ class SwarmCore
       }
     }
     double mean = 0;
-    const double f0c = s.f0cur * p.tune;  // ADR-027; tune == 1.0 -> bit-identical
+    // ADR-027/036; tune and noteTune at 1.0 -> bit-identical
+    const double f0c = s.f0cur * p.tune * s.noteTune;
     for (int i = 0; i < n; i++)
     {
       double f;
