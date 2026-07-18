@@ -44,6 +44,11 @@ struct Params
   double n = 7, dist = 1, seed = 1234, detune = 0.28, law = 0, K = 0, onset = 0,
          dissolve = 0.63, driftDepth = 0, driftRate = 0.4, inertia = 0, rtone = 0,
          normExp = 0.75, width = 0.8, mono = 0, digital = 1, vol = 0.4, retrig = 1;
+  // ADSR (ADR-021): defaults reproduce the reference AR bit-exactly — at
+  // sustainL >= 1 the render loop takes the reference's exact expressions,
+  // and attackS/releaseS defaults are the reference's own constants. L0-1
+  // goldens are the regression proof; change defaults only with an ADR.
+  double attackS = 0.003, decayS = 0.16, sustainL = 1.0, releaseS = 0.16;
 };
 
 class SwarmCore
@@ -59,6 +64,7 @@ class SwarmCore
     long age = -1;
     uint32_t rngState = 1;
     int fresh = 1;
+    int inAttack = 1;  // ADSR phase flag; unread on the reference-exact path
     double lpL = 0, lpR = 0, lpc = 1;
   };
 
@@ -97,6 +103,7 @@ class SwarmCore
     s.KsmS = 0;
     s.KsmP = 0;
     s.fresh = 1;
+    s.inAttack = 1;
     s.lpL = 0;
     s.lpR = 0;
     for (int i = 0; i < kMaxV; i++) s.mom[i] = 0;
@@ -136,8 +143,11 @@ class SwarmCore
   {
     const int n = (int)p.n;
     const double gain = p.vol * 0.9 / std::pow((double)n, p.normExp);
-    const double atk = 1 - std::exp(-1 / (0.003 * sr));
-    const double rel = 1 - std::exp(-1 / (0.16 * sr));
+    // ADR-021: at the defaults these are the reference's exact expressions
+    // (attackS = 0.003, releaseS = 0.16 — same operands, same doubles).
+    const double atk = 1 - std::exp(-1 / (p.attackS * sr));
+    const double rel = 1 - std::exp(-1 / (p.releaseS * sr));
+    const double dec = 1 - std::exp(-1 / (p.decayS * sr));
     for (int i = 0; i < frames; i++) { outL[i] = 0.0f; outR[i] = 0.0f; }
     for (auto &s : swarms)
     {
@@ -170,8 +180,30 @@ class SwarmCore
         }
         s.lpL += s.lpc * (l - s.lpL);
         s.lpR += s.lpc * (r - s.lpR);
-        const double coef = s.gate ? atk : rel;
-        s.env += ((s.gate ? 1 : 0) - s.env) * coef;
+        // ADR-021 envelope. sustainL >= 1: the reference's exact arithmetic
+        // ((1-env)*atk while gated, (0-env)*rel released) — decay never
+        // engages, parity preserved. sustainL < 1: attack->decay machine,
+        // deliberately divergent (superset behavior).
+        if (s.gate)
+        {
+          if (p.sustainL >= 1.0)
+          {
+            s.env += (1 - s.env) * atk;
+          }
+          else if (s.inAttack)
+          {
+            s.env += (1 - s.env) * atk;
+            if (s.env >= 0.995) s.inAttack = 0;
+          }
+          else
+          {
+            s.env += (p.sustainL - s.env) * dec;
+          }
+        }
+        else
+        {
+          s.env += (0 - s.env) * rel;
+        }
         const double g = gain * s.env;
         // Float32Array += semantics: round to f32 on every store
         outL[smp] = (float)((double)outL[smp] + s.lpL * g);
@@ -220,6 +252,10 @@ class SwarmCore
     if (k == "digital") return &p.digital;
     if (k == "vol") return &p.vol;
     if (k == "retrig") return &p.retrig;
+    if (k == "attack") return &p.attackS;
+    if (k == "decay") return &p.decayS;
+    if (k == "sustain") return &p.sustainL;
+    if (k == "release") return &p.releaseS;
     return nullptr;
   }
 
