@@ -121,3 +121,13 @@ Protocol: mean-field, even spread, lpOut 0, n = 24, detune 0.2, retrig off, K = 
 - Bistability: same knobs with retrig ON (aligned start) sustains full sync R1 >= 0.95 (ADR-015d).
 - Split-as-timbre (q = 2, final 2 s of 8 s): the 2f0 projection is seed-invariant at 0.080 +/- 0.015 while the f0 residual varies across seeds by >= 0.01 (ADR-015c; the cluster split is a fundamental-vs-octave mix the seed rolls).
 Enforced in trajectory_check; numbers per ADR-015's independently re-verified measurements.
+
+
+## L0-23 · Two-cluster A/B balance (ADR-051, ratified at ingest of the swarmdynamics balance clone)
+
+Protocol: two-cluster topology, mu=0.3, K=+1, detune 0.3, retrig off, A3, 3 s settle. The `balance` knob scales cluster B's intra-coupling by kB = 1 − 2·balance (A stays gain 1).
+- balance 0: kB=1 — BIT-IDENTICAL to the pre-knob two-cluster path (parity golden `dyn-cluster-balance` proves the port matches the reference at balance 0.5 too). R_A, R_B >= 0.9.
+- balance 0.5: cluster B's coupling removed; R_A holds >= 0.9 while (R_A − R_B) >= 0.4 (B dissolves).
+- balance 1.0: kB=−1, B splayed; full split (R_A − R_B) >= 0.5.
+- mu sets the R_B floor (contamination): R_B(mu=0.9) > R_B(mu=0.05) at balance 1.
+Anchors are robust (split, monotone floor) rather than exact R_B floor values, which are settle-window-sensitive near ~1/sqrt(n) (the L0002 measurement-protocol caveat). Enforced in trajectory_check; K is UNIPOLAR in this engine (4·K²·σ) so balance<0.5→>0.5 is the only cluster-splay axis.

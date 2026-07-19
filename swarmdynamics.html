@@ -155,6 +155,7 @@
       <div class="row"><label>phase lag α</label><input type="range" id="alpha" min="-90" max="90" step="1" value="0"><output id="alpha_o">0°</output></div>
       <div class="row"><label>reach (ring)</label><input type="range" id="reach" min="1" max="8" step="1" value="5"><output id="reach_o">±5</output></div>
       <div class="row"><label>cross-link μ</label><input type="range" id="mu" min="0" max="1" step="0.01" value="0.6"><output id="mu_o">0.60</output></div>
+      <div class="row"><label>A/B balance</label><input type="range" id="balance" min="0" max="1" step="0.01" value="0"><output id="balance_o">locked</output></div>
     </div>
 
     <div class="cluster grav">
@@ -216,7 +217,7 @@ const RATIO_NAMES = ['1/1','16/15','9/8','6/5','5/4','4/3','7/5','3/2','8/5','5/
 class DynSynth {
   constructor(sr) {
     this.sr = sr;
-    this.p = { n:24, detune:0.2, seed:1234, retrig:0, topo:0, poles:1, reach:5, mu:0.6, K:0, alpha:0,
+    this.p = { n:24, detune:0.2, seed:1234, retrig:0, topo:0, poles:1, reach:5, mu:0.6, balance:0, K:0, alpha:0,
                grav:0, basin:35, beatQ:0, bpm:120, beatMult:1, swidth:0.8, vol:0.4 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
@@ -389,12 +390,13 @@ class DynSynth {
       const RB = Math.hypot(bx, by), psiB = Math.atan2(by, bx);
       s.RA = RA; s.RB = RB;
       const norm = 1 + mu;
+      const kB = 1 - 2 * p.balance; // balance 0: both = K · balance 1: B = −K (anti-correlated)
       for (let i = 0; i < n; i++) {
         const ti = s.phase[i] * 6.283185307;
-        let c;
-        if (i < h) c = (RA * Math.sin(psiA - ti - alpha) + mu * RB * Math.sin(psiB - ti - alpha)) / norm;
-        else c = (RB * Math.sin(psiB - ti - alpha) + mu * RA * Math.sin(psiA - ti - alpha)) / norm;
-        s.couple[i] = s.Ksm * c;
+        let c, kGain;
+        if (i < h) { c = (RA * Math.sin(psiA - ti - alpha) + mu * RB * Math.sin(psiB - ti - alpha)) / norm; kGain = 1; }
+        else { c = (RB * Math.sin(psiB - ti - alpha) + mu * RA * Math.sin(psiA - ti - alpha)) / norm; kGain = kB; }
+        s.couple[i] = s.Ksm * kGain * c;
       }
     }
   }
@@ -480,12 +482,13 @@ const fmt = {
   alpha: v => v + '°',
   reach: v => '±' + v,
   mu: v => (+v).toFixed(2),
+  balance: v => { const a = +v; if (a < 0.005) return 'locked'; const kb = (1 - 2 * a); return 'B×' + kb.toFixed(2) + (kb < 0 ? ' (anti)' : ''); },
   grav: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   basin: v => '±' + v + ' ¢',
   swidth: v => (+v).toFixed(2),
   vol: v => (+v).toFixed(2)
 };
-const ranges = ['n','detune','K','alpha','reach','mu','grav','basin','swidth','vol'];
+const ranges = ['n','detune','K','alpha','reach','mu','balance','grav','basin','swidth','vol'];
 const updaters = {};
 ranges.forEach(k => {
   const el = $(k), out = $(k + '_o');
@@ -697,6 +700,22 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
+
+/* focus-trap fix: sliders and selects release keyboard focus after use so the
+   musical keyboard never goes silently dead; Escape = panic (all notes off) */
+document.addEventListener('pointerup', () => {
+  const t = document.activeElement;
+  if (t && t.tagName === 'INPUT' && t.type === 'range') t.blur();
+});
+document.addEventListener('change', e => {
+  if (e.target.tagName === 'SELECT') e.target.blur();
+});
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.activeElement) document.activeElement.blur();
+    [...heldNotes].forEach(noteOff);
+  }
+}, true);
 </script>
 </body>
 </html>

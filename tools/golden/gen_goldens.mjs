@@ -45,6 +45,7 @@ const DYN_SCENARIOS = [
   { name: 'dyn-meanfield-alpha', p: { ...DYN_BASE, K: 0.9, alpha: 60 } },
   { name: 'dyn-ring',            p: { ...DYN_BASE, topo: 1, reach: 5, alpha: 80, K: 0.9 } },
   { name: 'dyn-twocluster',      p: { ...DYN_BASE, topo: 2, mu: 0.6, alpha: 78, K: 1.0, n: 32, detune: 0.02 } },
+  { name: 'dyn-cluster-balance', p: { ...DYN_BASE, topo: 2, mu: 0.3, K: 1.0, balance: 0.5, n: 24, detune: 0.3 } },  // ADR-051: exercises the kB path
   { name: 'dyn-poles2',          p: { ...DYN_BASE, poles: 2, K: 1.0 } },
   { name: 'dyn-poles3',          p: { ...DYN_BASE, poles: 3, K: 1.0 } },
   { name: 'dyn-gravity',         p: { ...DYN_BASE, grav: 0.7, basin: 35, K: 0.3 }, notes: [57, 64] },
