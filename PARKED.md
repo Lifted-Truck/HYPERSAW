@@ -6,7 +6,7 @@ Format: idea — why parked — revisit trigger.
 2. **Distribution morphing while notes sound** — offsets gliding under coupling is a real gesture (bimodal→uniform under sync), needs glide semantics + preset interpolation design. Revisit: Phase 5 mod matrix.
 3. **Clustered-pairs distribution** — trivial engine-side (dyad offsets); listed in SPEC Layer 1; implementation slotted Phase 2. Parked here only until then so it can't fall off.
 4. **Stuart–Landau oscillators (amplitude dynamics)** — brings amplitude death: a third erasure mechanism distinct from splay cancellation and R→amp. Doubles per-voice state. Revisit: post-v1, or if a "swarm FX" sibling product emerges.
-5. **Swarm-of-swarms recursion (clouds of clouds)** — conceptually clean under ADR-001, combinatorially explosive in UI. Revisit: post-v1.
+5. **Swarm-of-swarms recursion (clouds of clouds)** — conceptually clean under ADR-001, combinatorially explosive in UI. Now has a concrete vehicle: the CROSS-COUPLED variant of the OSC2/OSC3 parallel banks (ROADMAP → Architecture expansion, under human prototyping 2026-07-19). Revisit: with the osc-bank design session.
 6. **Strict chimeras via absolute-K + identical oscillators** — absolute-K mode ships (ADR-004); the dedicated exploration preset pack is parked. Revisit: Phase 5 demo patches.
 7. **Cross-note *phase* coupling (beyond ratio gravity)** — phase-locking distinct notes' fundamentals at simple ratios (true harmonic fusion, chord-as-one-timbre). Needs sample-accurate cross-swarm coupling. Revisit: after Phase 3 gravity ships and its CPU cost is known.
 8. **Designed mono fold-down** — optimize pan/phase assignment so mono sum is a deliberate alternate timbre. Revisit: Phase 2 (E-5 findings will motivate or dismiss).
