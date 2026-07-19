@@ -80,11 +80,15 @@ oracle contract), PRIOR-ART.md, PARKED.md.
 clap-wrapper (`libs/` submodules pinned: clap 1.2.10, clap-wrapper v0.15.1).
 Build: `cmake -S . -B build-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release`
 then `cmake --build <abs>/build-release -j` (absolute path — sandbox resets cwd).
-Reference implementation: three single-file HTML
-prototypes — `swarmsaw.html` (SAW; v2 lineage, see ADR-011/012),
-`swarmspectra.html`, `swarmdynamics.html` — whose headless JS cores
-(`SwarmSynth` / `SpectraSynth` / `DynSynth`) are the spec-in-code (ADR-003).
-Build/test = `./verify fast|full`. This Mac: Command Line Tools only, CMake
+Reference implementation: six single-file HTML prototypes — three oscillator
+labs `swarmsaw.html` (SAW; v2 lineage, see ADR-011/012), `swarmspectra.html`,
+`swarmdynamics.html` (cores `SwarmSynth` / `SpectraSynth` / `DynSynth`), plus
+the Track E effects labs `swarmfilter.html`, `swarmphaser.html`,
+`swarmtime.html` (`FilterLab` / `PhaserLab` / `TimeLab`) — all spec-in-code
+(ADR-003). Ported C++ cores so far: `swarm_core.h` (SAW+dynamics),
+`spectra_core.h` (SPECTRA), `force_core.h` (shared force system, ADR-034),
+`filter_core.h` (resonator bank, ADR-043). Build/test = `./verify fast|full`
+(six oracle chains: parity · trajectory · state · force · spectra · filter). This Mac: Command Line Tools only, CMake
 with `-G "Unix Makefiles"`, absolute build paths (sandbox resets cwd) — see
 the global CLAUDE.md audio-plugin section before any build/install/validate.
 
