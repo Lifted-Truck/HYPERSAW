@@ -198,6 +198,44 @@ class FilterCore
     }
   }
 
+  // EFFECT path (Track E1.3): process EXTERNAL audio instead of the exciter —
+  // the same swarm-herded bank, driven by the input signal. The exciter
+  // render() above stays the parity-frozen reference path; this shares only
+  // controlTick + the SVF bank. Mono core: L/R summed in, mono out to both.
+  // setNoteFreq() lets a played MIDI note move the gravity center without
+  // spawning an exciter voice.
+  void setNoteFreq(double f)
+  {
+    f0last = f;
+    if ((int)p.place == 2) placeTargets();
+  }
+  void processExternal(const float *inL, const float *inR, float *outL, float *outR, int nSamples)
+  {
+    const int n = (int)p.nb;
+    for (int smp = 0; smp < nSamples; smp++)
+    {
+      if (tick == 0) controlTick();
+      tick = (tick + 1) & (kTick - 1);
+      const double dry = 0.5 * ((double)inL[smp] + (double)inR[smp]);
+      double wetS = 0;
+      for (int i = 0; i < n; i++)
+      {
+        const double v3 = dry - ic2[i];
+        const double v1 = cA1[i] * ic1[i] + cA2[i] * v3;
+        const double v2 = ic2[i] + cA2[i] * ic1[i] + cA3[i] * v3;
+        ic1[i] = 2 * v1 - ic1[i];
+        ic2[i] = 2 * v2 - ic2[i];
+        const double band = v1 * cK[i];
+        wetS += band;
+        eEnv[i] += 0.004 * (std::fabs(band) - eEnv[i]);
+      }
+      wetS *= 1.6 / std::sqrt((double)n);
+      const double y = std::tanh((dry * (1 - p.wet) + wetS * p.wet) * p.vol * 2);
+      outL[smp] = (float)y;
+      outR[smp] = (float)y;
+    }
+  }
+
   // Viz/oracle access
   double bandFreq(int i) const { return std::pow(2, pop.v[i]); }
   double bandEnergy(int i) const { return eEnv[i]; }

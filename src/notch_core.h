@@ -210,6 +210,33 @@ class NotchCore
     }
   }
 
+  // EFFECT path (Track E1.3): process EXTERNAL audio through the swarm-herded
+  // notch cascade. Shares controlTick + chain(); render() stays the
+  // parity-frozen exciter reference. Mono core (L/R summed, mono out).
+  void setNoteFreq(double f)
+  {
+    f0last = f;
+    if ((int)p.place == 2) placeTargets();
+  }
+  void processExternal(const float *inL, const float *inR, float *outL, float *outR, int nSamples)
+  {
+    if (!std::isfinite(pop.v[0] + fbState))
+    {
+      for (int i = 0; i < kNBMax; i++) { pop.v[i] = pop.tHome[i]; pop.mom[i] = 0; pop.dOff[i] = 0; ic1[i] = 0; ic2[i] = 0; }
+      fbState = 0;
+    }
+    for (int smp = 0; smp < nSamples; smp++)
+    {
+      if (tick == 0) controlTick();
+      tick = (tick + 1) & (kTick - 1);
+      const double dry = 0.5 * ((double)inL[smp] + (double)inR[smp]);
+      const double wet = chain(dry);
+      const double y = std::tanh(((1 - p.mix) * dry + p.mix * wet) * p.vol * 1.6);
+      outL[smp] = (float)y;
+      outR[smp] = (float)y;
+    }
+  }
+
   double bandFreq(int i) const { return std::pow(2, pop.v[i]); }
   double combReg() const { return pop.combReg; }
   int bandCount() const { return (int)p.nb; }

@@ -81,6 +81,29 @@ make_clapfirst_plugins(
         AUV2_INSTRUMENT_TYPE "aumu"
 )
 
+# SWARM-FX: the effects product line as a standalone AUDIO-EFFECT plugin
+# (Track E1.3). Its own impl/entry/factory — the instrument shell is untouched
+# — sharing the parity-proven cores (filter_core.h / notch_core.h) headers-only.
+# No webview GUI yet (generic host params); AUv2 type is 'aufx' (effect).
+add_library(SWARMFX-impl STATIC src/swarmfx_clap.cpp)
+target_link_libraries(SWARMFX-impl PUBLIC clap clap-wrapper-extensions)
+
+make_clapfirst_plugins(
+        TARGET_NAME SWARMFX
+        IMPL_TARGET SWARMFX-impl
+        OUTPUT_NAME "SWARM-FX"
+        ENTRY_SOURCE "src/swarmfx_entry.cpp"
+        BUNDLE_IDENTIFIER "com.lifted-truck.swarmfx"
+        BUNDLE_VERSION ${PROJECT_VERSION}
+        COPY_AFTER_BUILD FALSE
+        PLUGIN_FORMATS ${HYPERSAW_PLUGIN_FORMATS}
+        ASSET_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/SWARMFX_assets
+        AUV2_MANUFACTURER_NAME "Lifted Truck"
+        AUV2_MANUFACTURER_CODE "LfTk"
+        AUV2_SUBTYPE_CODE "Swfx"
+        AUV2_INSTRUMENT_TYPE "aufx"
+)
+
 # L0-1 parity harness (host-side tool, not shipped): SwarmCore vs JS goldens.
 add_executable(parity_check tools/parity_check.cpp)
 if(NOT MSVC)
