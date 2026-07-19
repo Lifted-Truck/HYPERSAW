@@ -163,6 +163,7 @@ class SpectraCore
       s.gate = 0;
   }
   const SSwarm &swarmAt(int i) const { return swarms[i]; }
+  double partialAmp(int k) const { return (k >= 0 && k < kPMax) ? amp[k] : 0.0; }
   const SSwarm *focus() const
   {
     const SSwarm *best = nullptr;

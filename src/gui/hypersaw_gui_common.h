@@ -57,6 +57,25 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
   auto phase = choc::value::createEmptyArray();
   for (int i = 0; i < v.n && i < 32; i++) phase.addArrayElement(v.phase[i]);
   obj.addMember("phase", phase);
+  // SPECTRA per-partial strip feed (empty in SAW mode — v.spectra gates it).
+  obj.addMember("spectra", v.spectra);
+  if (v.spectra)
+  {
+    obj.addMember("partials", (int32_t)v.partials);
+    obj.addMember("cloud", (int32_t)v.cloud);
+    auto pr = choc::value::createEmptyArray();
+    auto pa = choc::value::createEmptyArray();
+    auto pp = choc::value::createEmptyArray();
+    for (int k = 0; k < v.partials && k < 24; k++)
+    {
+      pr.addArrayElement(v.partR[k]);
+      pa.addArrayElement(v.partAmp[k]);
+      for (int m = 0; m < v.cloud && m < 7; m++) pp.addArrayElement(v.partPhase[k * 7 + m]);
+    }
+    obj.addMember("partR", pr);
+    obj.addMember("partAmp", pa);
+    obj.addMember("partPhase", pp);  // flat [partial*cloud + voice]
+  }
   return obj;
 }
 

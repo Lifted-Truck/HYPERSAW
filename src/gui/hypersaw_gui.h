@@ -36,6 +36,14 @@ struct VizSnapshot
   bool gridActive = false, gridLockWarn = false;
   double gridU = 0;
   int gridRungs = 0;
+  // SPECTRA layer (Phase 4): per-partial strip visualizer feed. partials/cloud
+  // are the live P/M; partR/partAmp index by partial; partPhase is the cloud
+  // phase grid, row-major [partial*cloud + voice] with cloud <= 7.
+  bool spectra = false;
+  int partials = 0, cloud = 0;
+  double partR[24] = {0};
+  double partAmp[24] = {0};
+  double partPhase[24 * 7] = {0};
 };
 
 struct GuiHost

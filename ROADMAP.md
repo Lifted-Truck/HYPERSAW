@@ -52,6 +52,7 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 - GUI completion (v1 shipped in Phase 2 per ADR-013): phase carpet, partial strips, gravity readouts, mod-matrix UI — the full §5.6 thesis, same prototype design language.
 - MPE: pressure→K, slide→detune, per-note routing. Mod matrix with R and σ as sources. K envelopes/macros.
+- **Velocity routing (human request, 2026-07-18):** the synth is currently velocity-insensitive (deliberate through Phases 1–4 — velocity would have muddied the parity contract). Add velocity as a first-class mod SOURCE in the matrix, routable to at least amplitude, K, and onset-lock, with per-destination depth and a global on/off (default off preserves the current velocity-flat behavior and every golden). Note the wrapper interaction: ADR-039 remaps NOTE_ON velocity ≤ 0 to note-off, so the live velocity value feeds the mod matrix only for velocity > 0.
 - Presets with full provenance metadata; deterministic recall test added to L0-13.
 - Layer-E full pass; naming decision; demo patches (including the validated recipes: shimmer-K, zipper, erasure, gravity-settle, broken-symmetry pad).
 - **Gate:** release candidate.
