@@ -169,6 +169,13 @@ if(NOT MSVC)
   target_compile_options(swarmalator_check PRIVATE -O2)
 endif()
 
+# Track E2 time-engine oracle (host-side tool, not shipped): TimeCore audio
+# parity vs the JS TimeLab (echo + room) + L0-19/20/21.
+add_executable(time_check tools/time_check.cpp)
+if(NOT MSVC)
+  target_compile_options(time_check PRIVATE -O2)
+endif()
+
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)
