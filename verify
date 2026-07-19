@@ -127,6 +127,12 @@ full() {
   node tools/golden/gen_spectra_goldens.mjs --selfcheck || return 1
   node tools/golden/gen_spectra_goldens.mjs > /dev/null || return 1
   "$build_dir/spectra_check" "$(dirname "$build_dir")/build-golden/spectra" || return 1
+
+  # Track E1 oracle chain: resonator-bank audio goldens (JS FilterLab live from
+  # swarmfilter.html, noise=0) -> filter_check (L0-1-style parity + L0-14).
+  node tools/golden/gen_filter_goldens.mjs --selfcheck || return 1
+  node tools/golden/gen_filter_goldens.mjs > /dev/null || return 1
+  "$build_dir/filter_check" "$(dirname "$build_dir")/build-golden/filter" || return 1
 }
 
 case "$TARGET" in
