@@ -128,7 +128,7 @@ static const ParamDef kParams[] = {
     // (K/onset/dissolve/seed/vol/retrig) are mirrored into both cores by
     // applyParam; ids 44-51 are SPECTRA-only.
     {43, "engine", "Engine", 0, 1, 0, true, kEngineLabels},
-    {44, "partials", "Partials", 1, 24, 12, true, nullptr},
+    {44, "partials", "Partials", 1, 32, 12, true, nullptr},
     {45, "tilt", "Amp Tilt", 0.5, 2, 1, false, nullptr},
     {46, "stretch", "Stretch", 0, 1, 0, false, nullptr},
     {47, "cloud", "Cloud Voices", 1, 7, 5, true, nullptr},
@@ -359,7 +359,7 @@ struct Plugin
         v.KsmS = fs->KsmS[0];
         v.KsmP = fs->KsmP[0];
         for (int i = 0; i < M && i < 32; i++) v.phase[i] = fs->phase[i];
-        for (int k = 0; k < P && k < 24; k++)
+        for (int k = 0; k < P && k < 32; k++)
         {
           v.partR[k] = fs->R[k];
           v.partAmp[k] = spectra.partialAmp(k);

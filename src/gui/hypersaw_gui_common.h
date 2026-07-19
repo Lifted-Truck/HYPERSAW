@@ -66,7 +66,7 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
     auto pr = choc::value::createEmptyArray();
     auto pa = choc::value::createEmptyArray();
     auto pp = choc::value::createEmptyArray();
-    for (int k = 0; k < v.partials && k < 24; k++)
+    for (int k = 0; k < v.partials && k < 32; k++)
     {
       pr.addArrayElement(v.partR[k]);
       pa.addArrayElement(v.partAmp[k]);

@@ -36,9 +36,12 @@ class SpectraCore
  public:
   // kSPoly raised from the reference's 4 to 8 (2026-07-18 polyphony report).
   // Must stay <= SwarmCore::kPoly: the shell's VoiceTag/NOTE_END array is
-  // sized by kPoly and indexed by the active core's slot. Worst case
-  // 8 x 24 partials x 7 cloud = 1344 sine osc — inside ADR-006 headroom.
-  static constexpr int kPMax = 24, kMMax = 7, kSPoly = 8, kSTick = 16;
+  // sized by kPoly and indexed by the active core's slot.
+  // kPMax raised from the reference's 24 to 32 (ADR-040, human request) — a
+  // range extension; the reference arithmetic is untouched and the goldens
+  // (partials <= 12) still hold. Worst case 8 x 32 x 7 = 1792 sine osc,
+  // inside the ADR-006 spike headroom.
+  static constexpr int kPMax = 32, kMMax = 7, kSPoly = 8, kSTick = 16;
   static constexpr double kSTau = 6.283185307;
   static constexpr double kSPiRef = 3.14159265;
 

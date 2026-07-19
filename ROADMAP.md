@@ -57,6 +57,14 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 - Layer-E full pass; naming decision; demo patches (including the validated recipes: shimmer-K, zipper, erasure, gravity-settle, broken-symmetry pad).
 - **Gate:** release candidate.
 
+## Phase F — Reference-path liberation (scheduled at the Track E1 gate; ADR-041)
+
+The prototypes were always a gesture toward the instrument, not its final form. Once E1 closes, the "correct == bit-parity with the prototype" contract graduates to forward performance standards:
+- Author the successor acceptance standard (behavioral/perceptual targets + new golden references generated from the liberated implementation, versioned).
+- Migrate the L0 suites off parity-to-prototype onto the new references, one engine at a time — each migration its own ADR + gate; the bit-parity harness is repointed, not deleted.
+- Re-scope the protected prototype HTMLs to historical provenance.
+- **Only then** do reference-path DSP modifications (e.g. the SPECTRA anti-cancellation floor, low-energy body work) proceed against the new standards rather than as guarded-inert additions.
+
 ## Prior art & positioning
 
 Maintained in PRIOR-ART.md; revisit at Phase 3 (before gravity ships) for the freedom-to-operate check flagged there, and at Phase 5 for marketing claims accuracy.
