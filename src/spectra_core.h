@@ -50,6 +50,10 @@ class SpectraCore
     double partials = 12, tilt = 1, stretch = 0, cloud = 5, cwidth = 0.25, wtilt = 0, wlaw = 0,
            seed = 1234, K = 0, cascade = 0, onset = 0, dissolve = 0.63, swidth = 0.8, vol = 0.4,
            retrig = 1;
+    // Per-voice uncoupled sub-oscillator (ADR-042, first beyond-prototype
+    // feature). At subOn=0 OR subVol=0 the render skips it entirely, so the
+    // reference path is bit-inert (spectra goldens hold at rms 0).
+    double subOn = 0, subVol = 0, subWave = 0;  // subWave: 0 sine → 0.5 tri → 1 smooth square
   };
 
   struct SSwarm
@@ -61,6 +65,7 @@ class SpectraCore
     double env = 0, Kenv = 0;
     long age = -1;
     uint32_t rngState = 1;
+    double subPhase = 0;  // ADR-042 sub-osc phase accumulator, [0,1)
   };
 
   explicit SpectraCore(double sampleRate) : sr(sampleRate)
@@ -141,6 +146,7 @@ class SpectraCore
     s.gate = 1;
     s.age = noteCounter++;
     s.Kenv = 8 * p.onset * p.onset;
+    s.subPhase = 0;  // ADR-042: fresh sub phase per strike
     // (seed|0) + age*7919 + 1 — same wrap semantics as SwarmCore initVoice
     s.rngState = (uint32_t)((int64_t)(int32_t)(int64_t)p.seed + (int64_t)s.age * 7919 + 1);
     const int P = (int)p.partials, M = (int)p.cloud;
@@ -259,6 +265,11 @@ class SpectraCore
     const double gain = p.vol * 1.4 / (ampSum * std::pow((double)M, 0.75));
     const double atk = 1 - std::exp(-1 / (0.004 * sr));
     const double rel = 1 - std::exp(-1 / (0.18 * sr));
+    // ADR-042 sub-osc: constant per block. When inactive the sample loop below
+    // is byte-identical to the reference path (l*g held in a double first, then
+    // added) — the guard is what keeps parity rms 0.
+    const bool subActive = p.subOn != 0.0 && p.subVol > 0.0;
+    const double subGain = p.subVol * 0.6;
     for (int i = 0; i < nSamples; i++)
     {
       outL[i] = 0;
@@ -295,8 +306,20 @@ class SpectraCore
         const double coef = s.gate ? atk : rel;
         s.env += ((s.gate ? 1 : 0) - s.env) * coef;
         const double g = gain * s.env;
-        outL[smp] = (float)(outL[smp] + l * g);  // f32 RMW, JS typed-array exact
-        outR[smp] = (float)(outR[smp] + r * g);
+        double sampL = l * g, sampR = r * g;
+        if (subActive)
+        {
+          // Uncoupled sub at f0/2 (one octave down), own phase, following the
+          // note envelope; morphs sine → triangle → smooth square. Mono (same
+          // to both channels) — a sub belongs in the center.
+          s.subPhase += (s.f0 * 0.5) / sr;
+          s.subPhase -= std::floor(s.subPhase);
+          const double sub = subGain * subWaveform(s.subPhase, p.subWave) * s.env;
+          sampL += sub;
+          sampR += sub;
+        }
+        outL[smp] = (float)(outL[smp] + sampL);  // f32 RMW, JS typed-array exact
+        outR[smp] = (float)(outR[smp] + sampR);
       }
     }
     globalTick = (globalTick + nSamples) & (kSTick - 1);
@@ -309,6 +332,21 @@ class SpectraCore
 
  private:
   static constexpr double kPiFullS = 3.141592653589793;  // Math.PI (SINE table build)
+
+  // Sub-osc waveform morph (ADR-042): 0 sine → 0.5 triangle → 1 smooth square.
+  static double subWaveform(double ph, double morph)
+  {
+    const double sine = std::sin(2.0 * kPiFullS * ph);
+    const double tri = 2.0 * std::fabs(2.0 * (ph - std::floor(ph + 0.5))) - 1.0;
+    const double sq = std::tanh(3.0 * sine);  // rounded square, gentler than a hard clip
+    if (morph <= 0.5)
+    {
+      const double a = morph * 2.0;
+      return sine * (1 - a) + tri * a;
+    }
+    const double a = (morph - 0.5) * 2.0;
+    return tri * (1 - a) + sq * a;
+  }
   double sr;
   float SINE[4097];
   double x[kMMax] = {0};
@@ -336,6 +374,9 @@ class SpectraCore
     if (!std::strcmp(k, "swidth")) return &p.swidth;
     if (!std::strcmp(k, "vol")) return &p.vol;
     if (!std::strcmp(k, "retrig")) return &p.retrig;
+    if (!std::strcmp(k, "subOn")) return &p.subOn;
+    if (!std::strcmp(k, "subVol")) return &p.subVol;
+    if (!std::strcmp(k, "subWave")) return &p.subWave;
     return nullptr;
   }
 };
