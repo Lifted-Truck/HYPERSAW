@@ -54,6 +54,7 @@ class SpectraCore
     // feature). At subOn=0 OR subVol=0 the render skips it entirely, so the
     // reference path is bit-inert (spectra goldens hold at rms 0).
     double subOn = 0, subVol = 0, subWave = 0;  // subWave: 0 sine → 0.5 tri → 1 smooth square
+    double subOct = -1;  // sub octave: -1 (f0/2, default) / -2 (f0/4) / -3 (f0/8)
   };
 
   struct SSwarm
@@ -270,6 +271,7 @@ class SpectraCore
     // added) — the guard is what keeps parity rms 0.
     const bool subActive = p.subOn != 0.0 && p.subVol > 0.0;
     const double subGain = p.subVol * 0.6;
+    const double subFreqMul = std::pow(2.0, p.subOct);  // -1 → 0.5 (bit-exact)
     for (int i = 0; i < nSamples; i++)
     {
       outL[i] = 0;
@@ -312,7 +314,7 @@ class SpectraCore
           // Uncoupled sub at f0/2 (one octave down), own phase, following the
           // note envelope; morphs sine → triangle → smooth square. Mono (same
           // to both channels) — a sub belongs in the center.
-          s.subPhase += (s.f0 * 0.5) / sr;
+          s.subPhase += (s.f0 * subFreqMul) / sr;
           s.subPhase -= std::floor(s.subPhase);
           const double sub = subGain * subWaveform(s.subPhase, p.subWave) * s.env;
           sampL += sub;
@@ -377,6 +379,7 @@ class SpectraCore
     if (!std::strcmp(k, "subOn")) return &p.subOn;
     if (!std::strcmp(k, "subVol")) return &p.subVol;
     if (!std::strcmp(k, "subWave")) return &p.subWave;
+    if (!std::strcmp(k, "subOct")) return &p.subOct;
     return nullptr;
   }
 };

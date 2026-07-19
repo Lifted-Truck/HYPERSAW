@@ -140,6 +140,7 @@ static const ParamDef kParams[] = {
     {52, "subOn", "Sub Osc", 0, 1, 0, true, kOffOn},
     {53, "subVol", "Sub Level", 0, 1, 0, false, nullptr},
     {54, "subWave", "Sub Wave", 0, 1, 0, false, nullptr},
+    {55, "subOct", "Sub Octave", -3, -1, -1, true, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -619,7 +620,7 @@ struct Plugin
         engineSel = applied;
         return;
       }
-      if (id >= 44 && id <= 54)
+      if (id >= 44 && id <= 55)
       {
         spectra.setParam(d->coreKey, applied);
         return;
@@ -650,7 +651,7 @@ struct Plugin
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 43) return engineSel;
-      if (d->id >= 44 && d->id <= 54) return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
+      if (d->id >= 44 && d->id <= 55) return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
       return core.getParam(d->coreKey);
     }
     return 0;
