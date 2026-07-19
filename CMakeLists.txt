@@ -132,6 +132,13 @@ if(NOT MSVC)
   target_compile_options(filter_check PRIVATE -O2)
 endif()
 
+# Track E1.2 notch-swarm oracle (host-side tool, not shipped): NotchCore audio
+# parity vs the JS PhaserLab + L0-16 notch exactness.
+add_executable(notch_check tools/notch_check.cpp)
+if(NOT MSVC)
+  target_compile_options(notch_check PRIVATE -O2)
+endif()
+
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)
