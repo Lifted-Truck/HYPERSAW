@@ -68,11 +68,12 @@ std::vector<float> renderHeld(NotchCore &c, double seconds)
 // RMS ratio in dB after a settle. Exercises the notch response directly.
 double chainAttenDb(NotchCore &c, double f)
 {
+  constexpr double kPi = 3.141592653589793;  // no M_PI on MSVC (L0003)
   double inAcc = 0, outAcc = 0;
   const int n = (int)(kSR * 0.25);
   for (int i = 0; i < n; i++)
   {
-    const double x = std::sin(2 * M_PI * f * i / kSR);
+    const double x = std::sin(2 * kPi * f * i / kSR);
     const double y = c.chain(x);
     if (i > n / 2)  // measure the settled tail
     {
