@@ -133,6 +133,12 @@ full() {
   node tools/golden/gen_filter_goldens.mjs --selfcheck || return 1
   node tools/golden/gen_filter_goldens.mjs > /dev/null || return 1
   "$build_dir/filter_check" "$(dirname "$build_dir")/build-golden/filter" || return 1
+
+  # Track E1.2 oracle chain: notch-swarm audio goldens (JS PhaserLab live from
+  # swarmphaser.html, noise=0) -> notch_check (L0-1-style parity + L0-16).
+  node tools/golden/gen_notch_goldens.mjs --selfcheck || return 1
+  node tools/golden/gen_notch_goldens.mjs > /dev/null || return 1
+  "$build_dir/notch_check" "$(dirname "$build_dir")/build-golden/notch" || return 1
 }
 
 case "$TARGET" in

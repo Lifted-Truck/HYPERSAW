@@ -1,0 +1,273 @@
+/*
+ * notch_core.h — Track E1 notch swarm (SPEC-EFFECTS §4), transcribed VERBATIM
+ * from swarmphaser.html's PhaserLab. Sibling of filter_core.h: the same shared
+ * force system (forcecore, ADR-034) herds the population — here of NOTCH
+ * frequencies — and the same polyBLEP exciter feeds it. The audio path differs:
+ * a feedback allpass→**true-notch** cascade (SVF y = x − k·v1, exact null at
+ * fc) rather than a bandpass bank. The allpass-topology alternative was
+ * rejected by measurement (ADR-029b): notches form at cumulative-phase odd-π,
+ * not stage centers — so this uses per-section true notches.
+ *
+ * Correctness = L0-1-style audio parity vs the JS PhaserLab (notch goldens,
+ * eps=1e-6 RMS) + the audio half of L0-16 (notch exactness: deep nulls at the
+ * swarm frequencies; the regression guard against the allpass defect). The
+ * population halves of L0-14/15/17 stay covered by force_check.
+ *
+ * NON-DETERMINISM: PhaserLab's exciter mixes Math.random() when noise>0 —
+ * parity scenarios pin noise=0 (the mix is ported, the oracle avoids it).
+ * NaN watchdog (ADR-032): the feedback path self-heals to home within a block.
+ */
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+
+#include "force_core.h"
+
+namespace hypersaw
+{
+
+class NotchCore
+{
+ public:
+  static constexpr int kNBMax = 12, kPoly = 4, kTick = 16;
+  static constexpr int kExDetN = 5;
+
+  struct NParams
+  {
+    double nb = 6, place = 0, dist = 0, center = 9.64, spread = 0.5, seed = 1234;
+    double K = 0, inertia = 0, driftDepth = 60, driftRate = 0.4, grav = 0, basin = 45;
+    double noise = 0.6, stageQ = 0.9, feedback = 0.4, mix = 0.5, vol = 0.5;
+  };
+
+  explicit NotchCore(double sampleRate) : sr(sampleRate) { rebuild(); }
+
+  NParams p;
+
+  bool setParam(const char *k, double v)
+  {
+    double *slot = paramSlot(k);
+    if (!slot) return false;
+    *slot = v;
+    if (eq(k, "nb") || eq(k, "place") || eq(k, "dist") || eq(k, "center") || eq(k, "spread") ||
+        eq(k, "seed"))
+    {
+      rebuild();
+      if (eq(k, "nb") || eq(k, "seed") || eq(k, "dist"))
+        for (int i = 0; i < kNBMax; i++)
+        {
+          pop.v[i] = pop.tHome[i];
+          pop.mom[i] = 0;
+          ic1[i] = 0;
+          ic2[i] = 0;
+          pop.dOff[i] = 0;
+        }
+    }
+    return true;
+  }
+  double getParam(const char *k)
+  {
+    double *slot = paramSlot(k);
+    return slot ? *slot : 0.0;
+  }
+
+  void rebuild()
+  {
+    const int n = (int)p.nb;
+    forcecore::buildOffsets(pop, (int)p.dist, n, (int)p.seed);
+    placeTargets();
+    for (int i = 0; i < n; i++)
+    {
+      pop.v[i] = pop.tHome[i];
+      pop.mom[i] = 0;
+    }
+  }
+
+  void noteOn(int midi, double f)
+  {
+    Note *s = nullptr;
+    for (auto &nt : notes)
+      if (!nt.gate && nt.env < 1e-3)
+        if (!s || nt.age < s->age) s = &nt;
+    if (!s)
+      for (auto &nt : notes)
+        if (!s || nt.age < s->age) s = &nt;
+    s->midi = midi;
+    s->f0 = f;
+    s->gate = 1;
+    s->age = noteCounter++;
+    for (int i = 0; i < kExDetN; i++) s->phase[i] = 0;
+    f0last = f;
+    if ((int)p.place == 2) placeTargets();
+  }
+  void noteOff(int midi)
+  {
+    for (auto &nt : notes)
+      if (nt.gate && nt.midi == midi) nt.gate = 0;
+  }
+  void allOff()
+  {
+    for (auto &nt : notes) nt.gate = 0;
+  }
+
+  void controlTick()
+  {
+    const int n = (int)p.nb;
+    forcecore::Params fp{p.K, p.inertia, p.driftDepth, p.driftRate, p.grav, p.basin};
+    forcecore::Attractor att{p.grav != 0 ? 1 : 0, f0last, 0.5};
+    forcecore::tick(pop, fp, forcecore::kPhaserProfile, att, kTick / sr);
+    const double k = 1 / p.stageQ;  // constant Q (no collapse→Q here)
+    for (int i = 0; i < n; i++)
+    {
+      const double fc = std::pow(2, pop.v[i]);
+      const double g = std::tan(kPiRefN * std::min(0.24, fc / sr));
+      const double a1 = 1 / (1 + g * (g + k));
+      cA1[i] = a1;
+      cA2[i] = g * a1;
+      cA3[i] = g * cA2[i];
+      cK[i] = k;
+    }
+  }
+
+  // Wet path: feedback → true-notch cascade; returns cascade output.
+  double chain(double x)
+  {
+    const int n = (int)p.nb;
+    double s = x + fbState * p.feedback;
+    for (int i = 0; i < n; i++)
+    {
+      const double v3 = s - ic2[i];
+      const double v1 = cA1[i] * ic1[i] + cA2[i] * v3;
+      const double v2 = ic2[i] + cA2[i] * ic1[i] + cA3[i] * v3;
+      ic1[i] = 2 * v1 - ic1[i];
+      ic2[i] = 2 * v2 - ic2[i];
+      s = s - cK[i] * v1;  // second-order notch: exact null at fc
+    }
+    fbState = std::tanh(s);
+    return s;
+  }
+
+  void render(float *outL, float *outR, int nSamples)
+  {
+    // NaN watchdog (ADR-032): the feedback engine self-heals to home.
+    if (!std::isfinite(pop.v[0] + fbState))
+    {
+      for (int i = 0; i < kNBMax; i++)
+      {
+        pop.v[i] = pop.tHome[i];
+        pop.mom[i] = 0;
+        pop.dOff[i] = 0;
+        ic1[i] = 0;
+        ic2[i] = 0;
+      }
+      fbState = 0;
+    }
+    const double atk = 1 - std::exp(-1 / (0.003 * sr));
+    const double rel = 1 - std::exp(-1 / (0.15 * sr));
+    for (int smp = 0; smp < nSamples; smp++)
+    {
+      if (tick == 0) controlTick();
+      tick = (tick + 1) & (kTick - 1);
+      double dry = 0;
+      for (auto &nt : notes)
+      {
+        if (!nt.gate && nt.env < 1e-4) continue;
+        double vsum = 0;
+        for (int i = 0; i < kExDetN; i++)
+        {
+          const double f = nt.f0 * std::pow(2, kExDet[i] / 1200.0);
+          const double dph = f / sr;
+          double ph = nt.phase[i] + dph;
+          ph -= std::floor(ph);
+          nt.phase[i] = ph;
+          const double naive = 2 * ph - 1;
+          const double d = std::max(dph, 1e-6);
+          double bl = 0;
+          if (ph < d)
+          {
+            const double t = ph / d;
+            bl = t + t - t * t - 1;
+          }
+          else if (ph > 1 - d)
+          {
+            const double t = (ph - 1) / d;
+            bl = t * t + t + t + 1;
+          }
+          vsum += naive - bl;
+        }
+        vsum *= 0.2;
+        if (p.noise > 0) vsum = vsum * (1 - p.noise) + (rngUniform() * 2 - 1) * p.noise;
+        nt.env += ((nt.gate ? 1 : 0) - nt.env) * (nt.gate ? atk : rel);
+        dry += vsum * nt.env * 0.5;
+      }
+      const double wet = chain(dry);
+      const double y = std::tanh(((1 - p.mix) * dry + p.mix * wet) * p.vol * 1.6);
+      outL[smp] = (float)y;
+      outR[smp] = (float)y;
+    }
+  }
+
+  double bandFreq(int i) const { return std::pow(2, pop.v[i]); }
+  double combReg() const { return pop.combReg; }
+  int bandCount() const { return (int)p.nb; }
+
+ private:
+  static constexpr double kPiRefN = 3.14159265;
+  static constexpr double kExDet[kExDetN] = {-8, -4, 0, 4, 8};
+
+  double sr;
+  forcecore::Pop pop;
+  double ic1[kNBMax] = {0}, ic2[kNBMax] = {0};
+  double cA1[kNBMax] = {0}, cA2[kNBMax] = {0}, cA3[kNBMax] = {0}, cK[kNBMax] = {0};
+  double fbState = 0;
+  double f0last = 110;
+  int tick = 0;
+
+  struct Note
+  {
+    int midi = -1;
+    double f0 = 110, env = 0;
+    int gate = 0;
+    long age = -1;
+    double phase[kExDetN] = {0};
+  };
+  Note notes[kPoly];
+  long noteCounter = 0;
+
+  uint32_t noiseState = 0x9E3779B9u;
+  double rngUniform() { return forcecore::rngNext(noiseState); }
+
+  void placeTargets()
+  {
+    // PhaserLab place floor is 60 Hz (vs FilterLab's 40).
+    forcecore::placeFrequencyTargets(pop, (int)p.place, p.center, p.spread, f0last, 60.0);
+  }
+
+  static bool eq(const char *a, const char *b) { return std::strcmp(a, b) == 0; }
+  double *paramSlot(const char *k)
+  {
+    if (eq(k, "nb")) return &p.nb;
+    if (eq(k, "place")) return &p.place;
+    if (eq(k, "dist")) return &p.dist;
+    if (eq(k, "center")) return &p.center;
+    if (eq(k, "spread")) return &p.spread;
+    if (eq(k, "seed")) return &p.seed;
+    if (eq(k, "K")) return &p.K;
+    if (eq(k, "inertia")) return &p.inertia;
+    if (eq(k, "driftDepth")) return &p.driftDepth;
+    if (eq(k, "driftRate")) return &p.driftRate;
+    if (eq(k, "grav")) return &p.grav;
+    if (eq(k, "basin")) return &p.basin;
+    if (eq(k, "noise")) return &p.noise;
+    if (eq(k, "stageQ")) return &p.stageQ;
+    if (eq(k, "feedback")) return &p.feedback;
+    if (eq(k, "mix")) return &p.mix;
+    if (eq(k, "vol")) return &p.vol;
+    return nullptr;
+  }
+};
+
+}  // namespace hypersaw
