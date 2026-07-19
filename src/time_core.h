@@ -44,6 +44,7 @@ class TimeCore
     double mode = 0, nb = 8, dist = 1, size = 0.55, spread = 0.6, seed = 1234;
     double K = 0, inertia = 0, driftDepth = 30, driftRate = 0.3, grav = 0, basin = 50, bpm = 120;
     double noise = 0.2, regen = 0.5, damp = 0.4, mix = 0.5, vol = 0.5;
+    double stereo = 0.7;  // stereo spread for processExternalStereo (0 = mono)
   };
 
   explicit TimeCore(double sampleRate) : sr(sampleRate), ebuf(kEBuf, 0.0)
@@ -221,6 +222,100 @@ class TimeCore
     }
   }
 
+  // STEREO effect path (2026-07-19): mono-summed into the network, but each
+  // tap/line is panned across the field by index × stereo width, so the swarm
+  // of delays/room-modes spreads L↔R. Dry keeps the input's own stereo; the
+  // wet is the decorrelated field. A deliberate divergence from the mono
+  // reference (which the parity oracle still guards via processExternal/render)
+  // — the effects are experimental (ADR-050). Buffer/feedback logic mirrors
+  // processSample exactly; only the wet accumulation is split L/R.
+  void processExternalStereo(const float *inL, const float *inR, float *outL, float *outR,
+                             int nSamples)
+  {
+    heal();
+    const int n = (int)p.nb;
+    double gL[kNBMax], gR[kNBMax];
+    for (int i = 0; i < n; i++)
+    {
+      const double pan = (n == 1 ? 0.0 : (2.0 * i / (n - 1) - 1)) * p.stereo;
+      const double t = (pan + 1) * 0.7853981634;  // constant power
+      gL[i] = std::cos(t);
+      gR[i] = std::sin(t);
+    }
+    for (int smp = 0; smp < nSamples; smp++)
+    {
+      if (tick == 0) controlTick();
+      tick = (tick + 1) & (kTick - 1);
+      for (int i = 0; i < n; i++)
+      {
+        const double target = std::pow(2, pop.v[i]) * sr;
+        tSm[i] += (target - tSm[i]) * 0.0015;
+      }
+      const double dampC = 1 - std::exp(-6.283185307 * (8000 * std::pow(0.06, p.damp)) / sr);
+      const double dryM = 0.5 * ((double)inL[smp] + (double)inR[smp]);
+      double wetL = 0, wetR = 0;
+      if ((int)p.mode == 0)
+      {
+        ebuf[ew] = std::tanh(dryM + fbLp * p.regen);
+        double wetRaw = 0;
+        for (int i = 0; i < n; i++)
+        {
+          const double d = std::min((double)kEBuf - 4, std::max(1.0, tSm[i]));
+          double rp = ew - d;
+          if (rp < 0) rp += kEBuf;
+          const int i0 = (int)rp;
+          const double fr = rp - i0;
+          const int i1 = (i0 + 1) % kEBuf;
+          const double tv = ebuf[i0] * (1 - fr) + ebuf[i1] * fr;
+          wetRaw += tv;
+          wetL += tv * gL[i];
+          wetR += tv * gR[i];
+        }
+        const double fbSig = wetRaw / n;
+        dcE += 0.002 * (fbSig - dcE);
+        fbLp += dampC * ((fbSig - dcE) - fbLp);
+        ew = (ew + 1) % kEBuf;
+        const double norm = 1.0 / std::sqrt((double)n);
+        wetL *= norm;
+        wetR *= norm;
+      }
+      else
+      {
+        double outs[kNBMax];
+        double s = 0;
+        for (int i = 0; i < n; i++)
+        {
+          const double d = std::min((double)kRBuf - 4, std::max(1.0, tSm[i]));
+          double rp = rw - d;
+          if (rp < 0) rp += kRBuf;
+          const int i0 = (int)rp;
+          const double fr = rp - i0;
+          const int i1 = (i0 + 1) % kRBuf;
+          double o = rbuf[i][i0] * (1 - fr) + rbuf[i][i1] * fr;
+          lp[i] += dampC * (o - lp[i]);
+          o = lp[i];
+          dcR[i] += 0.0006 * (o - dcR[i]);
+          o -= dcR[i];
+          outs[i] = o;
+          s += o;
+        }
+        const double h = 2.0 / n, g = p.regen;
+        const double inG = dryM * (1.0 / std::sqrt((double)n));
+        for (int i = 0; i < n; i++)
+        {
+          rbuf[i][rw] = std::tanh(inG + g * (h * s - outs[i]));
+          wetL += outs[i] * gL[i];
+          wetR += outs[i] * gR[i];
+        }
+        rw = (rw + 1) % kRBuf;
+        wetL *= 0.8;
+        wetR *= 0.8;
+      }
+      outL[smp] = (float)std::tanh(((1 - p.mix) * (double)inL[smp] + p.mix * wetL) * p.vol * 1.6);
+      outR[smp] = (float)std::tanh(((1 - p.mix) * (double)inR[smp] + p.mix * wetR) * p.vol * 1.6);
+    }
+  }
+
   // EFFECT path: process external audio (mono-summed) through the delay/room.
   void processExternal(const float *inL, const float *inR, float *outL, float *outR, int nSamples)
   {
@@ -332,6 +427,7 @@ class TimeCore
     if (eq(k, "damp")) return &p.damp;
     if (eq(k, "mix")) return &p.mix;
     if (eq(k, "vol")) return &p.vol;
+    if (eq(k, "stereo")) return &p.stereo;
     return nullptr;
   }
 };

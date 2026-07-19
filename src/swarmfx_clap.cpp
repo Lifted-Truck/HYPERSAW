@@ -73,6 +73,7 @@ static const ParamDef kParams[] = {
     {14, "Feedback", 0, 0.85, 0, false, nullptr},  // notch only
     {15, "Mix", 0, 1, 1, false, nullptr},
     {16, "Volume", 0, 1, 0.7, false, nullptr},
+    {17, "Stereo Width", 0, 1, 0.7, false, nullptr},  // time engines (2/3)
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -165,6 +166,7 @@ struct Plugin
         time.setParam("mix", applied);
         break;
       case 16: three("vol", applied); break;
+      case 17: time.setParam("stereo", applied); break;
       default: break;
     }
   }
@@ -243,7 +245,7 @@ clap_process_status plug_process(const clap_plugin_t *p, const clap_process_t *p
 
   const int eng = (int)std::round(pl->engine);
   if (eng >= 2)
-    pl->time.processExternal(inL, inR, outL, outR, (int)n);  // 2 tap delay · 3 FDN room
+    pl->time.processExternalStereo(inL, inR, outL, outR, (int)n);  // 2 tap delay · 3 FDN room
   else if (eng == 1)
     pl->notch.processExternal(inL, inR, outL, outR, (int)n);
   else
