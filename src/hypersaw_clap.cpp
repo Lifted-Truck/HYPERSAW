@@ -340,14 +340,18 @@ struct Plugin
     hypersaw::VizSnapshot &v = vizBuf[writeIdx];
     if (spectraMode())
     {
-      // SPECTRA v1 viz: partial-0's cloud on the phase circle; R = its order.
-      // Per-partial lock-front display is a recorded follow-up (ADR-037).
+      // SPECTRA viz: partial-0's cloud drives the phase circle (v.R/psi/phase),
+      // and the per-partial strip feed (v.partR/partAmp/partPhase) carries the
+      // whole harmonic series — the cascade lock-front made visible.
       const auto *fs = spectra.focus();
       v = hypersaw::VizSnapshot{};
       if (fs)
       {
         v.active = true;
-        const int M = (int)spectra.p.cloud;
+        v.spectra = true;
+        const int P = (int)spectra.p.partials, M = (int)spectra.p.cloud;
+        v.partials = P;
+        v.cloud = M;
         v.n = M;
         v.R = fs->R[0];
         v.psi = fs->psi[0];
@@ -355,6 +359,13 @@ struct Plugin
         v.KsmS = fs->KsmS[0];
         v.KsmP = fs->KsmP[0];
         for (int i = 0; i < M && i < 32; i++) v.phase[i] = fs->phase[i];
+        for (int k = 0; k < P && k < 24; k++)
+        {
+          v.partR[k] = fs->R[k];
+          v.partAmp[k] = spectra.partialAmp(k);
+          for (int m = 0; m < M && m < 7; m++)
+            v.partPhase[k * 7 + m] = fs->phase[k * hypersaw::SpectraCore::kMMax + m];
+        }
       }
       vizPublished.store(writeIdx, std::memory_order_release);
       return;

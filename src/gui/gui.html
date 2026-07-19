@@ -114,9 +114,13 @@
       <div class="lbl" id="beatinfo" style="min-height:24px;color:var(--drift)"></div>
     </div>
   </div>
-  <div class="scope">
+  <div class="scope" id="carpetScope">
     <h2>Phase carpet · voice × phase</h2>
     <canvas id="carpetCanvas" width="256" height="58"></canvas>
+  </div>
+  <div class="scope" id="stripScope" style="display:none">
+    <h2>Partial strips · lock front</h2>
+    <canvas id="stripCanvas" width="256" height="150"></canvas>
   </div>
   <div class="scope">
     <h2>Log spectrum · 30 Hz – 16 kHz</h2>
@@ -259,11 +263,26 @@ const DEFAULTS = {1:7,2:1,3:1234,4:0.28,5:0,6:0,7:0,8:0.63,9:0,10:0.4,11:0,12:0,
 if (!window.hzGetViz) {
   let t = 0;
   window.hzGetViz = async () => { t += 0.03;
+    const spectraOn = (window.__mockEngine|0) === 1;
+    if (spectraOn) {
+      const P = 12, M = 5, partR = [], partAmp = [], partPhase = [];
+      for (let k = 0; k < P; k++) {
+        // fake a cascade front climbing with time: low partials lock first
+        const lock = Math.max(0, Math.min(1, (t*0.4) - k*0.6));
+        partR.push(lock); partAmp.push(1/Math.pow(k+1,1));
+        for (let m = 0; m < M; m++) partPhase.push(((t*(1+k*0.1)+m*(1-lock)*0.2+m*0.03)%1));
+      }
+      return {active:true,spectra:true,partials:P,cloud:M,n:M,R:partR[0],RN:0,psi:t%6.28,
+        sigma:3.2,KsmS:2,KsmP:0,topo:0,poles:1,RA:0,RB:0,RQ:0,grav:[],
+        partR,partAmp,partPhase,phase:partPhase.slice(0,M)};
+    }
     const n = 24, phase = [];
     for (let i = 0; i < n; i++) phase.push(((t * (1 + i * 0.015) + i * 0.04) % 1));
-    return {active:true,n,centerIdx:3,R:0.5+0.4*Math.sin(t),RN:0.2,psi:t%6.28,
+    return {active:true,spectra:false,n,centerIdx:3,R:0.5+0.4*Math.sin(t),RN:0.2,psi:t%6.28,
       sigma:3.2,KsmS:2,KsmP:0,topo:2,poles:1,RA:0.8,RB:0.6,RQ:0,gridActive:true,gridLockWarn:(t|0)%8<4,
       gridU:2,gridRungs:5,grav:[[7,0,0.2]],phase}; };
+  // mock: engine select drives the mock viz mode too
+  document.addEventListener('change', e => { if (e.target && e.target.getAttribute && e.target.getAttribute('data-p') === '43') window.__mockEngine = +e.target.value; });
   window.hzGetParams = async () => JSON.stringify(DEFAULTS);
   window.hzGetSpec = async () => Array.from({length:96},(_,i)=>Math.max(0,0.8-Math.abs(i-20)/30)+0.1*Math.random());
   window.hzSetParam = async () => {}; window.hzGesture = async () => {};
@@ -678,6 +697,40 @@ function drawCarpet(s) {
   }
 }
 
+// Partial strips — ported from swarmspectra.html drawStrips(): one column per
+// partial, cloud phase dots up the strip (brightness = partial amplitude),
+// a magenta per-partial R bar along the bottom. Under cascade, watch the lock
+// bars climb the series low→high — the zipper made visible.
+const stC = $('#stripCanvas'), stx = stC.getContext('2d');
+function drawStrips(s) {
+  const w = stC.width, h = stC.height;
+  stx.fillStyle = 'rgba(11,14,20,0.35)';
+  stx.fillRect(0, 0, w, h);
+  if (!s || !s.active || !s.spectra || !s.partials) return;
+  const P = s.partials, M = s.cloud;
+  const colW = w / P;
+  const topPad = 6, barH = 26, stripH = h - barH - topPad - 4;
+  for (let k = 0; k < P; k++) {
+    const cx = k * colW + colW / 2;
+    stx.strokeStyle = '#1a2030';
+    stx.beginPath(); stx.moveTo(cx, topPad); stx.lineTo(cx, topPad + stripH); stx.stroke();
+    const amp = (s.partAmp && s.partAmp[k]) || 0;
+    const alpha = 0.35 + 0.65 * Math.min(1, amp * 2.2);
+    stx.fillStyle = 'rgba(95,242,224,' + alpha.toFixed(2) + ')';
+    for (let m = 0; m < M; m++) {
+      const ph = s.partPhase[k * M + m];
+      stx.beginPath(); stx.arc(cx, topPad + ph * stripH, 2.6, 0, Math.PI * 2); stx.fill();
+    }
+    const rH = (s.partR[k] || 0) * barH;
+    stx.fillStyle = '#ff4fa3';
+    stx.fillRect(k * colW + 3, h - 4 - rH, colW - 6, rH);
+    if (k === 0 || (k + 1) % 4 === 0) {
+      stx.fillStyle = '#7c8698'; stx.font = '9px monospace';
+      stx.fillText(String(k + 1), cx - 3, h - 4);
+    }
+  }
+}
+
 const sc = $('#specCanvas'), sctx = sc.getContext('2d');
 let specBusy = false;
 async function drawSpec() {
@@ -713,7 +766,17 @@ async function loop() {
   if (xyDirty) { drawXY(); xyDirty = false; }
   if (!vizBusy) {
     vizBusy = true;
-    try { const v = await bridge.getViz(); drawPhase(v); drawCarpet(v); } catch (e) {}
+    try {
+      const v = await bridge.getViz();
+      // Carpet is the SAW/dynamics scope; strips are SPECTRA. Swap by mode
+      // FIRST, so a draw exception can never strand the panels in the wrong
+      // state.
+      const spectraOn = !!(v && v.spectra);
+      $('#carpetScope').style.display = spectraOn ? 'none' : '';
+      $('#stripScope').style.display = spectraOn ? '' : 'none';
+      drawPhase(v);
+      if (spectraOn) drawStrips(v); else drawCarpet(v);
+    } catch (e) {}
     vizBusy = false;
   }
   // Host automation / device-panel moves reflect back into the GUI: poll
