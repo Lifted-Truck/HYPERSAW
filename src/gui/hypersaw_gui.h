@@ -41,9 +41,9 @@ struct VizSnapshot
   // phase grid, row-major [partial*cloud + voice] with cloud <= 7.
   bool spectra = false;
   int partials = 0, cloud = 0;
-  double partR[24] = {0};
-  double partAmp[24] = {0};
-  double partPhase[24 * 7] = {0};
+  double partR[32] = {0};
+  double partAmp[32] = {0};
+  double partPhase[32 * 7] = {0};
 };
 
 struct GuiHost
