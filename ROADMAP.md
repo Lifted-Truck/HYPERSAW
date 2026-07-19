@@ -40,6 +40,10 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 - **Tonality brief ON HOLD (human, 2026-07-18):** the human will prime Tonality directly; integration scope under discussion (see traces — possible outcome: HYPERSAW owns a richer static ratio table itself and only context-weighting ever involves Tonality, or the integration is skipped). Gravity ships on the default set either way.
 - **Gate:** the dynamics lab's verified states are reproducible in-plugin from preset recall. **GATE CLOSE PROPOSED (2026-07-18):** engine parity 51/51 both references; L0-8..12 green; ADR-015 anchors formalized as L0-22 and enforced in trajectory_check (q-cluster R_q, bistability, split-as-timbre projections); surface complete (params 24-31, meters, gravity + grid readouts per ADR-016/017); Layer-E 3 signed off; preset-recall reproducibility guaranteed by state_check's bit-identical-restored-audio requirement. Merging the gate PR = ratification.
 
+## Experimental engines (parallel track; ingested on drop)
+
+- **Swarmalator** (SPEC-SWARMALATOR.md, swarmalator.html; ADR-048, 2026-07-19). Phase θ ↔ spatial position ξ coupled to each other — timbre and stereo image as one dynamical system. **Ported bit-exact** (src/swarmalator_core.h; swarmalator_check: stereo parity RMS 0.0 on 9/9 + the §5 acceptance anchors, in ./verify full). STATUS: core + oracle done; **EXPERIMENTAL — awaiting the human's listen before shell integration** (may not survive; may be joined by other new engines). Shell path when greenlit: an engine in the instrument's selector, or a slot in SWARM-FX-style hosting. Under ADR-045 it's a (Γ,W) point (ring spatial topology × two-term Γ); it also delivers the parked grain-swarm's spatial dynamics as a special case.
+
 ## Phase 4 — SPECTRA mode & kernel abstraction
 
 - Per-partial engine at the ADR-006 renderer: amp tilt, stretch, width tilt, width law, cascade, splay-as-interference-gate with per-partial stereo narrowing.

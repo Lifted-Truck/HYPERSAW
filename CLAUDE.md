@@ -80,15 +80,17 @@ oracle contract), PRIOR-ART.md, PARKED.md.
 clap-wrapper (`libs/` submodules pinned: clap 1.2.10, clap-wrapper v0.15.1).
 Build: `cmake -S . -B build-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release`
 then `cmake --build <abs>/build-release -j` (absolute path — sandbox resets cwd).
-Reference implementation: six single-file HTML prototypes — three oscillator
+Reference implementation: seven single-file HTML prototypes — three oscillator
 labs `swarmsaw.html` (SAW; v2 lineage, see ADR-011/012), `swarmspectra.html`,
-`swarmdynamics.html` (cores `SwarmSynth` / `SpectraSynth` / `DynSynth`), plus
-the Track E effects labs `swarmfilter.html`, `swarmphaser.html`,
-`swarmtime.html` (`FilterLab` / `PhaserLab` / `TimeLab`) — all spec-in-code
-(ADR-003). Ported C++ cores so far: `swarm_core.h` (SAW+dynamics),
-`spectra_core.h` (SPECTRA), `force_core.h` (shared force system, ADR-034),
-`filter_core.h` (resonator bank, ADR-043). Build/test = `./verify fast|full`
-(six oracle chains: parity · trajectory · state · force · spectra · filter). This Mac: Command Line Tools only, CMake
+`swarmdynamics.html` (cores `SwarmSynth` / `SpectraSynth` / `DynSynth`), the
+Track E effects labs `swarmfilter.html`, `swarmphaser.html`, `swarmtime.html`
+(`FilterLab` / `PhaserLab` / `TimeLab`), and the experimental `swarmalator.html`
+(`Swarmalator`, ADR-048) — all spec-in-code (ADR-003). Ported C++ cores so far:
+`swarm_core.h` (SAW+dynamics), `spectra_core.h` (SPECTRA), `force_core.h`
+(shared force system, ADR-034), `filter_core.h` / `notch_core.h` (E1 effects),
+`swarmalator_core.h` (swarmalator). Build/test = `./verify fast|full` (eight
+oracle chains: parity · trajectory · state · force · spectra · filter · notch
+· swarmalator). This Mac: Command Line Tools only, CMake
 with `-G "Unix Makefiles"`, absolute build paths (sandbox resets cwd) — see
 the global CLAUDE.md audio-plugin section before any build/install/validate.
 
@@ -113,10 +115,11 @@ lives in `PRIVATE-NOTES.md` (untracked, local-only — ADR-014). Never write a
 private sibling's real name into a tracked file.
 
 **Protected paths** (human gate to modify): `SPEC.md`, `SPEC-EFFECTS.md`,
-`ACCEPTANCE.md`, `PRIOR-ART.md`, the prototype HTMLs — now six: the three
-oscillator labs plus swarmfilter/swarmphaser/swarmtime (Track E, ingested
-2026-07-18) — (they ARE the reference — an edit there is a spec change),
-`./verify`, golden render fixtures once they exist.
+`SPEC-SWARMALATOR.md`, `ACCEPTANCE.md`, `PRIOR-ART.md`, the prototype HTMLs —
+now seven: the three oscillator labs, swarmfilter/swarmphaser/swarmtime (Track
+E, ingested 2026-07-18), and swarmalator.html (experimental swarmalator engine,
+ingested 2026-07-19, ADR-048) — (they ARE the reference — an edit there is a
+spec change), `./verify`, golden render fixtures once they exist.
 
 **Verify targets.** `fast`: leak gate + structure/manifest sanity now; grows
 the L0 suite (parity + trajectories) from Phase 1 — seconds-to-minutes,

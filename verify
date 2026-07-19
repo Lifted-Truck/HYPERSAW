@@ -64,7 +64,8 @@ fast() {
   for f in SPEC.md ACCEPTANCE.md ROADMAP.md DECISIONS.md README.md CLAUDE.md \
            INDEX.md LIBRARY.md project.manifest.json \
            swarmsaw.html swarmspectra.html swarmdynamics.html \
-           swarmfilter.html swarmphaser.html swarmtime.html SPEC-EFFECTS.md; do
+           swarmfilter.html swarmphaser.html swarmtime.html SPEC-EFFECTS.md \
+           swarmalator.html SPEC-SWARMALATOR.md; do
     [ -f "$f" ] || { echo "verify: MISSING $f" >&2; ok=1; }
   done
 
@@ -139,6 +140,12 @@ full() {
   node tools/golden/gen_notch_goldens.mjs --selfcheck || return 1
   node tools/golden/gen_notch_goldens.mjs > /dev/null || return 1
   "$build_dir/notch_check" "$(dirname "$build_dir")/build-golden/notch" || return 1
+
+  # Swarmalator engine oracle: stereo goldens (JS Swarmalator live from
+  # swarmalator.html) -> swarmalator_check (L0-1 stereo parity + §5 anchors).
+  node tools/golden/gen_swarmalator_goldens.mjs --selfcheck || return 1
+  node tools/golden/gen_swarmalator_goldens.mjs > /dev/null || return 1
+  "$build_dir/swarmalator_check" "$(dirname "$build_dir")/build-golden/swarmalator" || return 1
 }
 
 case "$TARGET" in

@@ -162,6 +162,13 @@ if(NOT MSVC)
   target_compile_options(notch_check PRIVATE -O2)
 endif()
 
+# Swarmalator engine oracle (host-side tool, not shipped): SwarmalatorCore
+# stereo parity vs the JS reference + SPEC-SWARMALATOR §5 acceptance anchors.
+add_executable(swarmalator_check tools/swarmalator_check.cpp)
+if(NOT MSVC)
+  target_compile_options(swarmalator_check PRIVATE -O2)
+endif()
+
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)
