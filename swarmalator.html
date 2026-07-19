@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWARM✱ALATOR — position ↔ phase coupling lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b0e14; --panel: #11151f; --panel2: #161b28; --line: #232a3a;
+    --text: #e8ecf2; --dim: #7c8698;
+    --swarm: #5ff2e0; --pull: #ff4fa3; --drift: #ffc24b;
+    --mono-f: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --disp-f: "Space Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--text); font-family: var(--mono-f); font-size: 13px; }
+  body { padding: 14px; min-height: 100vh; }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--disp-f); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; }
+  h1 .star { color: var(--pull); }
+  .tagline { color: var(--dim); font-size: 11px; }
+  #power { margin-left: auto; font-family: var(--mono-f); font-size: 12px; letter-spacing: 0.08em;
+    background: var(--swarm); color: var(--ink); border: none; padding: 8px 18px; cursor: pointer; font-weight: 600; border-radius: 2px; }
+  #power.on { background: var(--panel2); color: var(--swarm); border: 1px solid var(--swarm); }
+  .grid { display: grid; grid-template-columns: 440px 1fr; gap: 12px; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+  .scope { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .scope h2, .cluster h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 8px; }
+  canvas { display: block; width: 100%; }
+  #ring { height: 360px; }
+  #meterline { color: var(--dim); font-size: 10px; margin-top: 8px; min-height: 28px; line-height: 1.5; }
+  #meterline b { color: var(--text); font-weight: 500; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 12px; align-content: start; }
+  .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .cluster.pull h2 { color: var(--pull); }
+  .cluster.cross h2 { color: var(--drift); }
+  .row { display: grid; grid-template-columns: 96px 1fr 66px; align-items: center; gap: 8px; margin: 7px 0; }
+  .row label { color: var(--dim); font-size: 11px; }
+  .row output { text-align: right; font-size: 11px; color: var(--text); }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--line); border-radius: 2px; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  .pull input[type=range]::-webkit-slider-thumb { background: var(--pull); }
+  .cross input[type=range]::-webkit-slider-thumb { background: var(--drift); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  select, input[type=number] { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 6px; border-radius: 2px; width: 100%; }
+  .row.compact { grid-template-columns: 96px 1fr auto; }
+  button.mini { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 8px; cursor: pointer; border-radius: 2px; }
+  button.mini:hover { border-color: var(--swarm); }
+  .kbd { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .kbd .bar-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .kbd .bar-top h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase; }
+  #octlbl { color: var(--swarm); font-size: 11px; }
+  .keys { display: flex; height: 96px; position: relative; user-select: none; touch-action: none; }
+  .key { flex: 1; background: #e8ecf2; border: 1px solid var(--ink); border-radius: 0 0 3px 3px; position: relative; cursor: pointer; }
+  .key.black { position: absolute; width: 5.8%; height: 58%; background: #1a2030; border: 1px solid #000; z-index: 2; border-radius: 0 0 3px 3px; }
+  .key.held { background: var(--swarm); }
+  .key.black.held { background: var(--pull); }
+  .key span { position: absolute; bottom: 3px; left: 0; right: 0; text-align: center; font-size: 9px; color: #555; pointer-events: none; }
+  .key.black span { color: var(--dim); }
+  .key em { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 9px; font-style: normal; color: #999; pointer-events: none; }
+  .key.black em { color: var(--dim); }
+  .hint { color: var(--dim); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+  .hint b { color: var(--text); font-weight: 500; }
+  .hint .sw { color: var(--swarm); } .hint .pu { color: var(--pull); } .hint .cr { color: var(--drift); }
+  #status { color: var(--drift); font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SWARM<span class="star">✱</span>ALATOR</h1>
+  <div class="tagline">position ↔ phase coupling · space colours the tone · the rainbow ring</div>
+  <span id="status"></span>
+  <button id="power">POWER ON</button>
+</header>
+
+<div class="grid">
+  <div class="scope">
+    <h2>The ring — each unit sits at its spatial angle, coloured by its phase · <span style="color:var(--pull)">L</span>—<span style="color:var(--swarm)">R</span> = stereo pan</h2>
+    <canvas id="ring" width="416" height="360"></canvas>
+    <div id="meterline">phase R · space-phase order R₊ / R₋</div>
+  </div>
+
+  <div class="controls">
+    <div class="cluster">
+      <h2>Swarm</h2>
+      <div class="row"><label>units</label><input type="range" id="nu" min="6" max="18" step="1" value="12"><output id="nu_o">12</output></div>
+      <div class="row compact"><label>kernel</label>
+        <select id="kernel"><option value="0" selected>saw</option><option value="1">sine</option></select>
+      </div>
+      <div class="row"><label>detune</label><input type="range" id="detune" min="0" max="1" step="0.01" value="0.35"><output id="detune_o">±24 ¢</output></div>
+      <div class="row"><label>space drift</label><input type="range" id="drift" min="0" max="1" step="0.01" value="0.2"><output id="drift_o">0.20</output></div>
+      <div class="row compact"><label>seed</label><input type="number" id="seed" value="1234" min="0" max="999999"><button class="mini" id="dice">⚄</button></div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>Phase coupling K</h2>
+      <div class="row"><label>K ±</label><input type="range" id="K" min="-1" max="1" step="0.005" value="0"><output id="K_o">free</output></div>
+    </div>
+
+    <div class="cluster cross">
+      <h2>Cross coupling J (space ↔ phase)</h2>
+      <div class="row"><label>J ±</label><input type="range" id="J" min="-1" max="1" step="0.005" value="0"><output id="J_o">off</output></div>
+    </div>
+
+    <div class="cluster">
+      <h2>Output</h2>
+      <div class="row"><label>width</label><input type="range" id="width" min="0" max="1" step="0.01" value="0.85"><output id="width_o">0.85</output></div>
+      <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.5"><output id="vol_o">0.50</output></div>
+    </div>
+  </div>
+</div>
+
+<div class="kbd">
+  <div class="bar-top">
+    <h2>Keyboard — Ableton layout · monophonic (legato)</h2>
+    <span id="octlbl"></span>
+  </div>
+  <div class="keys" id="keys"></div>
+  <div class="hint">
+    <b>A S D F G H J K L</b> whites, <b>W E · T Y U · O P</b> blacks, <b>Z / X</b> octave, <b>Esc</b> panic.<br>
+    Each unit has a <b>place on the ring</b> (its stereo pan) and a <b>phase</b> (its colour, its contribution to the tone). <span class="pu">K</span> is ordinary phase coupling — positive pulls the swarm toward one colour (sync → a tone), negative splays it.
+    <span class="cr">J</span> is the swarmalator move: it couples <i>space to phase</i>. Positive J = like attracts like — units of similar phase migrate together and the ring sorts into a smooth <b>rainbow</b> (R₊ or R₋ climbs); the tone and the stereo image lock into one structure, and moving in space <i>is</i> moving in timbre. Negative J scrambles them apart. Push K negative while J is up to see the rainbow <b>rotate</b> — an active phase wave, units chasing each other around the ring.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= DSP: ring swarmalators =================
+   Each unit i: audio phase θ_i (cycles) and spatial angle ξ_i (radians).
+   Ring model (mean-field reducible):
+     ξ̇_i = ν_i + (J/2)[ R₊ sin(ψ₊−ξ_i−θ_i) + R₋ sin(ψ₋−ξ_i+θ_i) ]
+     θ̇_i = ω_i + (K/2)[ R₊ sin(ψ₊−ξ_i−θ_i) − R₋ sin(ψ₋−ξ_i+θ_i) ]
+   with W₊ = ⟨e^{i(ξ+θ)}⟩ = R₊e^{iψ₊}, W₋ = ⟨e^{i(ξ−θ)}⟩ = R₋e^{iψ₋}. */
+const NU_MAX = 18, TICK = 16;
+const TAU = 6.283185307;
+
+class Swarmalator {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { nu:12, kernel:0, detune:0.35, drift:0.2, seed:1234, K:0, J:0, width:0.85, vol:0.5 };
+    this.theta = new Float64Array(NU_MAX);  // audio phase, cycles
+    this.xi = new Float64Array(NU_MAX);      // spatial angle, radians
+    this.f = new Float64Array(NU_MAX);       // audio freq, Hz
+    this.nu = new Float64Array(NU_MAX);      // spatial natural velocity, rad/s
+    this.couple = new Float64Array(NU_MAX);  // phase-coupling freq nudge, Hz
+    this.panL = new Float64Array(NU_MAX);
+    this.panR = new Float64Array(NU_MAX);
+    this.rng = 1;
+    this.f0 = 220; this.gate = 0; this.env = 0; this.curMidi = -1;
+    this.sigma = 0;
+    this.R = 0; this.Rp = 0; this.Rm = 0; this.psip = 0; this.psim = 0;
+    this.tick = 0;
+    this.rebuild(true);
+  }
+  setParam(k, v) {
+    this.p[k] = v;
+    if (k === 'nu' || k === 'detune' || k === 'drift' || k === 'seed') this.rebuild(k === 'nu' || k === 'seed');
+  }
+  rngNext() {
+    this.rng |= 0; this.rng = (this.rng + 0x6D2B79F5) | 0;
+    let t = Math.imul(this.rng ^ (this.rng >>> 15), 1 | this.rng);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  rebuild(replace) {
+    const n = this.p.nu;
+    this.rng = (this.p.seed | 0) + 1;
+    // seeded detune offsets (gaussian-ish), sorted, and spatial velocities
+    const offs = [];
+    for (let i = 0; i < n; i++) {
+      const u1 = Math.max(this.rngNext(), 1e-9), u2 = this.rngNext();
+      offs.push(Math.sqrt(-2 * Math.log(u1)) * Math.cos(TAU * u2) / 2.5);
+    }
+    offs.sort((a, b) => a - b);
+    const cents = this.p.detune * 70; // ± range in cents
+    for (let i = 0; i < n; i++) {
+      this.f[i] = this.f0 * Math.pow(2, (offs[i] * cents) / 1200);
+      this.nu[i] = (this.rngNext() * 2 - 1) * this.p.drift * 3.0; // rad/s
+      if (replace) {
+        this.theta[i] = this.rngNext();
+        this.xi[i] = TAU * i / n;
+      }
+    }
+    // frequency spread for K normalization (ADR-004 style)
+    let m = 0; for (let i = 0; i < n; i++) m += this.f[i]; m /= n;
+    let v = 0; for (let i = 0; i < n; i++) { const d = this.f[i] - m; v += d * d; }
+    this.sigma = Math.sqrt(v / n);
+  }
+  noteOn(midi, f) {
+    this.curMidi = midi; this.f0 = f; this.gate = 1;
+    this.rebuild(false);
+  }
+  noteOff(midi) { if (midi === this.curMidi) this.gate = 0; }
+  controlTick() {
+    const p = this.p, n = p.nu, dt = TICK / this.sr;
+    // order parameters W± = ⟨e^{i(ξ ± θ)}⟩
+    let pxr = 0, pxi = 0, mxr = 0, mxi = 0;
+    for (let i = 0; i < n; i++) {
+      const a = TAU * this.theta[i];
+      const sp = this.xi[i] + a, sm = this.xi[i] - a;
+      pxr += Math.cos(sp); pxi += Math.sin(sp);
+      mxr += Math.cos(sm); mxi += Math.sin(sm);
+    }
+    this.Rp = Math.sqrt(pxr * pxr + pxi * pxi) / n; this.psip = Math.atan2(pxi, pxr);
+    this.Rm = Math.sqrt(mxr * mxr + mxi * mxi) / n; this.psim = Math.atan2(mxi, mxr);
+    // standard phase order parameter (drives K-sync, and read out)
+    let cr = 0, ci = 0;
+    for (let i = 0; i < n; i++) { const a = TAU * this.theta[i]; cr += Math.cos(a); ci += Math.sin(a); }
+    this.R = Math.sqrt(cr * cr + ci * ci) / n;
+    const psi = Math.atan2(ci, cr);
+    // phase-coupling scale: normalize to spread so transition sits mid-knob (ADR-004)
+    const kHz = 4 * p.K * Math.abs(p.K) * this.sigma;
+    const jRate = 7.0; // rad/s at |J|=1
+    for (let i = 0; i < n; i++) {
+      const a = TAU * this.theta[i];
+      const sPlus = Math.sin(this.psip - this.xi[i] - a);
+      const sMinus = Math.sin(this.psim - this.xi[i] + a);
+      // spatial update: J couples space to phase via the compound order parameters
+      const xidot = this.nu[i] + p.J * jRate * 0.5 * (this.Rp * sPlus + this.Rm * sMinus);
+      this.xi[i] += xidot * dt;
+      if (this.xi[i] < 0) this.xi[i] += TAU; else if (this.xi[i] >= TAU) this.xi[i] -= TAU;
+      // phase coupling: ordinary Kuramoto sync (K) + swarmalator back-reaction of space on phase (J)
+      const kSync = kHz * this.R * Math.sin(psi - a) / Math.max(this.sigma, 1e-6);
+      const jBack = p.J * jRate * 0.5 * (this.Rp * sPlus - this.Rm * sMinus) / TAU;
+      this.couple[i] = kSync + jBack;
+      // pan from spatial angle: x = cos(ξ) → L..R, constant power
+      const px = Math.cos(this.xi[i]) * p.width;
+      const t = (px + 1) * 0.7853981634; // (p+1)*π/4
+      this.panL[i] = Math.cos(t); this.panR[i] = Math.sin(t);
+    }
+  }
+  render(outL, outR) {
+    const sr = this.sr, p = this.p, n = p.nu;
+    const atk = 1 - Math.exp(-1 / (0.006 * sr));
+    const rel = 1 - Math.exp(-1 / (0.25 * sr));
+    const norm = 0.7 / Math.sqrt(n);
+    for (let smp = 0; smp < outL.length; smp++) {
+      if (this.tick === 0) this.controlTick();
+      this.tick = (this.tick + 1) & (TICK - 1);
+      this.env += ((this.gate ? 1 : 0) - this.env) * (this.gate ? atk : rel);
+      let l = 0, r = 0;
+      for (let i = 0; i < n; i++) {
+        const dph = this.f[i] / sr + this.couple[i] / sr;
+        let ph = this.theta[i] + dph; ph -= Math.floor(ph);
+        this.theta[i] = ph;
+        let s;
+        if (p.kernel === 1) { s = Math.sin(TAU * ph); }
+        else {
+          const naive = 2 * ph - 1;
+          const d = Math.max(dph, 1e-6);
+          let bl = 0;
+          if (ph < d) { const t = ph / d; bl = t + t - t * t - 1; }
+          else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
+          s = naive - bl;
+        }
+        l += s * this.panL[i]; r += s * this.panR[i];
+      }
+      const e = this.env * p.vol * norm;
+      outL[smp] = Math.tanh(l * e * 1.6);
+      outR[smp] = Math.tanh(r * e * 1.6);
+    }
+  }
+}
+
+/* ================= Audio graph ================= */
+let ctx = null, spn = null, lab = null;
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+function powerOn() {
+  if (ctx) {
+    ctx.close(); ctx = null; spn = null; lab = null;
+    $('power').textContent = 'POWER ON'; $('power').classList.remove('on');
+    return;
+  }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    lab = new Swarmalator(ctx.sampleRate);
+    pushAllParams();
+    spn = ctx.createScriptProcessor(1024, 0, 2);
+    spn.onaudioprocess = e => lab.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+    spn.connect(ctx.destination);
+    if (ctx.state === 'suspended') ctx.resume();
+    $('power').textContent = 'POWER OFF'; $('power').classList.add('on');
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = 'Audio failed to start: ' + err.message;
+    ctx = null;
+  }
+}
+$('power').addEventListener('click', powerOn);
+function send(k, v) { if (lab) lab.setParam(k, v); }
+
+const fmt = {
+  nu: v => v,
+  detune: v => '±' + Math.round(v * 70) + ' ¢',
+  drift: v => (+v).toFixed(2),
+  K: v => { const a = Math.abs(+v); if (a < 0.005) return 'free'; return (v > 0 ? 'sync ' : 'splay ') + a.toFixed(2); },
+  J: v => { const a = Math.abs(+v); if (a < 0.005) return 'off'; return (v > 0 ? 'sort ' : 'scatter ') + a.toFixed(2); },
+  width: v => (+v).toFixed(2),
+  vol: v => (+v).toFixed(2)
+};
+const ranges = ['nu','detune','drift','K','J','width','vol'];
+ranges.forEach(k => {
+  const el = $(k), out = $(k + '_o');
+  const update = () => { const v = +el.value; if (out && fmt[k]) out.textContent = fmt[k](v); send(k, v); };
+  el.addEventListener('input', update); update();
+});
+$('kernel').addEventListener('change', () => send('kernel', +$('kernel').value));
+$('seed').addEventListener('change', () => send('seed', +$('seed').value));
+$('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
+function pushAllParams() {
+  ranges.forEach(k => send(k, +$(k).value));
+  send('kernel', +$('kernel').value);
+  send('seed', +$('seed').value);
+}
+
+/* ================= Keyboard ================= */
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12,'o':13,'l':14,'p':15,';':16 };
+const CAPS_BY_SEMITONE = { 0:'A',1:'W',2:'S',3:'E',4:'D',5:'F',6:'T',7:'G',8:'Y',9:'H',10:'U',11:'J',12:'K',13:'O',14:'L',15:'P',16:';' };
+let octaveBase = 48;
+const OCT_MIN = 12, OCT_MAX = 96;
+const heldNotes = [];
+const WHITE = [0,2,4,5,7,9,11];
+const BLACK = { 0:1, 1:3, 3:6, 4:8, 5:10 };
+const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const keysEl = $('keys');
+function buildKeys() {
+  keysEl.innerHTML = '';
+  const whites = [];
+  for (let o = 0; o < 2; o++) for (let w = 0; w < 7; w++) whites.push(octaveBase + o * 12 + WHITE[w]);
+  whites.push(octaveBase + 24);
+  whites.forEach(m => {
+    const k = document.createElement('div');
+    k.className = 'key'; k.dataset.midi = m;
+    const off = m - octaveBase;
+    const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+    k.innerHTML = cap + '<span>' + NAMES[m % 12] + (Math.floor(m / 12) - 1) + '</span>';
+    keysEl.appendChild(k);
+  });
+  const wCount = whites.length;
+  whites.forEach((m, idx) => {
+    const w = WHITE.indexOf(m % 12);
+    if (w !== -1 && BLACK[w] !== undefined && idx < wCount - 1) {
+      const midiB = m + (BLACK[w] - WHITE[w]);
+      const b = document.createElement('div');
+      b.className = 'key black'; b.dataset.midi = midiB;
+      b.style.left = ((idx + 1) / wCount * 100 - 2.9) + '%';
+      const off = midiB - octaveBase;
+      const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+      b.innerHTML = cap + '<span>' + NAMES[midiB % 12] + '</span>';
+      keysEl.appendChild(b);
+    }
+  });
+  const lo = Math.floor(octaveBase / 12) - 1;
+  $('octlbl').textContent = 'octave: C' + lo + '–C' + (lo + 2) + ' (Z − / X +)';
+}
+buildKeys();
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function noteOn(m) {
+  if (!lab) return;
+  if (!heldNotes.includes(m)) heldNotes.push(m);
+  lab.noteOn(m, mtof(m));
+  paintKeys();
+}
+function noteOff(m) {
+  const i = heldNotes.indexOf(m);
+  if (i !== -1) heldNotes.splice(i, 1);
+  if (lab) {
+    if (heldNotes.length) lab.noteOn(heldNotes[heldNotes.length - 1], mtof(heldNotes[heldNotes.length - 1]));
+    else lab.noteOff(m);
+  }
+  paintKeys();
+}
+function paintKeys() {
+  keysEl.querySelectorAll('.key').forEach(k => k.classList.toggle('held', heldNotes.includes(+k.dataset.midi)));
+}
+const pointerNotes = [];
+keysEl.addEventListener('pointerdown', e => {
+  const k = e.target.closest('.key'); if (!k) return;
+  keysEl.setPointerCapture(e.pointerId);
+  const m = +k.dataset.midi; pointerNotes.push(m); noteOn(m);
+});
+window.addEventListener('pointerup', () => { pointerNotes.splice(0).forEach(noteOff); });
+function shiftOctave(dir) {
+  const next = octaveBase + dir * 12;
+  if (next < OCT_MIN || next > OCT_MAX) return;
+  [...heldNotes].forEach(noteOff);
+  octaveBase = next; buildKeys();
+}
+window.addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { shiftOctave(-1); return; }
+  if (key === 'x') { shiftOctave(1); return; }
+  const off = KMAP[key];
+  if (off !== undefined) noteOn(octaveBase + off);
+});
+window.addEventListener('keyup', e => {
+  const off = KMAP[e.key.toLowerCase()];
+  if (off !== undefined) noteOff(octaveBase + off);
+});
+
+/* ================= Visualization ================= */
+const rc = $('ring'), rx = rc.getContext('2d');
+function drawRing() {
+  const w = rc.width, h = rc.height;
+  rx.fillStyle = 'rgba(11,14,20,0.4)';
+  rx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, rad = Math.min(w, h) * 0.36;
+  // ring guide
+  rx.strokeStyle = '#1a2030'; rx.lineWidth = 1;
+  rx.beginPath(); rx.arc(cx, cy, rad, 0, TAU); rx.stroke();
+  // L / R labels
+  rx.fillStyle = '#7c8698'; rx.font = '9px monospace';
+  rx.fillText('L', cx - rad - 12, cy + 3); rx.fillText('R', cx + rad + 5, cy + 3);
+  if (!lab) return;
+  const n = lab.p.nu;
+  for (let i = 0; i < n; i++) {
+    const x = cx + rad * Math.cos(lab.xi[i]);
+    const y = cy - rad * Math.sin(lab.xi[i]);
+    const hue = (lab.theta[i] * 360) % 360;
+    rx.fillStyle = 'hsl(' + hue.toFixed(0) + ',85%,62%)';
+    rx.beginPath(); rx.arc(x, y, 6, 0, TAU); rx.fill();
+    rx.strokeStyle = 'rgba(11,14,20,0.8)'; rx.lineWidth = 1;
+    rx.beginPath(); rx.arc(x, y, 6, 0, TAU); rx.stroke();
+  }
+  // W± vectors at center (magnitude = length, angle = ψ)
+  rx.strokeStyle = 'rgba(95,242,224,0.5)'; rx.lineWidth = 2;
+  rx.beginPath(); rx.moveTo(cx, cy);
+  rx.lineTo(cx + rad * lab.Rp * Math.cos(lab.psip), cy - rad * lab.Rp * Math.sin(lab.psip)); rx.stroke();
+  rx.strokeStyle = 'rgba(255,79,163,0.5)';
+  rx.beginPath(); rx.moveTo(cx, cy);
+  rx.lineTo(cx + rad * lab.Rm * Math.cos(lab.psim), cy - rad * lab.Rm * Math.sin(lab.psim)); rx.stroke();
+  $('meterline').innerHTML = 'phase R <b>' + lab.R.toFixed(2) + '</b> · space-phase order R₊ <b>' + lab.Rp.toFixed(2) +
+    '</b> / R₋ <b>' + lab.Rm.toFixed(2) + '</b> — a high R₊ or R₋ is the rainbow (space and phase locked into one structure)';
+}
+function loop() { drawRing(); requestAnimationFrame(loop); }
+loop();
+
+/* focus-trap fix: release keyboard focus from momentary controls; Escape = panic */
+document.addEventListener('pointerup', () => {
+  const t = document.activeElement;
+  if (t && t.tagName === 'INPUT' && t.type === 'range') t.blur();
+});
+document.addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.blur(); });
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (document.activeElement) document.activeElement.blur(); [...heldNotes].forEach(noteOff); }
+}, true);
+</script>
+</body>
+</html>
