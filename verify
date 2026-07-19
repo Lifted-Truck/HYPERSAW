@@ -146,6 +146,12 @@ full() {
   node tools/golden/gen_swarmalator_goldens.mjs --selfcheck || return 1
   node tools/golden/gen_swarmalator_goldens.mjs > /dev/null || return 1
   "$build_dir/swarmalator_check" "$(dirname "$build_dir")/build-golden/swarmalator" || return 1
+
+  # Track E2 time-engine oracle: echo+room goldens (JS TimeLab live from
+  # swarmtime.html, noise=0) -> time_check (L0-1 parity + L0-19/20/21).
+  node tools/golden/gen_time_goldens.mjs --selfcheck || return 1
+  node tools/golden/gen_time_goldens.mjs > /dev/null || return 1
+  "$build_dir/time_check" "$(dirname "$build_dir")/build-golden/time" || return 1
 }
 
 case "$TARGET" in

@@ -20,6 +20,7 @@
 
 #include "filter_core.h"
 #include "notch_core.h"
+#include "time_core.h"
 #include "swarmfx_entry.h"
 
 namespace
@@ -40,7 +41,8 @@ static const clap_plugin_descriptor_t s_desc = {
     "Coupled-oscillator swarm effects: resonator bank / notch swarm on external audio",
     &s_fx_features[0]};
 
-static const char *const kEngineLabels[] = {"Resonator Bank", "Notch Swarm"};
+static const char *const kEngineLabels[] = {"Resonator Bank", "Notch Swarm", "Tap Delay",
+                                            "FDN Room"};
 static const char *const kDistLabels[] = {"even", "gaussian", "cauchy"};
 static const char *const kPlaceLabels[] = {"ERB", "log", "harmonic"};
 
@@ -55,7 +57,7 @@ struct ParamDef
 
 // One unified surface; applyParam maps each to whichever core is active.
 static const ParamDef kParams[] = {
-    {1, "Engine", 0, 1, 0, true, kEngineLabels},
+    {1, "Engine", 0, 3, 0, true, kEngineLabels},
     {2, "Pull K", -1, 1, 0, false, nullptr},
     {3, "Gravity", 0, 1, 0, false, nullptr},
     {4, "Basin (c)", 15, 90, 45, false, nullptr},
@@ -88,9 +90,10 @@ struct Plugin
   double sampleRate = 44100.0;
   hypersaw::FilterCore filter{44100.0};
   hypersaw::NotchCore notch{44100.0};
+  hypersaw::TimeCore time{44100.0};
 
   double values[kNumParams] = {0};  // by index, kept for get_value/state
-  double engine = 0;
+  double engine = 0;  // 0 bank · 1 notch · 2 tap delay (time echo) · 3 FDN room
 
   void initDefaults()
   {
@@ -114,31 +117,54 @@ struct Plugin
     const double applied = d->stepped ? std::round(v) : v;
     const int idx = indexOf(id);
     if (idx >= 0) values[idx] = applied;
-    auto both = [&](const char *k, double val) { filter.setParam(k, val); notch.setParam(k, val); };
+    // Shared-name keys drive all three cores; the time engine reuses the
+    // frequency surface where it can and remaps where it differs
+    // (Center→size, Resonance→regen, Feedback→damp). Engine 2/3 = time
+    // echo/room via the mode param.
+    auto three = [&](const char *k, double val) {
+      filter.setParam(k, val);
+      notch.setParam(k, val);
+      time.setParam(k, val);
+    };
     switch (id)
     {
-      case 1: engine = applied; break;
-      case 2: both("K", applied); break;
-      case 3: both("grav", applied); break;
-      case 4: both("basin", applied); break;
-      case 5: both("driftDepth", applied); break;
-      case 6: both("driftRate", applied); break;
-      case 7: both("inertia", applied); break;
-      case 8: both("center", applied); break;
-      case 9: both("spread", applied); break;
-      case 10: both("dist", applied); break;
-      case 11: both("place", applied); break;
-      case 12: both("nb", applied); break;
+      case 1:
+        engine = applied;
+        if (applied >= 2) time.setParam("mode", applied == 3 ? 1 : 0);
+        break;
+      case 2: three("K", applied); break;
+      case 3: three("grav", applied); break;
+      case 4: three("basin", applied); break;
+      case 5: three("driftDepth", applied); break;
+      case 6: three("driftRate", applied); break;
+      case 7: three("inertia", applied); break;
+      case 8:
+        filter.setParam("center", applied);
+        notch.setParam("center", applied);
+        time.setParam("size", (applied - 7.0) / 4.3);  // log2-Hz knob → 0..1 size
+        break;
+      case 9: three("spread", applied); break;
+      case 10: three("dist", applied); break;
+      case 11:
+        filter.setParam("place", applied);
+        notch.setParam("place", applied);  // time is log-time placement only
+        break;
+      case 12: three("nb", applied); break;
       case 13:
         filter.setParam("qbase", applied);   // 0..1 → 2..40
         notch.setParam("stageQ", applied);    // 0.05..1 (k = 1/stageQ)
+        time.setParam("regen", applied);      // resonance → feedback/decay
         break;
-      case 14: notch.setParam("feedback", applied); break;
+      case 14:
+        notch.setParam("feedback", applied);
+        time.setParam("damp", applied);       // tail damping
+        break;
       case 15:
         filter.setParam("wet", applied);
         notch.setParam("mix", applied);
+        time.setParam("mix", applied);
         break;
-      case 16: both("vol", applied); break;
+      case 16: three("vol", applied); break;
       default: break;
     }
   }
@@ -161,12 +187,16 @@ bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
   pl->sampleRate = sr;
   hypersaw::FilterCore::FParams fp = pl->filter.p;
   hypersaw::NotchCore::NParams np = pl->notch.p;
+  hypersaw::TimeCore::TParams tp = pl->time.p;
   pl->filter = hypersaw::FilterCore(sr);
   pl->notch = hypersaw::NotchCore(sr);
+  pl->time = hypersaw::TimeCore(sr);
   pl->filter.p = fp;
   pl->notch.p = np;
+  pl->time.p = tp;
   pl->filter.setParam("seed", fp.seed);  // trigger rebuild at the new rate
   pl->notch.setParam("seed", np.seed);
+  pl->time.setParam("seed", tp.seed);
   return true;
 }
 void plug_deactivate(const clap_plugin_t *) {}
@@ -191,6 +221,7 @@ void handleEvent(Plugin *pl, const clap_event_header_t *ev)
       const double f = 440.0 * std::pow(2.0, (n->key - 69) / 12.0);
       pl->filter.setNoteFreq(f);  // move the gravity center; no exciter voice
       pl->notch.setNoteFreq(f);
+      pl->time.setNoteFreq(f);
     }
   }
 }
@@ -210,7 +241,10 @@ clap_process_status plug_process(const clap_plugin_t *p, const clap_process_t *p
   float *outL = proc->audio_outputs[0].data32[0];
   float *outR = proc->audio_outputs[0].data32[1];
 
-  if (pl->engine != 0)
+  const int eng = (int)std::round(pl->engine);
+  if (eng >= 2)
+    pl->time.processExternal(inL, inR, outL, outR, (int)n);  // 2 tap delay · 3 FDN room
+  else if (eng == 1)
     pl->notch.processExternal(inL, inR, outL, outR, (int)n);
   else
     pl->filter.processExternal(inL, inR, outL, outR, (int)n);
