@@ -141,6 +141,9 @@ static const ParamDef kParams[] = {
     {53, "subVol", "Sub Level", 0, 1, 0, false, nullptr},
     {54, "subWave", "Sub Wave", 0, 1, 0, false, nullptr},
     {55, "subOct", "Sub Octave", -3, -1, -1, true, nullptr},
+    // Two-cluster A/B balance (ADR-051): sweeps cluster B from synced (0) to
+    // splayed (1); default 0 is bit-inert. Two-cluster topology only.
+    {56, "balance", "A/B Balance", 0, 1, 0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 

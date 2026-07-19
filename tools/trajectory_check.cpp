@@ -662,6 +662,34 @@ int main()
       check(std::fabs(p2min - 0.080) <= 0.015 && std::fabs(p2max - 0.080) <= 0.015,
             "L0-22 q=2: 2f0 projection ~0.080 seed-invariant", p2max);
       check((p1max - p1min) >= 0.01, "L0-22 q=2: f0 residual varies with seed", p1max - p1min);
+
+      // ADR-051 / L0-23: two-cluster A/B balance dissolves cluster B while A
+      // holds; mu sets the R_B floor. Reference table verified on the DYN
+      // clone; anchors are robust (split, monotone floor), not exact R_B floor
+      // (settle-window-sensitive near ~1/sqrt(n), the L0002 caveat).
+      auto twoRB = [&](double balance, double mu) {
+        SwarmCore c(kSR);
+        dynBase(c);
+        c.setParam("topo", 2);
+        c.setParam("mu", mu);
+        c.setParam("K", 1.0);
+        c.setParam("detune", 0.3);
+        c.setParam("balance", balance);
+        c.noteOn(kMidi, mtof(kMidi));
+        std::vector<float> L(kBlock), R(kBlock);
+        for (long off = 0; off < (long)(3 * kSR); off += kBlock) c.render(L.data(), R.data(), kBlock);
+        return std::make_pair(c.focus()->RA, c.focus()->RB);
+      };
+      const auto b0 = twoRB(0.0, 0.3), b5 = twoRB(0.5, 0.3), b1 = twoRB(1.0, 0.3);
+      check(b0.first >= 0.9 && b0.second >= 0.9, "L0-23 balance 0: both clusters sync",
+            b0.second);
+      check(b5.first >= 0.9 && (b5.first - b5.second) >= 0.4,
+            "L0-23 balance 0.5: A holds, B dissolves (split>=0.4)", b5.first - b5.second);
+      check(b1.first >= 0.9 && (b1.first - b1.second) >= 0.5, "L0-23 balance 1: full split",
+            b1.first - b1.second);
+      check(twoRB(1.0, 0.9).second > twoRB(1.0, 0.05).second,
+            "L0-23 mu sets B floor: R_B(mu=0.9) > R_B(mu=0.05)",
+            twoRB(1.0, 0.9).second - twoRB(1.0, 0.05).second);
     }
   }
 

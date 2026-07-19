@@ -65,6 +65,10 @@ struct Params
   // R->tone output pole — the one structural difference between the two
   // references (DynSynth has no output filter).
   double topo = 0, reach = 5, mu = 0.6, alpha = 0, poles = 1, grav = 0, basin = 35, lpOut = 1;
+  // Two-cluster A/B balance (ADR-051): 0 = both clusters full K (bit-inert
+  // default); >0 scales cluster B's intra-coupling by kB = 1-2*balance, so one
+  // knob sweeps symmetric → B-uncoupled (0.5) → B-splayed (1.0, kB=-1).
+  double balance = 0;
   // Voice-mode support (ADR-026): glide time in seconds for retargetNote().
   // Pure superset — the poly/default path never sets a glide target, so all
   // reference expressions stay bit-untouched.
@@ -456,6 +460,7 @@ class SwarmCore
     if (k == "topo") return &p.topo;
     if (k == "reach") return &p.reach;
     if (k == "mu") return &p.mu;
+    if (k == "balance") return &p.balance;
     if (k == "alpha") return &p.alpha;
     if (k == "poles") return &p.poles;
     if (k == "grav") return &p.grav;
@@ -751,13 +756,17 @@ class SwarmCore
       s.RA = RA;
       s.RB = RB;
       const double norm = 1 + m;
+      // A/B balance (ADR-051, DYN reference exact): cluster A keeps gain 1, B is
+      // scaled by kB. balance 0 -> kB 1 -> s.couple = s.KsmS*c (bit-identical).
+      const double kB = 1 - 2 * p.balance;
       for (int i = 0; i < n; i++)
       {
         const double ti = s.phase[i] * kTau;
         double c;
-        if (i < h) c = (RA * std::sin(psiA - ti - alphaR) + m * RB * std::sin(psiB - ti - alphaR)) / norm;
-        else c = (RB * std::sin(psiB - ti - alphaR) + m * RA * std::sin(psiA - ti - alphaR)) / norm;
-        s.couple[i] = s.KsmS * c;
+        double kGain;
+        if (i < h) { c = (RA * std::sin(psiA - ti - alphaR) + m * RB * std::sin(psiB - ti - alphaR)) / norm; kGain = 1; }
+        else { c = (RB * std::sin(psiB - ti - alphaR) + m * RA * std::sin(psiA - ti - alphaR)) / norm; kGain = kB; }
+        s.couple[i] = s.KsmS * kGain * c;
       }
     }
     const double w = p.inertia;
