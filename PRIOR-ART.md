@@ -39,12 +39,16 @@ Section 1's "no shipping *product*" holds — and is sharpened here. There is a
 real **research** lineage for Kuramoto audio synthesis, and honest positioning
 cites it generously rather than claiming an unqualified first.
 
-**The lineage (user-sourced).** Lem & Orlarey, *"Kuroscillator: A Max-MSP
-Object for Sound Synthesis using Coupled-Oscillator Networks"* (CMMR 2019),
-behind it a sustained program — Lem, *"Sound in Multiples"* (SMC 2019); Lem,
-*"The Collective Rhythms Toolbox"* (SMC 2022); Lem, CCRMA PhD (2022) — with
-antecedents in Collins, *"Errant Sound Synthesis"* (ICMC 2008) and Lambert's
-stigmergic oscillator synchronization (ICMC 2012).
+**The lineage (user-sourced; citations verified 2026-07-19).** Nolan Lem &
+Yann Orlarey, *"Kuroscillator: A Max-MSP Object for Sound Synthesis using
+Coupled-Oscillator Networks"* (CMMR 2019), behind it a sustained program —
+Lem, *"Sound in Multiples: Synchrony and Interaction Design using
+Coupled-Oscillator Networks"* (SMC 2019); Lem, *"Introducing the Collective
+Rhythms Toolbox"* (SMC **2023**, Stockholm); Lem, CCRMA PhD *"Synchronous
+Sound: Strategies for Collective Sound Generation and Dispersion"* (Stanford
+2022) — with antecedents in Nick Collins, *"Errant Sound Synthesis"* (ICMC
+2008) and Andrew Lambert, *"A Stigmergic Model for Oscillator Synchronisation
+and its Application in Music Systems"* (ICMC 2012).
 
 **What it establishes as prior art:**
 - Kuramoto ensembles for real-time audio synthesis, including the mean-field
@@ -52,9 +56,10 @@ stigmergic oscillator synchronization (ICMC 2012).
   project uses.
 - Phase-coupled additive sine banks (Kuroscillator-audio, N ≤ 30).
 - Coupled **trigger clocks** for rhythm generation (Kuroscillator-rhythm) and
-  the *"rhythm-timbre spectrum"* (Lem 2022) — a prior articulation of the
-  cloud↔tone continuum at trigger rates. (Prior art for a *possible future*
-  grain/rhythm engine — **not in the current instrument**; see PARKED #18.)
+  the *"rhythm timbre continuum"* (Lem, SMC 2022, *"Constructive
+  Accumulation…"*) — a prior articulation of the cloud↔tone continuum at
+  trigger rates. (Prior art for a *possible future* grain/rhythm engine —
+  **not in the current instrument**; see PARKED #18.)
 - Chimera states and local/global coupling topologies in a musical context.
 
 **Revised novelty posture — honest, and stronger.** "No Kuramoto *products*
