@@ -168,6 +168,9 @@ static const ParamDef kParams[] = {
     {66, "sDecay", "S.Decay (s)", 0.005, 4.0, 0.18, false, nullptr},
     {67, "sSustain", "S.Sustain", 0, 1, 1.0, false, nullptr},
     {68, "sRelease", "S.Release (s)", 0.005, 8.0, 0.18, false, nullptr},
+    // SAW waveshape morph (ADR-058): 0 = saw, 1 = square. SAW-core key, routed
+    // by the applyParam fallback; default 0 is bit-inert (spectra no-ops "shape").
+    {69, "shape", "Saw Shape", 0, 1, 0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
