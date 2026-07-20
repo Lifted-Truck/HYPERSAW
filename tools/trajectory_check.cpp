@@ -882,6 +882,19 @@ int main()
     check(a.finite && b.finite, "ADR-056 bipolar onset NaN-clean", (double)(a.finite && b.finite));
   }
 
+  std::printf("== ADR-058 waveshape morph ==\n");
+  {
+    // shape 0 = saw (parity goldens prove bit-exactness); shape 1 = a
+    // band-limited square (saw − saw(ph+½)). Guard the new path: bounded +
+    // NaN-clean at the extreme and mid-morph. (That it IS a square is provable
+    // — saw(ph)−saw(ph+½) — and confirmed by ear; peak/RMS don't cleanly
+    // separate saw from square so no numeric shape assertion here.)
+    Traj sq = run({{"n", 16}, {"detune", 0.3}, {"K", 0.7}, {"digital", 1}, {"shape", 1.0}}, 3.0);
+    Traj mid = run({{"n", 16}, {"detune", 0.3}, {"K", 0.7}, {"digital", 1}, {"shape", 0.5}}, 3.0);
+    check(sq.finite && mid.finite && sq.peak < 2.0 && mid.peak < 2.0,
+          "ADR-058 waveshape morph bounded + NaN-clean", std::max(sq.peak, mid.peak));
+  }
+
   std::printf("trajectory_check: %s (%d failure%s)\n", g_failures ? "RED" : "GREEN", g_failures,
               g_failures == 1 ? "" : "s");
   return g_failures ? 1 : 0;

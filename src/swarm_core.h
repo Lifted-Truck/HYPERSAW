@@ -91,6 +91,8 @@ struct Params
   // series — the 2026-07-18 report. 0 = bit-inert legacy; the permutation
   // draws from its OWN stream, never the phase/drift stream.
   double panScatter = 0;
+  // Waveshape morph (ADR-058): 0 = saw (bit-inert), 1 = band-limited square.
+  double shape = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -358,6 +360,26 @@ class SwarmCore
             else if (ph > 1 - d) { const double t = (ph - 1) / d; bl = t * t + t + t + 1; }
             v = naive - p.digital * bl;
           }
+          // ADR-058 waveshape morph: v = saw − shape·saw(ph+½). shape 0 = saw
+          // (bit-exact, guarded); shape 1 = a band-limited square (the two
+          // half-cycle-offset saws' difference). Both saws carry the SAME
+          // polyBLEP correction, so the morph stays anti-aliased. C++-only
+          // superset — no swarmsaw.html reference for shape>0 (like ADR-025).
+          if (p.shape > 0)
+          {
+            double ph2 = ph + 0.5;
+            if (ph2 >= 1) ph2 -= 1;
+            double saw2 = 2 * ph2 - 1;
+            if (p.digital > 0)
+            {
+              const double d = std::max(dph, 1e-6);
+              double bl2 = 0;
+              if (ph2 < d) { const double t = ph2 / d; bl2 = t + t - t * t - 1; }
+              else if (ph2 > 1 - d) { const double t = (ph2 - 1) / d; bl2 = t * t + t + t + 1; }
+              saw2 = (2 * ph2 - 1) - p.digital * bl2;
+            }
+            v = v - p.shape * saw2;
+          }
           if (p.mono != 0) { l += v * 0.7071; r += v * 0.7071; }
           else { l += v * panL[i]; r += v * panR[i]; }
         }
@@ -474,6 +496,7 @@ class SwarmCore
     if (k == "absK") return &p.absK;
     if (k == "scatter") return &p.scatter;
     if (k == "panScatter") return &p.panScatter;
+    if (k == "shape") return &p.shape;  // ADR-058 waveshape morph
     return nullptr;
   }
 
