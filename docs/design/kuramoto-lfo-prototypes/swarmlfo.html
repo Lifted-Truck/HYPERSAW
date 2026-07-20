@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWARM✱LFO — coupled modulation source (axis 1: rate)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b0e14; --panel: #11151f; --panel2: #161b28; --line: #232a3a;
+    --text: #e8ecf2; --dim: #7c8698;
+    --swarm: #5ff2e0; --pull: #ff4fa3; --drift: #ffc24b;
+    --mono-f: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --disp-f: "Space Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--text); font-family: var(--mono-f); font-size: 13px; }
+  body { padding: 14px; min-height: 100vh; }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--disp-f); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; }
+  h1 .star { color: var(--pull); }
+  .tagline { color: var(--dim); font-size: 11px; }
+  #power { margin-left: auto; font-family: var(--mono-f); font-size: 12px; letter-spacing: 0.08em;
+    background: var(--swarm); color: var(--ink); border: none; padding: 8px 18px; cursor: pointer; font-weight: 600; border-radius: 2px; }
+  #power.on { background: var(--panel2); color: var(--swarm); border: 1px solid var(--swarm); }
+  .grid { display: grid; grid-template-columns: 440px 1fr; gap: 12px; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+  .scope { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .scope h2, .cluster h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 8px; }
+  canvas { display: block; width: 100%; }
+  #scope { height: 300px; }
+  #meterline { color: var(--dim); font-size: 10px; margin-top: 8px; min-height: 28px; line-height: 1.5; }
+  #meterline b { color: var(--text); font-weight: 500; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 12px; align-content: start; }
+  .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .cluster.pull h2 { color: var(--pull); }
+  .cluster.grav h2 { color: var(--drift); }
+  .cluster.route h2 { color: var(--swarm); }
+  .row { display: grid; grid-template-columns: 96px 1fr 66px; align-items: center; gap: 8px; margin: 7px 0; }
+  .row label { color: var(--dim); font-size: 11px; }
+  .row output { text-align: right; font-size: 11px; color: var(--text); }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--line); border-radius: 2px; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  .pull input[type=range]::-webkit-slider-thumb { background: var(--pull); }
+  .grav input[type=range]::-webkit-slider-thumb { background: var(--drift); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  select, input[type=number] { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 6px; border-radius: 2px; width: 100%; }
+  .row.compact { grid-template-columns: 96px 1fr auto; }
+  button.mini { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 8px; cursor: pointer; border-radius: 2px; }
+  button.mini:hover { border-color: var(--swarm); }
+  .kbd { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .kbd .bar-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .kbd .bar-top h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase; }
+  #octlbl { color: var(--swarm); font-size: 11px; }
+  .keys { display: flex; height: 96px; position: relative; user-select: none; touch-action: none; }
+  .key { flex: 1; background: #e8ecf2; border: 1px solid var(--ink); border-radius: 0 0 3px 3px; position: relative; cursor: pointer; }
+  .key.black { position: absolute; width: 5.8%; height: 58%; background: #1a2030; border: 1px solid #000; z-index: 2; border-radius: 0 0 3px 3px; }
+  .key.held { background: var(--swarm); }
+  .key.black.held { background: var(--pull); }
+  .key span { position: absolute; bottom: 3px; left: 0; right: 0; text-align: center; font-size: 9px; color: #555; pointer-events: none; }
+  .key.black span { color: var(--dim); }
+  .key em { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 9px; font-style: normal; color: #999; pointer-events: none; }
+  .key.black em { color: var(--dim); }
+  .hint { color: var(--dim); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+  .hint b { color: var(--text); font-weight: 500; }
+  .hint .sw { color: var(--swarm); } .hint .pu { color: var(--pull); } .hint .gr { color: var(--drift); }
+  #status { color: var(--drift); font-size: 11px; }
+  .routegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SWARM<span class="star">✱</span>LFO</h1>
+  <div class="tagline">coupled modulation source · axis 1: rate is the swarm · routable to any destination</div>
+  <span id="status"></span>
+  <button id="power">POWER ON</button>
+</header>
+
+<div class="grid">
+  <div class="scope">
+    <h2>The modulator bank — each trace is one LFO voice; vertical spread = rate coherence</h2>
+    <canvas id="scope" width="416" height="300"></canvas>
+    <div id="meterline">phase R · rate spread</div>
+  </div>
+
+  <div class="controls">
+    <div class="cluster">
+      <h2>Bank</h2>
+      <div class="row"><label>voices</label><input type="range" id="nv" min="4" max="16" step="1" value="12"><output id="nv_o">12</output></div>
+      <div class="row"><label>base rate</label><input type="range" id="rate" min="0.05" max="8" step="0.01" value="1.2"><output id="rate_o">1.20 Hz</output></div>
+      <div class="row"><label>rate spread</label><input type="range" id="rspread" min="0" max="1" step="0.01" value="0.5"><output id="rspread_o">0.50</output></div>
+      <div class="row"><label>drift</label><input type="range" id="drift" min="0" max="1" step="0.01" value="0.15"><output id="drift_o">0.15</output></div>
+      <div class="row compact"><label>seed</label><input type="number" id="seed" value="1234" min="0" max="999999"><button class="mini" id="dice">⚄</button></div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>Rate coupling K</h2>
+      <div class="row"><label>K ±</label><input type="range" id="K" min="-1" max="1" step="0.005" value="0"><output id="K_o">free</output></div>
+    </div>
+
+    <div class="cluster grav">
+      <h2>Tempo gravity</h2>
+      <div class="row"><label>gravity</label><input type="range" id="grav" min="0" max="1" step="0.01" value="0"><output id="grav_o">off</output></div>
+      <div class="row compact"><label>bpm</label><input type="number" id="bpm" value="120" min="40" max="240"></div>
+    </div>
+
+    <div class="cluster route">
+      <h2>Routing (destination depths)</h2>
+      <div class="routegrid">
+        <div class="row" style="grid-template-columns:64px 1fr;"><label>chorus</label><input type="range" id="rChorus" min="0" max="1" step="0.01" value="0.7"></div>
+        <div class="row" style="grid-template-columns:64px 1fr;"><label>filter</label><input type="range" id="rFilter" min="0" max="1" step="0.01" value="0"></div>
+        <div class="row" style="grid-template-columns:64px 1fr;"><label>pan</label><input type="range" id="rPan" min="0" max="1" step="0.01" value="0"></div>
+        <div class="row" style="grid-template-columns:64px 1fr;"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.5"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="kbd">
+  <div class="bar-top">
+    <h2>Keyboard — internal exciter (saw + noise pad) · monophonic</h2>
+    <span id="octlbl"></span>
+  </div>
+  <div class="keys" id="keys"></div>
+  <div class="hint">
+    <b>A S D F G H J K L</b> whites, <b>W E · T Y U · O P</b> blacks, <b>Z / X</b> octave, <b>Esc</b> panic.<br>
+    This is a <b>coupled-LFO bank</b>, not an audio swarm — the voices modulate, they don't sound. <b>Axis 1</b> makes each voice's <b>rate</b> a swarm coordinate. <span class="pu">K</span> couples the rates: positive pulls every voice toward a common rate (the modulation locks into unison motion — Foxfire's chorus); negative <b>splays</b> the rates into an even interleave (the smoothest possible wash, denser than random).
+    <span class="gr">Tempo gravity</span> pulls voice rates onto beat subdivisions — the shimmer snaps into a polyrhythmic grid against the BPM.
+    <b>Routing</b> sends the same bank to a chorus (delay taps), a filter, and pan — turn up two at once to hear one population drive several destinations in lock-step.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= DSP: coupled-rate LFO bank + demo destinations ================= */
+const NV_MAX = 16, TICK = 16, TAU = 6.283185307;
+const RSET = [0.25, 1/3, 0.5, 2/3, 0.75, 1, 1.5, 2, 3, 4]; // tempo ratio set × beat (Hz = ratio·bpm/60)
+
+class SwarmLFO {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { nv:12, rate:1.2, rspread:0.5, drift:0.15, seed:1234, K:0, grav:0, bpm:120,
+               rChorus:0.7, rFilter:0, rPan:0, vol:0.5 };
+    this.phase = new Float64Array(NV_MAX);   // LFO phase (cycles)
+    this.lr = new Float64Array(NV_MAX);       // log2(rate) state — the coupled quantity
+    this.lrHome = new Float64Array(NV_MAX);   // home log2(rate) from distribution
+    this.dOff = new Float64Array(NV_MAX);     // drift offset (log2)
+    this.rateHz = new Float64Array(NV_MAX);
+    this.lfoVal = new Float64Array(NV_MAX);   // current LFO output per voice [-1,1]
+    this.rng = 1;
+    this.f0 = 220; this.gate = 0; this.env = 0; this.curMidi = -1;
+    this.R = 0; this.rateSpread = 0; this.combReg = 0;
+    this.phaseCouple = 0; this.psiMean = 0;
+    this.tick = 0;
+    // exciter (simple saw+noise pad)
+    this.exph = new Float64Array(5);
+    this.EXDET = [-7, -3, 0, 4, 8];
+    // chorus delay line
+    this.DL = 1 << 14; this.dline = new Float64Array(this.DL); this.dw = 0;
+    // filter state (one-pole per channel, modulated)
+    this.lpL = 0; this.lpR = 0;
+    this.rebuild(true);
+  }
+  setParam(k, v) {
+    this.p[k] = v;
+    if (k === 'nv' || k === 'rate' || k === 'rspread' || k === 'seed') this.rebuild(k === 'nv' || k === 'seed');
+  }
+  rngNext() {
+    this.rng |= 0; this.rng = (this.rng + 0x6D2B79F5) | 0;
+    let t = Math.imul(this.rng ^ (this.rng >>> 15), 1 | this.rng);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  rebuild(replace) {
+    const n = this.p.nv;
+    this.rng = (this.p.seed | 0) + 1;
+    const offs = [];
+    for (let i = 0; i < n; i++) {
+      const u1 = Math.max(this.rngNext(), 1e-9), u2 = this.rngNext();
+      offs.push(Math.sqrt(-2 * Math.log(u1)) * Math.cos(TAU * u2) / 2.5);
+    }
+    offs.sort((a, b) => a - b);
+    const halfOct = this.p.rspread * 1.6;
+    for (let i = 0; i < n; i++) {
+      this.lrHome[i] = Math.log2(this.p.rate) + offs[i] * halfOct;
+      if (replace) {
+        this.lr[i] = this.lrHome[i];
+        this.phase[i] = this.rngNext();
+        this.dOff[i] = 0;
+      }
+    }
+  }
+  noteOn(midi, f) { this.curMidi = midi; this.f0 = f; this.gate = 1; for (let i = 0; i < 5; i++) this.exph[i] = 0; }
+  noteOff(midi) { if (midi === this.curMidi) this.gate = 0; }
+  controlTick() {
+    const p = this.p, n = p.nv, dt = TICK / this.sr;
+    // drift on rate
+    if (p.drift > 0) {
+      const amp = p.drift * 0.25;
+      for (let i = 0; i < n; i++) {
+        this.dOff[i] += (this.rngNext() - 0.5) * 2 * Math.sqrt(2 * dt) * amp;
+        this.dOff[i] -= this.dOff[i] * 0.5 * dt;
+      }
+    }
+    // rate-coupling: sync/splay on log2(rate). mean + spread
+    let mean = 0;
+    for (let i = 0; i < n; i++) mean += this.lr[i];
+    mean /= n;
+    let hMin = 1e9, hMax = -1e9;
+    for (let i = 0; i < n; i++) { if (this.lrHome[i] < hMin) hMin = this.lrHome[i]; if (this.lrHome[i] > hMax) hMax = this.lrHome[i]; }
+    const span = Math.max(0.1, hMax - hMin);
+    const K = p.K;
+    const syncR = K > 0 ? 6 * K * K : 0;
+    const splayR = K < 0 ? 18 * K * K : 0;
+    const gravR = p.grav * 6;
+    const beat = p.bpm / 60;
+    for (let i = 0; i < n; i++) {
+      let F = 1.5 * (this.lrHome[i] + this.dOff[i] - this.lr[i]); // home spring
+      if (syncR > 0) F += syncR * (mean - this.lr[i]);
+      if (splayR > 0) {
+        const slot = mean - span / 2 + span * (n === 1 ? 0.5 : i / (n - 1));
+        F += splayR * (slot - this.lr[i]);
+      }
+      if (gravR > 0) {
+        const rHz = Math.pow(2, this.lr[i]);
+        let best = null, be = 1e9;
+        for (const rr of RSET) { const t = rr * beat; const e = Math.abs(Math.log2(rHz / t)); if (e < be) { be = e; best = Math.log2(t); } }
+        if (best !== null && be < 0.35) F += gravR * (best - this.lr[i]);
+      }
+      this.lr[i] += F * dt;
+      if (this.lr[i] < -5) this.lr[i] = -5; if (this.lr[i] > 4) this.lr[i] = 4; // ~0.03..16 Hz
+      this.rateHz[i] = Math.pow(2, this.lr[i]);
+    }
+    // metrics: phase R, rate spread, comb regularity of rates
+    let cx = 0, cy = 0;
+    for (let i = 0; i < n; i++) { const a = TAU * this.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    this.R = Math.sqrt(cx * cx + cy * cy) / n;
+    this.psiMean = Math.atan2(cy, cx);
+    // phase coupling rides with K: positive gathers phases (rate·R scaled), negative scatters them
+    const baseRate = Math.pow(2, mean);
+    this.phaseCouple = K * Math.abs(K) * baseRate * 2.2 * (K > 0 ? this.R : 1);
+    let m2 = 0; for (let i = 0; i < n; i++) m2 += this.lr[i]; m2 /= n;
+    let v2 = 0; for (let i = 0; i < n; i++) { const d = this.lr[i] - m2; v2 += d * d; }
+    this.rateSpread = Math.sqrt(v2 / n);
+    const sorted = Array.from(this.lr.slice(0, n)).sort((a, b) => a - b);
+    let gm = 0; const gaps = [];
+    for (let i = 1; i < n; i++) { const g = sorted[i] - sorted[i - 1]; gaps.push(g); gm += g; }
+    gm /= Math.max(1, gaps.length);
+    let gv = 0; for (const g of gaps) { const d = g - gm; gv += d * d; }
+    this.combReg = gm > 1e-6 ? Math.max(0, 1 - Math.sqrt(gv / gaps.length) / gm) : 0;
+  }
+  render(outL, outR) {
+    const sr = this.sr, p = this.p, n = p.nv;
+    const atk = 1 - Math.exp(-1 / (0.008 * sr));
+    const rel = 1 - Math.exp(-1 / (0.3 * sr));
+    for (let smp = 0; smp < outL.length; smp++) {
+      if (this.tick === 0) this.controlTick();
+      this.tick = (this.tick + 1) & (TICK - 1);
+      // advance LFO phases with phase coupling (K>0 also gathers phases → taps move together, audible;
+      // K<0 pushes phases apart → maximally decorrelated wash)
+      const pk = this.phaseCouple; // Hz-scale pull toward mean phase, set per tick from K
+      for (let i = 0; i < n; i++) {
+        let adv = this.rateHz[i] / sr;
+        if (pk !== 0) adv += pk * Math.sin(this.psiMean - TAU * this.phase[i]) / sr;
+        let ph = this.phase[i] + adv; ph -= Math.floor(ph);
+        this.phase[i] = ph;
+        this.lfoVal[i] = Math.sin(TAU * ph);
+      }
+      // excite
+      this.env += ((this.gate ? 1 : 0) - this.env) * (this.gate ? atk : rel);
+      let dry = 0;
+      for (let i = 0; i < 5; i++) {
+        const f = this.f0 * Math.pow(2, this.EXDET[i] / 1200);
+        const dph = f / sr;
+        let ph = this.exph[i] + dph; ph -= Math.floor(ph); this.exph[i] = ph;
+        const naive = 2 * ph - 1;
+        const d = Math.max(dph, 1e-6);
+        let bl = 0;
+        if (ph < d) { const t = ph / d; bl = t + t - t * t - 1; }
+        else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
+        dry += (naive - bl);
+      }
+      dry = (dry * 0.18 + (Math.random() * 2 - 1) * 0.04) * this.env;
+      // write to delay line
+      this.dline[this.dw] = dry;
+      // CHORUS: each voice reads a modulated tap
+      let chorus = 0;
+      if (p.rChorus > 0.001) {
+        for (let i = 0; i < n; i++) {
+          const baseMs = 8 + 14 * (i / Math.max(1, n - 1)); // base spacing preserves ensemble body
+          const modMs = 4 * p.rChorus * this.lfoVal[i];
+          const dS = Math.min(this.DL - 4, Math.max(1, (baseMs + modMs) * 0.001 * sr));
+          let rp = this.dw - dS; if (rp < 0) rp += this.DL;
+          const i0 = rp | 0, fr = rp - i0, i1 = (i0 + 1) % this.DL;
+          chorus += this.dline[i0] * (1 - fr) + this.dline[i1] * fr;
+        }
+        chorus /= Math.sqrt(n);
+      }
+      this.dw = (this.dw + 1) % this.DL;
+      // blend dry + chorus
+      let sig = p.rChorus > 0.001 ? (dry * 0.4 + chorus * 0.9) : dry;
+      // FILTER: mean LFO drives a one-pole cutoff
+      if (p.rFilter > 0.001) {
+        let mv = 0; for (let i = 0; i < n; i++) mv += this.lfoVal[i]; mv /= n;
+        const fc = 800 * Math.pow(2, 3 * p.rFilter * mv);
+        const a = 1 - Math.exp(-TAU * Math.min(0.45, fc / sr));
+        this.lpL += a * (sig - this.lpL);
+        sig = this.lpL;
+      }
+      // PAN: voice-0 (or mean) drives stereo placement
+      let l = sig, r = sig;
+      if (p.rPan > 0.001) {
+        let pv = 0; for (let i = 0; i < n; i++) pv += this.lfoVal[i] * (i % 2 ? 1 : -1); pv /= n;
+        const pan = Math.max(-1, Math.min(1, pv * p.rPan * 3));
+        const t = (pan + 1) * 0.7853981634;
+        l = sig * Math.cos(t); r = sig * Math.sin(t);
+      }
+      const g = p.vol * 1.4;
+      outL[smp] = Math.tanh(l * g); outR[smp] = Math.tanh(r * g);
+    }
+  }
+}
+
+/* ================= Audio graph ================= */
+let ctx = null, spn = null, lab = null;
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+function powerOn() {
+  if (ctx) { ctx.close(); ctx = null; spn = null; lab = null; $('power').textContent = 'POWER ON'; $('power').classList.remove('on'); return; }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    lab = new SwarmLFO(ctx.sampleRate);
+    pushAllParams();
+    spn = ctx.createScriptProcessor(1024, 0, 2);
+    spn.onaudioprocess = e => lab.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+    spn.connect(ctx.destination);
+    if (ctx.state === 'suspended') ctx.resume();
+    $('power').textContent = 'POWER OFF'; $('power').classList.add('on'); statusEl.textContent = '';
+  } catch (err) { statusEl.textContent = 'Audio failed to start: ' + err.message; ctx = null; }
+}
+$('power').addEventListener('click', powerOn);
+function send(k, v) { if (lab) lab.setParam(k, v); }
+const fmt = {
+  nv: v => v,
+  rate: v => (+v).toFixed(2) + ' Hz',
+  rspread: v => (+v).toFixed(2),
+  drift: v => (+v).toFixed(2),
+  K: v => { const a = Math.abs(+v); if (a < 0.005) return 'free'; return (v > 0 ? 'sync ' : 'splay ') + a.toFixed(2); },
+  grav: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  vol: v => (+v).toFixed(2)
+};
+const ranges = ['nv','rate','rspread','drift','K','grav','vol','rChorus','rFilter','rPan'];
+ranges.forEach(k => {
+  const el = $(k), out = $(k + '_o');
+  const update = () => { const v = +el.value; if (out && fmt[k]) out.textContent = fmt[k](v); send(k, v); };
+  el.addEventListener('input', update); update();
+});
+$('seed').addEventListener('change', () => send('seed', +$('seed').value));
+$('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
+$('bpm').addEventListener('change', () => send('bpm', +$('bpm').value));
+function pushAllParams() { ranges.forEach(k => send(k, +$(k).value)); send('seed', +$('seed').value); send('bpm', +$('bpm').value); }
+
+/* ================= Keyboard ================= */
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12,'o':13,'l':14,'p':15,';':16 };
+const CAPS_BY_SEMITONE = { 0:'A',1:'W',2:'S',3:'E',4:'D',5:'F',6:'T',7:'G',8:'Y',9:'H',10:'U',11:'J',12:'K',13:'O',14:'L',15:'P',16:';' };
+let octaveBase = 48;
+const OCT_MIN = 12, OCT_MAX = 96;
+const heldNotes = [];
+const WHITE = [0,2,4,5,7,9,11];
+const BLACK = { 0:1, 1:3, 3:6, 4:8, 5:10 };
+const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const keysEl = $('keys');
+function buildKeys() {
+  keysEl.innerHTML = '';
+  const whites = [];
+  for (let o = 0; o < 2; o++) for (let w = 0; w < 7; w++) whites.push(octaveBase + o * 12 + WHITE[w]);
+  whites.push(octaveBase + 24);
+  whites.forEach(m => {
+    const k = document.createElement('div');
+    k.className = 'key'; k.dataset.midi = m;
+    const off = m - octaveBase;
+    const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+    k.innerHTML = cap + '<span>' + NAMES[m % 12] + (Math.floor(m / 12) - 1) + '</span>';
+    keysEl.appendChild(k);
+  });
+  const wCount = whites.length;
+  whites.forEach((m, idx) => {
+    const w = WHITE.indexOf(m % 12);
+    if (w !== -1 && BLACK[w] !== undefined && idx < wCount - 1) {
+      const midiB = m + (BLACK[w] - WHITE[w]);
+      const b = document.createElement('div');
+      b.className = 'key black'; b.dataset.midi = midiB;
+      b.style.left = ((idx + 1) / wCount * 100 - 2.9) + '%';
+      const off = midiB - octaveBase;
+      const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+      b.innerHTML = cap + '<span>' + NAMES[midiB % 12] + '</span>';
+      keysEl.appendChild(b);
+    }
+  });
+  const lo = Math.floor(octaveBase / 12) - 1;
+  $('octlbl').textContent = 'octave: C' + lo + '–C' + (lo + 2) + ' (Z − / X +)';
+}
+buildKeys();
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function noteOn(m) { if (!lab) return; if (!heldNotes.includes(m)) heldNotes.push(m); lab.noteOn(m, mtof(m)); paintKeys(); }
+function noteOff(m) {
+  const i = heldNotes.indexOf(m); if (i !== -1) heldNotes.splice(i, 1);
+  if (lab) { if (heldNotes.length) lab.noteOn(heldNotes[heldNotes.length - 1], mtof(heldNotes[heldNotes.length - 1])); else lab.noteOff(m); }
+  paintKeys();
+}
+function paintKeys() { keysEl.querySelectorAll('.key').forEach(k => k.classList.toggle('held', heldNotes.includes(+k.dataset.midi))); }
+const pointerNotes = [];
+keysEl.addEventListener('pointerdown', e => { const k = e.target.closest('.key'); if (!k) return; keysEl.setPointerCapture(e.pointerId); const m = +k.dataset.midi; pointerNotes.push(m); noteOn(m); });
+window.addEventListener('pointerup', () => { pointerNotes.splice(0).forEach(noteOff); });
+function shiftOctave(dir) { const next = octaveBase + dir * 12; if (next < OCT_MIN || next > OCT_MAX) return; [...heldNotes].forEach(noteOff); octaveBase = next; buildKeys(); }
+window.addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { shiftOctave(-1); return; } if (key === 'x') { shiftOctave(1); return; }
+  const off = KMAP[key]; if (off !== undefined) noteOn(octaveBase + off);
+});
+window.addEventListener('keyup', e => { const off = KMAP[e.key.toLowerCase()]; if (off !== undefined) noteOff(octaveBase + off); });
+
+/* ================= Visualization ================= */
+const sc = $('scope'), sx = sc.getContext('2d');
+const hist = [];
+function drawScope() {
+  const w = sc.width, h = sc.height;
+  sx.fillStyle = 'rgba(11,14,20,0.22)';
+  sx.fillRect(0, 0, w, h);
+  if (!lab) return;
+  const n = lab.p.nv;
+  // scrolling multi-trace: each voice's LFO value as a horizontal band
+  hist.push(Array.from(lab.lfoVal.slice(0, n)));
+  if (hist.length > w) hist.shift();
+  for (let i = 0; i < n; i++) {
+    const cy = h * (i + 0.5) / n;
+    sx.strokeStyle = 'hsl(' + (170 + i * 8) + ',70%,60%)';
+    sx.globalAlpha = 0.85; sx.lineWidth = 1;
+    sx.beginPath();
+    for (let x = 0; x < hist.length; x++) {
+      const v = hist[x][i] || 0;
+      const y = cy - v * (h / n) * 0.42;
+      if (x === 0) sx.moveTo(x, y); else sx.lineTo(x, y);
+    }
+    sx.stroke();
+  }
+  sx.globalAlpha = 1;
+  $('meterline').innerHTML = 'phase R <b>' + lab.R.toFixed(2) + '</b> · rate spread <b>' + lab.rateSpread.toFixed(3) +
+    '</b> · rate-grid regularity <b>' + lab.combReg.toFixed(2) + '</b> — traces parallel = rates locked · evenly fanned = splayed';
+}
+function loop() { drawScope(); requestAnimationFrame(loop); }
+loop();
+
+/* focus-trap fix + panic */
+document.addEventListener('pointerup', () => { const t = document.activeElement; if (t && t.tagName === 'INPUT' && t.type === 'range') t.blur(); });
+document.addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.blur(); });
+window.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.activeElement) document.activeElement.blur(); [...heldNotes].forEach(noteOff); } }, true);
+</script>
+</body>
+</html>

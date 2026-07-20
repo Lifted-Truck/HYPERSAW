@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWARM✱LFO — rotor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b0e14; --panel: #11151f; --panel2: #161b28; --line: #232a3a;
+    --text: #e8ecf2; --dim: #7c8698;
+    --swarm: #5ff2e0; --pull: #ff4fa3; --drift: #ffc24b; --viol: #9d7bff;
+    --mono-f: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --disp-f: "Space Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--text); font-family: var(--mono-f); font-size: 13px; }
+  body { padding: 14px; min-height: 100vh; }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--disp-f); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; }
+  h1 .star { color: var(--pull); }
+  .tagline { color: var(--dim); font-size: 11px; }
+  #power { margin-left: auto; font-family: var(--mono-f); font-size: 12px; letter-spacing: 0.08em;
+    background: var(--swarm); color: var(--ink); border: none; padding: 8px 18px; cursor: pointer; font-weight: 600; border-radius: 2px; }
+  #power.on { background: var(--panel2); color: var(--swarm); border: 1px solid var(--swarm); }
+  .grid { display: grid; grid-template-columns: 400px 1fr; gap: 12px; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+  .scope { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .scope h2, .cluster h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 8px; }
+  canvas { display: block; width: 100%; }
+  #rotor { height: 360px; }
+  #readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+  .rd { background: var(--panel2); border: 1px solid var(--line); border-radius: 3px; padding: 6px; text-align: center; }
+  .rd .lbl { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .rd .val { font-size: 13px; font-weight: 600; margin-top: 2px; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-content: start; }
+  .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .cluster.wt h2 { color: var(--swarm); } .cluster.cut h2 { color: var(--drift); }
+  .cluster.cho h2 { color: var(--pull); } .cluster.sat h2 { color: var(--viol); }
+  .cluster.couple h2 { color: var(--text); }
+  .row { display: grid; grid-template-columns: 74px 1fr 58px; align-items: center; gap: 8px; margin: 7px 0; }
+  .row label { color: var(--dim); font-size: 11px; }
+  .row output { text-align: right; font-size: 11px; color: var(--text); }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--line); border-radius: 2px; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  .wt input[type=range]::-webkit-slider-thumb { background: var(--swarm); }
+  .cut input[type=range]::-webkit-slider-thumb { background: var(--drift); }
+  .cho input[type=range]::-webkit-slider-thumb { background: var(--pull); }
+  .sat input[type=range]::-webkit-slider-thumb { background: var(--viol); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  select, input[type=number] { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 6px; border-radius: 2px; width: 100%; }
+  .row.compact { grid-template-columns: 74px 1fr; }
+  .kbd { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .kbd .bar-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .kbd .bar-top h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase; }
+  #octlbl { color: var(--swarm); font-size: 11px; }
+  .keys { display: flex; height: 92px; position: relative; user-select: none; touch-action: none; }
+  .key { flex: 1; background: #e8ecf2; border: 1px solid var(--ink); border-radius: 0 0 3px 3px; position: relative; cursor: pointer; }
+  .key.black { position: absolute; width: 5.8%; height: 58%; background: #1a2030; border: 1px solid #000; z-index: 2; border-radius: 0 0 3px 3px; }
+  .key.held { background: var(--swarm); } .key.black.held { background: var(--pull); }
+  .key span { position: absolute; bottom: 3px; left: 0; right: 0; text-align: center; font-size: 9px; color: #555; pointer-events: none; }
+  .key.black span { color: var(--dim); }
+  .key em { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 9px; font-style: normal; color: #999; pointer-events: none; }
+  .key.black em { color: var(--dim); }
+  .hint { color: var(--dim); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+  .hint b { color: var(--text); font-weight: 500; }
+  #status { color: var(--drift); font-size: 11px; }
+  .shaperow { display: flex; align-items: center; gap: 8px; }
+  .shaperow canvas { width: 54px; height: 28px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel2); flex: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SWARM<span class="star">✱</span>LFO <span style="font-size:13px;color:var(--dim);font-weight:400">rotor</span></h1>
+  <div class="tagline">four coupled LFOs · one rotor · morph · cutoff · chorus · saturation</div>
+  <span id="status"></span>
+  <button id="power">POWER ON</button>
+</header>
+
+<div class="grid">
+  <div class="scope">
+    <h2>Kuramoto rotor — each dot is one parameter's LFO phase · radial spoke = current value</h2>
+    <canvas id="rotor" width="376" height="360"></canvas>
+    <div id="readout">
+      <div class="rd" style="color:var(--swarm)"><div class="lbl">morph</div><div class="val" id="v0">–</div></div>
+      <div class="rd" style="color:var(--drift)"><div class="lbl">cutoff</div><div class="val" id="v1">–</div></div>
+      <div class="rd" style="color:var(--pull)"><div class="lbl">chorus</div><div class="val" id="v2">–</div></div>
+      <div class="rd" style="color:var(--viol)"><div class="lbl">sat</div><div class="val" id="v3">–</div></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="cluster couple">
+      <h2>Coupling &amp; shape</h2>
+      <div class="row"><label>K ±</label><input type="range" id="K" min="-1" max="1" step="0.005" value="0.35"><output id="K_o">sync 0.35</output></div>
+      <div class="row"><label>master rate</label><input type="range" id="gRate" min="0.1" max="4" step="0.01" value="1"><output id="gRate_o">1.00×</output></div>
+      <div class="row shaperow"><label style="color:var(--dim);font-size:11px">LFO shape</label>
+        <select id="shape"><option value="0" selected>sine</option><option value="1">triangle</option><option value="2">saw</option><option value="3">square</option></select>
+        <canvas id="shapePrev" width="54" height="28"></canvas>
+      </div>
+      <div class="row"><label>output</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.5"><output id="vol_o">0.50</output></div>
+    </div>
+
+    <div class="cluster wt">
+      <h2>Wavetable morph</h2>
+      <div class="row"><label>base</label><input type="range" id="bW" min="0" max="1" step="0.01" value="0.35"><output id="bW_o">0.35</output></div>
+      <div class="row"><label>rate</label><input type="range" id="rW" min="0.05" max="6" step="0.01" value="0.7"><output id="rW_o">0.70 Hz</output></div>
+      <div class="row"><label>depth</label><input type="range" id="dW" min="0" max="1" step="0.01" value="0.5"><output id="dW_o">0.50</output></div>
+    </div>
+
+    <div class="cluster cut">
+      <h2>Filter cutoff</h2>
+      <div class="row"><label>base</label><input type="range" id="bC" min="0" max="1" step="0.01" value="0.5"><output id="bC_o">0.50</output></div>
+      <div class="row"><label>rate</label><input type="range" id="rC" min="0.05" max="6" step="0.01" value="0.4"><output id="rC_o">0.40 Hz</output></div>
+      <div class="row"><label>depth</label><input type="range" id="dC" min="0" max="1" step="0.01" value="0.55"><output id="dC_o">0.55</output></div>
+    </div>
+
+    <div class="cluster cho">
+      <h2>Chorus amount</h2>
+      <div class="row"><label>base</label><input type="range" id="bH" min="0" max="1" step="0.01" value="0.3"><output id="bH_o">0.30</output></div>
+      <div class="row"><label>rate</label><input type="range" id="rH" min="0.05" max="6" step="0.01" value="0.95"><output id="rH_o">0.95 Hz</output></div>
+      <div class="row"><label>depth</label><input type="range" id="dH" min="0" max="1" step="0.01" value="0.5"><output id="dH_o">0.50</output></div>
+    </div>
+
+    <div class="cluster sat">
+      <h2>Saturation</h2>
+      <div class="row"><label>base</label><input type="range" id="bS" min="0" max="1" step="0.01" value="0.25"><output id="bS_o">0.25</output></div>
+      <div class="row"><label>rate</label><input type="range" id="rS" min="0.05" max="6" step="0.01" value="0.55"><output id="rS_o">0.55 Hz</output></div>
+      <div class="row"><label>depth</label><input type="range" id="dS" min="0" max="1" step="0.01" value="0.4"><output id="dS_o">0.40</output></div>
+    </div>
+  </div>
+</div>
+
+<div class="kbd">
+  <div class="bar-top">
+    <h2>Keyboard — internal exciter (morphing wavetable) · monophonic</h2>
+    <span id="octlbl"></span>
+  </div>
+  <div class="keys" id="keys"></div>
+  <div class="hint">
+    <b>A S D F G H J K L</b> whites, <b>W E · T Y U · O P</b> blacks, <b>Z / X</b> octave, <b>Esc</b> panic.<br>
+    Four LFOs — one each for <b style="color:var(--swarm)">morph</b>, <b style="color:var(--drift)">cutoff</b>, <b style="color:var(--pull)">chorus</b>, <b style="color:var(--viol)">saturation</b> — ride one <b>Kuramoto rotor</b>. Each has its own rate, so they drift apart; <b>K</b> couples them: positive pulls their phases together (the four modulations lock into one shared motion), negative splays them to opposite corners of the cycle. The <b>shape</b> dropdown sets the waveform every LFO follows — sine, triangle, saw, square. Watch the dots orbit and the spokes breathe; turn K up and they gather into one hand sweeping the whole patch.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= DSP: 4 coupled Kuramoto LFOs → morph / cutoff / chorus / saturation ================= */
+const TICK = 16, TAU = 6.283185307, NV = 4;
+const IDX = { W: 0, C: 1, H: 2, S: 3 };
+
+class RotorLFO {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = {
+      K: 0.35, gRate: 1, shape: 0, vol: 0.5,
+      bW: 0.35, rW: 0.7, dW: 0.5,
+      bC: 0.5, rC: 0.4, dC: 0.55,
+      bH: 0.3, rH: 0.95, dH: 0.5,
+      bS: 0.25, rS: 0.55, dS: 0.4
+    };
+    this.phase = new Float64Array(NV);   // LFO phases
+    this.lfo = new Float64Array(NV);     // shaped output [-1,1] (constructor-init for rotor)
+    this.rate = new Float64Array(NV);
+    this.R = 0; this.psi = 0;
+    // smoothed applied params (avoid zipper on square/saw edges)
+    this.sMorph = this.p.bW; this.sCut = 0.5; this.sCho = this.p.bH; this.sSat = this.p.bS;
+    this.curVal = new Float64Array(NV); // display: mapped destination values
+    this.tick = 0;
+    // exciter
+    this.exph = new Float64Array(3); this.EXDET = [-6, 0, 7];
+    this.f0 = 220; this.gate = 0; this.env = 0; this.curMidi = -1;
+    // filter (two cascaded TPT one-poles)
+    this.z1 = 0; this.z2 = 0;
+    // chorus
+    this.DL = 1 << 13; this.dline = new Float64Array(this.DL); this.dw = 0; this.chLfo = 0;
+    // init phases spread around the circle
+    this.phase[0] = 0.0; this.phase[1] = 0.25; this.phase[2] = 0.5; this.phase[3] = 0.75;
+    this.updateRates();
+  }
+  setParam(k, v) { this.p[k] = v; if (k === 'rW' || k === 'rC' || k === 'rH' || k === 'rS' || k === 'gRate') this.updateRates(); }
+  updateRates() {
+    this.rate[0] = this.p.rW * this.p.gRate;
+    this.rate[1] = this.p.rC * this.p.gRate;
+    this.rate[2] = this.p.rH * this.p.gRate;
+    this.rate[3] = this.p.rS * this.p.gRate;
+  }
+  noteOn(midi, f) { this.curMidi = midi; this.f0 = f; this.gate = 1; for (let i = 0; i < 3; i++) this.exph[i] = 0; }
+  noteOff(midi) { if (midi === this.curMidi) this.gate = 0; }
+  shapeOf(ph) {
+    switch (this.p.shape) {
+      case 1: return ph < 0.5 ? (4 * ph - 1) : (3 - 4 * ph);      // triangle
+      case 2: return 2 * ph - 1;                                   // saw
+      case 3: return ph < 0.5 ? 1 : -1;                            // square
+      default: return Math.sin(TAU * ph);                          // sine
+    }
+  }
+  controlTick() {
+    const p = this.p;
+    // mean field over the 4 phases
+    let cx = 0, cy = 0;
+    for (let i = 0; i < NV; i++) { const a = TAU * this.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    this.R = Math.sqrt(cx * cx + cy * cy) / NV; this.psi = Math.atan2(cy, cx);
+    // shaped LFO values
+    for (let i = 0; i < NV; i++) this.lfo[i] = this.shapeOf(this.phase[i]);
+  }
+  render(outL, outR) {
+    const sr = this.sr, p = this.p;
+    const atk = 1 - Math.exp(-1 / (0.006 * sr));
+    const rel = 1 - Math.exp(-1 / (0.28 * sr));
+    // coupling gain: bipolar. positive sync (scaled by R), negative splay.
+    const K = p.K;
+    const kHz = (K > 0 ? K * K : -K * K) * 3.0; // Hz-scale pull magnitude
+    const smA = 1 - Math.exp(-1 / (0.004 * sr)); // param smoothing
+    for (let smp = 0; smp < outL.length; smp++) {
+      if (this.tick === 0) this.controlTick();
+      this.tick = (this.tick + 1) & (TICK - 1);
+      // advance phases with Kuramoto coupling toward (K>0) / away (K<0) mean phase
+      for (let i = 0; i < NV; i++) {
+        let adv = this.rate[i] / sr;
+        if (K > 0) adv += kHz * this.R * Math.sin(this.psi - TAU * this.phase[i]) / sr;
+        else if (K < 0) {
+          // splay: push toward assigned even slot relative to mean (opposite corners)
+          const slot = this.psi + TAU * i / NV;
+          adv += kHz * Math.sin(slot - TAU * this.phase[i]) / sr;
+        }
+        let ph = this.phase[i] + adv; ph -= Math.floor(ph); this.phase[i] = ph;
+      }
+      const lw = this.shapeOf(this.phase[0]), lc = this.shapeOf(this.phase[1]),
+            lh = this.shapeOf(this.phase[2]), ls = this.shapeOf(this.phase[3]);
+      this.lfo[0] = lw; this.lfo[1] = lc; this.lfo[2] = lh; this.lfo[3] = ls;
+      // map to destination params (base + depth*lfo), smoothed
+      const mMorph = Math.min(1, Math.max(0, p.bW + p.dW * lw * 0.5));
+      const mCut = Math.min(1, Math.max(0, p.bC + p.dC * lc * 0.5));
+      const mCho = Math.min(1, Math.max(0, p.bH + p.dH * lh * 0.5));
+      const mSat = Math.min(1, Math.max(0, p.bS + p.dS * ls * 0.5));
+      this.sMorph += (mMorph - this.sMorph) * smA;
+      this.sCut += (mCut - this.sCut) * smA;
+      this.sCho += (mCho - this.sCho) * smA;
+      this.sSat += (mSat - this.sSat) * smA;
+      this.curVal[0] = this.sMorph; this.curVal[1] = this.sCut; this.curVal[2] = this.sCho; this.curVal[3] = this.sSat;
+
+      // ---- exciter: 3 detuned morphing-wavetable voices ----
+      this.env += ((this.gate ? 1 : 0) - this.env) * (this.gate ? atk : rel);
+      let dry = 0;
+      for (let i = 0; i < 3; i++) {
+        const f = this.f0 * Math.pow(2, this.EXDET[i] / 1200);
+        const dph = f / sr;
+        let ph = this.exph[i] + dph; ph -= Math.floor(ph); this.exph[i] = ph;
+        dry += morphWave(ph, dph, this.sMorph);
+      }
+      dry = dry * 0.22 * this.env;
+
+      // ---- filter: cutoff from morph-mapped value, centered in signal body ----
+      const fc = 180 * Math.pow(2, this.sCut * 6.5); // ~180 Hz .. ~16 kHz, log
+      const g = Math.tan(Math.PI * Math.min(0.49, fc / sr));
+      const a1 = g / (1 + g);
+      // two cascaded TPT one-pole lowpass
+      const v1 = a1 * (dry - this.z1); const y1 = v1 + this.z1; this.z1 = y1 + v1;
+      const v2 = a1 * (y1 - this.z2); const y2 = v2 + this.z2; this.z2 = y2 + v2;
+      let sig = y2;
+
+      // ---- chorus: fixed internal LFO modulates delay; amount = wet mix ----
+      this.dline[this.dw] = sig;
+      this.chLfo += 0.9 / sr; if (this.chLfo >= 1) this.chLfo -= 1;
+      const delMs = 14 + 5 * Math.sin(TAU * this.chLfo);
+      const dS = Math.min(this.DL - 4, Math.max(1, delMs * 0.001 * sr));
+      let rp = this.dw - dS; if (rp < 0) rp += this.DL;
+      const i0 = rp | 0, fr = rp - i0, i1 = (i0 + 1) % this.DL;
+      const wet = this.dline[i0] * (1 - fr) + this.dline[i1] * fr;
+      this.dw = (this.dw + 1) % this.DL;
+      const amt = this.sCho;
+      sig = sig * (1 - amt * 0.5) + wet * amt;
+
+      // ---- saturation: drive from sat-mapped value ----
+      const drive = 1 + this.sSat * 6;
+      sig = Math.tanh(sig * drive) / Math.tanh(drive) * (0.6 + 0.4 * this.sSat);
+
+      const o = sig * p.vol * 1.5;
+      outL[smp] = o; outR[smp] = o;
+    }
+  }
+}
+// polyBLEP-bandlimited morphing wavetable: sine → tri → saw → square across morph∈[0,1]
+function polyBlep(t, dt) {
+  if (t < dt) { t /= dt; return t + t - t * t - 1; }
+  if (t > 1 - dt) { t = (t - 1) / dt; return t * t + t + t + 1; }
+  return 0;
+}
+function morphWave(ph, dt, morph) {
+  const sine = Math.sin(TAU * ph);
+  const tri = ph < 0.5 ? (4 * ph - 1) : (3 - 4 * ph);
+  const saw = (2 * ph - 1) - polyBlep(ph, dt);
+  const sqNaive = ph < 0.5 ? 1 : -1;
+  const sq = sqNaive + polyBlep(ph, dt) - polyBlep((ph + 0.5) % 1, dt);
+  const seg = morph * 3, idx = Math.min(2, Math.floor(seg)), f = seg - idx;
+  const tbl = [sine, tri, saw, sq];
+  return tbl[idx] * (1 - f) + tbl[idx + 1] * f;
+}
+
+/* ================= Audio graph ================= */
+let ctx = null, spn = null, lab = null;
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+function powerOn() {
+  if (ctx) { ctx.close(); ctx = null; spn = null; lab = null; $('power').textContent = 'POWER ON'; $('power').classList.remove('on'); return; }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    lab = new RotorLFO(ctx.sampleRate); pushAllParams();
+    spn = ctx.createScriptProcessor(1024, 0, 2);
+    spn.onaudioprocess = e => lab.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+    spn.connect(ctx.destination);
+    if (ctx.state === 'suspended') ctx.resume();
+    $('power').textContent = 'POWER OFF'; $('power').classList.add('on'); statusEl.textContent = '';
+  } catch (err) { statusEl.textContent = 'Audio failed to start: ' + err.message; ctx = null; }
+}
+$('power').addEventListener('click', powerOn);
+function send(k, v) { if (lab) lab.setParam(k, v); }
+const fmt = {
+  K: v => { const a = Math.abs(+v); if (a < 0.005) return 'free'; return (v > 0 ? 'sync ' : 'splay ') + a.toFixed(2); },
+  gRate: v => (+v).toFixed(2) + '×', vol: v => (+v).toFixed(2),
+  bW: v => (+v).toFixed(2), rW: v => (+v).toFixed(2) + ' Hz', dW: v => (+v).toFixed(2),
+  bC: v => (+v).toFixed(2), rC: v => (+v).toFixed(2) + ' Hz', dC: v => (+v).toFixed(2),
+  bH: v => (+v).toFixed(2), rH: v => (+v).toFixed(2) + ' Hz', dH: v => (+v).toFixed(2),
+  bS: v => (+v).toFixed(2), rS: v => (+v).toFixed(2) + ' Hz', dS: v => (+v).toFixed(2)
+};
+const ranges = ['K','gRate','vol','bW','rW','dW','bC','rC','dC','bH','rH','dH','bS','rS','dS'];
+ranges.forEach(k => {
+  const el = $(k), out = $(k + '_o');
+  const update = () => { const v = +el.value; if (out && fmt[k]) out.textContent = fmt[k](v); send(k, v); };
+  el.addEventListener('input', update); update();
+});
+$('shape').addEventListener('change', () => { send('shape', +$('shape').value); drawShapePrev(); $('shape').blur(); });
+function pushAllParams() { ranges.forEach(k => send(k, +$(k).value)); send('shape', +$('shape').value); }
+
+/* shape preview */
+const sp = $('shapePrev'), spx = sp.getContext('2d');
+function drawShapePrev() {
+  const w = sp.width, h = sp.height, shape = +$('shape').value;
+  spx.clearRect(0, 0, w, h);
+  spx.strokeStyle = '#5ff2e0'; spx.lineWidth = 1.5; spx.beginPath();
+  for (let x = 0; x <= w; x++) {
+    const ph = x / w; let v;
+    if (shape === 1) v = ph < 0.5 ? (4 * ph - 1) : (3 - 4 * ph);
+    else if (shape === 2) v = 2 * ph - 1;
+    else if (shape === 3) v = ph < 0.5 ? 1 : -1;
+    else v = Math.sin(TAU * ph);
+    const y = h / 2 - v * (h / 2 - 3);
+    if (x === 0) spx.moveTo(x, y); else spx.lineTo(x, y);
+  }
+  spx.stroke();
+}
+drawShapePrev();
+
+/* ================= Keyboard ================= */
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12,'o':13,'l':14,'p':15,';':16 };
+const CAPS_BY_SEMITONE = { 0:'A',1:'W',2:'S',3:'E',4:'D',5:'F',6:'T',7:'G',8:'Y',9:'H',10:'U',11:'J',12:'K',13:'O',14:'L',15:'P',16:';' };
+let octaveBase = 48;
+const OCT_MIN = 12, OCT_MAX = 96;
+const heldNotes = [];
+const WHITE = [0,2,4,5,7,9,11];
+const BLACK = { 0:1, 1:3, 3:6, 4:8, 5:10 };
+const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const keysEl = $('keys');
+function buildKeys() {
+  keysEl.innerHTML = '';
+  const whites = [];
+  for (let o = 0; o < 2; o++) for (let w = 0; w < 7; w++) whites.push(octaveBase + o * 12 + WHITE[w]);
+  whites.push(octaveBase + 24);
+  whites.forEach(m => {
+    const k = document.createElement('div'); k.className = 'key'; k.dataset.midi = m;
+    const off = m - octaveBase; const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+    k.innerHTML = cap + '<span>' + NAMES[m % 12] + (Math.floor(m / 12) - 1) + '</span>'; keysEl.appendChild(k);
+  });
+  const wCount = whites.length;
+  whites.forEach((m, idx) => {
+    const w = WHITE.indexOf(m % 12);
+    if (w !== -1 && BLACK[w] !== undefined && idx < wCount - 1) {
+      const midiB = m + (BLACK[w] - WHITE[w]);
+      const b = document.createElement('div'); b.className = 'key black'; b.dataset.midi = midiB;
+      b.style.left = ((idx + 1) / wCount * 100 - 2.9) + '%';
+      const off = midiB - octaveBase; const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+      b.innerHTML = cap + '<span>' + NAMES[midiB % 12] + '</span>'; keysEl.appendChild(b);
+    }
+  });
+  const lo = Math.floor(octaveBase / 12) - 1;
+  $('octlbl').textContent = 'octave: C' + lo + '–C' + (lo + 2) + ' (Z − / X +)';
+}
+buildKeys();
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function noteOn(m) { if (!lab) return; if (!heldNotes.includes(m)) heldNotes.push(m); lab.noteOn(m, mtof(m)); paintKeys(); }
+function noteOff(m) {
+  const i = heldNotes.indexOf(m); if (i !== -1) heldNotes.splice(i, 1);
+  if (lab) { if (heldNotes.length) lab.noteOn(heldNotes[heldNotes.length - 1], mtof(heldNotes[heldNotes.length - 1])); else lab.noteOff(m); }
+  paintKeys();
+}
+function paintKeys() { keysEl.querySelectorAll('.key').forEach(k => k.classList.toggle('held', heldNotes.includes(+k.dataset.midi))); }
+const pointerNotes = [];
+keysEl.addEventListener('pointerdown', e => { const k = e.target.closest('.key'); if (!k) return; keysEl.setPointerCapture(e.pointerId); const m = +k.dataset.midi; pointerNotes.push(m); noteOn(m); });
+window.addEventListener('pointerup', () => { pointerNotes.splice(0).forEach(noteOff); });
+function shiftOctave(dir) { const next = octaveBase + dir * 12; if (next < OCT_MIN || next > OCT_MAX) return; [...heldNotes].forEach(noteOff); octaveBase = next; buildKeys(); }
+window.addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { shiftOctave(-1); return; } if (key === 'x') { shiftOctave(1); return; }
+  const off = KMAP[key]; if (off !== undefined) noteOn(octaveBase + off);
+});
+window.addEventListener('keyup', e => { const off = KMAP[e.key.toLowerCase()]; if (off !== undefined) noteOff(octaveBase + off); });
+
+/* ================= Rotor visualization ================= */
+const rc = $('rotor'), rx = rc.getContext('2d');
+const COL = ['#5ff2e0', '#ffc24b', '#ff4fa3', '#9d7bff'];
+const LAB = ['WT', 'CUT', 'CHO', 'SAT'];
+const trails = [[], [], [], []];
+function drawRotor() {
+  const w = rc.width, h = rc.height;
+  rx.fillStyle = 'rgba(11,14,20,0.28)'; rx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, rad = Math.min(w, h) * 0.36;
+  // rotor ring
+  rx.strokeStyle = '#1a2030'; rx.lineWidth = 1.5;
+  rx.beginPath(); rx.arc(cx, cy, rad, 0, TAU); rx.stroke();
+  // phase 0 marker (top)
+  rx.strokeStyle = '#232a3a'; rx.beginPath(); rx.moveTo(cx, cy - rad - 6); rx.lineTo(cx, cy - rad + 6); rx.stroke();
+  if (!lab) return;
+  // order-parameter vector (coherence): from center, length R
+  const R = lab.R || 0, psi = lab.psi || 0;
+  const vx = cx + rad * R * Math.cos(psi - Math.PI / 2), vy = cy + rad * R * Math.sin(psi - Math.PI / 2);
+  rx.strokeStyle = 'rgba(232,236,242,0.5)'; rx.lineWidth = 2;
+  rx.beginPath(); rx.moveTo(cx, cy); rx.lineTo(vx, vy); rx.stroke();
+  rx.fillStyle = 'rgba(232,236,242,0.5)'; rx.beginPath(); rx.arc(vx, vy, 3, 0, TAU); rx.fill();
+  // each voice: dot at phase angle (0 at top, clockwise), spoke length = current shaped value
+  for (let i = 0; i < NV; i++) {
+    const ang = TAU * lab.phase[i] - Math.PI / 2;
+    const dx = cx + rad * Math.cos(ang), dy = cy + rad * Math.sin(ang);
+    // trail
+    const tr = trails[i]; tr.push([dx, dy]); if (tr.length > 22) tr.shift();
+    rx.strokeStyle = COL[i]; rx.globalAlpha = 0.18; rx.lineWidth = 1;
+    rx.beginPath(); for (let j = 0; j < tr.length; j++) { if (j === 0) rx.moveTo(tr[j][0], tr[j][1]); else rx.lineTo(tr[j][0], tr[j][1]); } rx.stroke();
+    rx.globalAlpha = 1;
+    // spoke = shaped LFO value (inward/outward from ring)
+    const val = lab.lfo[i] || 0;
+    const inx = cx + (rad + val * 26) * Math.cos(ang), iny = cy + (rad + val * 26) * Math.sin(ang);
+    rx.strokeStyle = COL[i]; rx.lineWidth = 2;
+    rx.beginPath(); rx.moveTo(dx, dy); rx.lineTo(inx, iny); rx.stroke();
+    // dot
+    rx.fillStyle = COL[i];
+    rx.beginPath(); rx.arc(dx, dy, 6, 0, TAU); rx.fill();
+    rx.strokeStyle = 'rgba(11,14,20,0.85)'; rx.lineWidth = 1.5;
+    rx.beginPath(); rx.arc(dx, dy, 6, 0, TAU); rx.stroke();
+    // label
+    rx.fillStyle = COL[i]; rx.font = '9px monospace'; rx.textAlign = 'center';
+    rx.fillText(LAB[i], cx + (rad + 22) * Math.cos(ang), cy + (rad + 22) * Math.sin(ang) + 3);
+  }
+  rx.textAlign = 'left';
+  // center coherence readout
+  rx.fillStyle = 'rgba(124,134,152,0.9)'; rx.font = '10px monospace'; rx.textAlign = 'center';
+  rx.fillText('R ' + R.toFixed(2), cx, cy + 4);
+  rx.textAlign = 'left';
+  // value readouts
+  const fmtV = [
+    (lab.curVal[0] || 0).toFixed(2),
+    Math.round(180 * Math.pow(2, (lab.curVal[1] || 0) * 6.5)) + ' Hz',
+    (lab.curVal[2] || 0).toFixed(2),
+    (lab.curVal[3] || 0).toFixed(2)
+  ];
+  for (let i = 0; i < 4; i++) $('v' + i).textContent = fmtV[i];
+}
+function loop() { drawRotor(); requestAnimationFrame(loop); }
+loop();
+
+/* focus-trap fix + panic */
+document.addEventListener('pointerup', () => { const t = document.activeElement; if (t && t.tagName === 'INPUT' && t.type === 'range') t.blur(); });
+document.addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.blur(); });
+window.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.activeElement) document.activeElement.blur(); [...heldNotes].forEach(noteOff); } }, true);
+</script>
+</body>
+</html>
