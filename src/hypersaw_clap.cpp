@@ -158,6 +158,16 @@ static const ParamDef kParams[] = {
     {62, "fx3amt", "FX3 Amount", 0, 1, 0.5, false, nullptr},
     {63, "fx4type", "FX4 Type", 0, 3, 0, true, kFxTypeLabels},
     {64, "fx4amt", "FX4 Amount", 0, 1, 0.5, false, nullptr},
+    // SPECTRA ADSR (ADR-055; SPECTRA-only, ids route to the spectra core).
+    // SEPARATE from the SAW ADSR (ids 19-22): the two references have
+    // different reference AR constants (SAW 3 ms/160 ms, SPECTRA 4 ms/180 ms),
+    // so each engine carries its own envelope defaulting to ITS reference —
+    // the plugin default must be reference-exact, not just the golden harness.
+    // Renumbered 57-60 → 65-68 on the merge with the FX rack (ADR-054 owns 57-64).
+    {65, "sAttack", "S.Attack (s)", 0.001, 2.0, 0.004, false, nullptr},
+    {66, "sDecay", "S.Decay (s)", 0.005, 4.0, 0.18, false, nullptr},
+    {67, "sSustain", "S.Sustain", 0, 1, 1.0, false, nullptr},
+    {68, "sRelease", "S.Release (s)", 0.005, 8.0, 0.18, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -638,7 +648,7 @@ struct Plugin
         engineSel = applied;
         return;
       }
-      if (id >= 44 && id <= 55)
+      if ((id >= 44 && id <= 55) || (id >= 65 && id <= 68))  // 65-68: SPECTRA ADSR (ADR-055)
       {
         spectra.setParam(d->coreKey, applied);
         return;
@@ -676,7 +686,8 @@ struct Plugin
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 43) return engineSel;
-      if (d->id >= 44 && d->id <= 55) return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
+      if ((d->id >= 44 && d->id <= 55) || (d->id >= 65 && d->id <= 68))  // SPECTRA (44-55) + SPECTRA ADSR (ADR-055, 65-68)
+        return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
       if (d->id >= 57 && d->id <= 64)  // ADR-054 FX rack readback (state/get_value)
       {
         const int slot = (int)(d->id - 57) / 2;

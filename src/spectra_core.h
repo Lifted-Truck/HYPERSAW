@@ -50,6 +50,20 @@ class SpectraCore
     double partials = 12, tilt = 1, stretch = 0, cloud = 5, cwidth = 0.25, wtilt = 0, wlaw = 0,
            seed = 1234, K = 0, cascade = 0, onset = 0, dissolve = 0.63, swidth = 0.8, vol = 0.4,
            retrig = 1;
+    // ADSR (ADR-055): parity-safe superset of the reference AR, exactly as
+    // ADR-021 did for the SAW core — BUT the defaults are SPECTRA's OWN
+    // reference constants (attack 4 ms, release 180 ms; swarmspectra.html AR),
+    // which DIFFER from the SAW core's 3 ms / 160 ms. At sustainL >= 1 the
+    // render loop takes the reference's exact expressions (decay never
+    // engages) so the spectra goldens are the regression proof; sustainL < 1
+    // enters an attack->decay machine that is new, deliberately divergent.
+    // These are SPECTRA-only keys (sAttack/... ids 57-60) — NOT the shell's
+    // shared attack/decay/sustain/release (ids 19-22, SAW-only). Sharing 19-22
+    // was rejected: their default (3 ms) would push into SPECTRA at plugin
+    // load and silently shift its default AR off-reference with NO oracle to
+    // catch it (the golden harness constructs SpectraCore directly, bypassing
+    // the shell), so both goldens AND plugin must default here (ADR-055).
+    double attackS = 0.004, decayS = 0.18, sustainL = 1.0, releaseS = 0.18;
     // Per-voice uncoupled sub-oscillator (ADR-042, first beyond-prototype
     // feature). At subOn=0 OR subVol=0 the render skips it entirely, so the
     // reference path is bit-inert (spectra goldens hold at rms 0).
@@ -67,6 +81,7 @@ class SpectraCore
     long age = -1;
     uint32_t rngState = 1;
     double subPhase = 0;  // ADR-042 sub-osc phase accumulator, [0,1)
+    int inAttack = 1;     // ADR-055 ADSR phase flag; unread on the reference-exact path
   };
 
   explicit SpectraCore(double sampleRate) : sr(sampleRate)
@@ -147,7 +162,8 @@ class SpectraCore
     s.gate = 1;
     s.age = noteCounter++;
     s.Kenv = 8 * p.onset * p.onset;
-    s.subPhase = 0;  // ADR-042: fresh sub phase per strike
+    s.subPhase = 0;   // ADR-042: fresh sub phase per strike
+    s.inAttack = 1;   // ADR-055: re-arm the attack->decay machine per strike
     // (seed|0) + age*7919 + 1 — same wrap semantics as SwarmCore initVoice
     s.rngState = (uint32_t)((int64_t)(int32_t)(int64_t)p.seed + (int64_t)s.age * 7919 + 1);
     const int P = (int)p.partials, M = (int)p.cloud;
@@ -264,8 +280,12 @@ class SpectraCore
     double ampSum = 0;
     for (int k = 0; k < P; k++) ampSum += amp[k];
     const double gain = p.vol * 1.4 / (ampSum * std::pow((double)M, 0.75));
-    const double atk = 1 - std::exp(-1 / (0.004 * sr));
-    const double rel = 1 - std::exp(-1 / (0.18 * sr));
+    // ADR-055: at the defaults these are the reference's exact expressions
+    // (attackS = 0.004, releaseS = 0.18 — same operands, same doubles as the
+    // former hardcoded AR), so the spectra goldens are unchanged.
+    const double atk = 1 - std::exp(-1 / (p.attackS * sr));
+    const double rel = 1 - std::exp(-1 / (p.releaseS * sr));
+    const double dec = 1 - std::exp(-1 / (p.decayS * sr));
     // ADR-042 sub-osc: constant per block. When inactive the sample loop below
     // is byte-identical to the reference path (l*g held in a double first, then
     // added) — the guard is what keeps parity rms 0.
@@ -305,8 +325,30 @@ class SpectraCore
             r += v * (panR[idx] * iwm + 0.7071 * wm);
           }
         }
-        const double coef = s.gate ? atk : rel;
-        s.env += ((s.gate ? 1 : 0) - s.env) * coef;
+        // ADR-055 envelope. sustainL >= 1: the reference's exact arithmetic
+        // ((1-env)*atk while gated, (0-env)*rel released) — decay never
+        // engages, parity preserved. sustainL < 1: attack->decay machine,
+        // deliberately divergent (superset behavior). Same shape as ADR-021.
+        if (s.gate)
+        {
+          if (p.sustainL >= 1.0)
+          {
+            s.env += (1 - s.env) * atk;
+          }
+          else if (s.inAttack)
+          {
+            s.env += (1 - s.env) * atk;
+            if (s.env >= 0.995) s.inAttack = 0;
+          }
+          else
+          {
+            s.env += (p.sustainL - s.env) * dec;
+          }
+        }
+        else
+        {
+          s.env += (0 - s.env) * rel;
+        }
         const double g = gain * s.env;
         double sampL = l * g, sampR = r * g;
         if (subActive)
@@ -376,6 +418,10 @@ class SpectraCore
     if (!std::strcmp(k, "swidth")) return &p.swidth;
     if (!std::strcmp(k, "vol")) return &p.vol;
     if (!std::strcmp(k, "retrig")) return &p.retrig;
+    if (!std::strcmp(k, "sAttack")) return &p.attackS;   // ADR-055 SPECTRA ADSR
+    if (!std::strcmp(k, "sDecay")) return &p.decayS;
+    if (!std::strcmp(k, "sSustain")) return &p.sustainL;
+    if (!std::strcmp(k, "sRelease")) return &p.releaseS;
     if (!std::strcmp(k, "subOn")) return &p.subOn;
     if (!std::strcmp(k, "subVol")) return &p.subVol;
     if (!std::strcmp(k, "subWave")) return &p.subWave;
