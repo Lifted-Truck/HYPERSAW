@@ -131,3 +131,11 @@ Protocol: two-cluster topology, mu=0.3, K=+1, detune 0.3, retrig off, A3, 3 s se
 - balance 1.0: kB=−1, B splayed; full split (R_A − R_B) >= 0.5.
 - mu sets the R_B floor (contamination): R_B(mu=0.9) > R_B(mu=0.05) at balance 1.
 Anchors are robust (split, monotone floor) rather than exact R_B floor values, which are settle-window-sensitive near ~1/sqrt(n) (the L0002 measurement-protocol caveat). Enforced in trajectory_check; K is UNIPOLAR in this engine (4·K²·σ) so balance<0.5→>0.5 is the only cluster-splay axis.
+
+## L0-24 · Bipolar onset lock (ADR-056, C++-only superset beyond the reference range)
+
+Protocol: n=16, detune 0.3, retrig off, dissolve 0.5, A3, 4 s. Onset lock is a note-start coupling burst (Kenv = 8·onset·|onset|) that decays over `dissolve`. Range widened 0..1 → −1..1.
+- onset ≥ 0: BIT-IDENTICAL to the reference (8·onset·|onset| == 8·onset² there; the sync/splay routing reduces to the reference's `max(0,km)+Kenv`). Every existing golden proves it — parity untouched. onset < 0 is a NEW C++-only path (no JS reference; validated behaviorally, like ADR-025 super-width).
+- Direction (K=0.9): splay-onset (onset −1) early R < sync-onset (onset +1) early R by a clear margin — negative gives an initial splay burst, positive a sync burst.
+- Dissolve neutralizes: at a strongly-locking K the two CONVERGE once Kenv→0 (late |ΔR| < 0.06) — dissolve returns the coupling boost to neutral. NOTE: near-critical K, the splay-vs-sync initial condition can settle into different basins even after Kenv→0 (genuine path-dependence/multistability, not a failure); the anchor therefore checks convergence only in the guaranteed regime.
+Enforced in trajectory_check (ADR-056 block). Revertible: the change is a signed `fabs` + a sign-routed splay term.

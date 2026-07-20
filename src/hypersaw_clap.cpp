@@ -80,7 +80,7 @@ static const ParamDef kParams[] = {
     {4, "detune", "Detune", 0, 1, 0.28, false, nullptr},
     {5, "law", "Detune Law", 0, 3, 0, true, kLawLabels},
     {6, "K", "Pull K", -1, 1, 0, false, nullptr},
-    {7, "onset", "Onset Lock", 0, 1, 0, false, nullptr},
+    {7, "onset", "Onset Lock", -1, 1, 0, false, nullptr},  // ADR-056: bipolar (<0 = splay onset)
     {8, "dissolve", "Dissolve (s)", 0.05, 7.94, 0.63, false, nullptr},
     {9, "driftDepth", "Drift Depth (c)", 0, 100, 0, false, nullptr},  // widened from the
     // prototype's 25c at human request (ADR-020); core takes any cents value
