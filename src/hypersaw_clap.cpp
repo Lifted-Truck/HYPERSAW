@@ -144,6 +144,15 @@ static const ParamDef kParams[] = {
     // Two-cluster A/B balance (ADR-051): sweeps cluster B from synced (0) to
     // splayed (1); default 0 is bit-inert. Two-cluster topology only.
     {56, "balance", "A/B Balance", 0, 1, 0, false, nullptr},
+    // SPECTRA ADSR (ADR-055; SPECTRA-only, ids route to the spectra core).
+    // SEPARATE from the SAW ADSR (ids 19-22): the two references have
+    // different reference AR constants (SAW 3 ms/160 ms, SPECTRA 4 ms/180 ms),
+    // so each engine carries its own envelope defaulting to ITS reference —
+    // the plugin default must be reference-exact, not just the golden harness.
+    {57, "sAttack", "S.Attack (s)", 0.001, 2.0, 0.004, false, nullptr},
+    {58, "sDecay", "S.Decay (s)", 0.005, 4.0, 0.18, false, nullptr},
+    {59, "sSustain", "S.Sustain", 0, 1, 1.0, false, nullptr},
+    {60, "sRelease", "S.Release (s)", 0.005, 8.0, 0.18, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -623,7 +632,7 @@ struct Plugin
         engineSel = applied;
         return;
       }
-      if (id >= 44 && id <= 55)
+      if ((id >= 44 && id <= 55) || (id >= 57 && id <= 60))  // 57-60: SPECTRA ADSR (ADR-055)
       {
         spectra.setParam(d->coreKey, applied);
         return;
@@ -654,7 +663,8 @@ struct Plugin
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 43) return engineSel;
-      if (d->id >= 44 && d->id <= 55) return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
+      if ((d->id >= 44 && d->id <= 55) || (d->id >= 57 && d->id <= 60))  // SPECTRA ADSR (ADR-055)
+        return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
       return core.getParam(d->coreKey);
     }
     return 0;
