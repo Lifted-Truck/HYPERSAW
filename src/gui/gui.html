@@ -42,8 +42,14 @@
   #carpetCanvas { height: 58px; }
   #specCanvas { height: 58px; }
   #xyPad { aspect-ratio: 2.6; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 10px; align-items: start; }
+  .grid { display: block; }
+  /* Controls pack into balanced COLUMNS (fill top-to-bottom, then next column)
+     rather than a row-flow grid — the grid aligned rows and left ragged
+     vertical gaps below shorter clusters (2026-07-20 layout report). Column
+     width drives the count: 1 column when narrow, 2+ when wide. */
+  .controls { columns: 220px; column-gap: 10px; }
   .scope, .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
+  .controls .cluster { break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 10px; }
   .scope h2, .cluster h2 {
     font-family: var(--disp-f); font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
     color: var(--dim); text-transform: uppercase; margin-bottom: 6px;
@@ -59,7 +65,7 @@
   .rmeter .fill.amber { background: linear-gradient(90deg, #ffc24b, #ff8b3c); }
   .rmeter .lbl { display: flex; justify-content: space-between; color: var(--dim); font-size: 9px; margin-top: 3px; }
   .rmeter .lbl b { color: var(--text); font-weight: 500; }
-  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 10px; align-content: start; }
+  /* .controls layout is defined above (CSS multi-column packing). */
   /* minmax(0,1fr) + min-width guards: grid children otherwise refuse to
      shrink below content size, which pushed the value column through the
      panel border at some window widths (2026-07-18 resize bug). */
@@ -129,7 +135,12 @@
 </div>
 
 <div class="grid">
-  <div class="controls" style="display:contents">
+  <div class="controls">
+    <div class="cluster">
+      <h2 id="xyLabel">XY · x=detune y=pull K</h2>
+      <canvas id="xyPad" width="256" height="150"></canvas>
+      <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
+    </div>
     <div class="cluster">
       <h2>The swarm</h2>
       <div class="row"><label>engine</label><select data-p="43">
@@ -269,11 +280,6 @@
       </div>
     </div>
 
-    <div class="cluster">
-      <h2 id="xyLabel">XY · x=detune y=pull K</h2>
-      <canvas id="xyPad" width="256" height="150"></canvas>
-      <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
-    </div>
   </div>
 </div>
 </div>
