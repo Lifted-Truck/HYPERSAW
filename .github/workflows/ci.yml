@@ -1,5 +1,8 @@
 # CI mirrors the local Stop-hook gate: verify fast on every push, plus the
-# Phase 0 platform gate (build matrix + pluginval strictness 5). Audio Layer-E
+# Phase 0 platform gate (build matrix + pluginval strictness 10 — raised from 5,
+# 2026-07-19; the strong bar my local runs already assert. A headless editor-
+# test failure here is an environment artifact, not a plugin bug — fix with
+# --skip-gui-tests, keeping GUI validation local + in-host). Audio Layer-E
 # (auval, host loads, listening) stays macOS-local and human-run.
 name: ci
 on:
@@ -23,11 +26,11 @@ jobs:
         run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
       - name: build
         run: cmake --build "$GITHUB_WORKSPACE/build" -j3
-      - name: pluginval (VST3, strictness 5)
+      - name: pluginval (VST3, strictness 10)
         run: |
           curl -sL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
           unzip -q pluginval.zip
-          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --validate build/HYPERSAW_assets/HYPERSAW.vst3
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate build/HYPERSAW_assets/HYPERSAW.vst3
       - name: bench (informational)
         run: ./build/renderer_bench || true
 
@@ -41,10 +44,10 @@ jobs:
         run: cmake -S . -B build
       - name: build
         run: cmake --build build --config Release -j3
-      - name: pluginval (VST3, strictness 5)
+      - name: pluginval (VST3, strictness 10)
         shell: pwsh
         run: |
           Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
           Expand-Archive pluginval.zip -DestinationPath pv
           $vst3 = Get-ChildItem -Recurse -Filter HYPERSAW.vst3 build | Select-Object -First 1
-          & pv/pluginval.exe --strictness-level 5 --validate $vst3.FullName
+          & pv/pluginval.exe --strictness-level 10 --validate $vst3.FullName
