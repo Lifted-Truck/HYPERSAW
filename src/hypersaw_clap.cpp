@@ -26,6 +26,7 @@
 #include "swarm_core.h"
 #include "gui/hypersaw_gui.h"
 #include "spectra_core.h"
+#include "fx_rack.h"
 #include "hypersaw_clap_entry.h"
 
 namespace
@@ -65,6 +66,7 @@ static const char *const kLawLabels[] = {"cents-constant", "Hz-constant", "ERB-f
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
+static const char *const kFxTypeLabels[] = {"Off", "Drive", "Filter", "Gain"};
 // Display names for the gravity ratio readout (indices match core kRatios)
 static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
                                             "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
@@ -144,15 +146,28 @@ static const ParamDef kParams[] = {
     // Two-cluster A/B balance (ADR-051): sweeps cluster B from synced (0) to
     // splayed (1); default 0 is bit-inert. Two-cluster topology only.
     {56, "balance", "A/B Balance", 0, 1, 0, false, nullptr},
+    // Internal FX rack (ADR-054, increment 1): 4 series slots, each a type +
+    // amount, processed in slot order. Default type Off = bit-exact passthrough
+    // (the parity gate). coreKeys are unique non-core strings — used only as
+    // state-blob keys; apply/readParam intercept these ids and route to `rack`.
+    {57, "fx1type", "FX1 Type", 0, 3, 0, true, kFxTypeLabels},
+    {58, "fx1amt", "FX1 Amount", 0, 1, 0.5, false, nullptr},
+    {59, "fx2type", "FX2 Type", 0, 3, 0, true, kFxTypeLabels},
+    {60, "fx2amt", "FX2 Amount", 0, 1, 0.5, false, nullptr},
+    {61, "fx3type", "FX3 Type", 0, 3, 0, true, kFxTypeLabels},
+    {62, "fx3amt", "FX3 Amount", 0, 1, 0.5, false, nullptr},
+    {63, "fx4type", "FX4 Type", 0, 3, 0, true, kFxTypeLabels},
+    {64, "fx4amt", "FX4 Amount", 0, 1, 0.5, false, nullptr},
     // SPECTRA ADSR (ADR-055; SPECTRA-only, ids route to the spectra core).
     // SEPARATE from the SAW ADSR (ids 19-22): the two references have
     // different reference AR constants (SAW 3 ms/160 ms, SPECTRA 4 ms/180 ms),
     // so each engine carries its own envelope defaulting to ITS reference —
     // the plugin default must be reference-exact, not just the golden harness.
-    {57, "sAttack", "S.Attack (s)", 0.001, 2.0, 0.004, false, nullptr},
-    {58, "sDecay", "S.Decay (s)", 0.005, 4.0, 0.18, false, nullptr},
-    {59, "sSustain", "S.Sustain", 0, 1, 1.0, false, nullptr},
-    {60, "sRelease", "S.Release (s)", 0.005, 8.0, 0.18, false, nullptr},
+    // Renumbered 57-60 → 65-68 on the merge with the FX rack (ADR-054 owns 57-64).
+    {65, "sAttack", "S.Attack (s)", 0.001, 2.0, 0.004, false, nullptr},
+    {66, "sDecay", "S.Decay (s)", 0.005, 4.0, 0.18, false, nullptr},
+    {67, "sSustain", "S.Sustain", 0, 1, 1.0, false, nullptr},
+    {68, "sRelease", "S.Release (s)", 0.005, 8.0, 0.18, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -197,6 +212,7 @@ struct Plugin
   const clap_host_params_t *hostParams = nullptr;
   hypersaw::SwarmCore core{44100.0};
   hypersaw::SpectraCore spectra{44100.0};
+  hypersaw::FxRack rack;  // ADR-054 internal FX rack (post-oscillator)
   double engineSel = 0;  // 0 SAW, 1 SPECTRA (ADR-037; shell dispatch)
   bool spectraMode() const { return engineSel != 0; }
   double sampleRate = 44100.0;
@@ -632,9 +648,16 @@ struct Plugin
         engineSel = applied;
         return;
       }
-      if ((id >= 44 && id <= 55) || (id >= 57 && id <= 60))  // 57-60: SPECTRA ADSR (ADR-055)
+      if ((id >= 44 && id <= 55) || (id >= 65 && id <= 68))  // 65-68: SPECTRA ADSR (ADR-055)
       {
         spectra.setParam(d->coreKey, applied);
+        return;
+      }
+      if (id >= 57 && id <= 64)  // ADR-054 FX rack: type/amount pairs → rack
+      {
+        const int slot = (int)(id - 57) / 2;
+        if (((id - 57) & 1) == 0) rack.setType(slot, (int)applied);
+        else rack.setAmount(slot, applied);
         return;
       }
       // Width: the SAW core calls it "width", SPECTRA calls it "swidth" — same
@@ -663,8 +686,13 @@ struct Plugin
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 43) return engineSel;
-      if ((d->id >= 44 && d->id <= 55) || (d->id >= 57 && d->id <= 60))  // SPECTRA ADSR (ADR-055)
+      if ((d->id >= 44 && d->id <= 55) || (d->id >= 65 && d->id <= 68))  // SPECTRA (44-55) + SPECTRA ADSR (ADR-055, 65-68)
         return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
+      if (d->id >= 57 && d->id <= 64)  // ADR-054 FX rack readback (state/get_value)
+      {
+        const int slot = (int)(d->id - 57) / 2;
+        return ((d->id - 57) & 1) == 0 ? (double)rack.getType(slot) : rack.getAmount(slot);
+      }
       return core.getParam(d->coreKey);
     }
     return 0;
@@ -895,6 +923,11 @@ struct Plugin
         outR[i] = (float)(m - hp);
       }
     }
+
+    // Internal FX rack (ADR-054): post-oscillator, post-bass-mono, in place.
+    // All-Off is a bit-exact passthrough (the parity gate). Runs before the
+    // spectrum feed so the visualizer reflects post-FX output.
+    rack.processStereo(outL, outR, (int)nframes);
 
     publishViz();
     {

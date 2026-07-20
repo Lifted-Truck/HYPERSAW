@@ -13,10 +13,10 @@ ADSR to SpectraCore mirroring ADR-021's superset-with-inert-default.
   former expressions; sustainL<1 → attack→decay); paramSlot maps
   sAttack/sDecay/sSustain/sRelease (names distinct from SAW's shared keys so
   shell id-19 never leaks into SPECTRA via the shared-name mirror).
-- `src/hypersaw_clap.cpp`: ParamDefs 57-60 (S.Attack/Decay/Sustain/Release,
+- `src/hypersaw_clap.cpp`: ParamDefs 65-68 (S.Attack/Decay/Sustain/Release,
   SPECTRA reference defaults); set/read routed to the spectra core alongside
   44-55. State round-trips via the existing kParams-by-coreKey loop.
-- `src/gui/gui.html`: rows 57-60 added to the Envelope cluster, gated
+- `src/gui/gui.html`: rows 65-68 added to the Envelope cluster, gated
   SPECTRA_ONLY (19-22 already SAW_ONLY) — one cluster, engine-appropriate ADSR.
 - `DECISIONS.md`: ADR-055.
 
