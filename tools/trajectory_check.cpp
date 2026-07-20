@@ -857,6 +857,31 @@ int main()
     check(c.focus()->R >= 0.95, "ADR-004 absK locks identical oscillators", c.focus()->R);
   }
 
+  std::printf("== ADR-056 bipolar onset lock ==\n");
+  {
+    // onset > 0 = a SYNC burst at note start; onset < 0 = a SPLAY burst; both
+    // dissolve to the same steady state over `dissolve`. Splay-onset must give
+    // lower early R than sync-onset. Convergence-after-dissolve is checked at a
+    // STRONGLY-locking K (0.9): there the steady coupling determines the final
+    // state regardless of the initial burst. (At near-critical K the two can
+    // settle into different basins even after Kenv->0 — path dependence, a real
+    // property of the system, not a failure; ADR-056 records it.)
+    const std::vector<std::pair<std::string, double>> base = {
+        {"n", 16}, {"detune", 0.3}, {"retrig", 0}, {"K", 0.9}, {"dissolve", 0.5}};
+    auto sync = base;  sync.push_back({"onset", 1.0});
+    auto splay = base; splay.push_back({"onset", -1.0});
+    Traj a = run(sync, 4.0), b = run(splay, 4.0);
+    const double earlySync = denseMean(a.denseR, 0.15, 0.8);
+    const double earlySplay = denseMean(b.denseR, 0.15, 0.8);
+    check(earlySplay < earlySync - 0.1, "ADR-056 splay-onset early R < sync-onset early R",
+          earlySync - earlySplay);
+    const double lateSync = denseMean(a.denseR, 3.0, 4.0);
+    const double lateSplay = denseMean(b.denseR, 3.0, 4.0);
+    check(std::fabs(lateSync - lateSplay) < 0.06, "ADR-056 dissolve neutralizes: late R converges",
+          std::fabs(lateSync - lateSplay));
+    check(a.finite && b.finite, "ADR-056 bipolar onset NaN-clean", (double)(a.finite && b.finite));
+  }
+
   std::printf("trajectory_check: %s (%d failure%s)\n", g_failures ? "RED" : "GREEN", g_failures,
               g_failures == 1 ? "" : "s");
   return g_failures ? 1 : 0;

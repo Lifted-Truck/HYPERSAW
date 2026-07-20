@@ -211,7 +211,10 @@ class SwarmCore
     s.f0cur = f;
     s.gate = 1;
     s.age = noteCounter++;
-    s.Kenv = 8 * p.onset * p.onset;
+    // ADR-056: signed quadratic → bipolar onset lock. onset >= 0 reproduces
+    // the reference's 8*onset^2 bit-exactly (fabs(onset)==onset there); onset < 0
+    // makes Kenv negative — an initial SPLAY burst instead of a sync burst.
+    s.Kenv = 8 * p.onset * std::fabs(p.onset);
     s.KsmS = 0;
     s.KsmP = 0;
     s.fresh = 1;
@@ -648,8 +651,12 @@ class SwarmCore
     // pull 4*K^2*2.5 = 10 Hz at knob 1) so identical-oscillator states are
     // reachable with real authority; default path untouched.
     const double sigmaU = (p.absK != 0) ? 2.5 : s.sigma;
-    const double syncT = (std::max(0.0, km) + s.Kenv) * sigmaU;
-    const double splayT = std::max(0.0, -km) * 3 * sigmaU;
+    // ADR-056 bipolar onset: route the signed Kenv by sign — positive adds to
+    // sync (unchanged), negative adds to splay (x3, matching the steady splay
+    // gain). For onset >= 0 (Kenv >= 0) this is bit-identical to the reference:
+    // max(0,Kenv)==Kenv adds to syncT, max(0,-Kenv)==0 leaves splayT untouched.
+    const double syncT = (std::max(0.0, km) + std::max(0.0, s.Kenv)) * sigmaU;
+    const double splayT = (std::max(0.0, -km) * 3 + std::max(0.0, -s.Kenv) * 3) * sigmaU;
     s.KsmS += (syncT - s.KsmS) * 0.08;
     s.KsmP += (splayT - s.KsmP) * 0.08;
     double sx = 0, sy = 0;
