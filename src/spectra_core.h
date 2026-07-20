@@ -69,6 +69,7 @@ class SpectraCore
     // reference path is bit-inert (spectra goldens hold at rms 0).
     double subOn = 0, subVol = 0, subWave = 0;  // subWave: 0 sine → 0.5 tri → 1 smooth square
     double subOct = -1;  // sub octave: -1 (f0/2, default) / -2 (f0/4) / -3 (f0/8)
+    double tune = 1.0;  // ADR-057: global transpose (octave/semi/fine/pitch); 1.0 = bit-inert (f0*1==f0)
   };
 
   struct SSwarm
@@ -209,7 +210,7 @@ class SpectraCore
     for (int k = 0; k < P; k++)
     {
       const double h = k + 1;
-      const double fk = s.f0 * h * std::sqrt(1 + B * h * h);
+      const double fk = s.f0 * p.tune * h * std::sqrt(1 + B * h * h);  // ADR-057 tune (1.0 inert)
       const double tiltMul = std::pow(h, p.wtilt);
       double mean = 0;
       for (int m = 0; m < M; m++)
@@ -356,7 +357,7 @@ class SpectraCore
           // Uncoupled sub at f0/2 (one octave down), own phase, following the
           // note envelope; morphs sine → triangle → smooth square. Mono (same
           // to both channels) — a sub belongs in the center.
-          s.subPhase += (s.f0 * subFreqMul) / sr;
+          s.subPhase += (s.f0 * p.tune * subFreqMul) / sr;  // ADR-057 tune (1.0 inert)
           s.subPhase -= std::floor(s.subPhase);
           const double sub = subGain * subWaveform(s.subPhase, p.subWave) * s.env;
           sampL += sub;
@@ -426,6 +427,7 @@ class SpectraCore
     if (!std::strcmp(k, "subVol")) return &p.subVol;
     if (!std::strcmp(k, "subWave")) return &p.subWave;
     if (!std::strcmp(k, "subOct")) return &p.subOct;
+    if (!std::strcmp(k, "tune")) return &p.tune;  // ADR-057 global transpose
     return nullptr;
   }
 };
