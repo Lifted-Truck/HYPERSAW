@@ -26,6 +26,7 @@
 #include "swarm_core.h"
 #include "gui/hypersaw_gui.h"
 #include "spectra_core.h"
+#include "fx_rack.h"
 #include "hypersaw_clap_entry.h"
 
 namespace
@@ -65,6 +66,7 @@ static const char *const kLawLabels[] = {"cents-constant", "Hz-constant", "ERB-f
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
+static const char *const kFxTypeLabels[] = {"Off", "Drive", "Filter", "Gain"};
 // Display names for the gravity ratio readout (indices match core kRatios)
 static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
                                             "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
@@ -144,6 +146,18 @@ static const ParamDef kParams[] = {
     // Two-cluster A/B balance (ADR-051): sweeps cluster B from synced (0) to
     // splayed (1); default 0 is bit-inert. Two-cluster topology only.
     {56, "balance", "A/B Balance", 0, 1, 0, false, nullptr},
+    // Internal FX rack (ADR-054, increment 1): 4 series slots, each a type +
+    // amount, processed in slot order. Default type Off = bit-exact passthrough
+    // (the parity gate). coreKeys are unique non-core strings — used only as
+    // state-blob keys; apply/readParam intercept these ids and route to `rack`.
+    {57, "fx1type", "FX1 Type", 0, 3, 0, true, kFxTypeLabels},
+    {58, "fx1amt", "FX1 Amount", 0, 1, 0.5, false, nullptr},
+    {59, "fx2type", "FX2 Type", 0, 3, 0, true, kFxTypeLabels},
+    {60, "fx2amt", "FX2 Amount", 0, 1, 0.5, false, nullptr},
+    {61, "fx3type", "FX3 Type", 0, 3, 0, true, kFxTypeLabels},
+    {62, "fx3amt", "FX3 Amount", 0, 1, 0.5, false, nullptr},
+    {63, "fx4type", "FX4 Type", 0, 3, 0, true, kFxTypeLabels},
+    {64, "fx4amt", "FX4 Amount", 0, 1, 0.5, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -188,6 +202,7 @@ struct Plugin
   const clap_host_params_t *hostParams = nullptr;
   hypersaw::SwarmCore core{44100.0};
   hypersaw::SpectraCore spectra{44100.0};
+  hypersaw::FxRack rack;  // ADR-054 internal FX rack (post-oscillator)
   double engineSel = 0;  // 0 SAW, 1 SPECTRA (ADR-037; shell dispatch)
   bool spectraMode() const { return engineSel != 0; }
   double sampleRate = 44100.0;
@@ -628,6 +643,13 @@ struct Plugin
         spectra.setParam(d->coreKey, applied);
         return;
       }
+      if (id >= 57 && id <= 64)  // ADR-054 FX rack: type/amount pairs → rack
+      {
+        const int slot = (int)(id - 57) / 2;
+        if (((id - 57) & 1) == 0) rack.setType(slot, (int)applied);
+        else rack.setAmount(slot, applied);
+        return;
+      }
       // Width: the SAW core calls it "width", SPECTRA calls it "swidth" — same
       // stereo-spread control, so one slider (id 14) drives both.
       if (id == 14) spectra.setParam("swidth", applied);
@@ -655,6 +677,11 @@ struct Plugin
       if (d->id == 41) return bassMonoHz;
       if (d->id == 43) return engineSel;
       if (d->id >= 44 && d->id <= 55) return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
+      if (d->id >= 57 && d->id <= 64)  // ADR-054 FX rack readback (state/get_value)
+      {
+        const int slot = (int)(d->id - 57) / 2;
+        return ((d->id - 57) & 1) == 0 ? (double)rack.getType(slot) : rack.getAmount(slot);
+      }
       return core.getParam(d->coreKey);
     }
     return 0;
@@ -885,6 +912,11 @@ struct Plugin
         outR[i] = (float)(m - hp);
       }
     }
+
+    // Internal FX rack (ADR-054): post-oscillator, post-bass-mono, in place.
+    // All-Off is a bit-exact passthrough (the parity gate). Runs before the
+    // spectrum feed so the visualizer reflects post-FX output.
+    rack.processStereo(outL, outR, (int)nframes);
 
     publishViz();
     {
