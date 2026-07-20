@@ -260,7 +260,9 @@ struct Plugin
   void updateTune()
   {
     const double st = 12.0 * octave + semi + pitchBend + fineCents / 100.0;
-    core.setParam("tune", st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0));
+    const double factor = st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0);
+    core.setParam("tune", factor);
+    spectra.setParam("tune", factor);  // ADR-057: octave/semi/fine/pitch transpose SPECTRA too
   }
   struct Held
   {
