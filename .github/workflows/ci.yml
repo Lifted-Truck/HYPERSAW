@@ -1,13 +1,31 @@
-# CI mirrors the local Stop-hook gate: verify fast on every push, plus the
-# Phase 0 platform gate (build matrix + pluginval strictness 10 — raised from 5,
-# 2026-07-19; the strong bar my local runs already assert. A headless editor-
-# test failure here is an environment artifact, not a plugin bug — fix with
-# --skip-gui-tests, keeping GUI validation local + in-host). Audio Layer-E
-# (auval, host loads, listening) stays macOS-local and human-run.
+# CI mirrors the local Stop-hook gate — but FRUGALLY (2026-07-19, after the
+# account hit its free Actions minutes). Cost model that drained it: macOS
+# runners bill 10x, and we were running the full matrix on BOTH push and
+# pull_request (2x) for EVERY change including docs-only PRs. This config:
+#   - skips CI entirely on docs-only changes (paths-ignore);
+#   - runs once per change (PRs on pull_request; push CI is main-only, the
+#     post-merge net — so a branch push doesn't double-run alongside its PR);
+#   - cancels superseded runs (concurrency);
+#   - keeps the CHEAP + can't-do-locally coverage on every PR (Linux verify-fast
+#     + the Windows build/validate, which this dev Mac cannot produce);
+#   - defers the 10x macOS job to post-merge on main only — PR-time macOS is
+#     redundant with the maintainer's local build + pluginval-10 + auval + install.
+# pluginval stays strictness 10 (the strong bar). Windows uses --skip-gui-tests:
+# its WebView2 GUI runtime is an explicitly-deferred residual (see CLAUDE.md
+# §Domain), so gating CI on a headless editor test there would validate an
+# environment we don't ship — the DSP/param/state/fuzz bar still runs at 10.
 name: ci
 on:
   push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'traces/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'traces/**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify-fast:
     runs-on: ubuntu-latest
@@ -16,7 +34,28 @@ jobs:
       - name: verify fast
         run: ./verify fast
 
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: configure
+        run: cmake -S . -B build
+      - name: build
+        run: cmake --build build --config Release -j3
+      - name: pluginval (VST3, strictness 10, GUI-skipped — WebView2 runtime deferred)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pv
+          $vst3 = Get-ChildItem -Recurse -Filter HYPERSAW.vst3 build | Select-Object -First 1
+          & pv/pluginval.exe --strictness-level 10 --skip-gui-tests --validate $vst3.FullName
+
+  # macOS is the 10x runner: post-merge net only (push to main). PR-time macOS
+  # is covered by the maintainer's local build + pluginval 10 + auval + install.
   build-macos:
+    if: github.event_name == 'push'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,21 +72,3 @@ jobs:
           ./pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate build/HYPERSAW_assets/HYPERSAW.vst3
       - name: bench (informational)
         run: ./build/renderer_bench || true
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: configure
-        run: cmake -S . -B build
-      - name: build
-        run: cmake --build build --config Release -j3
-      - name: pluginval (VST3, strictness 10)
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
-          Expand-Archive pluginval.zip -DestinationPath pv
-          $vst3 = Get-ChildItem -Recurse -Filter HYPERSAW.vst3 build | Select-Object -First 1
-          & pv/pluginval.exe --strictness-level 10 --validate $vst3.FullName
