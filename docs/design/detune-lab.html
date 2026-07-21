@@ -109,7 +109,7 @@
 <body>
 <header>
   <h1>SWARM<span class="star">✱</span>SAW · <span style="color:var(--dim);font-weight:400">detune lab</span></h1>
-  <div class="tagline">audition lab · new detune laws (stretch → metallic) + golden distribution · sweep detune with law=stretch, B, and K</div>
+  <div class="tagline">audition lab · new detune laws (stretch → metallic) + golden distribution · octave spread + root-anchor (NI-style) · sweep detune with law=stretch, B, and K</div>
   <span id="status"></span>
   <button id="power">POWER ON</button>
 </header>
@@ -151,6 +151,8 @@
         </select>
       </div>
       <div class="row"><label>stretch B</label><input type="range" id="stretchB" min="0" max="6" step="0.05" value="0"><output id="stretchB_o">0.00</output></div>
+      <div class="row"><label>spread</label><input type="range" id="spread" min="1" max="24" step="0.1" value="1"><output id="spread_o">1.0 st</output></div>
+      <div class="row"><label>anchor ↑</label><input type="range" id="anchor" min="0" max="1" step="0.01" value="0"><output id="anchor_o">bipolar</output></div>
     </div>
 
     <div class="cluster pull">
@@ -196,7 +198,8 @@
     Computer keys, Live-style: <b>A S D F G H J K L</b> = white keys from C, <b>W E · T Y U · O P</b> = black keys, <b>Z / X</b> = octave down / up. Hold chords — each note is its own swarm.<br>
     <span class="pu">Pull K</span> is calibrated in units of the swarm's own frequency spread σ, measured live — so the phase transition sits mid-slider at any detune, law, or register. Sweep slowly through <b>1.5–2.5×σ</b> while holding a note:
     free cloud → slow herding → shimmering partial lock → hollow static comb → single loud saw. The collapse into mono-ish width at full lock is the physics, not a bug: coherence <i>is</i> narrowness.
-    <b>K is bipolar</b>: negative pulls each voice toward its own evenly-spaced <b>seat</b> (amber rings) — locked splay of N saws sums toward a saw N× higher, quieter, because splay cancels every harmonic that isn't a multiple of N. <b>Reading the circle</b>: sync = dots clump to a point (R₁→1) · splay = a rigid regular polygon parked on its seats (R₁→0, Rₙ→1) · free = a drifting scribble, both meters low. <b>Inertia</b> gives voices momentum, so the swarm overshoots and rings instead of snapping. <b>R → tone</b> routes sync order to a filter (▼lock = darkens as it locks, ▲lock = opens as it dissolves). Turn <b>retrigger</b> off to watch onset-lock herd a scattered swarm. <span class="dr">Drift</span> is a seeded random walk — same seed, same wander.
+    <b>K is bipolar</b>: negative pulls each voice toward its own evenly-spaced <b>seat</b> (amber rings) — locked splay of N saws sums toward a saw N× higher, quieter, because splay cancels every harmonic that isn't a multiple of N. <b>Reading the circle</b>: sync = dots clump to a point (R₁→1) · splay = a rigid regular polygon parked on its seats (R₁→0, Rₙ→1) · free = a drifting scribble, both meters low. <b>Inertia</b> gives voices momentum, so the swarm overshoots and rings instead of snapping. <b>R → tone</b> routes sync order to a filter (▼lock = darkens as it locks, ▲lock = opens as it dissolves). Turn <b>retrigger</b> off to watch onset-lock herd a scattered swarm. <span class="dr">Drift</span> is a seeded random walk — same seed, same wander.<br>
+    <b>Spread</b> scales the detune depth from 1 semitone up to two octaves; <b>anchor ↑</b> slides the whole swarm upward so the lowest voice stays pinned to the root while the rest fan up (NI-style extreme spread). Anchor at <b>root ↑</b> with spread near <b>12 st</b> and detune high gives the octave-wide, bottom-locked stack; back anchor to <b>bipolar</b> for the classic symmetric detune.
   </div>
 </div>
 
@@ -210,7 +213,8 @@ class SwarmSynth {
   constructor(sr) {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
-               driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0 };
+               driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0,
+               spread:1, anchor:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -273,6 +277,9 @@ class SwarmSynth {
     if (n === 1) this.x[0] = 0;
     this.centerIdx = 0;
     for (let i = 1; i < n; i++) if (Math.abs(this.x[i]) < Math.abs(this.x[this.centerIdx])) this.centerIdx = i;
+    // lowest voice position — the anchor pins this one to the root (offset 0)
+    this.xmin = this.x[0];
+    for (let i = 1; i < n; i++) if (this.x[i] < this.xmin) this.xmin = this.x[i];
     for (let i = 0; i < n; i++) {
       const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
       const th = (pan + 1) * 0.25 * 3.14159265;
@@ -328,17 +335,20 @@ class SwarmSynth {
     }
     // per-voice natural frequencies + measured spread
     let mean = 0;
+    // spread scales the detune depth (1 st … 2 oct); anchor slides the swarm up
+    // so the lowest voice sits at the root (offset 0) and the rest fan upward.
+    const dep = p.detune * p.spread;
     for (let i = 0; i < n; i++) {
-      let f; const x = this.x[i];
-      if (p.law === 0) { f = s.f0 * Math.pow(2, (x * p.detune * 100) / 1200); }
-      else if (p.law === 1) { f = s.f0 + x * p.detune * 20; }
+      let f; const x = this.x[i] - p.anchor * this.xmin;
+      if (p.law === 0) { f = s.f0 * Math.pow(2, (x * dep * 100) / 1200); }
+      else if (p.law === 1) { f = s.f0 + x * dep * 20; }
       else if (p.law === 3) {
         // STRETCH (inharmonic): cents offset, but outer voices spread by
         // (1 + B·x²) — piano/bell-style inharmonicity. B = 0 → identical to cents.
-        const rat = Math.pow(2, (x * p.detune * 100) / 1200) - 1;
+        const rat = Math.pow(2, (x * dep * 100) / 1200) - 1;
         f = s.f0 * (1 + rat * (1 + p.stretchB * x * x));
       }
-      else { f = s.f0 + x * p.detune * 0.35 * this.erb(s.f0); }
+      else { f = s.f0 + x * dep * 0.35 * this.erb(s.f0); }
       if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
       s.vf[i] = Math.max(1, f);
       mean += s.vf[i];
@@ -482,10 +492,21 @@ function send(k, v) { if (synth) synth.setParam(k, v); }
 const fmt = {
   detune: v => {
     const law = +$('law').value;
-    if (law === 0) return '±' + Math.round(v * 100) + ' ¢';
-    if (law === 1) return '±' + (v * 20).toFixed(1) + ' Hz';
-    return '±' + (v * 0.35).toFixed(2) + ' ERB';
+    const spread = +$('spread').value, anchor = +$('anchor').value;
+    // report the ACTUAL most-detuned voice, using the live layout + anchor shift
+    let xmax = 1, xmin = -1;
+    if (synth) { xmax = -1e9; xmin = 1e9;
+      for (let i = 0; i < synth.p.n; i++) { const xx = synth.x[i]; if (xx > xmax) xmax = xx; if (xx < xmin) xmin = xx; } }
+    const top = xmax - anchor * xmin;       // top voice's position after anchoring
+    const dep = v * spread;
+    const sign = anchor > 0.5 ? '+' : '±';
+    if (law === 1) return sign + (top * dep * 20).toFixed(0) + ' Hz';
+    if (law === 2) return sign + (top * dep * 0.35).toFixed(2) + ' ERB';
+    const cents = top * dep * 100;
+    return sign + (cents >= 1200 ? (cents / 1200).toFixed(2) + ' oct' : Math.round(cents) + ' ¢');
   },
+  spread: v => (+v).toFixed(1) + ' st',
+  anchor: v => { const x = +v; return x < 0.005 ? 'bipolar' : x > 0.995 ? 'root ↑' : x.toFixed(2) + ' ↑'; },
   K: v => { const m = 4 * v * Math.abs(v); return (m >= 0 ? '+' : '−') + Math.abs(m).toFixed(2) + ' ×σ'; },
   inertia: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   rtone: v => { const x = +v; return Math.abs(x) < 0.005 ? 'off' : (x > 0 ? '▼lock ' : '▲lock ') + Math.abs(x).toFixed(2); },
@@ -500,7 +521,7 @@ const fmt = {
   stretchB: v => (+v).toFixed(2),
   n: v => v
 };
-const ranges = ['n','detune','stretchB','K','inertia','onset','dissolve','driftDepth','driftRate','rtone','normExp','width','digital','vol'];
+const ranges = ['n','detune','stretchB','spread','anchor','K','inertia','onset','dissolve','driftDepth','driftRate','rtone','normExp','width','digital','vol'];
 const updaters = {};
 ranges.forEach(k => {
   const el = $(k), out = $(k + '_o');
@@ -515,6 +536,7 @@ ranges.forEach(k => {
   update();
 });
 $('law').addEventListener('change', () => { send('law', +$('law').value); $('detune_o').textContent = fmt.detune(+$('detune').value); });
+['spread','anchor'].forEach(k => $(k).addEventListener('input', () => { $('detune_o').textContent = fmt.detune(+$('detune').value); }));
 $('dist').addEventListener('change', () => send('dist', +$('dist').value));
 $('seed').addEventListener('change', () => send('seed', +$('seed').value));
 $('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
