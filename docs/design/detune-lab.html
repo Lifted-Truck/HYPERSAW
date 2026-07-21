@@ -109,7 +109,7 @@
 <body>
 <header>
   <h1>SWARM<span class="star">✱</span>SAW · <span style="color:var(--dim);font-weight:400">detune lab</span></h1>
-  <div class="tagline">audition lab · new detune laws (stretch → metallic) + golden distribution · octave spread + root-anchor (NI-style) · sweep detune with law=stretch, B, and K</div>
+  <div class="tagline">audition lab · new detune laws (stretch → metallic) + golden distribution · octave spread + root-anchor (NI-style) · harmonic law (unison → series) · sweep detune with law=stretch, B, and K</div>
   <span id="status"></span>
   <button id="power">POWER ON</button>
 </header>
@@ -148,6 +148,7 @@
           <option value="1">Hz-constant (beat-flat)</option>
           <option value="2">ERB-flat (roughness-flat)</option>
           <option value="3">stretch (inharmonic → metallic)</option>
+          <option value="4">harmonic (unison → series)</option>
         </select>
       </div>
       <div class="row"><label>stretch B</label><input type="range" id="stretchB" min="0" max="6" step="0.05" value="0"><output id="stretchB_o">0.00</output></div>
@@ -375,6 +376,14 @@ class SwarmSynth {
         const rat = Math.pow(2, (x * dep * 100) / 1200) - 1;
         f = s.f0 * (1 + rat * (1 + p.stretchB * x * x));
       }
+      else if (p.law === 4) {
+        // HARMONIC: voice i morphs from unison (dep=0) up to its own partial
+        // (dep=1 → f0·(1+i) = the natural series 1,2,3,…). Voice 0 stays at the
+        // root. Ignores distribution/anchor — the voice index IS the harmonic.
+        // This is the coherent "spread": a phase-relatable harmonic stack of
+        // saws is itself a comb, which is the metallic character NI gets.
+        f = s.f0 * (1 + dep * i);
+      }
       else { f = s.f0 + x * dep * 0.35 * this.erb(s.f0); }
       if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
       s.vf[i] = Math.max(1, f);
@@ -582,6 +591,7 @@ const fmt = {
       for (let i = 0; i < synth.p.n; i++) { const xx = synth.x[i]; if (xx > xmax) xmax = xx; if (xx < xmin) xmin = xx; } }
     const top = xmax - anchor * xmin;       // top voice's position after anchoring
     const dep = v * spread;
+    if (law === 4) { const n = synth ? synth.p.n : 7; return 'H1–H' + (1 + dep * (n - 1)).toFixed(1); }
     const sign = anchor > 0.5 ? '+' : '±';
     if (law === 1) return sign + (top * dep * 20).toFixed(0) + ' Hz';
     if (law === 2) return sign + (top * dep * 0.35).toFixed(2) + ' ERB';
