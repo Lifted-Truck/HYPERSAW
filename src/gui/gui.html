@@ -525,7 +525,7 @@ const HARD_GATES = {   // id -> predicate over current params
 const SOFT_GATES = {
   18: p => !(p[39] > 0),        // retrigger: overridden by scatter > 0
   30: p => p[29] > 0.005,       // basin: inert without gravity
-  8:  p => p[7] > 0.001,        // dissolve: inert without onset lock
+  8:  p => Math.abs(p[7]) > 0.001, // dissolve: inert only at onset==0 (ADR-056 bipolar: <0 uses it too)
   33: p => p[32] > 0.5,         // glide: mono only
   34: p => p[32] > 0.5,         // legato: mono only
   41: p => p[40] > 0.5,         // bass xover: inert without bass mono
