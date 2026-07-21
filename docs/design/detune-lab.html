@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWARMSAW — coupled-oscillator supersaw lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b0e14;
+    --panel: #11151f;
+    --panel2: #161b28;
+    --line: #232a3a;
+    --text: #e8ecf2;
+    --dim: #7c8698;
+    --swarm: #5ff2e0;   /* phosphor cyan: the voices */
+    --pull: #ff4fa3;    /* magenta: coupling / order */
+    --drift: #ffc24b;   /* amber: drift & warnings */
+    --mono-f: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --disp-f: "Space Grotesk", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--ink); color: var(--text); font-family: var(--mono-f); font-size: 13px; }
+  body { padding: 14px; min-height: 100vh; }
+
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--disp-f); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; }
+  h1 .star { color: var(--pull); }
+  .tagline { color: var(--dim); font-size: 11px; }
+  #power {
+    margin-left: auto; font-family: var(--mono-f); font-size: 12px; letter-spacing: 0.08em;
+    background: var(--swarm); color: var(--ink); border: none; padding: 8px 18px;
+    cursor: pointer; font-weight: 600; border-radius: 2px;
+  }
+  #power.on { background: var(--panel2); color: var(--swarm); border: 1px solid var(--swarm); }
+  #power:focus-visible { outline: 2px solid var(--pull); outline-offset: 2px; }
+
+  .grid { display: grid; grid-template-columns: 380px 1fr; gap: 12px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .scope { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .scope h2, .cluster h2 {
+    font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 8px;
+  }
+  canvas { display: block; width: 100%; }
+  #phaseCanvas { aspect-ratio: 1; }
+  #specCanvas { height: 90px; margin-top: 10px; }
+
+  .rmeter { margin-top: 10px; }
+  .rmeter .bar { height: 8px; background: var(--panel2); border: 1px solid var(--line); position: relative; }
+  .rmeter .fill { position: absolute; inset: 0; width: 0%; background: linear-gradient(90deg, var(--swarm), var(--pull)); }
+  .rmeter .fill.amber { background: linear-gradient(90deg, #ffc24b, #ff8b3c); }
+  .rmeter .lbl { display: flex; justify-content: space-between; color: var(--dim); font-size: 10px; margin-top: 4px; }
+  .rmeter .lbl b { color: var(--text); font-weight: 500; }
+
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-content: start; }
+  .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .cluster.pull h2 { color: var(--pull); }
+  .cluster.drift h2 { color: var(--drift); }
+
+  .row { display: grid; grid-template-columns: 92px 1fr 62px; align-items: center; gap: 8px; margin: 7px 0; }
+  .row label { color: var(--dim); font-size: 11px; }
+  .row output { text-align: right; font-size: 11px; color: var(--text); }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--line); border-radius: 2px; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--swarm); border: 2px solid var(--ink); cursor: pointer;
+  }
+  .pull input[type=range]::-webkit-slider-thumb { background: var(--pull); }
+  .drift input[type=range]::-webkit-slider-thumb { background: var(--drift); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--swarm); border: 2px solid var(--ink); cursor: pointer; }
+  input[type=range]:focus-visible { outline: 2px solid var(--pull); outline-offset: 3px; }
+
+  select, input[type=number] {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 6px; border-radius: 2px; width: 100%;
+  }
+  .row.compact { grid-template-columns: 92px 1fr auto; }
+  button.mini {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    font-family: var(--mono-f); font-size: 11px; padding: 4px 8px; cursor: pointer; border-radius: 2px;
+  }
+  button.mini:hover { border-color: var(--swarm); }
+  .togs { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+  .togs label { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 11px; cursor: pointer; }
+  .togs input { accent-color: var(--pull); }
+
+  .kbd { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
+  .kbd .bar-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .kbd .bar-top h2 { font-family: var(--disp-f); font-size: 11px; font-weight: 500; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase; }
+  #octlbl { color: var(--swarm); font-size: 11px; }
+  .keys { display: flex; height: 96px; position: relative; user-select: none; touch-action: none; }
+  .key { flex: 1; background: #e8ecf2; border: 1px solid var(--ink); border-radius: 0 0 3px 3px; position: relative; cursor: pointer; }
+  .key.black { position: absolute; width: 5.8%; height: 58%; background: #1a2030; border: 1px solid #000; z-index: 2; border-radius: 0 0 3px 3px; }
+  .key.held { background: var(--swarm); }
+  .key.black.held { background: var(--pull); }
+  .key span { position: absolute; bottom: 3px; left: 0; right: 0; text-align: center; font-size: 9px; color: #555; pointer-events: none; }
+  .key.black span { color: var(--dim); }
+  .key em { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 9px; font-style: normal; color: #999; pointer-events: none; }
+  .key.black em { color: var(--dim); }
+  .hint { color: var(--dim); font-size: 10px; margin-top: 8px; line-height: 1.5; }
+  .hint b { color: var(--text); font-weight: 500; }
+  .hint .sw { color: var(--swarm); } .hint .pu { color: var(--pull); } .hint .dr { color: var(--drift); }
+  #status { color: var(--drift); font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SWARM<span class="star">✱</span>SAW · <span style="color:var(--dim);font-weight:400">detune lab</span></h1>
+  <div class="tagline">audition lab · new detune laws (stretch → metallic) + golden distribution · sweep detune with law=stretch, B, and K</div>
+  <span id="status"></span>
+  <button id="power">POWER ON</button>
+</header>
+
+<div class="grid">
+  <div class="scope">
+    <h2>Phase circle (newest note) · <span style="color:var(--pull)">arrow = order parameter R·e^iψ</span></h2>
+    <canvas id="phaseCanvas" width="356" height="356"></canvas>
+    <div class="rmeter">
+      <div class="bar"><div class="fill" id="rfill"></div></div>
+      <div class="lbl"><span>R₁ sync (clump) = <b id="rval">0.00</b></span><span>pull = <b id="kval">0.0</b> Hz · spread σ = <b id="sval">0.0</b> Hz</span></div>
+      <div class="bar" style="margin-top:6px;"><div class="fill amber" id="rnfill"></div></div>
+      <div class="lbl"><span>Rₙ splay (formation) = <b id="rnval">0.00</b></span><span>R₁ high = sync · R₁ low + Rₙ high = splay · both low = free</span></div>
+    </div>
+    <canvas id="specCanvas" width="356" height="90"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="cluster">
+      <h2>Swarm</h2>
+      <div class="row"><label>voices</label><input type="range" id="n" min="1" max="32" step="1" value="7"><output id="n_o">7</output></div>
+      <div class="row compact"><label>distribution</label>
+        <select id="dist">
+          <option value="0">even spread</option>
+          <option value="1" selected>JP-8000 curve</option>
+          <option value="2">gaussian (seeded)</option>
+          <option value="3">cauchy (seeded)</option>
+          <option value="4">golden (irrational)</option>
+        </select>
+      </div>
+      <div class="row compact"><label>seed</label><input type="number" id="seed" value="1234" min="0" max="999999"><button class="mini" id="dice" title="new seed">⚄</button></div>
+      <div class="row"><label>detune</label><input type="range" id="detune" min="0" max="1" step="0.001" value="0.28"><output id="detune_o"></output></div>
+      <div class="row compact"><label>detune law</label>
+        <select id="law">
+          <option value="0" selected>cents-constant (classic)</option>
+          <option value="1">Hz-constant (beat-flat)</option>
+          <option value="2">ERB-flat (roughness-flat)</option>
+          <option value="3">stretch (inharmonic → metallic)</option>
+        </select>
+      </div>
+      <div class="row"><label>stretch B</label><input type="range" id="stretchB" min="0" max="6" step="0.05" value="0"><output id="stretchB_o">0.00</output></div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>Coupling — Kuramoto mean field</h2>
+      <div class="row"><label>pull K ±</label><input type="range" id="K" min="-1" max="1" step="0.001" value="0"><output id="K_o">+0.00 ×σ</output></div>
+      <div class="row"><label>inertia</label><input type="range" id="inertia" min="0" max="1" step="0.01" value="0"><output id="inertia_o">off</output></div>
+      <div class="row"><label>onset lock</label><input type="range" id="onset" min="0" max="1" step="0.001" value="0"><output id="onset_o">0.0 ×σ</output></div>
+      <div class="row"><label>dissolve</label><input type="range" id="dissolve" min="-1.3" max="0.9" step="0.01" value="-0.2"><output id="dissolve_o">0.63 s</output></div>
+      <div class="togs">
+        <label><input type="checkbox" id="retrig" checked> retrigger phases at note-on</label>
+      </div>
+      <canvas id="pad" width="300" height="140" style="margin-top:10px;border:1px solid var(--line);background:var(--panel2);cursor:crosshair;touch-action:none;"></canvas>
+      <div class="hint" style="margin-top:4px;">performance pad — X: detune · Y: pull K (up = sync, down = splay). Drag while holding notes.</div>
+    </div>
+
+    <div class="cluster drift">
+      <h2>Motion — seeded 1/f-ish walks</h2>
+      <div class="row"><label>drift depth</label><input type="range" id="driftDepth" min="0" max="25" step="0.1" value="0"><output id="driftDepth_o">0 ¢</output></div>
+      <div class="row"><label>drift rate</label><input type="range" id="driftRate" min="0" max="1" step="0.01" value="0.4"><output id="driftRate_o">0.40</output></div>
+    </div>
+
+    <div class="cluster">
+      <h2>Output</h2>
+      <div class="row"><label>density comp</label><input type="range" id="normExp" min="0.5" max="1" step="0.01" value="0.75"><output id="normExp_o">N^0.75</output></div>
+      <div class="row"><label>width</label><input type="range" id="width" min="0" max="1" step="0.01" value="0.8"><output id="width_o">0.80</output></div>
+      <div class="row"><label>R → tone</label><input type="range" id="rtone" min="-1" max="1" step="0.01" value="0"><output id="rtone_o">off</output></div>
+      <div class="row"><label>digital ↔ clean</label><input type="range" id="digital" min="0" max="1" step="0.01" value="1"><output id="digital_o">BLEP</output></div>
+      <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o">0.40</output></div>
+      <div class="togs">
+        <label><input type="checkbox" id="mono"> mono fold-down audition</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="kbd">
+  <div class="bar-top">
+    <h2>Keyboard — Ableton layout · 8-voice poly</h2>
+    <span id="octlbl"></span>
+  </div>
+  <div class="keys" id="keys"></div>
+  <div class="hint">
+    Computer keys, Live-style: <b>A S D F G H J K L</b> = white keys from C, <b>W E · T Y U · O P</b> = black keys, <b>Z / X</b> = octave down / up. Hold chords — each note is its own swarm.<br>
+    <span class="pu">Pull K</span> is calibrated in units of the swarm's own frequency spread σ, measured live — so the phase transition sits mid-slider at any detune, law, or register. Sweep slowly through <b>1.5–2.5×σ</b> while holding a note:
+    free cloud → slow herding → shimmering partial lock → hollow static comb → single loud saw. The collapse into mono-ish width at full lock is the physics, not a bug: coherence <i>is</i> narrowness.
+    <b>K is bipolar</b>: negative pulls each voice toward its own evenly-spaced <b>seat</b> (amber rings) — locked splay of N saws sums toward a saw N× higher, quieter, because splay cancels every harmonic that isn't a multiple of N. <b>Reading the circle</b>: sync = dots clump to a point (R₁→1) · splay = a rigid regular polygon parked on its seats (R₁→0, Rₙ→1) · free = a drifting scribble, both meters low. <b>Inertia</b> gives voices momentum, so the swarm overshoots and rings instead of snapping. <b>R → tone</b> routes sync order to a filter (▼lock = darkens as it locks, ▲lock = opens as it dissolves). Turn <b>retrigger</b> off to watch onset-lock herd a scattered swarm. <span class="dr">Drift</span> is a seeded random walk — same seed, same wander.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= DSP: polyphonic swarm synth (ScriptProcessorNode) ================= */
+const MAXV = 32, POLY = 8, TICK = 16;
+
+class SwarmSynth {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
+               driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0 };
+    this.x = new Float64Array(MAXV);
+    this.panL = new Float64Array(MAXV);
+    this.panR = new Float64Array(MAXV);
+    this.noteCounter = 0;
+    this.tick = 0;
+    this.swarms = [];
+    for (let i = 0; i < POLY; i++) {
+      this.swarms.push({
+        phase: new Float64Array(MAXV), driftS: new Float64Array(MAXV),
+        couple: new Float64Array(MAXV), vf: new Float64Array(MAXV),
+        eff: new Float64Array(MAXV), mom: new Float64Array(MAXV),
+        f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
+        R: 0, RN: 0, psi: 0, sigma: 0, age: -1, rngState: 1, fresh: 1,
+        lpL: 0, lpR: 0, lpc: 1
+      });
+    }
+    this.rebuild();
+  }
+  setParam(k, v) {
+    this.p[k] = v;
+    if (k === 'n' || k === 'dist' || k === 'seed' || k === 'width') this.rebuild();
+  }
+  rngG() { // global stream for offset draws
+    this.grng |= 0; this.grng = (this.grng + 0x6D2B79F5) | 0;
+    let t = Math.imul(this.grng ^ (this.grng >>> 15), 1 | this.grng);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  rngS(s) { // per-swarm stream
+    s.rngState |= 0; s.rngState = (s.rngState + 0x6D2B79F5) | 0;
+    let t = Math.imul(s.rngState ^ (s.rngState >>> 15), 1 | s.rngState);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  rebuild() {
+    const n = this.p.n;
+    this.grng = (this.p.seed | 0) + 1;
+    const JP = [-1, -0.5715, -0.1774, 0, 0.181, 0.565, 0.9766];
+    for (let i = 0; i < n; i++) {
+      const u = (n === 1) ? 0.5 : i / (n - 1);
+      let x;
+      if (this.p.dist === 0) { x = 2 * u - 1; }
+      else if (this.p.dist === 1) {
+        const pos = u * (JP.length - 1); const a = Math.floor(pos);
+        const b = Math.min(a + 1, JP.length - 1);
+        x = JP[a] + (JP[b] - JP[a]) * (pos - a);
+      } else if (this.p.dist === 2) {
+        const u1 = Math.max(this.rngG(), 1e-9), u2 = this.rngG();
+        x = Math.sqrt(-2 * Math.log(u1)) * Math.cos(6.283185307 * u2) / 2.5;
+        if (x > 1) x = 1; if (x < -1) x = -1;
+      } else if (this.p.dist === 3) {
+        x = Math.tan(3.14159265 * (this.rngG() - 0.5)) / 4;
+        if (x > 1) x = 1; if (x < -1) x = -1;
+      } else {
+        // golden (irrational): low-discrepancy even-but-inharmonic spacing
+        x = 2 * (((i + 1) * 0.6180339887498949) % 1) - 1;
+      }
+      this.x[i] = x;
+    }
+    if (n === 1) this.x[0] = 0;
+    this.centerIdx = 0;
+    for (let i = 1; i < n; i++) if (Math.abs(this.x[i]) < Math.abs(this.x[this.centerIdx])) this.centerIdx = i;
+    for (let i = 0; i < n; i++) {
+      const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
+      const th = (pan + 1) * 0.25 * 3.14159265;
+      this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
+    }
+  }
+  alloc() {
+    // free voice first (released and faded), else steal oldest
+    let best = null;
+    for (const s of this.swarms) {
+      if (!s.gate && s.env < 1e-3) { if (!best || s.age < best.age) best = s; }
+    }
+    if (best) return best;
+    for (const s of this.swarms) { if (!best || s.age < best.age) best = s; }
+    return best;
+  }
+  noteOn(midi, f) {
+    const s = this.alloc();
+    s.midi = midi; s.f0 = f; s.gate = 1; s.age = this.noteCounter++;
+    s.Kenv = 8 * this.p.onset * this.p.onset;
+    s.KsmS = 0; s.KsmP = 0; s.fresh = 1;
+    s.lpL = 0; s.lpR = 0;
+    for (let i = 0; i < MAXV; i++) s.mom[i] = 0;
+    s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
+    for (let i = 0; i < MAXV; i++) {
+      s.driftS[i] = 0;
+      s.phase[i] = this.p.retrig ? 0 : this.rngS(s);
+    }
+  }
+  noteOff(midi) {
+    for (const s of this.swarms) if (s.gate && s.midi === midi) s.gate = 0;
+  }
+  allOff() { for (const s of this.swarms) s.gate = 0; }
+  focus() {
+    let best = null;
+    for (const s of this.swarms) {
+      if ((s.gate || s.env > 1e-3) && (!best || s.age > best.age)) best = s;
+    }
+    return best;
+  }
+  erb(f) { return 24.7 * (4.37 * f / 1000 + 1); }
+  controlTick(s) {
+    const p = this.p, n = p.n, dt = TICK / this.sr;
+    s.Kenv *= Math.exp(-dt / Math.max(0.01, p.dissolve));
+    if (p.driftDepth > 0) {
+      const rate = (0.2 + p.driftRate * 8);
+      for (let i = 0; i < n; i++) {
+        s.driftS[i] += (this.rngS(s) - 0.5) * 2 * Math.sqrt(rate * dt);
+        s.driftS[i] -= s.driftS[i] * 0.4 * dt;
+        if (s.driftS[i] > 1) s.driftS[i] = 1;
+        if (s.driftS[i] < -1) s.driftS[i] = -1;
+      }
+    }
+    // per-voice natural frequencies + measured spread
+    let mean = 0;
+    for (let i = 0; i < n; i++) {
+      let f; const x = this.x[i];
+      if (p.law === 0) { f = s.f0 * Math.pow(2, (x * p.detune * 100) / 1200); }
+      else if (p.law === 1) { f = s.f0 + x * p.detune * 20; }
+      else if (p.law === 3) {
+        // STRETCH (inharmonic): cents offset, but outer voices spread by
+        // (1 + B·x²) — piano/bell-style inharmonicity. B = 0 → identical to cents.
+        const rat = Math.pow(2, (x * p.detune * 100) / 1200) - 1;
+        f = s.f0 * (1 + rat * (1 + p.stretchB * x * x));
+      }
+      else { f = s.f0 + x * p.detune * 0.35 * this.erb(s.f0); }
+      if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
+      s.vf[i] = Math.max(1, f);
+      mean += s.vf[i];
+    }
+    mean /= n;
+    let varsum = 0;
+    for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
+    s.sigma = Math.max(0.08, Math.sqrt(varsum / n));
+    // coupling targets in units of measured spread; squared taper, bipolar knob:
+    // positive = sync attractor (mean-field Kuramoto), negative = splay attractor
+    const km = 4 * p.K * Math.abs(p.K);
+    const syncT = (Math.max(0, km) + s.Kenv) * s.sigma;
+    const splayT = Math.max(0, -km) * 3 * s.sigma;
+    s.KsmS += (syncT - s.KsmS) * 0.08;
+    s.KsmP += (splayT - s.KsmP) * 0.08;
+    // mean field
+    let sx = 0, sy = 0;
+    for (let i = 0; i < n; i++) { const a = s.phase[i] * 6.283185307; sx += Math.cos(a); sy += Math.sin(a); }
+    sx /= n; sy /= n;
+    s.R = Math.sqrt(sx * sx + sy * sy); s.psi = Math.atan2(sy, sx);
+    let nx = 0, ny = 0;
+    for (let i = 0; i < n; i++) { const a = s.phase[i] * 6.283185307 * n; nx += Math.cos(a); ny += Math.sin(a); }
+    s.RN = Math.sqrt(nx * nx + ny * ny) / n;
+    const c0 = this.centerIdx < n ? this.centerIdx : 0;
+    for (let i = 0; i < n; i++) {
+      let c = s.KsmS * s.R * Math.sin(s.psi - s.phase[i] * 6.283185307);
+      if (s.KsmP > 0.001) {
+        // pull voice i toward anchor phase + i-th splay slot; anchored on the center voice
+        c += s.KsmP * Math.sin(6.283185307 * (s.phase[c0] + (i - c0) / n - s.phase[i]));
+      }
+      s.couple[i] = c;
+    }
+    // inertia: voices carry momentum toward their target frequency (2nd-order swing eq)
+    const w = p.inertia;
+    if (w <= 0.001) {
+      for (let i = 0; i < n; i++) { s.eff[i] = s.vf[i] + s.couple[i]; s.mom[i] = 0; }
+      s.fresh = 0;
+    } else {
+      if (s.fresh) { for (let i = 0; i < n; i++) { s.eff[i] = s.vf[i] + s.couple[i]; s.mom[i] = 0; } s.fresh = 0; }
+      const w0 = 6.283185307 * (8 * (1 - w) + 0.6);
+      const S = w0 * w0, D = 0.9 * w0; // zeta = 0.45: underdamped ring, settles
+      for (let i = 0; i < n; i++) {
+        const target = s.vf[i] + s.couple[i];
+        s.mom[i] += (target - s.eff[i]) * S * dt;
+        s.mom[i] *= Math.exp(-D * dt);
+        s.eff[i] += s.mom[i] * dt;
+      }
+    }
+    // R -> tone: one-pole cutoff steered by sync order
+    let fc = 18000;
+    if (p.rtone > 0.001) fc = 16000 * Math.pow(2, -6 * p.rtone * s.R);
+    else if (p.rtone < -0.001) fc = 16000 * Math.pow(2, -6 * (-p.rtone) * (1 - s.R));
+    fc = Math.max(120, Math.min(18000, fc));
+    s.lpc = 1 - Math.exp(-6.283185307 * fc / this.sr);
+  }
+  render(outL, outR) {
+    const sr = this.sr, p = this.p, n = p.n;
+    const gain = p.vol * 0.9 / Math.pow(n, p.normExp);
+    const atk = 1 - Math.exp(-1 / (0.003 * sr));
+    const rel = 1 - Math.exp(-1 / (0.16 * sr));
+    outL.fill(0); outR.fill(0);
+    for (const s of this.swarms) {
+      if (!s.gate && s.env < 1e-4) continue;
+      let tick = this.tick;
+      for (let smp = 0; smp < outL.length; smp++) {
+        if (tick === 0) this.controlTick(s);
+        tick = (tick + 1) & (TICK - 1);
+        let l = 0, r = 0;
+        for (let i = 0; i < n; i++) {
+          const f = s.eff[i];
+          const dph = Math.max(0, f) / sr;
+          let ph = s.phase[i] + dph;
+          ph -= Math.floor(ph);
+          s.phase[i] = ph;
+          const naive = 2 * ph - 1;
+          let v = naive;
+          if (p.digital > 0) {
+            const d = Math.max(dph, 1e-6);
+            let bl = 0;
+            if (ph < d) { const t = ph / d; bl = t + t - t * t - 1; }
+            else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
+            v = naive - p.digital * bl;
+          }
+          if (p.mono) { l += v * 0.7071; r += v * 0.7071; }
+          else { l += v * this.panL[i]; r += v * this.panR[i]; }
+        }
+        s.lpL += s.lpc * (l - s.lpL);
+        s.lpR += s.lpc * (r - s.lpR);
+        const coef = s.gate ? atk : rel;
+        s.env += ((s.gate ? 1 : 0) - s.env) * coef;
+        const g = gain * s.env;
+        outL[smp] += s.lpL * g; outR[smp] += s.lpR * g;
+      }
+    }
+    this.tick = (this.tick + outL.length) & (TICK - 1);
+    // gentle soft clip so stacked chords don't slam the DAC
+    for (let smp = 0; smp < outL.length; smp++) {
+      outL[smp] = Math.tanh(outL[smp]);
+      outR[smp] = Math.tanh(outR[smp]);
+    }
+  }
+}
+
+/* ================= Audio graph ================= */
+let ctx = null, spn = null, analyser = null, synth = null;
+const $ = id => document.getElementById(id);
+const statusEl = $('status');
+
+function powerOn() {
+  if (ctx) {
+    ctx.close(); ctx = null; spn = null; synth = null; analyser = null;
+    $('power').textContent = 'POWER ON'; $('power').classList.remove('on');
+    return;
+  }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    synth = new SwarmSynth(ctx.sampleRate);
+    pushAllParams();
+    spn = ctx.createScriptProcessor(1024, 0, 2);
+    spn.onaudioprocess = e => {
+      synth.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+    };
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0.6;
+    spn.connect(analyser);
+    analyser.connect(ctx.destination);
+    if (ctx.state === 'suspended') ctx.resume();
+    $('power').textContent = 'POWER OFF'; $('power').classList.add('on');
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = 'Audio failed to start: ' + err.message;
+    ctx = null;
+  }
+}
+$('power').addEventListener('click', powerOn);
+
+function send(k, v) { if (synth) synth.setParam(k, v); }
+
+/* ---- param wiring ---- */
+const fmt = {
+  detune: v => {
+    const law = +$('law').value;
+    if (law === 0) return '±' + Math.round(v * 100) + ' ¢';
+    if (law === 1) return '±' + (v * 20).toFixed(1) + ' Hz';
+    return '±' + (v * 0.35).toFixed(2) + ' ERB';
+  },
+  K: v => { const m = 4 * v * Math.abs(v); return (m >= 0 ? '+' : '−') + Math.abs(m).toFixed(2) + ' ×σ'; },
+  inertia: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  rtone: v => { const x = +v; return Math.abs(x) < 0.005 ? 'off' : (x > 0 ? '▼lock ' : '▲lock ') + Math.abs(x).toFixed(2); },
+  onset: v => (8 * v * v).toFixed(1) + ' ×σ',
+  dissolve: v => Math.pow(10, +v).toFixed(2) + ' s',
+  driftDepth: v => (+v).toFixed(1) + ' ¢',
+  driftRate: v => (+v).toFixed(2),
+  normExp: v => 'N^' + (+v).toFixed(2),
+  width: v => (+v).toFixed(2),
+  digital: v => (+v) > 0.98 ? 'BLEP' : (+v) < 0.02 ? 'NAIVE' : (+v).toFixed(2),
+  vol: v => (+v).toFixed(2),
+  stretchB: v => (+v).toFixed(2),
+  n: v => v
+};
+const ranges = ['n','detune','stretchB','K','inertia','onset','dissolve','driftDepth','driftRate','rtone','normExp','width','digital','vol'];
+const updaters = {};
+ranges.forEach(k => {
+  const el = $(k), out = $(k + '_o');
+  const update = () => {
+    let v = +el.value;
+    if (out && fmt[k]) out.textContent = fmt[k](v);
+    if (k === 'dissolve') v = Math.pow(10, v);
+    send(k, v);
+  };
+  updaters[k] = update;
+  el.addEventListener('input', update);
+  update();
+});
+$('law').addEventListener('change', () => { send('law', +$('law').value); $('detune_o').textContent = fmt.detune(+$('detune').value); });
+$('dist').addEventListener('change', () => send('dist', +$('dist').value));
+$('seed').addEventListener('change', () => send('seed', +$('seed').value));
+$('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
+$('retrig').addEventListener('change', () => send('retrig', $('retrig').checked ? 1 : 0));
+$('mono').addEventListener('change', () => send('mono', $('mono').checked ? 1 : 0));
+
+/* ---- K performance pad ---- */
+const pad = $('pad'), pdx = pad.getContext('2d');
+let padActive = false;
+function padDraw() {
+  const w = pad.width, h = pad.height;
+  pdx.fillStyle = '#161b28'; pdx.fillRect(0, 0, w, h);
+  pdx.strokeStyle = '#232a3a';
+  pdx.beginPath(); pdx.moveTo(0, h / 2); pdx.lineTo(w, h / 2); pdx.stroke();
+  const x = (+$('detune').value) * w;
+  const y = (1 - ((+$('K').value) + 1) / 2) * h;
+  pdx.strokeStyle = 'rgba(255,79,163,0.5)'; pdx.lineWidth = 1;
+  pdx.beginPath(); pdx.moveTo(x, 0); pdx.lineTo(x, h); pdx.moveTo(0, y); pdx.lineTo(w, y); pdx.stroke();
+  pdx.fillStyle = '#ff4fa3';
+  pdx.beginPath(); pdx.arc(x, y, 5, 0, Math.PI * 2); pdx.fill();
+  pdx.fillStyle = '#7c8698'; pdx.font = '9px monospace';
+  pdx.fillText('sync', 4, 12); pdx.fillText('splay', 4, h - 5);
+  pdx.fillText('detune →', w - 52, h / 2 - 4);
+}
+function padSet(e) {
+  const r = pad.getBoundingClientRect();
+  const nx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  const ny = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+  $('detune').value = nx; updaters['detune']();
+  $('K').value = (1 - ny) * 2 - 1; updaters['K']();
+  padDraw();
+}
+pad.addEventListener('pointerdown', e => { padActive = true; pad.setPointerCapture(e.pointerId); padSet(e); });
+pad.addEventListener('pointermove', e => { if (padActive) padSet(e); });
+window.addEventListener('pointerup', () => { padActive = false; });
+['detune', 'K'].forEach(k => $(k).addEventListener('input', padDraw));
+padDraw();
+
+function pushAllParams() {
+  ranges.forEach(k => {
+    let v = +$(k).value;
+    if (k === 'dissolve') v = Math.pow(10, v);
+    send(k, v);
+  });
+  send('law', +$('law').value);
+  send('dist', +$('dist').value);
+  send('seed', +$('seed').value);
+  send('retrig', $('retrig').checked ? 1 : 0);
+  send('mono', $('mono').checked ? 1 : 0);
+}
+
+/* ================= Keyboard — Ableton Live layout ================= */
+const KMAP = {
+  'a': 0, 'w': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5, 't': 6,
+  'g': 7, 'y': 8, 'h': 9, 'u': 10, 'j': 11,
+  'k': 12, 'o': 13, 'l': 14, 'p': 15, ';': 16
+};
+const CAPS_BY_SEMITONE = { 0:'A',1:'W',2:'S',3:'E',4:'D',5:'F',6:'T',7:'G',8:'Y',9:'H',10:'U',11:'J',12:'K',13:'O',14:'L',15:'P',16:';' };
+let octaveBase = 48; // C3
+const OCT_MIN = 12, OCT_MAX = 96;
+
+const heldNotes = [];
+const WHITE = [0, 2, 4, 5, 7, 9, 11];
+const BLACK = { 0: 1, 1: 3, 3: 6, 4: 8, 5: 10 };
+const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+const keysEl = $('keys');
+function buildKeys() {
+  keysEl.innerHTML = '';
+  const whites = [];
+  for (let o = 0; o < 2; o++) for (let w = 0; w < 7; w++) whites.push(octaveBase + o * 12 + WHITE[w]);
+  whites.push(octaveBase + 24);
+  whites.forEach(m => {
+    const k = document.createElement('div');
+    k.className = 'key'; k.dataset.midi = m;
+    const off = m - octaveBase;
+    const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+    k.innerHTML = cap + '<span>' + NAMES[m % 12] + (Math.floor(m / 12) - 1) + '</span>';
+    keysEl.appendChild(k);
+  });
+  const wCount = whites.length;
+  whites.forEach((m, idx) => {
+    const w = WHITE.indexOf(m % 12);
+    if (w !== -1 && BLACK[w] !== undefined && idx < wCount - 1) {
+      const midiB = m + (BLACK[w] - WHITE[w]);
+      const black = document.createElement('div');
+      black.className = 'key black'; black.dataset.midi = midiB;
+      black.style.left = ((idx + 1) / wCount * 100 - 2.9) + '%';
+      const off = midiB - octaveBase;
+      const cap = CAPS_BY_SEMITONE[off] !== undefined ? '<em>' + CAPS_BY_SEMITONE[off] + '</em>' : '';
+      black.innerHTML = cap + '<span>' + NAMES[midiB % 12] + '</span>';
+      keysEl.appendChild(black);
+    }
+  });
+  const lo = Math.floor(octaveBase / 12) - 1, hi = lo + 2;
+  $('octlbl').textContent = 'octave: C' + lo + '–C' + hi + ' (Z − / X +)';
+}
+buildKeys();
+
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function noteOn(m) {
+  if (!synth) return;
+  if (heldNotes.includes(m)) return;
+  heldNotes.push(m);
+  synth.noteOn(m, mtof(m));
+  paintKeys();
+}
+function noteOff(m) {
+  const i = heldNotes.indexOf(m);
+  if (i !== -1) heldNotes.splice(i, 1);
+  if (synth) synth.noteOff(m);
+  paintKeys();
+}
+function paintKeys() {
+  keysEl.querySelectorAll('.key').forEach(k => {
+    k.classList.toggle('held', heldNotes.includes(+k.dataset.midi));
+  });
+}
+const pointerNotes = [];
+keysEl.addEventListener('pointerdown', e => {
+  const k = e.target.closest('.key'); if (!k) return;
+  keysEl.setPointerCapture(e.pointerId);
+  const m = +k.dataset.midi;
+  pointerNotes.push(m);
+  noteOn(m);
+});
+window.addEventListener('pointerup', () => { pointerNotes.splice(0).forEach(noteOff); });
+
+function shiftOctave(dir) {
+  const next = octaveBase + dir * 12;
+  if (next < OCT_MIN || next > OCT_MAX) return;
+  [...heldNotes].forEach(noteOff);
+  octaveBase = next;
+  buildKeys();
+}
+
+window.addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { shiftOctave(-1); return; }
+  if (key === 'x') { shiftOctave(1); return; }
+  const off = KMAP[key];
+  if (off !== undefined) noteOn(octaveBase + off);
+});
+window.addEventListener('keyup', e => {
+  const off = KMAP[e.key.toLowerCase()];
+  if (off !== undefined) noteOff(octaveBase + off);
+});
+
+/* ================= Visualization ================= */
+const pc = $('phaseCanvas'), pctx = pc.getContext('2d');
+const sc = $('specCanvas'), sctx = sc.getContext('2d');
+
+function drawPhase() {
+  const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
+  pctx.fillStyle = 'rgba(11,14,20,0.32)';
+  pctx.fillRect(0, 0, w, h);
+  pctx.strokeStyle = '#232a3a';
+  pctx.lineWidth = 1;
+  pctx.beginPath(); pctx.arc(cx, cy, rad, 0, Math.PI * 2); pctx.stroke();
+  pctx.beginPath(); pctx.moveTo(cx - rad - 8, cy); pctx.lineTo(cx + rad + 8, cy);
+  pctx.moveTo(cx, cy - rad - 8); pctx.lineTo(cx, cy + rad + 8); pctx.stroke();
+
+  if (!synth) return;
+  const s = synth.focus();
+  if (!s) return;
+  const n = synth.p.n;
+  const px = [], py = [];
+  for (let i = 0; i < n; i++) {
+    const a = s.phase[i] * Math.PI * 2;
+    px.push(cx + rad * Math.cos(a)); py.push(cy - rad * Math.sin(a));
+  }
+  const seatAlpha = Math.min(0.7, s.KsmP / (s.KsmP + 2));
+  if (seatAlpha > 0.03) {
+    const c0 = synth.centerIdx < n ? synth.centerIdx : 0;
+    pctx.strokeStyle = 'rgba(255,194,75,' + seatAlpha.toFixed(2) + ')';
+    pctx.lineWidth = 1.2;
+    for (let i = 0; i < n; i++) {
+      const t = (s.phase[c0] + (i - c0) / n) * Math.PI * 2;
+      const x = cx + rad * Math.cos(t), y = cy - rad * Math.sin(t);
+      pctx.beginPath(); pctx.arc(x, y, 6.5, 0, Math.PI * 2); pctx.stroke();
+    }
+  }
+  pctx.strokeStyle = 'rgba(95,242,224,0.28)';
+  pctx.lineWidth = 1;
+  pctx.beginPath();
+  pctx.moveTo(px[0], py[0]);
+  for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
+  pctx.closePath(); pctx.stroke();
+  for (let i = 0; i < n; i++) {
+    pctx.fillStyle = '#5ff2e0';
+    pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
+  }
+  const ax = cx + rad * s.R * Math.cos(s.psi);
+  const ay = cy - rad * s.R * Math.sin(s.psi);
+  pctx.strokeStyle = '#ff4fa3'; pctx.lineWidth = 2;
+  pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(ax, ay); pctx.stroke();
+  pctx.fillStyle = '#ff4fa3';
+  pctx.beginPath(); pctx.arc(ax, ay, 3.5, 0, Math.PI * 2); pctx.fill();
+
+  $('rfill').style.width = (s.R * 100).toFixed(1) + '%';
+  $('rval').textContent = s.R.toFixed(2);
+  $('rnfill').style.width = (s.RN * 100).toFixed(1) + '%';
+  $('rnval').textContent = s.RN.toFixed(2);
+  $('kval').textContent = (s.KsmS - s.KsmP).toFixed(1);
+  $('sval').textContent = s.sigma.toFixed(1);
+}
+
+const specData = new Uint8Array(2048);
+function drawSpec() {
+  const w = sc.width, h = sc.height;
+  sctx.fillStyle = '#0b0e14'; sctx.fillRect(0, 0, w, h);
+  if (!analyser) return;
+  analyser.getByteFrequencyData(specData);
+  const sr = ctx ? ctx.sampleRate : 44100;
+  const binHz = sr / analyser.fftSize;
+  sctx.strokeStyle = '#5ff2e0'; sctx.lineWidth = 1.2;
+  sctx.beginPath();
+  const fMin = 30, fMax = 16000;
+  for (let px = 0; px < w; px++) {
+    const f = fMin * Math.pow(fMax / fMin, px / w);
+    const bin = Math.min(specData.length - 1, Math.round(f / binHz));
+    const v = specData[bin] / 255;
+    const y = h - v * (h - 4) - 2;
+    if (px === 0) sctx.moveTo(px, y); else sctx.lineTo(px, y);
+  }
+  sctx.stroke();
+  sctx.fillStyle = '#7c8698'; sctx.font = '9px monospace';
+  sctx.fillText('30 Hz', 3, h - 3);
+  sctx.fillText('16 kHz — log spectrum', w - 118, h - 3);
+}
+
+function loop() {
+  drawPhase();
+  drawSpec();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
