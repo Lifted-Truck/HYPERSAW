@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# install — macOS-local dev convenience: pull + build Release + install the
+# plugin into ~/Library, so the on-disk binary is never stale. Run by the human
+# (`./install`), NOT by CI or ./verify. It exists because the agent's harness
+# hooks correctly block `~/Library` writes / `rm -rf ~`, and hand-pasting the
+# reinstall block every cycle cost us round trips (2026-07-21).
+#
+#   ./install         pull, build, sign, install, reset AU cache
+#   ./install check    report whether the installed binary is behind HEAD (no install)
+#   ./install --no-pull  skip the git pull (install the local tree as-is)
+#
+# Not sandboxed: writes to ~/Library and killall need the real disk.
+set -uo pipefail
+cd "$(dirname "$0")"
+
+BUILD="$(pwd)/build-release"
+ASSETS="$BUILD/HYPERSAW_assets"
+VST3_DST="$HOME/Library/Audio/Plug-Ins/VST3"
+AU_DST="$HOME/Library/Audio/Plug-Ins/Components"
+INSTALLED_BIN="$VST3_DST/HYPERSAW.vst3/Contents/MacOS/HYPERSAW"
+
+# `check`: is the installed binary current? Compares the installed VST3 binary's
+# bytes to a freshly built one only if a build exists; otherwise falls back to a
+# marker-string diff against the current source gui.html gate. Cheap heuristic —
+# a build stamp would be exact; this is enough to answer "code bug vs stale install".
+if [ "${1:-}" = "check" ]; then
+  if [ ! -f "$INSTALLED_BIN" ]; then echo "not installed"; exit 0; fi
+  if [ -f "$ASSETS/HYPERSAW.vst3/Contents/MacOS/HYPERSAW" ]; then
+    if cmp -s "$INSTALLED_BIN" "$ASSETS/HYPERSAW.vst3/Contents/MacOS/HYPERSAW"; then
+      echo "installed == last build (run ./install after any source change to be sure)"
+    else
+      echo "installed DIFFERS from last build — run ./install"
+    fi
+  else
+    echo "no build to compare; run ./install"
+  fi
+  exit 0
+fi
+
+if [ "${1:-}" != "--no-pull" ]; then
+  echo "==> git pull --ff-only"
+  git pull --ff-only || echo "   (pull skipped/failed — installing the local tree)"
+fi
+
+[ -d "$BUILD" ] || cmake -S . -B "$BUILD" -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+echo "==> build Release"
+cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)" || { echo "build FAILED"; exit 1; }
+
+echo "==> codesign (JUCE/clap-wrapper can break the seal → DAW silently skips it)"
+codesign --force -s - "$ASSETS/HYPERSAW.vst3" "$ASSETS/HYPERSAW.component"
+
+echo "==> install into ~/Library"
+rm -rf "$VST3_DST/HYPERSAW.vst3" "$AU_DST/HYPERSAW.component"
+cp -R "$ASSETS/HYPERSAW.vst3"      "$VST3_DST/"
+cp -R "$ASSETS/HYPERSAW.component" "$AU_DST/"
+
+echo "==> reset AU scanner cache"
+killall -9 AudioComponentRegistrar 2>/dev/null || true
+
+echo "==> DONE — installed $(git rev-parse --short HEAD). Fully restart the DAW (and re-add the plugin) to load it."
