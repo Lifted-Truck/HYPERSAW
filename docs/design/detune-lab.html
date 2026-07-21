@@ -125,6 +125,8 @@
       <div class="lbl"><span>Rₙ splay (formation) = <b id="rnval">0.00</b></span><span>R₁ high = sync · R₁ low + Rₙ high = splay · both low = free</span></div>
     </div>
     <canvas id="specCanvas" width="356" height="90"></canvas>
+    <h2 style="margin-top:12px;">Voice map · <span style="color:var(--swarm)">pan × pitch</span> · <span style="color:var(--drift)">○ target</span> <span style="color:var(--swarm)">● actual</span></h2>
+    <canvas id="voiceCanvas" width="356" height="210"></canvas>
   </div>
 
   <div class="controls">
@@ -153,6 +155,7 @@
       </div>
       <div class="row"><label>stretch B</label><input type="range" id="stretchB" min="0" max="6" step="0.05" value="0"><output id="stretchB_o">0.00</output></div>
       <div class="row"><label>spread</label><input type="range" id="spread" min="1" max="24" step="0.1" value="1"><output id="spread_o">1.0 st</output></div>
+      <div class="row"><label>reach (H)</label><input type="range" id="reach" min="0.25" max="4" step="0.01" value="1"><output id="reach_o">H7.0</output></div>
       <div class="row"><label>anchor ↑</label><input type="range" id="anchor" min="0" max="1" step="0.01" value="0"><output id="anchor_o">bipolar</output></div>
       <div class="row"><label>root weight</label><input type="range" id="rootWeight" min="0" max="1" step="0.01" value="0"><output id="rootWeight_o">off</output></div>
     </div>
@@ -182,8 +185,10 @@
       <div class="row compact"><label>oversample</label>
         <select id="os"><option value="1" selected>1× (BLEP only)</option><option value="2">2×</option><option value="4">4×</option></select>
       </div>
+      <div class="row"><label>hi tame</label><input type="range" id="hiTame" min="0" max="1" step="0.01" value="0"><output id="hiTame_o">off</output></div>
       <div class="row"><label>drive</label><input type="range" id="drive" min="0" max="1" step="0.01" value="0"><output id="drive_o">off</output></div>
       <div class="row"><label>normalize</label><input type="range" id="normalize" min="0" max="1" step="0.01" value="0"><output id="normalize_o">off</output></div>
+      <div class="hint" style="margin-top:4px;"><b>hi tame</b> = equal-loudness roll-off (turns the upper voices down); <b>tone tilt</b> trims their highs more than the root's.</div>
     </div>
 
     <div class="cluster pull">
@@ -197,6 +202,7 @@
       <h2>Output</h2>
       <div class="row"><label>density comp</label><input type="range" id="normExp" min="0.5" max="1" step="0.01" value="0.75"><output id="normExp_o">N^0.75</output></div>
       <div class="row"><label>width</label><input type="range" id="width" min="0" max="1" step="0.01" value="0.8"><output id="width_o">0.80</output></div>
+      <div class="row"><label>pan scatter</label><input type="range" id="panScatter" min="0" max="1" step="0.01" value="0"><output id="panScatter_o">ordered</output></div>
       <div class="row"><label>R → tone</label><input type="range" id="rtone" min="-1" max="1" step="0.01" value="0"><output id="rtone_o">off</output></div>
       <div class="row"><label>digital ↔ clean</label><input type="range" id="digital" min="0" max="1" step="0.01" value="1"><output id="digital_o">BLEP</output></div>
       <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o">0.40</output></div>
@@ -233,8 +239,10 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0,
-               spread:1, anchor:0, rootWeight:0, tilt:0, os:1, drive:0, normalize:0, comb:0, combRes:0.5 };
+               spread:1, anchor:0, rootWeight:0, tilt:0, os:1, drive:0, normalize:0, comb:0, combRes:0.5,
+               reach:1, hiTame:0, panScatter:0 };
     this.x = new Float64Array(MAXV);
+    this.pan = new Float64Array(MAXV);   // signed pan per voice (for the voice map)
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
     this.noteCounter = 0;
@@ -248,6 +256,7 @@ class SwarmSynth {
         vlp: new Float64Array(MAXV), vlpc: new Float64Array(MAXV).fill(1),
         vgain: new Float64Array(MAXV).fill(1), dcL: [0, 0], dcR: [0, 0],
         vfSm: new Float64Array(MAXV), vfInit: 0,
+        vfTarget: new Float64Array(MAXV), fRun: new Float64Array(MAXV),
         f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
         R: 0, RN: 0, psi: 0, sigma: 0, age: -1, rngState: 1, fresh: 1,
         lpL: 0, lpR: 0, lpc: 1
@@ -258,12 +267,13 @@ class SwarmSynth {
     this.combL = new Float32Array(maxD);
     this.combR = new Float32Array(maxD);
     this.combW = 0; this.combLpL = 0; this.combLpR = 0; this.normEnv = 1e-4;
-    this.fSmooth = 1 - Math.exp(-(TICK / this.sr) / 0.006);  // ~6 ms per-voice freq de-zipper
+    this.fSmooth = 1 - Math.exp(-(TICK / this.sr) / 0.006);  // ~6 ms per-voice freq de-zipper (control-rate)
+    this.fRunCoef = 1 - Math.exp(-1 / (0.0015 * this.sr));    // ~1.5 ms per-SAMPLE glide (kills the control-rate stair)
     this.rebuild();
   }
   setParam(k, v) {
     this.p[k] = v;
-    if (k === 'n' || k === 'dist' || k === 'seed' || k === 'width') this.rebuild();
+    if (k === 'n' || k === 'dist' || k === 'seed' || k === 'width' || k === 'panScatter') this.rebuild();
   }
   rngG() { // global stream for offset draws
     this.grng |= 0; this.grng = (this.grng + 0x6D2B79F5) | 0;
@@ -310,7 +320,14 @@ class SwarmSynth {
     this.xmin = this.x[0]; this.xmax = this.x[0];
     for (let i = 1; i < n; i++) { if (this.x[i] < this.xmin) this.xmin = this.x[i]; if (this.x[i] > this.xmax) this.xmax = this.x[i]; }
     for (let i = 0; i < n; i++) {
-      const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
+      // pan law: root voice (i=0) at centre, each higher voice a step farther out,
+      // ALTERNATING sides (0 centre · 1 →R · 2 ←L · 3 →R …). pan scatter blends
+      // toward a seeded random position to break the ordered fan.
+      const d = (n === 1) ? 0 : i / (n - 1);
+      let pan = (i % 2 === 0 ? -1 : 1) * d;
+      if (this.p.panScatter > 0) { const rnd = this.rngG() * 2 - 1; pan = pan * (1 - this.p.panScatter) + rnd * this.p.panScatter; }
+      pan = Math.max(-1, Math.min(1, pan * this.p.width));
+      this.pan[i] = pan;
       const th = (pan + 1) * 0.25 * 3.14159265;
       this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
     }
@@ -355,6 +372,7 @@ class SwarmSynth {
   erb(f) { return 24.7 * (4.37 * f / 1000 + 1); }
   controlTick(s) {
     const p = this.p, n = p.n, dt = TICK / this.sr;
+    const firstTick = !s.vfInit;   // note-on/rebuild: snap the smoothers instead of gliding
     s.Kenv *= Math.exp(-dt / Math.max(0.01, p.dissolve));
     if (p.driftDepth > 0) {
       const rate = (0.2 + p.driftRate * 8);
@@ -381,16 +399,18 @@ class SwarmSynth {
         f = s.f0 * (1 + rat * (1 + p.stretchB * x * x));
       }
       else if (p.law === 4) {
-        // HARMONIC: voice i morphs from unison (dep=0) up to its own partial
-        // (dep=1 → f0·(1+i) = the natural series 1,2,3,…). Voice 0 stays at the
-        // root. Ignores distribution/anchor — the voice index IS the harmonic.
-        // This is the coherent "spread": a phase-relatable harmonic stack of
-        // saws is itself a comb, which is the metallic character NI gets.
-        f = s.f0 * (1 + dep * i);
+        // HARMONIC: voice i morphs from unison (dep=0) up to its partial. reach
+        // sets the top: at dep=1 voice i → f0·(1 + reach·i). reach=1 → the natural
+        // series 1,2,3,…,n (evenly spaced, lands on integers). reach≠1 spreads the
+        // n voices evenly across [1, 1+reach·(n−1)] — taller/denser than the voice
+        // count when reach>1, at the cost of exact harmonic-comb coherence. Voice 0
+        // stays at the root; ignores distribution/anchor — the index IS the rung.
+        f = s.f0 * (1 + dep * p.reach * i);
       }
       else { f = s.f0 + x * dep * 0.35 * this.erb(s.f0); }
       if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
       const target = Math.max(1, f);
+      s.vfTarget[i] = target;   // raw law target (pre-smoothing) — drawn as the ○ on the voice map
       // slew the per-voice target frequency — kills the control-rate zipper a fast
       // sweep produces (worst in the harmonic law, where high voices traverse
       // octaves). Snaps on note-on/rebuild; at steady state vfSm == target, so a
@@ -405,17 +425,23 @@ class SwarmSynth {
     let varsum = 0;
     for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
     s.sigma = Math.max(0.08, Math.sqrt(varsum / n));
-    // per-voice tone tilt (pitch-tracked one-pole LP — constant harmonic count so
-    // octave-up voices aren't disproportionately bright) + root-weight gain (fade
-    // the ensemble toward the lowest voice as an anchored spread widens).
+    // per-voice tone tilt + root-weight + equal-loudness. tilt is a one-pole LP
+    // whose cutoff rises only as √(f/f0), so HIGHER voices lose more of their top
+    // (weighted toward taming the bright upper rungs). root-weight fades the
+    // ensemble toward the lowest voice; equal-loudness (hiTame) turns the higher
+    // voices down by 1/f^hiTame so the stack isn't harsh up top.
     const osF = p.os | 0 || 1, rate = this.sr * osF, nyq = rate * 0.5;
-    const H = p.tilt <= 0.001 ? 0 : 40 * Math.pow(0.06, p.tilt);  // harmonics kept: ~40 → ~2
+    const H = p.tilt <= 0.001 ? 0 : 40 * Math.pow(0.06, p.tilt);  // harmonics kept at the root: ~40 → ~2
     const span = Math.max(1e-6, this.xmax - this.xmin);
     for (let i = 0; i < n; i++) {
       if (H <= 0) { s.vlpc[i] = 1; }
-      else { const fc = Math.min(nyq * 0.98, s.vf[i] * H); s.vlpc[i] = 1 - Math.exp(-6.283185307 * fc / rate); }
-      const up = (this.x[i] - this.xmin) / span;                  // 0 at root … 1 at top
-      s.vgain[i] = 1 - p.rootWeight * p.anchor * up;
+      else { const fc = Math.min(nyq * 0.98, H * s.f0 * Math.sqrt(Math.max(1, s.vf[i] / s.f0))); s.vlpc[i] = 1 - Math.exp(-6.283185307 * fc / rate); }
+      // voice position 0 (root) … 1 (top). Harmonic law is inherently root-anchored,
+      // so root-weight applies there without the anchor gate.
+      const up = (p.law === 4) ? ((n === 1) ? 0 : i / (n - 1)) : (this.x[i] - this.xmin) / span;
+      const aw = (p.law === 4) ? 1 : p.anchor;
+      const el = p.hiTame > 0 ? Math.pow(s.f0 / Math.max(s.f0, s.vf[i]), p.hiTame) : 1;
+      s.vgain[i] = (1 - p.rootWeight * aw * up) * el;
     }
     // coupling targets in units of measured spread; squared taper, bipolar knob:
     // positive = sync attractor (mean-field Kuramoto), negative = splay attractor
@@ -463,6 +489,7 @@ class SwarmSynth {
     else if (p.rtone < -0.001) fc = 16000 * Math.pow(2, -6 * (-p.rtone) * (1 - s.R));
     fc = Math.max(120, Math.min(18000, fc));
     s.lpc = 1 - Math.exp(-6.283185307 * fc / this.sr);
+    if (firstTick) for (let i = 0; i < n; i++) s.fRun[i] = s.eff[i];   // snap the per-sample glide
   }
   // RBJ biquad low-pass, used as the decimation filter when oversampling
   biquadLP(fc, fs) {
@@ -486,13 +513,16 @@ class SwarmSynth {
       for (let smp = 0; smp < outL.length; smp++) {
         if (tick === 0) this.controlTick(s);
         tick = (tick + 1) & (TICK - 1);
+        // per-sample frequency glide toward the control-tick target — removes the
+        // residual control-rate stair the coarse smoother leaves. Snapped on note-on.
+        for (let i = 0; i < n; i++) s.fRun[i] += this.fRunCoef * (s.eff[i] - s.fRun[i]);
         let l = 0, r = 0;
         // oversample the oscillator bank: os sub-samples advanced at 1/os the step,
         // BLEP'd at the higher rate, decimated back down through the biquad.
         for (let sub = 0; sub < os; sub++) {
           let sl = 0, sr2 = 0;
           for (let i = 0; i < n; i++) {
-            const f = s.eff[i];
+            const f = s.fRun[i];
             const dph = Math.max(0, f) / (sr * os);
             let ph = s.phase[i] + dph;
             ph -= Math.floor(ph);
@@ -603,7 +633,7 @@ const fmt = {
       for (let i = 0; i < synth.p.n; i++) { const xx = synth.x[i]; if (xx > xmax) xmax = xx; if (xx < xmin) xmin = xx; } }
     const top = xmax - anchor * xmin;       // top voice's position after anchoring
     const dep = v * spread;
-    if (law === 4) { const n = synth ? synth.p.n : 7; return 'H1–H' + (1 + dep * (n - 1)).toFixed(1); }
+    if (law === 4) { const n = synth ? synth.p.n : 7, reach = +$('reach').value; return 'H1–H' + (1 + dep * reach * (n - 1)).toFixed(1); }
     const sign = anchor > 0.5 ? '+' : '±';
     if (law === 1) return sign + (top * dep * 20).toFixed(0) + ' Hz';
     if (law === 2) return sign + (top * dep * 0.35).toFixed(2) + ' ERB';
@@ -611,8 +641,11 @@ const fmt = {
     return sign + (cents >= 1200 ? (cents / 1200).toFixed(2) + ' oct' : Math.round(cents) + ' ¢');
   },
   spread: v => (+v).toFixed(1) + ' st',
+  reach: v => { const n = synth ? synth.p.n : 7; return 'H' + (1 + (+v) * (n - 1)).toFixed(1); },
   anchor: v => { const x = +v; return x < 0.005 ? 'bipolar' : x > 0.995 ? 'root ↑' : x.toFixed(2) + ' ↑'; },
   rootWeight: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  hiTame: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  panScatter: v => (+v) < 0.005 ? 'ordered' : (+v).toFixed(2),
   tilt: v => (+v) < 0.005 ? 'off' : 'trim ' + (+v).toFixed(2),
   drive: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   normalize: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
@@ -632,7 +665,7 @@ const fmt = {
   stretchB: v => (+v).toFixed(2),
   n: v => v
 };
-const ranges = ['n','detune','stretchB','spread','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','drive','normalize','comb','combRes','rtone','normExp','width','digital','vol'];
+const ranges = ['n','detune','stretchB','spread','reach','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','hiTame','drive','normalize','comb','combRes','rtone','normExp','width','panScatter','digital','vol'];
 const updaters = {};
 ranges.forEach(k => {
   const el = $(k), out = $(k + '_o');
@@ -647,7 +680,8 @@ ranges.forEach(k => {
   update();
 });
 $('law').addEventListener('change', () => { send('law', +$('law').value); $('detune_o').textContent = fmt.detune(+$('detune').value); });
-['spread','anchor'].forEach(k => $(k).addEventListener('input', () => { $('detune_o').textContent = fmt.detune(+$('detune').value); }));
+['spread','anchor','reach'].forEach(k => $(k).addEventListener('input', () => { $('detune_o').textContent = fmt.detune(+$('detune').value); }));
+$('n').addEventListener('input', () => { $('reach_o').textContent = fmt.reach(+$('reach').value); $('detune_o').textContent = fmt.detune(+$('detune').value); });
 $('dist').addEventListener('change', () => send('dist', +$('dist').value));
 $('os').addEventListener('change', () => send('os', +$('os').value));
 $('seed').addEventListener('change', () => send('seed', +$('seed').value));
@@ -802,6 +836,40 @@ window.addEventListener('keyup', e => {
 /* ================= Visualization ================= */
 const pc = $('phaseCanvas'), pctx = pc.getContext('2d');
 const sc = $('specCanvas'), sctx = sc.getContext('2d');
+const vc = $('voiceCanvas'), vctx = vc.getContext('2d');
+
+// Voice map — every voice as a dot: X = pan position, Y = pitch (log, ×f0).
+// ○ = law target (pre-smoothing), ● = actual instantaneous frequency; the stub
+// between them shows the freq smoother's lag while a slider moves. Harmonic
+// gridlines let you read the harmonic law landing on integers directly.
+function drawVoiceMap() {
+  const w = vc.width, h = vc.height, x0 = 10, x1 = w - 10, y0 = 8, y1 = h - 16;
+  vctx.fillStyle = '#0b0e14'; vctx.fillRect(0, 0, w, h);
+  const ratMin = 0.5, ratMax = 40, lr = Math.log(ratMax / ratMin);
+  const X = pan => x0 + (Math.max(-1, Math.min(1, pan)) + 1) / 2 * (x1 - x0);
+  const Y = rat => y1 - (Math.log(Math.max(ratMin, rat) / ratMin) / lr) * (y1 - y0);
+  vctx.font = '9px monospace';
+  for (const hn of [1, 2, 3, 4, 5, 6, 8, 12, 16, 24, 32]) {
+    if (hn > ratMax) break;
+    const y = Y(hn);
+    vctx.strokeStyle = hn === 1 ? '#33405a' : '#18202f';
+    vctx.beginPath(); vctx.moveTo(x0, y); vctx.lineTo(x1, y); vctx.stroke();
+    vctx.fillStyle = '#4a5568'; vctx.fillText('H' + hn, x1 - 20, y - 2);
+  }
+  vctx.strokeStyle = '#232a3a'; vctx.beginPath(); vctx.moveTo(X(0), y0); vctx.lineTo(X(0), y1); vctx.stroke();
+  vctx.fillStyle = '#4a5568'; vctx.fillText('L', x0, y1 + 12); vctx.fillText('centre', X(0) - 16, y1 + 12); vctx.fillText('R', x1 - 8, y1 + 12);
+  if (!synth) return;
+  const s = synth.focus(); if (!s) return;
+  const n = synth.p.n, f0 = s.f0;
+  for (let i = 0; i < n; i++) {
+    const xr = X(synth.pan[i]);
+    const yt = Y(s.vfTarget[i] / f0), ya = Y(s.eff[i] / f0);
+    vctx.strokeStyle = 'rgba(124,134,152,0.5)'; vctx.beginPath(); vctx.moveTo(xr, yt); vctx.lineTo(xr, ya); vctx.stroke();
+    vctx.strokeStyle = 'rgba(255,194,75,0.85)'; vctx.beginPath(); vctx.arc(xr, yt, 4, 0, 6.283185307); vctx.stroke();
+    vctx.fillStyle = i === 0 ? '#ff4fa3' : '#5ff2e0';
+    vctx.beginPath(); vctx.arc(xr, ya, 3.4, 0, 6.283185307); vctx.fill();
+  }
+}
 
 function drawPhase() {
   const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
@@ -885,6 +953,7 @@ function drawSpec() {
 function loop() {
   drawPhase();
   drawSpec();
+  drawVoiceMap();
   requestAnimationFrame(loop);
 }
 loop();
