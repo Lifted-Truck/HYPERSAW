@@ -247,6 +247,7 @@ class SwarmSynth {
         eff: new Float64Array(MAXV), mom: new Float64Array(MAXV),
         vlp: new Float64Array(MAXV), vlpc: new Float64Array(MAXV).fill(1),
         vgain: new Float64Array(MAXV).fill(1), dcL: [0, 0], dcR: [0, 0],
+        vfSm: new Float64Array(MAXV), vfInit: 0,
         f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
         R: 0, RN: 0, psi: 0, sigma: 0, age: -1, rngState: 1, fresh: 1,
         lpL: 0, lpR: 0, lpc: 1
@@ -257,6 +258,7 @@ class SwarmSynth {
     this.combL = new Float32Array(maxD);
     this.combR = new Float32Array(maxD);
     this.combW = 0; this.combLpL = 0; this.combLpR = 0; this.normEnv = 1e-4;
+    this.fSmooth = 1 - Math.exp(-(TICK / this.sr) / 0.006);  // ~6 ms per-voice freq de-zipper
     this.rebuild();
   }
   setParam(k, v) {
@@ -312,6 +314,7 @@ class SwarmSynth {
       const th = (pan + 1) * 0.25 * 3.14159265;
       this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
     }
+    for (const s of this.swarms) s.vfInit = 0;   // re-snap freq smoother on layout change
   }
   alloc() {
     // free voice first (released and faded), else steal oldest
@@ -330,6 +333,7 @@ class SwarmSynth {
     s.KsmS = 0; s.KsmP = 0; s.fresh = 1;
     s.lpL = 0; s.lpR = 0;
     s.vlp.fill(0); s.dcL[0] = s.dcL[1] = s.dcR[0] = s.dcR[1] = 0;
+    s.vfInit = 0;   // snap the freq smoother to the new note (no glide from the old)
     for (let i = 0; i < MAXV; i++) s.mom[i] = 0;
     s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
     for (let i = 0; i < MAXV; i++) {
@@ -386,9 +390,17 @@ class SwarmSynth {
       }
       else { f = s.f0 + x * dep * 0.35 * this.erb(s.f0); }
       if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
-      s.vf[i] = Math.max(1, f);
+      const target = Math.max(1, f);
+      // slew the per-voice target frequency — kills the control-rate zipper a fast
+      // sweep produces (worst in the harmonic law, where high voices traverse
+      // octaves). Snaps on note-on/rebuild; at steady state vfSm == target, so a
+      // held note renders bit-identically — only slider *motion* is smoothed.
+      if (!s.vfInit) s.vfSm[i] = target;
+      else s.vfSm[i] += this.fSmooth * (target - s.vfSm[i]);
+      s.vf[i] = s.vfSm[i];
       mean += s.vf[i];
     }
+    s.vfInit = 1;
     mean /= n;
     let varsum = 0;
     for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
