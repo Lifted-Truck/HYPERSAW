@@ -171,6 +171,10 @@ static const ParamDef kParams[] = {
     // SAW waveshape morph (ADR-058): 0 = saw, 1 = square. SAW-core key, routed
     // by the applyParam fallback; default 0 is bit-inert (spectra no-ops "shape").
     {69, "shape", "Saw Shape", 0, 1, 0, false, nullptr},
+    // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
+    // default). Shell-owned; re-derives inertia from the stored knob. Removed
+    // once the human locks a value. coreKey is a non-core state key.
+    {70, "inertiaCurve", "Inertia Curve (dev)", 0.3, 5, 0.5, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -251,6 +255,11 @@ struct Plugin
   // state_check demands exact round-trips, so the knob domain gets this one
   // documented slot. Everything else stays core.p-authoritative.
   double inertiaKnob = 0;
+  // ADR-059 tune-then-lock: taper exponent for the inertia knob. 0.5 == the
+  // ADR-024 sqrt taper (bit-inert default). Higher = gentler onset just after 0
+  // (the low-detune+retrigger steepness). DEV control — dial by ear, then the
+  // chosen value gets hardcoded and this param + slider removed.
+  double inertiaCurve = 0.5;
   // ADR-026 shell voice-mode state (audio-thread only)
   double voiceMono = 0, voiceLegato = 1, octave = 0;
   double semi = 0, fineCents = 0, pitchBend = 0;
@@ -586,7 +595,16 @@ struct Plugin
       if (id == 11)
       {
         inertiaKnob = v;
-        v = std::sqrt(v);
+        // ADR-059: 0.5 uses sqrt EXACTLY (bit-identical to the ADR-024 default);
+        // other exponents use pow. Default knob feel is unchanged.
+        v = inertiaCurve == 0.5 ? std::sqrt(v) : std::pow(v, inertiaCurve);
+      }
+      if (id == 70)  // ADR-059 dev: inertia taper exponent; re-derive inertia now
+      {
+        inertiaCurve = v;
+        core.setParam("inertia",
+                      inertiaCurve == 0.5 ? std::sqrt(inertiaKnob) : std::pow(inertiaKnob, inertiaCurve));
+        return;
       }
       const double applied = d->stepped ? std::round(v) : v;
       if (id == 32)
@@ -682,6 +700,7 @@ struct Plugin
       // 2026-07-18 state bug: dynamics params were missing from a duplicated
       // read chain, so get_value fell through to 0 and state saved lies).
       if (d->id == 11) return inertiaKnob;  // ADR-024 knob domain
+      if (d->id == 70) return inertiaCurve;  // ADR-059 dev taper exponent
       if (d->id == 32) return voiceMono;
       if (d->id == 34) return voiceLegato;
       if (d->id == 35) return octave;
