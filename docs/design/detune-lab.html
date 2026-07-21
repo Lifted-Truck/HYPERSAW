@@ -153,6 +153,7 @@
       <div class="row"><label>stretch B</label><input type="range" id="stretchB" min="0" max="6" step="0.05" value="0"><output id="stretchB_o">0.00</output></div>
       <div class="row"><label>spread</label><input type="range" id="spread" min="1" max="24" step="0.1" value="1"><output id="spread_o">1.0 st</output></div>
       <div class="row"><label>anchor ↑</label><input type="range" id="anchor" min="0" max="1" step="0.01" value="0"><output id="anchor_o">bipolar</output></div>
+      <div class="row"><label>root weight</label><input type="range" id="rootWeight" min="0" max="1" step="0.01" value="0"><output id="rootWeight_o">off</output></div>
     </div>
 
     <div class="cluster pull">
@@ -172,6 +173,23 @@
       <h2>Motion — seeded 1/f-ish walks</h2>
       <div class="row"><label>drift depth</label><input type="range" id="driftDepth" min="0" max="25" step="0.1" value="0"><output id="driftDepth_o">0 ¢</output></div>
       <div class="row"><label>drift rate</label><input type="range" id="driftRate" min="0" max="1" step="0.01" value="0.4"><output id="driftRate_o">0.40</output></div>
+    </div>
+
+    <div class="cluster">
+      <h2>Voice tone &amp; anti-alias</h2>
+      <div class="row"><label>tone tilt</label><input type="range" id="tilt" min="0" max="1" step="0.01" value="0"><output id="tilt_o">off</output></div>
+      <div class="row compact"><label>oversample</label>
+        <select id="os"><option value="1" selected>1× (BLEP only)</option><option value="2">2×</option><option value="4">4×</option></select>
+      </div>
+      <div class="row"><label>drive</label><input type="range" id="drive" min="0" max="1" step="0.01" value="0"><output id="drive_o">off</output></div>
+      <div class="row"><label>normalize</label><input type="range" id="normalize" min="0" max="1" step="0.01" value="0"><output id="normalize_o">off</output></div>
+    </div>
+
+    <div class="cluster pull">
+      <h2>Metallic — Karplus-Strong comb</h2>
+      <div class="row"><label>comb mix</label><input type="range" id="comb" min="0" max="1" step="0.01" value="0"><output id="comb_o">off</output></div>
+      <div class="row"><label>resonance</label><input type="range" id="combRes" min="0" max="1" step="0.01" value="0.5"><output id="combRes_o">0.50</output></div>
+      <div class="hint" style="margin-top:4px;">feedback comb tuned to the played note — re-imposes phase-coherent, regularly-spaced resonance on the detuned stack. Raise <b>resonance</b> for a longer metallic ring; sweep <b>spread</b> under it for the climbing comb character.</div>
     </div>
 
     <div class="cluster">
@@ -214,7 +232,7 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0,
-               spread:1, anchor:0 };
+               spread:1, anchor:0, rootWeight:0, tilt:0, os:1, drive:0, normalize:0, comb:0, combRes:0.5 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -226,11 +244,18 @@ class SwarmSynth {
         phase: new Float64Array(MAXV), driftS: new Float64Array(MAXV),
         couple: new Float64Array(MAXV), vf: new Float64Array(MAXV),
         eff: new Float64Array(MAXV), mom: new Float64Array(MAXV),
+        vlp: new Float64Array(MAXV), vlpc: new Float64Array(MAXV).fill(1),
+        vgain: new Float64Array(MAXV).fill(1), dcL: [0, 0], dcR: [0, 0],
         f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
         R: 0, RN: 0, psi: 0, sigma: 0, age: -1, rngState: 1, fresh: 1,
         lpL: 0, lpR: 0, lpc: 1
       });
     }
+    // global feedback-comb (Karplus-Strong resonator) buffers + normalizer state
+    const maxD = Math.ceil(this.sr / 20) + 4;
+    this.combL = new Float32Array(maxD);
+    this.combR = new Float32Array(maxD);
+    this.combW = 0; this.combLpL = 0; this.combLpR = 0; this.normEnv = 1e-4;
     this.rebuild();
   }
   setParam(k, v) {
@@ -277,9 +302,10 @@ class SwarmSynth {
     if (n === 1) this.x[0] = 0;
     this.centerIdx = 0;
     for (let i = 1; i < n; i++) if (Math.abs(this.x[i]) < Math.abs(this.x[this.centerIdx])) this.centerIdx = i;
-    // lowest voice position — the anchor pins this one to the root (offset 0)
-    this.xmin = this.x[0];
-    for (let i = 1; i < n; i++) if (this.x[i] < this.xmin) this.xmin = this.x[i];
+    // lowest/highest voice positions — anchor pins the lowest to the root (offset 0),
+    // root-weight fades the ensemble toward the lowest as it spreads upward
+    this.xmin = this.x[0]; this.xmax = this.x[0];
+    for (let i = 1; i < n; i++) { if (this.x[i] < this.xmin) this.xmin = this.x[i]; if (this.x[i] > this.xmax) this.xmax = this.x[i]; }
     for (let i = 0; i < n; i++) {
       const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
       const th = (pan + 1) * 0.25 * 3.14159265;
@@ -302,6 +328,7 @@ class SwarmSynth {
     s.Kenv = 8 * this.p.onset * this.p.onset;
     s.KsmS = 0; s.KsmP = 0; s.fresh = 1;
     s.lpL = 0; s.lpR = 0;
+    s.vlp.fill(0); s.dcL[0] = s.dcL[1] = s.dcR[0] = s.dcR[1] = 0;
     for (let i = 0; i < MAXV; i++) s.mom[i] = 0;
     s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
     for (let i = 0; i < MAXV; i++) {
@@ -357,6 +384,18 @@ class SwarmSynth {
     let varsum = 0;
     for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
     s.sigma = Math.max(0.08, Math.sqrt(varsum / n));
+    // per-voice tone tilt (pitch-tracked one-pole LP — constant harmonic count so
+    // octave-up voices aren't disproportionately bright) + root-weight gain (fade
+    // the ensemble toward the lowest voice as an anchored spread widens).
+    const osF = p.os | 0 || 1, rate = this.sr * osF, nyq = rate * 0.5;
+    const H = p.tilt <= 0.001 ? 0 : 40 * Math.pow(0.06, p.tilt);  // harmonics kept: ~40 → ~2
+    const span = Math.max(1e-6, this.xmax - this.xmin);
+    for (let i = 0; i < n; i++) {
+      if (H <= 0) { s.vlpc[i] = 1; }
+      else { const fc = Math.min(nyq * 0.98, s.vf[i] * H); s.vlpc[i] = 1 - Math.exp(-6.283185307 * fc / rate); }
+      const up = (this.x[i] - this.xmin) / span;                  // 0 at root … 1 at top
+      s.vgain[i] = 1 - p.rootWeight * p.anchor * up;
+    }
     // coupling targets in units of measured spread; squared taper, bipolar knob:
     // positive = sync attractor (mean-field Kuramoto), negative = splay attractor
     const km = 4 * p.K * Math.abs(p.K);
@@ -404,12 +443,22 @@ class SwarmSynth {
     fc = Math.max(120, Math.min(18000, fc));
     s.lpc = 1 - Math.exp(-6.283185307 * fc / this.sr);
   }
+  // RBJ biquad low-pass, used as the decimation filter when oversampling
+  biquadLP(fc, fs) {
+    const w = 6.283185307 * fc / fs, cw = Math.cos(w), sw = Math.sin(w), al = sw / (2 * 0.70710678);
+    const a0 = 1 + al;
+    return { b0: (1 - cw) / 2 / a0, b1: (1 - cw) / a0, b2: (1 - cw) / 2 / a0, a1: -2 * cw / a0, a2: (1 - al) / a0 };
+  }
+  biquadStep(c, z, x) { const y = c.b0 * x + z[0]; z[0] = c.b1 * x - c.a1 * y + z[1]; z[1] = c.b2 * x - c.a2 * y; return y; }
   render(outL, outR) {
     const sr = this.sr, p = this.p, n = p.n;
+    const os = p.os | 0 || 1;
     const gain = p.vol * 0.9 / Math.pow(n, p.normExp);
     const atk = 1 - Math.exp(-1 / (0.003 * sr));
     const rel = 1 - Math.exp(-1 / (0.16 * sr));
     outL.fill(0); outR.fill(0);
+    // decimation LP at the oversampled rate (kills the alias the extra rate buys us)
+    const bq = os > 1 ? this.biquadLP(0.45 * sr, sr * os) : null;
     for (const s of this.swarms) {
       if (!s.gate && s.env < 1e-4) continue;
       let tick = this.tick;
@@ -417,23 +466,32 @@ class SwarmSynth {
         if (tick === 0) this.controlTick(s);
         tick = (tick + 1) & (TICK - 1);
         let l = 0, r = 0;
-        for (let i = 0; i < n; i++) {
-          const f = s.eff[i];
-          const dph = Math.max(0, f) / sr;
-          let ph = s.phase[i] + dph;
-          ph -= Math.floor(ph);
-          s.phase[i] = ph;
-          const naive = 2 * ph - 1;
-          let v = naive;
-          if (p.digital > 0) {
-            const d = Math.max(dph, 1e-6);
-            let bl = 0;
-            if (ph < d) { const t = ph / d; bl = t + t - t * t - 1; }
-            else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
-            v = naive - p.digital * bl;
+        // oversample the oscillator bank: os sub-samples advanced at 1/os the step,
+        // BLEP'd at the higher rate, decimated back down through the biquad.
+        for (let sub = 0; sub < os; sub++) {
+          let sl = 0, sr2 = 0;
+          for (let i = 0; i < n; i++) {
+            const f = s.eff[i];
+            const dph = Math.max(0, f) / (sr * os);
+            let ph = s.phase[i] + dph;
+            ph -= Math.floor(ph);
+            s.phase[i] = ph;
+            const naive = 2 * ph - 1;
+            let v = naive;
+            if (p.digital > 0) {
+              const d = Math.max(dph, 1e-6);
+              let bl = 0;
+              if (ph < d) { const t = ph / d; bl = t + t - t * t - 1; }
+              else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
+              v = naive - p.digital * bl;
+            }
+            if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = s.vlp[i]; }
+            v *= s.vgain[i];
+            if (p.mono) { sl += v * 0.7071; sr2 += v * 0.7071; }
+            else { sl += v * this.panL[i]; sr2 += v * this.panR[i]; }
           }
-          if (p.mono) { l += v * 0.7071; r += v * 0.7071; }
-          else { l += v * this.panL[i]; r += v * this.panR[i]; }
+          if (os > 1) { sl = this.biquadStep(bq, s.dcL, sl); sr2 = this.biquadStep(bq, s.dcR, sr2); }
+          l = sl; r = sr2;   // final sub-sample = the decimated output sample
         }
         s.lpL += s.lpc * (l - s.lpL);
         s.lpR += s.lpc * (r - s.lpR);
@@ -444,10 +502,35 @@ class SwarmSynth {
       }
     }
     this.tick = (this.tick + outL.length) & (TICK - 1);
-    // gentle soft clip so stacked chords don't slam the DAC
+    // ---- post-sum stages: comb (metallic) → drive (power) → normalize (fill nulls) ----
+    const foc = this.focus();
+    const combF = foc ? Math.max(20, foc.f0) : 220;
+    let dly = Math.round(sr / combF);
+    dly = Math.max(2, Math.min(this.combL.length - 1, dly));
+    const fb = 0.6 + 0.38 * p.combRes, cmix = p.comb, damp = 0.5;
+    const drv = p.drive, pre = 1 + drv * 6, preN = Math.tanh(pre), norm = p.normalize;
     for (let smp = 0; smp < outL.length; smp++) {
-      outL[smp] = Math.tanh(outL[smp]);
-      outR[smp] = Math.tanh(outR[smp]);
+      let l = outL[smp], r = outR[smp];
+      if (cmix > 0.001) {
+        // Karplus-Strong feedback comb tuned to the played note: re-imposes
+        // phase-coherent, regularly-spaced resonance on the detuned stack.
+        const iRd = (this.combW - dly + this.combL.length) % this.combL.length;
+        let dl = this.combL[iRd], dr = this.combR[iRd];
+        this.combLpL += (1 - damp) * (dl - this.combLpL); dl = this.combLpL;
+        this.combLpR += (1 - damp) * (dr - this.combLpR); dr = this.combLpR;
+        this.combL[this.combW] = l + fb * dl; this.combR[this.combW] = r + fb * dr;
+        this.combW = (this.combW + 1) % this.combL.length;
+        l = l * (1 - cmix) + dl * cmix; r = r * (1 - cmix) + dr * cmix;
+      }
+      if (drv > 0.001) { l = Math.tanh(l * pre) / preN; r = Math.tanh(r * pre) / preN; }
+      if (norm > 0.001) {
+        const a = Math.max(Math.abs(l), Math.abs(r));
+        this.normEnv += 0.002 * (a - this.normEnv);
+        if (this.normEnv < 1e-4) this.normEnv = 1e-4;
+        const mk = Math.max(0.25, Math.min(4, 1 + norm * (0.5 / this.normEnv - 1)));
+        l *= mk; r *= mk;
+      }
+      outL[smp] = Math.tanh(l); outR[smp] = Math.tanh(r);   // gentle final soft clip
     }
   }
 }
@@ -507,6 +590,12 @@ const fmt = {
   },
   spread: v => (+v).toFixed(1) + ' st',
   anchor: v => { const x = +v; return x < 0.005 ? 'bipolar' : x > 0.995 ? 'root ↑' : x.toFixed(2) + ' ↑'; },
+  rootWeight: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  tilt: v => (+v) < 0.005 ? 'off' : 'trim ' + (+v).toFixed(2),
+  drive: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  normalize: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  comb: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  combRes: v => (+v).toFixed(2),
   K: v => { const m = 4 * v * Math.abs(v); return (m >= 0 ? '+' : '−') + Math.abs(m).toFixed(2) + ' ×σ'; },
   inertia: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   rtone: v => { const x = +v; return Math.abs(x) < 0.005 ? 'off' : (x > 0 ? '▼lock ' : '▲lock ') + Math.abs(x).toFixed(2); },
@@ -521,7 +610,7 @@ const fmt = {
   stretchB: v => (+v).toFixed(2),
   n: v => v
 };
-const ranges = ['n','detune','stretchB','spread','anchor','K','inertia','onset','dissolve','driftDepth','driftRate','rtone','normExp','width','digital','vol'];
+const ranges = ['n','detune','stretchB','spread','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','drive','normalize','comb','combRes','rtone','normExp','width','digital','vol'];
 const updaters = {};
 ranges.forEach(k => {
   const el = $(k), out = $(k + '_o');
@@ -538,6 +627,7 @@ ranges.forEach(k => {
 $('law').addEventListener('change', () => { send('law', +$('law').value); $('detune_o').textContent = fmt.detune(+$('detune').value); });
 ['spread','anchor'].forEach(k => $(k).addEventListener('input', () => { $('detune_o').textContent = fmt.detune(+$('detune').value); }));
 $('dist').addEventListener('change', () => send('dist', +$('dist').value));
+$('os').addEventListener('change', () => send('os', +$('os').value));
 $('seed').addEventListener('change', () => send('seed', +$('seed').value));
 $('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
 $('retrig').addEventListener('change', () => send('retrig', $('retrig').checked ? 1 : 0));
@@ -583,6 +673,7 @@ function pushAllParams() {
   });
   send('law', +$('law').value);
   send('dist', +$('dist').value);
+  send('os', +$('os').value);
   send('seed', +$('seed').value);
   send('retrig', $('retrig').checked ? 1 : 0);
   send('mono', $('mono').checked ? 1 : 0);
