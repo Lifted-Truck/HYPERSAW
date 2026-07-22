@@ -205,12 +205,11 @@
 
     <div class="cluster">
       <h2>Saw shape (glass)</h2>
-      <div class="row compact"><label>round → </label>
-        <select id="shapeTgt"><option value="0" selected>triangle (rich)</option><option value="1">parabola (hollow)</option><option value="2">sine (pure)</option></select>
-      </div>
+      <div class="row"><label>saw profile</label><input type="range" id="sawProfile" min="0" max="1" step="0.01" value="0"><output id="sawProfile_o">glass</output></div>
       <div class="row"><label>roundness</label><input type="range" id="round" min="0" max="1" step="0.01" value="0"><output id="round_o">saw</output></div>
       <div class="row"><label>round × hi</label><input type="range" id="roundHi" min="0" max="1" step="0.01" value="0"><output id="roundHi_o">uniform</output></div>
-      <div class="hint" style="margin-top:4px;">morph the saw toward a rounder wave for a glassier tone. <b>round × hi</b> makes the higher voices round more than the root — the "waves get rounder as they climb" quality. Try triangle + round×hi with a wide harmonic spread.</div>
+      <canvas id="sawCanvas" width="300" height="72" style="margin-top:8px;border:1px solid var(--line);background:var(--panel2);"></canvas>
+      <div class="hint" style="margin-top:4px;"><b>saw profile</b> sweeps the target shape (glass → soft → hollow → pure → reedy); <b>roundness</b> = how far from raw saw; <b>round × hi</b> rounds the higher voices more. Glass sweet spot: profile <b>glass</b>, roundness <b>~0.3</b>, round×hi <b>~0.7</b>.</div>
     </div>
 
     <div class="cluster pull">
@@ -268,7 +267,7 @@ class SwarmSynth {
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0,
                spread:1, anchor:0, rootWeight:0, tilt:0, os:1, drive:0, normalize:0, comb:0, combRes:0.5,
                reach:1, hiTame:0, panCurve:0.5, panInvert:0, hpf:0,
-               round:0, roundHi:0, shapeTgt:0, panMotion:0, driftMode:0, panMode:0 };
+               round:0, roundHi:0, sawProfile:0, panMotion:0, driftMode:0, panMode:0 };
     this.x = new Float64Array(MAXV);
     this.pan = new Float64Array(MAXV);   // signed pan per voice (for the voice map)
     this.panL = new Float64Array(MAXV);
@@ -410,6 +409,7 @@ class SwarmSynth {
       s.driftS[i] = 0; s.driftPh[i] = i * 0.13; s.driftHoldT[i] = 0;
       s.phase[i] = this.p.retrig ? 0 : this.rngS(s);
     }
+    this.controlTick(s);   // prime eff/vfTarget/vgain so the voice map is correct on frame 1 (no jump-to-0)
   }
   noteOff(midi) {
     for (const s of this.swarms) if (s.gate && s.midi === midi) s.gate = 0;
@@ -572,6 +572,17 @@ class SwarmSynth {
     return { b0: (1 - cw) / 2 / a0, b1: (1 - cw) / a0, b2: (1 - cw) / 2 / a0, a1: -2 * cw / a0, a2: (1 - al) / a0 };
   }
   biquadStep(c, z, x) { const y = c.b0 * x + z[0]; z[0] = c.b1 * x - c.a1 * y + z[1]; z[1] = c.b2 * x - c.a2 * y; return y; }
+  // saw-profile bank — 5 anchor shapes the raw saw morphs TOWARD (roundness = how far).
+  // 0 glass (parabola arch) · 1 soft · 2 hollow (triangle) · 3 pure (sine) · 4 reedy (+3rd).
+  // A continuous sawProfile crossfades adjacent anchors; all keep the saw's fundamental.
+  sawShape(k, ph) {
+    const s2 = 2 * ph - 1, tri = 1 - 4 * Math.abs(ph - 0.5), par = 0.6667 - 2 * s2 * s2;
+    if (k <= 0) return par;
+    if (k === 1) return 0.5 * par + 0.5 * tri;
+    if (k === 2) return tri;
+    if (k === 3) return Math.sin(6.283185307 * ph);
+    return 0.8 * Math.sin(6.283185307 * ph) + 0.2 * Math.sin(18.849555922 * ph);
+  }
   render(outL, outR) {
     const sr = this.sr, p = this.p, n = p.n;
     const os = p.os | 0 || 1;
@@ -582,7 +593,7 @@ class SwarmSynth {
     // decimation LP at the oversampled rate (kills the alias the extra rate buys us)
     const bq = os > 1 ? this.biquadLP(0.45 * sr, sr * os) : null;
     const cmix = p.comb, fb = 0.6 + 0.38 * p.combRes, damp = 0.5;   // per-note comb
-    const shapeTgt = p.shapeTgt | 0;                                // 0 tri · 1 parabola · 2 sine
+    const spF = Math.max(0, Math.min(4, p.sawProfile * 4)), pi0 = Math.min(3, Math.floor(spF)), pfr = spF - pi0;  // saw-profile crossfade
     // pan motion: slow decorrelated per-voice LFOs sweep the base pan (once per block)
     let PL = this.panL, PR = this.panR;
     const pm = p.panMotion;
@@ -632,11 +643,8 @@ class SwarmSynth {
               v = naive - p.digital * bl;
             }
             if (s.rnd[i] > 0.001) {
-              // morph the saw toward a rounder "glass" shape (per voice, pitch-tracked)
-              let shaped;
-              if (shapeTgt === 0) shaped = 1 - 4 * Math.abs(ph - 0.5);                    // triangle
-              else if (shapeTgt === 1) shaped = 0.6667 - 2 * (2 * ph - 1) * (2 * ph - 1);  // parabola arch
-              else shaped = Math.sin(6.283185307 * ph);                                    // sine
+              // morph the saw toward the selected saw-profile shape (per voice, pitch-tracked)
+              const shaped = this.sawShape(pi0, ph) * (1 - pfr) + this.sawShape(pi0 + 1, ph) * pfr;
               v = v * (1 - s.rnd[i]) + shaped * s.rnd[i];
             }
             if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = this.tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
@@ -756,6 +764,7 @@ const fmt = {
   panCurve: v => { const x = +v; return Math.abs(x - 0.5) < 0.02 ? 'linear' : x < 0.5 ? 'centre ' + (0.5 - x).toFixed(2) : 'sides ' + (x - 0.5).toFixed(2); },
   round: v => (+v) < 0.005 ? 'saw' : (+v).toFixed(2),
   roundHi: v => (+v) < 0.005 ? 'uniform' : (+v).toFixed(2),
+  sawProfile: v => { const z = ['glass','soft','hollow','pure','reedy']; return z[Math.min(4, Math.round((+v) * 4))]; },
   panMotion: v => (+v) < 0.005 ? 'still' : (+v).toFixed(2),
   tilt: v => { const x = +v; return Math.abs(x) < 0.005 ? 'off' : x > 0 ? 'dark ' + x.toFixed(2) : 'thin ' + (-x).toFixed(2); },
   hpf: v => (+v) < 0.01 ? 'off' : Math.round(20 * Math.pow(15, +v)) + ' Hz',
@@ -777,7 +786,7 @@ const fmt = {
   stretchB: v => (+v).toFixed(2),
   n: v => v
 };
-const ranges = ['n','detune','stretchB','spread','reach','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','hpf','hiTame','round','roundHi','drive','normalize','comb','combRes','rtone','normExp','width','panCurve','panMotion','digital','vol'];
+const ranges = ['n','detune','stretchB','spread','reach','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','hpf','hiTame','round','roundHi','sawProfile','drive','normalize','comb','combRes','rtone','normExp','width','panCurve','panMotion','digital','vol'];
 const updaters = {};
 ranges.forEach(k => {
   const el = $(k), out = $(k + '_o');
@@ -796,7 +805,6 @@ $('law').addEventListener('change', () => { send('law', +$('law').value); $('det
 $('n').addEventListener('input', () => { $('reach_o').textContent = fmt.reach(+$('reach').value); $('detune_o').textContent = fmt.detune(+$('detune').value); });
 $('dist').addEventListener('change', () => send('dist', +$('dist').value));
 $('os').addEventListener('change', () => send('os', +$('os').value));
-$('shapeTgt').addEventListener('change', () => send('shapeTgt', +$('shapeTgt').value));
 $('driftMode').addEventListener('change', () => send('driftMode', +$('driftMode').value));
 $('panMode').addEventListener('change', () => send('panMode', +$('panMode').value));
 $('seed').addEventListener('change', () => send('seed', +$('seed').value));
@@ -846,7 +854,6 @@ function pushAllParams() {
   send('law', +$('law').value);
   send('dist', +$('dist').value);
   send('os', +$('os').value);
-  send('shapeTgt', +$('shapeTgt').value);
   send('driftMode', +$('driftMode').value);
   send('panMode', +$('panMode').value);
   send('seed', +$('seed').value);
@@ -1097,11 +1104,38 @@ function drawLevel() {
   const cf = $('clipflag'); cf.textContent = p > 1.0 ? '· CLIP' : ''; cf.style.color = '#ff4f4f';
   synth.peak = p * 0.6;   // meter release (render sets the attack via block peak)
 }
+const swc = $('sawCanvas'), swx = swc.getContext('2d');
+// Saw Shape visualizer — one cycle of the current shape (raw saw morphed toward the
+// selected saw-profile by roundness). Mirrors the DSP's sawShape() bank + blend.
+function sawShapeJS(k, ph) {
+  const s2 = 2 * ph - 1, tri = 1 - 4 * Math.abs(ph - 0.5), par = 0.6667 - 2 * s2 * s2;
+  if (k <= 0) return par; if (k === 1) return 0.5 * par + 0.5 * tri; if (k === 2) return tri;
+  if (k === 3) return Math.sin(6.283185307 * ph);
+  return 0.8 * Math.sin(6.283185307 * ph) + 0.2 * Math.sin(18.849555922 * ph);
+}
+function drawSawShape() {
+  const w = swc.width, h = swc.height;
+  swx.fillStyle = '#161b28'; swx.fillRect(0, 0, w, h);
+  swx.strokeStyle = '#232a3a'; swx.beginPath(); swx.moveTo(0, h / 2); swx.lineTo(w, h / 2); swx.stroke();
+  const prof = +$('sawProfile').value, rnd = +$('round').value;
+  const spF = Math.max(0, Math.min(4, prof * 4)), pi0 = Math.min(3, Math.floor(spF)), pfr = spF - pi0;
+  swx.strokeStyle = '#5ff2e0'; swx.lineWidth = 1.6; swx.beginPath();
+  for (let px = 0; px < w; px++) {
+    const ph = px / w, saw = 2 * ph - 1;
+    const shaped = sawShapeJS(pi0, ph) * (1 - pfr) + sawShapeJS(pi0 + 1, ph) * pfr;
+    const v = saw * (1 - rnd) + shaped * rnd, y = h / 2 - v * (h / 2 - 3);
+    if (px === 0) swx.moveTo(px, y); else swx.lineTo(px, y);
+  }
+  swx.stroke();
+  swx.fillStyle = '#7c8698'; swx.font = '9px monospace';
+  swx.fillText(fmt.sawProfile(prof) + (rnd < 0.005 ? ' · raw saw' : ' · round ' + rnd.toFixed(2)), 5, h - 5);
+}
 function loop() {
   drawPhase();
   drawSpec();
   drawVoiceMap();
   drawLevel();
+  drawSawShape();
   requestAnimationFrame(loop);
 }
 loop();
