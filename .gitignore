@@ -13,3 +13,9 @@ build-*/
 
 # local-only alias map for private siblings (ADR-014)
 PRIVATE-NOTES.md
+
+# Quantum Morph specs + demo — reference a private sibling by real name; kept
+# local-only until aliased (relocated from repo root 2026-07-22; ROADMAP tracks
+# the plan). Un-ignore once the private names are aliased for tracking.
+docs/proposals/QM-*.md
+docs/design/quantum-morph-lab.html

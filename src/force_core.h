@@ -54,6 +54,15 @@ inline double rngNext(uint32_t &state)
   return double(t ^ (t >> 14)) / 4294967296.0;
 }
 
+// One-pole smoothing coefficient from a time constant in SECONDS (ADR-009: slew
+// math is expressed in seconds and converted to a per-sample coefficient, never
+// a hand-tuned constant). Bit-identical to the inlined `1 - exp(-1/(tau*sr))` it
+// replaces across the cores' envelope atk/rel/dec — the invariant, in one place.
+inline double onePoleCoef(double tau, double sr)
+{
+  return 1.0 - std::exp(-1.0 / (tau * sr));
+}
+
 // Per-engine frozen constants (from each lab's controlTick / clamp lines).
 struct Profile
 {

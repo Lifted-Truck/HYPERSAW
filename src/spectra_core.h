@@ -284,9 +284,9 @@ class SpectraCore
     // ADR-055: at the defaults these are the reference's exact expressions
     // (attackS = 0.004, releaseS = 0.18 — same operands, same doubles as the
     // former hardcoded AR), so the spectra goldens are unchanged.
-    const double atk = 1 - std::exp(-1 / (p.attackS * sr));
-    const double rel = 1 - std::exp(-1 / (p.releaseS * sr));
-    const double dec = 1 - std::exp(-1 / (p.decayS * sr));
+    const double atk = forcecore::onePoleCoef(p.attackS, sr);
+    const double rel = forcecore::onePoleCoef(p.releaseS, sr);
+    const double dec = forcecore::onePoleCoef(p.decayS, sr);
     // ADR-042 sub-osc: constant per block. When inactive the sample loop below
     // is byte-identical to the reference path (l*g held in a double first, then
     // added) — the guard is what keeps parity rms 0.

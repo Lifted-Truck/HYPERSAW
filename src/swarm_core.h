@@ -330,9 +330,9 @@ class SwarmCore
     const double gain = p.vol * 0.9 / std::pow((double)n, p.normExp);
     // ADR-021: at the defaults these are the reference's exact expressions
     // (attackS = 0.003, releaseS = 0.16 — same operands, same doubles).
-    const double atk = 1 - std::exp(-1 / (p.attackS * sr));
-    const double rel = 1 - std::exp(-1 / (p.releaseS * sr));
-    const double dec = 1 - std::exp(-1 / (p.decayS * sr));
+    const double atk = forcecore::onePoleCoef(p.attackS, sr);
+    const double rel = forcecore::onePoleCoef(p.releaseS, sr);
+    const double dec = forcecore::onePoleCoef(p.decayS, sr);
     for (int i = 0; i < frames; i++) { outL[i] = 0.0f; outR[i] = 0.0f; }
     for (auto &s : swarms)
     {
