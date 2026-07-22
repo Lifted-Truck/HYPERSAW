@@ -178,6 +178,7 @@
       <div class="row"><label>dissolve</label><input type="range" id="dissolve" min="-1.3" max="0.9" step="0.01" value="-0.2"><output id="dissolve_o">0.63 s</output></div>
       <div class="togs">
         <label><input type="checkbox" id="retrig" checked> retrigger phases at note-on</label>
+        <label><input type="checkbox" id="keepPhase"> keep phase (continue from last)</label>
       </div>
       <canvas id="pad" width="300" height="140" style="margin-top:10px;border:1px solid var(--line);background:var(--panel2);cursor:crosshair;touch-action:none;"></canvas>
       <div class="hint" style="margin-top:4px;">performance pad — X: detune · Y: pull K (up = sync, down = splay). Drag while holding notes.</div>
@@ -190,7 +191,8 @@
       <div class="row compact"><label>drift mode</label>
         <select id="driftMode"><option value="0" selected>walk (1/f)</option><option value="1">sine (per-voice)</option><option value="2">sample &amp; hold</option></select>
       </div>
-      <div class="hint" style="margin-top:4px;">each voice drifts independently (watch the voice-map dots wiggle in pitch). <b>sine</b> = smooth two-way sway; <b>S&amp;H</b> = stepped random.</div>
+      <div class="row"><label>centre pin</label><input type="range" id="motionCenter" min="0" max="1" step="0.01" value="0"><output id="motionCenter_o">uniform</output></div>
+      <div class="hint" style="margin-top:4px;">each voice drifts independently (watch the map dots wiggle). <b>sine</b> = smooth sway; <b>S&amp;H</b> = stepped. <b>centre pin</b> holds the fundamental still and scales drift + pan motion by each voice's distance from it.</div>
     </div>
 
     <div class="cluster">
@@ -208,11 +210,12 @@
 
     <div class="cluster">
       <h2>Saw shape (glass)</h2>
-      <div class="row"><label>saw profile</label><input type="range" id="sawProfile" min="0" max="1" step="0.01" value="0"><output id="sawProfile_o">glass</output></div>
+      <div class="row"><label>saw base</label><input type="range" id="sawBase" min="0" max="1" step="0.01" value="0"><output id="sawBase_o">classic</output></div>
+      <div class="row"><label>roundness →</label><input type="range" id="sawProfile" min="0" max="1" step="0.01" value="0"><output id="sawProfile_o">glass</output></div>
       <div class="row"><label>roundness</label><input type="range" id="round" min="0" max="1" step="0.01" value="0"><output id="round_o">saw</output></div>
       <div class="row"><label>round × hi</label><input type="range" id="roundHi" min="0" max="1" step="0.01" value="0"><output id="roundHi_o">uniform</output></div>
       <canvas id="sawCanvas" width="300" height="72" style="margin-top:8px;border:1px solid var(--line);background:var(--panel2);"></canvas>
-      <div class="hint" style="margin-top:4px;"><b>saw profile</b> sweeps the target shape (glass → soft → hollow → pure → reedy); <b>roundness</b> = how far from raw saw; <b>round × hi</b> rounds the higher voices more. Glass sweet spot: profile <b>glass</b>, roundness <b>~0.3</b>, round×hi <b>~0.7</b>.</div>
+      <div class="hint" style="margin-top:4px;"><b>saw base</b> = the top-level saw shape (classic → curved → fat → driven → aggressive; placeholder profiles); <b>roundness →</b> picks what it rounds toward; <b>roundness</b> = how far; <b>round × hi</b> rounds higher voices more. Glass sweet spot: roundness→ <b>glass</b>, roundness <b>~0.3</b>, round×hi <b>~0.7</b>.</div>
     </div>
 
     <div class="cluster pull">
@@ -234,8 +237,10 @@
       <div class="togs"><label><input type="checkbox" id="panInvert"> invert pan (top voice → centre)</label></div>
       <div class="row"><label>R → tone</label><input type="range" id="rtone" min="-1" max="1" step="0.01" value="0"><output id="rtone_o">off</output></div>
       <div class="row"><label>digital ↔ clean</label><input type="range" id="digital" min="0" max="1" step="0.01" value="1"><output id="digital_o">BLEP</output></div>
+      <div class="row"><label>compress</label><input type="range" id="comp" min="0" max="1" step="0.01" value="0"><output id="comp_o">off</output></div>
       <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o">0.40</output></div>
       <div class="togs">
+        <label><input type="checkbox" id="limiter"> limiter (brickwall −0.2 dB)</label>
         <label><input type="checkbox" id="mono"> mono fold-down audition</label>
       </div>
     </div>
@@ -270,7 +275,8 @@ class SwarmSynth {
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0,
                spread:1, anchor:0, rootWeight:0, tilt:0, os:1, drive:0, normalize:0, comb:0, combRes:0.5,
                reach:1, hiTame:0, panCurve:0.5, panInvert:0, hpf:0,
-               round:0, roundHi:0, sawProfile:0, panMotion:0, driftMode:0, panMode:0, pivotMode:0 };
+               round:0, roundHi:0, sawProfile:0, panMotion:0, driftMode:0, panMode:0, pivotMode:0,
+               sawBase:0, comp:0, limiter:0, motionCenter:0, keepPhase:0 };
     this.x = new Float64Array(MAXV);
     this.pan = new Float64Array(MAXV);   // signed pan per voice (for the voice map)
     this.panL = new Float64Array(MAXV);
@@ -287,6 +293,8 @@ class SwarmSynth {
     this.panSweepPh = 0;                                         // shared phase for sweep pan mode
     this.panLm = new Float64Array(MAXV); this.panRm = new Float64Array(MAXV);
     this.panMod = new Float64Array(MAXV);                        // modulated signed pan (for the map)
+    this.compEnv = 0;                                            // master compressor peak follower
+    this.lastPhase = new Float64Array(MAXV);                     // snapshot for keep-phase retrigger
     this.swarms = [];
     for (let i = 0; i < POLY; i++) {
       this.swarms.push({
@@ -297,7 +305,7 @@ class SwarmSynth {
         vgain: new Float64Array(MAXV).fill(1), dcL: [0, 0], dcR: [0, 0],
         vfSm: new Float64Array(MAXV), vfInit: 0,
         vfTarget: new Float64Array(MAXV), fRun: new Float64Array(MAXV), rnd: new Float64Array(MAXV),
-        driftPh: new Float64Array(MAXV), driftHoldT: new Float64Array(MAXV),
+        driftPh: new Float64Array(MAXV), driftHoldT: new Float64Array(MAXV), cdist: new Float64Array(MAXV),
         combL: new Float32Array(this.maxD), combR: new Float32Array(this.maxD),
         combW: 0, combLpL: 0, combLpR: 0, dly: 100,
         f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
@@ -410,7 +418,8 @@ class SwarmSynth {
     s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
     for (let i = 0; i < MAXV; i++) {
       s.driftS[i] = 0; s.driftPh[i] = i * 0.13; s.driftHoldT[i] = 0;
-      s.phase[i] = this.p.retrig ? 0 : this.rngS(s);
+      // keep-phase: continue from the last-sounding phases instead of resetting/randomizing
+      s.phase[i] = this.p.keepPhase ? this.lastPhase[i] : (this.p.retrig ? 0 : this.rngS(s));
     }
     this.controlTick(s);   // prime eff/vfTarget/vgain so the voice map is correct on frame 1 (no jump-to-0)
   }
@@ -476,7 +485,9 @@ class SwarmSynth {
         f = s.f0 * (1 + dep * p.reach * i);
       }
       else { f = s.f0 + x * dep * 0.35 * this.erb(s.f0); }
-      if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
+      // motion-center: scale drift by the voice's distance from the fundamental
+      // (cdist, prev tick) — motionCenter=1 pins the centre voice, outer voices swing full.
+      if (p.driftDepth > 0) { const mw = 1 - p.motionCenter * (1 - s.cdist[i]); f *= Math.pow(2, (s.driftS[i] * p.driftDepth * mw) / 1200); }
       const target = Math.max(1, f);
       s.vfTarget[i] = target;   // raw law target (pre-smoothing) — drawn as the ○ on the voice map
       // slew the per-voice target frequency — kills the control-rate zipper a fast
@@ -490,6 +501,10 @@ class SwarmSynth {
     }
     s.vfInit = 1;
     mean /= n;
+    // per-voice distance from the fundamental (f0), normalized — drives motion-center
+    let maxdev = 1e-9;
+    for (let i = 0; i < n; i++) { const dd = Math.abs(s.vf[i] - s.f0); if (dd > maxdev) maxdev = dd; }
+    for (let i = 0; i < n; i++) s.cdist[i] = Math.abs(s.vf[i] - s.f0) / maxdev;
     let varsum = 0;
     for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
     s.sigma = Math.max(0.08, Math.sqrt(varsum / n));
@@ -595,6 +610,16 @@ class SwarmSynth {
     if (k === 3) return Math.sin(6.283185307 * ph);
     return 0.8 * Math.sin(6.283185307 * ph) + 0.2 * Math.sin(18.849555922 * ph);
   }
+  // base saw-shape bank (the "top-level saw") — variants the classic saw morphs
+  // through, all sawtooth-flavoured. PLACEHOLDER contents (real profiles = measured
+  // from synths, ROADMAP). Anchor 0 handled as the BLEP saw by the caller.
+  sawBaseVar(k, ph) {
+    const r = 2 * ph - 1;
+    if (k <= 1) return Math.sign(r) * Math.pow(Math.abs(r), 1.4);            // 1 curved (brighter edge)
+    if (k === 2) return 0.85 * r + 0.15 * (0.6667 - 2 * r * r);              // 2 fat (even-harmonic warmth)
+    if (k === 3) return Math.tanh(2.2 * r) / 0.97574;                        // 3 driven (saturated ramp)
+    return Math.sign(r) * Math.pow(Math.abs(r), 0.6);                        // 4 aggressive (steep)
+  }
   render(outL, outR) {
     const sr = this.sr, p = this.p, n = p.n;
     const os = p.os | 0 || 1;
@@ -605,12 +630,14 @@ class SwarmSynth {
     // decimation LP at the oversampled rate (kills the alias the extra rate buys us)
     const bq = os > 1 ? this.biquadLP(0.45 * sr, sr * os) : null;
     const cmix = p.comb, fb = 0.6 + 0.38 * p.combRes, damp = 0.5;   // per-note comb
-    const spF = Math.max(0, Math.min(4, p.sawProfile * 4)), pi0 = Math.min(3, Math.floor(spF)), pfr = spF - pi0;  // saw-profile crossfade
+    const spF = Math.max(0, Math.min(4, p.sawProfile * 4)), pi0 = Math.min(3, Math.floor(spF)), pfr = spF - pi0;  // roundness-shape crossfade
+    const sbF = Math.max(0, Math.min(4, p.sawBase * 4)), bi0 = Math.min(3, Math.floor(sbF)), bfr = sbF - bi0, baseOn = p.sawBase > 0.001;  // base-saw crossfade
     // pan motion: slow decorrelated per-voice LFOs sweep the base pan (once per block)
     let PL = this.panL, PR = this.panR;
     const pm = p.panMotion;
     if (pm > 0.001) {
       const dtB = outL.length / sr, pmode = p.panMode | 0;
+      const cdFoc = this.focus();   // motion-center weight uses the focus swarm's cdist
       // sweep: one shared LFO auto-pans the whole image; drift: independent per-voice LFOs.
       if (pmode === 1) { this.panSweepPh += 0.1 * dtB; this.panSweepPh -= Math.floor(this.panSweepPh); }
       const sweep = pm * Math.sin(6.283185307 * this.panSweepPh);
@@ -618,6 +645,7 @@ class SwarmSynth {
         let off;
         if (pmode === 1) { off = sweep; }
         else { this.panPh[i] += (0.08 + i * 0.021) * dtB; this.panPh[i] -= Math.floor(this.panPh[i]); off = pm * Math.sin(6.283185307 * this.panPh[i]); }
+        if (p.motionCenter > 0 && cdFoc) off *= 1 - p.motionCenter * (1 - cdFoc.cdist[i]);
         const pan = Math.max(-1, Math.min(1, this.pan[i] + off));
         this.panMod[i] = pan;
         const th = (pan + 1) * 0.25 * 3.14159265;
@@ -654,8 +682,13 @@ class SwarmSynth {
               else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
               v = naive - p.digital * bl;
             }
+            if (baseOn) {
+              // top-level saw shape: crossfade the base bank (anchor 0 = the BLEP saw)
+              const b0 = bi0 === 0 ? v : this.sawBaseVar(bi0, ph);
+              v = b0 * (1 - bfr) + this.sawBaseVar(bi0 + 1, ph) * bfr;
+            }
             if (s.rnd[i] > 0.001) {
-              // morph the saw toward the selected saw-profile shape (per voice, pitch-tracked)
+              // then round it toward the selected roundness shape (per voice, pitch-tracked)
               const shaped = this.sawShape(pi0, ph) * (1 - pfr) + this.sawShape(pi0 + 1, ph) * pfr;
               v = v * (1 - s.rnd[i]) + shaped * s.rnd[i];
             }
@@ -688,9 +721,10 @@ class SwarmSynth {
       }
     }
     this.tick = (this.tick + outL.length) & (TICK - 1);
-    // ---- master stages: high-pass → drive (power) → normalize (fill nulls) → soft clip ----
+    // ---- master: high-pass → drive → normalize → compressor → limiter → soft clip ----
     const drv = p.drive, pre = 1 + drv * 6, preN = Math.tanh(pre), norm = p.normalize;
     const hpOn = p.hpf > 0.01, hpR = hpOn ? Math.exp(-6.283185307 * (20 * Math.pow(15, p.hpf)) / sr) : 0;
+    const comp = p.comp, lim = p.limiter > 0.5;
     let pk = this.peak;
     for (let smp = 0; smp < outL.length; smp++) {
       let l = outL[smp], r = outR[smp];
@@ -706,11 +740,18 @@ class SwarmSynth {
         const mk = Math.max(0.25, Math.min(4, 1 + norm * (0.5 / this.normEnv - 1)));
         l *= mk; r *= mk;
       }
+      if (comp > 0.005) {   // mild peak compressor — tames chord build-up before the clip
+        const a = Math.max(Math.abs(l), Math.abs(r));
+        this.compEnv += (a > this.compEnv ? 0.3 : 0.0015) * (a - this.compEnv);   // fast atk, slow rel
+        if (this.compEnv > 0.4) { const gr = (0.4 + (this.compEnv - 0.4) / (1 + comp * 4)) / this.compEnv; l *= gr; r *= gr; }
+      }
+      if (lim) { const a = Math.max(Math.abs(l), Math.abs(r)); if (a > 0.98) { const lg = 0.98 / a; l *= lg; r *= lg; } }  // brickwall peak limiter
       const m = Math.abs(l) > Math.abs(r) ? Math.abs(l) : Math.abs(r);
       if (m > pk) pk = m;   // pre-tanh peak → the clip meter reads this
       outL[smp] = Math.tanh(l); outR[smp] = Math.tanh(r);   // gentle final soft clip
     }
     this.peak = pk;
+    const foc = this.focus(); if (foc) this.lastPhase.set(foc.phase);   // snapshot for keep-phase
   }
 }
 
@@ -777,6 +818,9 @@ const fmt = {
   round: v => (+v) < 0.005 ? 'saw' : (+v).toFixed(2),
   roundHi: v => (+v) < 0.005 ? 'uniform' : (+v).toFixed(2),
   sawProfile: v => { const z = ['glass','soft','hollow','pure','reedy']; return z[Math.min(4, Math.round((+v) * 4))]; },
+  sawBase: v => { const z = ['classic','curved','fat','driven','aggressive']; return z[Math.min(4, Math.round((+v) * 4))]; },
+  comp: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  motionCenter: v => (+v) < 0.005 ? 'uniform' : (+v).toFixed(2),
   panMotion: v => (+v) < 0.005 ? 'still' : (+v).toFixed(2),
   tilt: v => { const x = +v; return Math.abs(x) < 0.005 ? 'off' : x > 0 ? 'dark ' + x.toFixed(2) : 'thin ' + (-x).toFixed(2); },
   hpf: v => (+v) < 0.01 ? 'off' : Math.round(20 * Math.pow(15, +v)) + ' Hz',
@@ -798,7 +842,7 @@ const fmt = {
   stretchB: v => (+v).toFixed(2),
   n: v => v
 };
-const ranges = ['n','detune','stretchB','spread','reach','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','hpf','hiTame','round','roundHi','sawProfile','drive','normalize','comb','combRes','rtone','normExp','width','panCurve','panMotion','digital','vol'];
+const ranges = ['n','detune','stretchB','spread','reach','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','hpf','hiTame','round','roundHi','sawProfile','sawBase','drive','normalize','comp','comb','combRes','rtone','normExp','width','panCurve','panMotion','motionCenter','digital','vol'];
 const updaters = {};
 ranges.forEach(k => {
   const el = $(k), out = $(k + '_o');
@@ -823,6 +867,8 @@ $('pivotMode').addEventListener('change', () => send('pivotMode', +$('pivotMode'
 $('seed').addEventListener('change', () => send('seed', +$('seed').value));
 $('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
 $('retrig').addEventListener('change', () => send('retrig', $('retrig').checked ? 1 : 0));
+$('keepPhase').addEventListener('change', () => send('keepPhase', $('keepPhase').checked ? 1 : 0));
+$('limiter').addEventListener('change', () => send('limiter', $('limiter').checked ? 1 : 0));
 $('mono').addEventListener('change', () => send('mono', $('mono').checked ? 1 : 0));
 $('panInvert').addEventListener('change', () => send('panInvert', $('panInvert').checked ? 1 : 0));
 
@@ -872,6 +918,8 @@ function pushAllParams() {
   send('pivotMode', +$('pivotMode').value);
   send('seed', +$('seed').value);
   send('retrig', $('retrig').checked ? 1 : 0);
+  send('keepPhase', $('keepPhase').checked ? 1 : 0);
+  send('limiter', $('limiter').checked ? 1 : 0);
   send('mono', $('mono').checked ? 1 : 0);
   send('panInvert', $('panInvert').checked ? 1 : 0);
 }
@@ -1127,22 +1175,33 @@ function sawShapeJS(k, ph) {
   if (k === 3) return Math.sin(6.283185307 * ph);
   return 0.8 * Math.sin(6.283185307 * ph) + 0.2 * Math.sin(18.849555922 * ph);
 }
+function sawBaseVarJS(k, ph) {
+  const r = 2 * ph - 1;
+  if (k <= 1) return Math.sign(r) * Math.pow(Math.abs(r), 1.4);
+  if (k === 2) return 0.85 * r + 0.15 * (0.6667 - 2 * r * r);
+  if (k === 3) return Math.tanh(2.2 * r) / 0.97574;
+  return Math.sign(r) * Math.pow(Math.abs(r), 0.6);
+}
 function drawSawShape() {
   const w = swc.width, h = swc.height;
   swx.fillStyle = '#161b28'; swx.fillRect(0, 0, w, h);
   swx.strokeStyle = '#232a3a'; swx.beginPath(); swx.moveTo(0, h / 2); swx.lineTo(w, h / 2); swx.stroke();
-  const prof = +$('sawProfile').value, rnd = +$('round').value;
+  const prof = +$('sawProfile').value, rnd = +$('round').value, base = +$('sawBase').value;
   const spF = Math.max(0, Math.min(4, prof * 4)), pi0 = Math.min(3, Math.floor(spF)), pfr = spF - pi0;
+  const sbF = Math.max(0, Math.min(4, base * 4)), bi0 = Math.min(3, Math.floor(sbF)), bfr = sbF - bi0, baseOn = base > 0.001;
   swx.strokeStyle = '#5ff2e0'; swx.lineWidth = 1.6; swx.beginPath();
   for (let px = 0; px < w; px++) {
     const ph = px / w, saw = 2 * ph - 1;
+    let v = saw;
+    if (baseOn) { const b0 = bi0 === 0 ? saw : sawBaseVarJS(bi0, ph); v = b0 * (1 - bfr) + sawBaseVarJS(bi0 + 1, ph) * bfr; }
     const shaped = sawShapeJS(pi0, ph) * (1 - pfr) + sawShapeJS(pi0 + 1, ph) * pfr;
-    const v = saw * (1 - rnd) + shaped * rnd, y = h / 2 - v * (h / 2 - 3);
+    v = v * (1 - rnd) + shaped * rnd;
+    const y = h / 2 - v * (h / 2 - 3);
     if (px === 0) swx.moveTo(px, y); else swx.lineTo(px, y);
   }
   swx.stroke();
   swx.fillStyle = '#7c8698'; swx.font = '9px monospace';
-  swx.fillText(fmt.sawProfile(prof) + (rnd < 0.005 ? ' · raw saw' : ' · round ' + rnd.toFixed(2)), 5, h - 5);
+  swx.fillText(fmt.sawBase(base) + ' → ' + fmt.sawProfile(prof) + (rnd < 0.005 ? '' : ' ' + rnd.toFixed(2)), 5, h - 5);
 }
 function loop() {
   drawPhase();
