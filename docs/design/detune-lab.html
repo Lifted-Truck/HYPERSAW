@@ -181,9 +181,13 @@
     </div>
 
     <div class="cluster drift">
-      <h2>Motion — seeded 1/f-ish walks</h2>
+      <h2>Motion — per-voice pitch drift</h2>
       <div class="row"><label>drift depth</label><input type="range" id="driftDepth" min="0" max="60" step="0.1" value="0"><output id="driftDepth_o">0 ¢</output></div>
       <div class="row"><label>drift rate</label><input type="range" id="driftRate" min="0" max="1" step="0.01" value="0.4"><output id="driftRate_o">0.40</output></div>
+      <div class="row compact"><label>drift mode</label>
+        <select id="driftMode"><option value="0" selected>walk (1/f)</option><option value="1">sine (per-voice)</option><option value="2">sample &amp; hold</option></select>
+      </div>
+      <div class="hint" style="margin-top:4px;">each voice drifts independently (watch the voice-map dots wiggle in pitch). <b>sine</b> = smooth two-way sway; <b>S&amp;H</b> = stepped random.</div>
     </div>
 
     <div class="cluster">
@@ -222,6 +226,9 @@
       <div class="row"><label>width</label><input type="range" id="width" min="0" max="1" step="0.01" value="0.8"><output id="width_o">0.80</output></div>
       <div class="row"><label>pan curve</label><input type="range" id="panCurve" min="0" max="1" step="0.01" value="0.5"><output id="panCurve_o">linear</output></div>
       <div class="row"><label>pan motion</label><input type="range" id="panMotion" min="0" max="1" step="0.01" value="0"><output id="panMotion_o">still</output></div>
+      <div class="row compact"><label>pan mode</label>
+        <select id="panMode"><option value="0" selected>drift (per-voice)</option><option value="1">sweep (whole image)</option></select>
+      </div>
       <div class="togs"><label><input type="checkbox" id="panInvert"> invert pan (top voice → centre)</label></div>
       <div class="row"><label>R → tone</label><input type="range" id="rtone" min="-1" max="1" step="0.01" value="0"><output id="rtone_o">off</output></div>
       <div class="row"><label>digital ↔ clean</label><input type="range" id="digital" min="0" max="1" step="0.01" value="1"><output id="digital_o">BLEP</output></div>
@@ -261,7 +268,7 @@ class SwarmSynth {
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0,
                spread:1, anchor:0, rootWeight:0, tilt:0, os:1, drive:0, normalize:0, comb:0, combRes:0.5,
                reach:1, hiTame:0, panCurve:0.5, panInvert:0, hpf:0,
-               round:0, roundHi:0, shapeTgt:0, panMotion:0 };
+               round:0, roundHi:0, shapeTgt:0, panMotion:0, driftMode:0, panMode:0 };
     this.x = new Float64Array(MAXV);
     this.pan = new Float64Array(MAXV);   // signed pan per voice (for the voice map)
     this.panL = new Float64Array(MAXV);
@@ -275,6 +282,7 @@ class SwarmSynth {
     this.hpXL = 0; this.hpYL = 0; this.hpXR = 0; this.hpYR = 0;   // master high-pass state
     this.peak = 0; this.tiltHP = false;                          // clip meter + tilt sign
     this.panPh = new Float64Array(MAXV);                         // per-voice pan-motion LFO phase
+    this.panSweepPh = 0;                                         // shared phase for sweep pan mode
     this.panLm = new Float64Array(MAXV); this.panRm = new Float64Array(MAXV);
     this.panMod = new Float64Array(MAXV);                        // modulated signed pan (for the map)
     this.swarms = [];
@@ -287,6 +295,7 @@ class SwarmSynth {
         vgain: new Float64Array(MAXV).fill(1), dcL: [0, 0], dcR: [0, 0],
         vfSm: new Float64Array(MAXV), vfInit: 0,
         vfTarget: new Float64Array(MAXV), fRun: new Float64Array(MAXV), rnd: new Float64Array(MAXV),
+        driftPh: new Float64Array(MAXV), driftHoldT: new Float64Array(MAXV),
         combL: new Float32Array(this.maxD), combR: new Float32Array(this.maxD),
         combW: 0, combLpL: 0, combLpR: 0, dly: 100,
         f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
@@ -398,7 +407,7 @@ class SwarmSynth {
     for (let i = 0; i < MAXV; i++) s.mom[i] = 0;
     s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
     for (let i = 0; i < MAXV; i++) {
-      s.driftS[i] = 0;
+      s.driftS[i] = 0; s.driftPh[i] = i * 0.13; s.driftHoldT[i] = 0;
       s.phase[i] = this.p.retrig ? 0 : this.rngS(s);
     }
   }
@@ -419,12 +428,24 @@ class SwarmSynth {
     const firstTick = !s.vfInit;   // note-on/rebuild: snap the smoothers instead of gliding
     s.Kenv *= Math.exp(-dt / Math.max(0.01, p.dissolve));
     if (p.driftDepth > 0) {
-      const rate = (0.2 + p.driftRate * 8);
+      // per-voice motion (each voice its own independent stream/phase), 3 modes:
+      const dm = p.driftMode | 0, rate = (0.2 + p.driftRate * 8);
       for (let i = 0; i < n; i++) {
-        s.driftS[i] += (this.rngS(s) - 0.5) * 2 * Math.sqrt(rate * dt);
-        s.driftS[i] -= s.driftS[i] * 0.4 * dt;
-        if (s.driftS[i] > 1) s.driftS[i] = 1;
-        if (s.driftS[i] < -1) s.driftS[i] = -1;
+        if (dm === 1) {
+          // sine — smooth per-voice LFO, decorrelated rates (wiggles both ways)
+          s.driftPh[i] += (0.05 + p.driftRate * 4) * (0.6 + i * 0.09) * dt;
+          s.driftS[i] = Math.sin(6.283185307 * s.driftPh[i]);
+        } else if (dm === 2) {
+          // sample & hold — stepped random, hold time shortens with rate
+          s.driftHoldT[i] -= dt;
+          if (s.driftHoldT[i] <= 0) { s.driftS[i] = this.rngS(s) * 2 - 1; s.driftHoldT[i] = 0.03 + (1 - p.driftRate) * 0.6; }
+        } else {
+          // walk — 1/f-ish mean-reverting random walk (the original)
+          s.driftS[i] += (this.rngS(s) - 0.5) * 2 * Math.sqrt(rate * dt);
+          s.driftS[i] -= s.driftS[i] * 0.4 * dt;
+          if (s.driftS[i] > 1) s.driftS[i] = 1;
+          if (s.driftS[i] < -1) s.driftS[i] = -1;
+        }
       }
     }
     // per-voice natural frequencies + measured spread
@@ -479,7 +500,9 @@ class SwarmSynth {
     this.tiltHP = p.tilt < 0;
     // bipolar tilt: >0 = darken (LP, ~40→2.4 harmonics at the root); <0 = thin /
     // remove low end (HP, corner 0.3→2.4× the fundamental). Cutoff rises as √(f/f0).
-    const H = tm <= 0.005 ? 0 : (p.tilt > 0 ? 40 * Math.pow(0.06, tm) : 0.3 * Math.pow(8, tm));
+    // start near-bypass just above 0 (no jump-to-trim): LP sweeps ~400→2 harmonics,
+    // HP corner sweeps ~0.1→2.4× the fundamental, both exponentially.
+    const H = tm <= 0.005 ? 0 : (p.tilt > 0 ? 2 * Math.pow(200, 1 - tm) : 0.1 * Math.pow(24, tm));
     const span = Math.max(1e-6, this.xmax - this.xmin);
     for (let i = 0; i < n; i++) {
       if (H <= 0) { s.vlpc[i] = 1; }
@@ -564,10 +587,15 @@ class SwarmSynth {
     let PL = this.panL, PR = this.panR;
     const pm = p.panMotion;
     if (pm > 0.001) {
-      const dtB = outL.length / sr;
+      const dtB = outL.length / sr, pmode = p.panMode | 0;
+      // sweep: one shared LFO auto-pans the whole image; drift: independent per-voice LFOs.
+      if (pmode === 1) { this.panSweepPh += 0.1 * dtB; this.panSweepPh -= Math.floor(this.panSweepPh); }
+      const sweep = pm * Math.sin(6.283185307 * this.panSweepPh);
       for (let i = 0; i < n; i++) {
-        this.panPh[i] += (0.08 + i * 0.021) * dtB; this.panPh[i] -= Math.floor(this.panPh[i]);
-        const pan = Math.max(-1, Math.min(1, this.pan[i] + pm * Math.sin(6.283185307 * this.panPh[i])));
+        let off;
+        if (pmode === 1) { off = sweep; }
+        else { this.panPh[i] += (0.08 + i * 0.021) * dtB; this.panPh[i] -= Math.floor(this.panPh[i]); off = pm * Math.sin(6.283185307 * this.panPh[i]); }
+        const pan = Math.max(-1, Math.min(1, this.pan[i] + off));
         this.panMod[i] = pan;
         const th = (pan + 1) * 0.25 * 3.14159265;
         this.panLm[i] = Math.cos(th); this.panRm[i] = Math.sin(th);
@@ -769,6 +797,8 @@ $('n').addEventListener('input', () => { $('reach_o').textContent = fmt.reach(+$
 $('dist').addEventListener('change', () => send('dist', +$('dist').value));
 $('os').addEventListener('change', () => send('os', +$('os').value));
 $('shapeTgt').addEventListener('change', () => send('shapeTgt', +$('shapeTgt').value));
+$('driftMode').addEventListener('change', () => send('driftMode', +$('driftMode').value));
+$('panMode').addEventListener('change', () => send('panMode', +$('panMode').value));
 $('seed').addEventListener('change', () => send('seed', +$('seed').value));
 $('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value); });
 $('retrig').addEventListener('change', () => send('retrig', $('retrig').checked ? 1 : 0));
@@ -817,6 +847,8 @@ function pushAllParams() {
   send('dist', +$('dist').value);
   send('os', +$('os').value);
   send('shapeTgt', +$('shapeTgt').value);
+  send('driftMode', +$('driftMode').value);
+  send('panMode', +$('panMode').value);
   send('seed', +$('seed').value);
   send('retrig', $('retrig').checked ? 1 : 0);
   send('mono', $('mono').checked ? 1 : 0);
