@@ -115,6 +115,10 @@ full() {
   "$build_dir/parity_check" "$(dirname "$build_dir")/build-golden" || return 1
   "$build_dir/trajectory_check" || return 1
   "$build_dir/state_check" || return 1
+  # Note-lifecycle guard (ADR-038): seeded note on/off streams must decay to
+  # silence — the oracle for the 2026-07-18 "doesn't stop when you let go" hang.
+  # Statically linked like state_check; no goldens. (Was built but ungated.)
+  "$build_dir/notefuzz_check" || return 1
 
   # Track E0 oracle chain: force goldens (extracted live from the effect
   # labs' HTMLs) -> force_check (seed-for-seed trajectories + the population

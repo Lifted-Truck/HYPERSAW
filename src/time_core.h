@@ -185,8 +185,8 @@ class TimeCore
   void render(float *outL, float *outR, int nSamples)
   {
     heal();
-    const double atk = 1 - std::exp(-1 / (0.002 * sr));
-    const double rel = 1 - std::exp(-1 / (0.09 * sr));
+    const double atk = forcecore::onePoleCoef(0.002, sr);
+    const double rel = forcecore::onePoleCoef(0.09, sr);
     for (int smp = 0; smp < nSamples; smp++)
     {
       if (tick == 0) controlTick();

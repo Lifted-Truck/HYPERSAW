@@ -159,8 +159,8 @@ class SwarmalatorCore
   void render(float *outL, float *outR, int nSamples)
   {
     const int n = (int)p.nu;
-    const double atk = 1 - std::exp(-1 / (0.006 * sr));
-    const double rel = 1 - std::exp(-1 / (0.25 * sr));
+    const double atk = forcecore::onePoleCoef(0.006, sr);
+    const double rel = forcecore::onePoleCoef(0.25, sr);
     const double norm = 0.7 / std::sqrt((double)n);
     for (int smp = 0; smp < nSamples; smp++)
     {

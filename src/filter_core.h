@@ -141,8 +141,8 @@ class FilterCore
   void render(float *outL, float *outR, int nSamples)
   {
     const int n = (int)p.nb;
-    const double atk = 1 - std::exp(-1 / (0.003 * sr));
-    const double rel = 1 - std::exp(-1 / (0.15 * sr));
+    const double atk = forcecore::onePoleCoef(0.003, sr);
+    const double rel = forcecore::onePoleCoef(0.15, sr);
     for (int smp = 0; smp < nSamples; smp++)
     {
       if (tick == 0) controlTick();
