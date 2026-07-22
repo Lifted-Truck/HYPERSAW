@@ -130,6 +130,10 @@
       <label style="color:var(--dim);font-size:10px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="fitScale" style="accent-color:var(--swarm);vertical-align:middle;"> fit scale</label>
     </div>
     <canvas id="voiceCanvas" width="356" height="210"></canvas>
+    <div class="rmeter" style="margin-top:10px;">
+      <div class="bar"><div class="fill" id="lvlfill"></div></div>
+      <div class="lbl"><span>output level <b id="clipflag"></b></span><span>peak = <b id="lvlval">−∞ dB</b></span></div>
+    </div>
   </div>
 
   <div class="controls">
@@ -178,20 +182,21 @@
 
     <div class="cluster drift">
       <h2>Motion — seeded 1/f-ish walks</h2>
-      <div class="row"><label>drift depth</label><input type="range" id="driftDepth" min="0" max="25" step="0.1" value="0"><output id="driftDepth_o">0 ¢</output></div>
+      <div class="row"><label>drift depth</label><input type="range" id="driftDepth" min="0" max="60" step="0.1" value="0"><output id="driftDepth_o">0 ¢</output></div>
       <div class="row"><label>drift rate</label><input type="range" id="driftRate" min="0" max="1" step="0.01" value="0.4"><output id="driftRate_o">0.40</output></div>
     </div>
 
     <div class="cluster">
       <h2>Voice tone &amp; anti-alias</h2>
-      <div class="row"><label>tone tilt</label><input type="range" id="tilt" min="0" max="1" step="0.01" value="0"><output id="tilt_o">off</output></div>
+      <div class="row"><label>tone tilt</label><input type="range" id="tilt" min="-1" max="1" step="0.01" value="0"><output id="tilt_o">off</output></div>
+      <div class="row"><label>highpass</label><input type="range" id="hpf" min="0" max="1" step="0.01" value="0"><output id="hpf_o">off</output></div>
       <div class="row compact"><label>oversample</label>
         <select id="os"><option value="1" selected>1× (BLEP only)</option><option value="2">2×</option><option value="4">4×</option></select>
       </div>
       <div class="row"><label>hi tame</label><input type="range" id="hiTame" min="0" max="1" step="0.01" value="0"><output id="hiTame_o">off</output></div>
       <div class="row"><label>drive</label><input type="range" id="drive" min="0" max="1" step="0.01" value="0"><output id="drive_o">off</output></div>
       <div class="row"><label>normalize</label><input type="range" id="normalize" min="0" max="1" step="0.01" value="0"><output id="normalize_o">off</output></div>
-      <div class="hint" style="margin-top:4px;"><b>hi tame</b> = equal-loudness roll-off (turns the upper voices down); <b>tone tilt</b> trims their highs more than the root's.</div>
+      <div class="hint" style="margin-top:4px;"><b>tone tilt</b> bipolar: right darkens (cuts highs), left thins (cuts each voice's low end). <b>highpass</b> is a master low-cut. <b>hi tame</b> = equal-loudness roll-off of the upper voices.</div>
     </div>
 
     <div class="cluster pull">
@@ -244,7 +249,7 @@ class SwarmSynth {
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, stretchB:0,
                spread:1, anchor:0, rootWeight:0, tilt:0, os:1, drive:0, normalize:0, comb:0, combRes:0.5,
-               reach:1, hiTame:0, panCurve:0.5, panInvert:0 };
+               reach:1, hiTame:0, panCurve:0.5, panInvert:0, hpf:0 };
     this.x = new Float64Array(MAXV);
     this.pan = new Float64Array(MAXV);   // signed pan per voice (for the voice map)
     this.panL = new Float64Array(MAXV);
@@ -255,6 +260,8 @@ class SwarmSynth {
     // so the comb is polyphonic. Buffer sized to the lowest musical note (~20 Hz).
     this.maxD = Math.ceil(this.sr / 20) + 4;
     this.normEnv = 1e-4;
+    this.hpXL = 0; this.hpYL = 0; this.hpXR = 0; this.hpYR = 0;   // master high-pass state
+    this.peak = 0; this.tiltHP = false;                          // clip meter + tilt sign
     this.swarms = [];
     for (let i = 0; i < POLY; i++) {
       this.swarms.push({
@@ -282,8 +289,8 @@ class SwarmSynth {
     // n/width/curve/invert. Keeps a width drag from redrawing the seeded distribution
     // (which used to jitter the pitches and click).
     if (k === 'n') { this.rebuildDist(); this.rebuildPan(); }
-    else if (k === 'dist' || k === 'seed') this.rebuildDist();
-    else if (k === 'width' || k === 'panCurve' || k === 'panInvert') this.rebuildPan();
+    else if (k === 'dist' || k === 'seed') { this.rebuildDist(); this.rebuildPan(); }  // x changed → pan re-ranks
+    else if (k === 'width' || k === 'panCurve' || k === 'panInvert' || k === 'law') this.rebuildPan();
   }
   rngG() { // global stream for offset draws
     this.grng |= 0; this.grng = (this.grng + 0x6D2B79F5) | 0;
@@ -332,17 +339,21 @@ class SwarmSynth {
     for (const s of this.swarms) s.vfInit = 0;   // re-snap freq smoother on layout change
   }
   rebuildPan() {
-    const n = this.p.n, w = this.p.width, inv = this.p.panInvert;
-    // pan law: voices step out from centre on ALTERNATING sides, ordered by voice
-    // index (root first). pan curve reshapes the distance-from-centre: 0.5 = linear,
-    // <0.5 centre-focused (bunch near centre), >0.5 side-focused (pushed to edges).
-    // invert flips the triangle so the TOP voice sits centred and the root goes wide.
+    const n = this.p.n, w = this.p.width, inv = this.p.panInvert, harmonic = this.p.law === 4;
+    // Rank voices by PITCH (x for spatial laws, index for harmonic) so the fan
+    // follows low→high order even when the distribution scrambles the index order
+    // (gaussian/cauchy/golden). Voices step out from centre on ALTERNATING sides by
+    // pitch-rank. pan curve reshapes distance-from-centre (0.5 linear · <0.5 centre-
+    // focused · >0.5 side-focused); invert flips the triangle (top voice centred).
+    const idx = Array.from({ length: n }, (_, i) => i);
+    idx.sort((a, b) => harmonic ? a - b : this.x[a] - this.x[b]);
     const gamma = Math.pow(6, 0.5 - this.p.panCurve);
-    for (let i = 0; i < n; i++) {
-      let d = (n === 1) ? 0 : i / (n - 1);
+    for (let r = 0; r < n; r++) {
+      const i = idx[r];                        // voice at pitch-rank r (0 = lowest)
+      let d = (n === 1) ? 0 : r / (n - 1);
       if (inv) d = 1 - d;
       d = Math.pow(d, gamma);
-      let pan = Math.max(-1, Math.min(1, (i % 2 === 0 ? -1 : 1) * d * w));
+      const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * d * w));
       this.pan[i] = pan;
       const th = (pan + 1) * 0.25 * 3.14159265;
       this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
@@ -449,7 +460,11 @@ class SwarmSynth {
     // ensemble toward the lowest voice; equal-loudness (hiTame) turns the higher
     // voices down by 1/f^hiTame so the stack isn't harsh up top.
     const osF = p.os | 0 || 1, rate = this.sr * osF, nyq = rate * 0.5;
-    const H = p.tilt <= 0.001 ? 0 : 40 * Math.pow(0.06, p.tilt);  // harmonics kept at the root: ~40 → ~2
+    const tm = Math.abs(p.tilt);
+    this.tiltHP = p.tilt < 0;
+    // bipolar tilt: >0 = darken (LP, ~40→2.4 harmonics at the root); <0 = thin /
+    // remove low end (HP, corner 0.3→2.4× the fundamental). Cutoff rises as √(f/f0).
+    const H = tm <= 0.005 ? 0 : (p.tilt > 0 ? 40 * Math.pow(0.06, tm) : 0.3 * Math.pow(8, tm));
     const span = Math.max(1e-6, this.xmax - this.xmin);
     for (let i = 0; i < n; i++) {
       if (H <= 0) { s.vlpc[i] = 1; }
@@ -555,7 +570,7 @@ class SwarmSynth {
               else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
               v = naive - p.digital * bl;
             }
-            if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = s.vlp[i]; }
+            if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = this.tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
             v *= s.vgain[i];
             if (p.mono) { sl += v * 0.7071; sr2 += v * 0.7071; }
             else { sl += v * this.panL[i]; sr2 += v * this.panR[i]; }
@@ -584,10 +599,16 @@ class SwarmSynth {
       }
     }
     this.tick = (this.tick + outL.length) & (TICK - 1);
-    // ---- master stages: drive (power) → normalize (fill nulls) → soft clip ----
+    // ---- master stages: high-pass → drive (power) → normalize (fill nulls) → soft clip ----
     const drv = p.drive, pre = 1 + drv * 6, preN = Math.tanh(pre), norm = p.normalize;
+    const hpOn = p.hpf > 0.01, hpR = hpOn ? Math.exp(-6.283185307 * (20 * Math.pow(15, p.hpf)) / sr) : 0;
+    let pk = this.peak;
     for (let smp = 0; smp < outL.length; smp++) {
       let l = outL[smp], r = outR[smp];
+      if (hpOn) {   // master high-pass (DC-blocker form) — remove rumble/mud
+        const yl = hpR * (this.hpYL + l - this.hpXL); this.hpXL = l; this.hpYL = yl; l = yl;
+        const yr = hpR * (this.hpYR + r - this.hpXR); this.hpXR = r; this.hpYR = yr; r = yr;
+      }
       if (drv > 0.001) { l = Math.tanh(l * pre) / preN; r = Math.tanh(r * pre) / preN; }
       if (norm > 0.001) {
         const a = Math.max(Math.abs(l), Math.abs(r));
@@ -596,8 +617,11 @@ class SwarmSynth {
         const mk = Math.max(0.25, Math.min(4, 1 + norm * (0.5 / this.normEnv - 1)));
         l *= mk; r *= mk;
       }
+      const m = Math.abs(l) > Math.abs(r) ? Math.abs(l) : Math.abs(r);
+      if (m > pk) pk = m;   // pre-tanh peak → the clip meter reads this
       outL[smp] = Math.tanh(l); outR[smp] = Math.tanh(r);   // gentle final soft clip
     }
+    this.peak = pk;
   }
 }
 
@@ -661,7 +685,8 @@ const fmt = {
   rootWeight: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   hiTame: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   panCurve: v => { const x = +v; return Math.abs(x - 0.5) < 0.02 ? 'linear' : x < 0.5 ? 'centre ' + (0.5 - x).toFixed(2) : 'sides ' + (x - 0.5).toFixed(2); },
-  tilt: v => (+v) < 0.005 ? 'off' : 'trim ' + (+v).toFixed(2),
+  tilt: v => { const x = +v; return Math.abs(x) < 0.005 ? 'off' : x > 0 ? 'dark ' + x.toFixed(2) : 'thin ' + (-x).toFixed(2); },
+  hpf: v => (+v) < 0.01 ? 'off' : Math.round(20 * Math.pow(15, +v)) + ' Hz',
   drive: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   normalize: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
   comb: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
@@ -680,7 +705,7 @@ const fmt = {
   stretchB: v => (+v).toFixed(2),
   n: v => v
 };
-const ranges = ['n','detune','stretchB','spread','reach','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','hiTame','drive','normalize','comb','combRes','rtone','normExp','width','panCurve','digital','vol'];
+const ranges = ['n','detune','stretchB','spread','reach','anchor','rootWeight','K','inertia','onset','dissolve','driftDepth','driftRate','tilt','hpf','hiTame','drive','normalize','comb','combRes','rtone','normExp','width','panCurve','digital','vol'];
 const updaters = {};
 ranges.forEach(k => {
   const el = $(k), out = $(k + '_o');
@@ -983,10 +1008,21 @@ function drawSpec() {
   sctx.fillText('16 kHz — log spectrum', w - 118, h - 3);
 }
 
+function drawLevel() {
+  const f = $('lvlfill');
+  if (!synth) { f.style.width = '0%'; $('lvlval').textContent = '−∞ dB'; $('clipflag').textContent = ''; return; }
+  const p = synth.peak || 0;
+  f.style.width = Math.min(1, p / 1.2) * 100 + '%';
+  f.style.background = p > 1.0 ? '#ff4f4f' : p > 0.7 ? '#ffc24b' : '#5ff2e0';
+  $('lvlval').textContent = p > 1e-4 ? (20 * Math.log10(p)).toFixed(1) + ' dB' : '−∞ dB';
+  const cf = $('clipflag'); cf.textContent = p > 1.0 ? '· CLIP' : ''; cf.style.color = '#ff4f4f';
+  synth.peak = p * 0.6;   // meter release (render sets the attack via block peak)
+}
 function loop() {
   drawPhase();
   drawSpec();
   drawVoiceMap();
+  drawLevel();
   requestAnimationFrame(loop);
 }
 loop();
