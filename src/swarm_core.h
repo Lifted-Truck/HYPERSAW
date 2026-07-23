@@ -105,6 +105,9 @@ struct Params
   // ADR-063: opt-in frequency glide, a time constant in SECONDS (ADR-009 —
   // seconds in, per-tick/per-sample coefficients out). 0 = off, bit-identical.
   double freqGlide = 0;
+  // ADR-064: pan motion (depth + mode 0 drift / 1 sweep) and the centre pin,
+  // which scales drift + pan motion by each voice's distance from the fundamental.
+  double panMotion = 0, panMode = 0, motionCenter = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -138,6 +141,7 @@ class SwarmCore
     double driftPh[kMaxV] = {0}, driftHoldT[kMaxV] = {0};  // sine / S&H drift-mode state
     double vfSm[kMaxV] = {0}, fRun[kMaxV] = {0};           // ADR-063 frequency-glide state
     int vfInit = 0;                                        // 0 → snap the glide on the next tick
+    double cdist[kMaxV] = {0};                             // ADR-064 distance from the fundamental
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
     // (x * 1.0 == x in IEEE), same guarantee ADR-027 leans on for p.tune.
     double noteTune = 1.0;
@@ -361,6 +365,30 @@ class SwarmCore
     const bool glideOn = p.freqGlide > 0;
     const double gCoefS = glideOn ? 1 - std::exp(-1 / (p.freqGlide * 0.25 * sr)) : 0;
     for (int i = 0; i < frames; i++) { outL[i] = 0.0f; outR[i] = 0.0f; }
+    // pan motion (ADR-064, parity with swarmsaw.html): slow LFOs sweep the base pan
+    // once per block. mode 0 = independent per-voice drift, 1 = one shared sweep.
+    // Centre pin scales the offset by distance from the fundamental.
+    const double *PL = panL, *PR = panR;
+    const double pmv = p.panMotion;
+    if (pmv > 0.001)
+    {
+      const double dtB = (double)frames / sr;
+      const int pmode = (int)p.panMode;
+      const Swarm *cdFoc = focus();
+      if (pmode == 1) { panSweepPh += 0.1 * dtB; panSweepPh -= std::floor(panSweepPh); }
+      const double sweep = pmv * std::sin(kTau * panSweepPh);
+      for (int i = 0; i < n; i++)
+      {
+        double off;
+        if (pmode == 1) off = sweep;
+        else { panPh[i] += (0.08 + i * 0.021) * dtB; panPh[i] -= std::floor(panPh[i]); off = pmv * std::sin(kTau * panPh[i]); }
+        if (p.motionCenter > 0 && cdFoc) off *= 1 - p.motionCenter * (1 - cdFoc->cdist[i]);
+        const double pv = std::max(-1.0, std::min(1.0, panBase[i] + off));
+        const double th = (pv + 1) * 0.25 * kPiRef;
+        panLm[i] = std::cos(th); panRm[i] = std::sin(th);
+      }
+      PL = panLm; PR = panRm;
+    }
     for (auto &s : swarms)
     {
       if (!s.gate && s.env < 1e-4) continue;
@@ -411,7 +439,7 @@ class SwarmCore
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.hiTame > 0) v *= s.hg[i];
           if (p.mono != 0) { l += v * 0.7071; r += v * 0.7071; }
-          else { l += v * panL[i]; r += v * panR[i]; }
+          else { l += v * PL[i]; r += v * PR[i]; }
         }
         if (p.lpOut != 0)
         {
@@ -534,6 +562,9 @@ class SwarmCore
     if (k == "driftMode") return &p.driftMode;  // ADR-062 drift modes
     if (k == "keepPhase") return &p.keepPhase;  // ADR-062 keep-phase
     if (k == "freqGlide") return &p.freqGlide;  // ADR-063 frequency glide
+    if (k == "panMotion") return &p.panMotion;    // ADR-064 pan motion
+    if (k == "panMode") return &p.panMode;        // ADR-064 pan-motion mode
+    if (k == "motionCenter") return &p.motionCenter;  // ADR-064 centre pin
     return nullptr;
   }
 
@@ -623,6 +654,7 @@ class SwarmCore
       double pan = pos[i];
       if (ps > 0) pan += (pos[perm[i]] - pos[i]) * ps;
       const double th = (pan + 1) * 0.25 * kPiRef;
+      panBase[i] = pan;   // signed base pan (post-scatter), kept for pan motion (ADR-064)
       panL[i] = std::cos(th);
       panR[i] = std::sin(th);
     }
@@ -713,7 +745,8 @@ class SwarmCore
         f = f0c + std::round(df / u) * u;
       }
       else { f = f0c + xv * p.detune * 0.35 * erb(f0c); }
-      if (p.driftDepth > 0) f *= std::pow(2, (s.driftS[i] * p.driftDepth) / 1200);
+      // centre pin (ADR-064): scale drift by distance from the fundamental (prev tick)
+      if (p.driftDepth > 0) { const double mw = 1 - p.motionCenter * (1 - s.cdist[i]); f *= std::pow(2, (s.driftS[i] * p.driftDepth * mw) / 1200); }
       const double target = std::max(1.0, f);
       if (glideOn)
       {
@@ -725,6 +758,12 @@ class SwarmCore
     }
     s.vfInit = 1;
     mean /= n;
+    if (p.motionCenter > 0)
+    {
+      double maxdev = 1e-9;
+      for (int i = 0; i < n; i++) { const double dd = std::fabs(s.vf[i] - s.f0); if (dd > maxdev) maxdev = dd; }
+      for (int i = 0; i < n; i++) s.cdist[i] = std::fabs(s.vf[i] - s.f0) / maxdev;
+    }
     double varsum = 0;
     for (int i = 0; i < n; i++)
     {
@@ -926,6 +965,10 @@ class SwarmCore
 
  private:
   double x[kMaxV] = {0}, panL[kMaxV] = {0}, panR[kMaxV] = {0};
+  double panBase[kMaxV] = {0};                              // ADR-064 signed base pan
+                                                            // (named panBase: rebuild has a local `pan`)
+  double panPh[kMaxV] = {0}, panLm[kMaxV] = {0}, panRm[kMaxV] = {0};
+  double panSweepPh = 0;
   double lastPhase[kMaxV] = {0};   // keep-phase snapshot of the focus swarm
   long noteCounter = 0;
   int tick = 0;

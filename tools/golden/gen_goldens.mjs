@@ -90,6 +90,11 @@ const SCENARIOS = [
   // Frequency glide (ADR-063) — opt-in de-zipper; exercised against S&H drift,
   // the steppiest source, so the smoothing is genuinely under load.
   { name: 'freq-glide',    p: { freqGlide: 0.006, driftDepth: 40, driftMode: 2, driftRate: 0.9, detune: 0.5, n: 7 } },
+  // Pan motion + centre pin (ADR-064). The centre-pin scenario drives BOTH legs
+  // (drift weighting and pan-motion weighting) so cdist is exercised end to end.
+  { name: 'pan-drift',     p: { panMotion: 0.6, detune: 0.5, n: 7, width: 0.9 } },
+  { name: 'pan-sweep',     p: { panMotion: 0.6, panMode: 1, detune: 0.5, n: 7, width: 0.9 } },
+  { name: 'centre-pin',    p: { panMotion: 0.6, motionCenter: 1, driftDepth: 30, driftMode: 1, detune: 0.5, n: 7, width: 0.9 } },
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
