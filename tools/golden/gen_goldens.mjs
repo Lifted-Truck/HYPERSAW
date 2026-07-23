@@ -96,7 +96,7 @@ const SCENARIOS = [
   { name: 'pan-sweep',     p: { panMotion: 0.6, panMode: 1, detune: 0.5, n: 7, width: 0.9 } },
   { name: 'centre-pin',    p: { panMotion: 0.6, motionCenter: 1, driftDepth: 30, driftMode: 1, detune: 0.5, n: 7, width: 0.9 } },
   // Harmonic law (ADR-065, law 4 — law 3 is the tempo grid). Full series, the
-  // mid-morph, a fractional reach, and the law under coupling.
+  // mid-morph, and a fractional reach.
   { name: 'harm-series',   p: { law: 4, detune: 1, n: 7 } },
   { name: 'harm-partial',  p: { law: 4, detune: 0.5, n: 7 } },
   { name: 'harm-reach',    p: { law: 4, detune: 1, harmReach: 1.8333333333333333, n: 7 } },
@@ -106,6 +106,11 @@ const SCENARIOS = [
   // Sample-exact parity is impossible there in principle (Math.sin and std::sin
   // are not identically rounded), so that path is covered by a behavioural anchor
   // in trajectory_check, not by a golden. See ADR-065.
+  // Stretch law (ADR-066, law 5). stretch-flat pins the algebraic identity
+  // B = 0 ≡ law 0; the other two cover mild and full bell inharmonicity.
+  { name: 'stretch-flat',  p: { law: 5, detune: 0.3, n: 9 } },
+  { name: 'stretch-mild',  p: { law: 5, stretchB: 2, detune: 0.3, n: 9 } },
+  { name: 'stretch-bell',  p: { law: 5, stretchB: 6, detune: 0.5, n: 12 } },
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
