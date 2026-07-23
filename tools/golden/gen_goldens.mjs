@@ -95,6 +95,17 @@ const SCENARIOS = [
   { name: 'pan-drift',     p: { panMotion: 0.6, detune: 0.5, n: 7, width: 0.9 } },
   { name: 'pan-sweep',     p: { panMotion: 0.6, panMode: 1, detune: 0.5, n: 7, width: 0.9 } },
   { name: 'centre-pin',    p: { panMotion: 0.6, motionCenter: 1, driftDepth: 30, driftMode: 1, detune: 0.5, n: 7, width: 0.9 } },
+  // Harmonic law (ADR-065, law 4 — law 3 is the tempo grid). Full series, the
+  // mid-morph, a fractional reach, and the law under coupling.
+  { name: 'harm-series',   p: { law: 4, detune: 1, n: 7 } },
+  { name: 'harm-partial',  p: { law: 4, detune: 0.5, n: 7 } },
+  { name: 'harm-reach',    p: { law: 4, detune: 1, harmReach: 1.8333333333333333, n: 7 } },
+  // NOTE: a coupled harmonic scenario (law 4 + strong K) is deliberately ABSENT.
+  // At full harmonic spread the swarm is CHAOTIC: a 1-ULP perturbation of the JS
+  // reference alone diverges to rms ~9.4e-2 (measured), i.e. as far as C++ vs JS.
+  // Sample-exact parity is impossible there in principle (Math.sin and std::sin
+  // are not identically rounded), so that path is covered by a behavioural anchor
+  // in trajectory_check, not by a golden. See ADR-065.
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
