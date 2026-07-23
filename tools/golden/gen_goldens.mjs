@@ -80,6 +80,8 @@ const SCENARIOS = [
   // Tone tilt (ADR-060) — LP (darken) + HP (thin) branches, per-voice pitch-tracked.
   { name: 'tilt-dark',     p: { tilt: 0.6, K: 0.3 } },
   { name: 'tilt-thin',     p: { tilt: -0.6, detune: 0.5, n: 7 } },
+  // Hi-tame (ADR-061) — per-voice equal-loudness roll-off across a wide stack.
+  { name: 'hi-tame',       p: { hiTame: 1.0, detune: 0.6, n: 12 } },
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
