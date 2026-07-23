@@ -77,6 +77,9 @@ const SCENARIOS = [
   // draws, un-retriggered scatter, drift streams).
   { name: 'gauss-cloud',   p: { dist: 2, detune: 0.4, n: 16 } },
   { name: 'cauchy-cloud',  p: { dist: 3, detune: 0.3, n: 16, retrig: 0 } },
+  // Tone tilt (ADR-060) — LP (darken) + HP (thin) branches, per-voice pitch-tracked.
+  { name: 'tilt-dark',     p: { tilt: 0.6, K: 0.3 } },
+  { name: 'tilt-thin',     p: { tilt: -0.6, detune: 0.5, n: 7 } },
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
