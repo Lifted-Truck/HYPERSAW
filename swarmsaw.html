@@ -208,7 +208,7 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
-               driftMode:0, keepPhase:0 };
+               driftMode:0, keepPhase:0, freqGlide:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -226,7 +226,8 @@ class SwarmSynth {
         lpL: 0, lpR: 0, lpc: 1,
         vlp: new Float64Array(MAXV), vlpc: new Float64Array(MAXV).fill(1),
         hg: new Float64Array(MAXV).fill(1),
-        driftPh: new Float64Array(MAXV), driftHoldT: new Float64Array(MAXV)
+        driftPh: new Float64Array(MAXV), driftHoldT: new Float64Array(MAXV),
+        vfSm: new Float64Array(MAXV), fRun: new Float64Array(MAXV), vfInit: 0
       });
     }
     this.lastPhase = new Float64Array(MAXV);   // keep-phase snapshot of the focus swarm
@@ -296,6 +297,7 @@ class SwarmSynth {
     s.KsmS = 0; s.KsmP = 0; s.fresh = 1;
     s.lpL = 0; s.lpR = 0;
     s.vlp.fill(0);
+    s.vfInit = 0;   // snap the frequency glide to the new note (no glide from the old)
     for (let i = 0; i < MAXV; i++) s.mom[i] = 0;
     s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
     for (let i = 0; i < MAXV; i++) {
@@ -318,6 +320,11 @@ class SwarmSynth {
   erb(f) { return 24.7 * (4.37 * f / 1000 + 1); }
   controlTick(s) {
     const p = this.p, n = p.n, dt = TICK / this.sr;
+    // Opt-in frequency glide (ADR-063): freqGlide is a time constant in SECONDS
+    // (ADR-009 — seconds in, coefficient out). 0 = off, bit-identical.
+    const firstTick = !s.vfInit;
+    const glideOn = p.freqGlide > 0;
+    const gCoefT = glideOn ? 1 - Math.exp(-dt / p.freqGlide) : 0;
     s.Kenv *= Math.exp(-dt / Math.max(0.01, p.dissolve));
     if (p.driftDepth > 0) {
       // per-voice motion, 3 modes (mode 0 = walk, the original 1/f behaviour)
@@ -347,9 +354,14 @@ class SwarmSynth {
       else if (p.law === 1) { f = s.f0 + x * p.detune * 20; }
       else { f = s.f0 + x * p.detune * 0.35 * this.erb(s.f0); }
       if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
-      s.vf[i] = Math.max(1, f);
+      const target = Math.max(1, f);
+      if (glideOn) {
+        if (firstTick) s.vfSm[i] = target; else s.vfSm[i] += gCoefT * (target - s.vfSm[i]);
+        s.vf[i] = s.vfSm[i];
+      } else s.vf[i] = target;
       mean += s.vf[i];
     }
+    s.vfInit = 1;
     mean /= n;
     let varsum = 0;
     for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
@@ -413,12 +425,17 @@ class SwarmSynth {
     else if (p.rtone < -0.001) fc = 16000 * Math.pow(2, -6 * (-p.rtone) * (1 - s.R));
     fc = Math.max(120, Math.min(18000, fc));
     s.lpc = 1 - Math.exp(-6.283185307 * fc / this.sr);
+    if (glideOn && firstTick) for (let i = 0; i < n; i++) s.fRun[i] = s.eff[i];   // snap the per-sample glide
   }
   render(outL, outR) {
     const sr = this.sr, p = this.p, n = p.n;
     const gain = p.vol * 0.9 / Math.pow(n, p.normExp);
     const atk = 1 - Math.exp(-1 / (0.003 * sr));
     const rel = 1 - Math.exp(-1 / (0.16 * sr));
+    // per-sample leg of the frequency glide (ADR-063): a quarter of the control-rate
+    // time constant, in seconds → coefficient. Off (0) leaves the path untouched.
+    const glideOn = p.freqGlide > 0;
+    const gCoefS = glideOn ? 1 - Math.exp(-1 / (p.freqGlide * 0.25 * sr)) : 0;
     outL.fill(0); outR.fill(0);
     for (const s of this.swarms) {
       if (!s.gate && s.env < 1e-4) continue;
@@ -426,9 +443,10 @@ class SwarmSynth {
       for (let smp = 0; smp < outL.length; smp++) {
         if (tick === 0) this.controlTick(s);
         tick = (tick + 1) & (TICK - 1);
+        if (glideOn) for (let i = 0; i < n; i++) s.fRun[i] += gCoefS * (s.eff[i] - s.fRun[i]);
         let l = 0, r = 0;
         for (let i = 0; i < n; i++) {
-          const f = s.eff[i];
+          const f = glideOn ? s.fRun[i] : s.eff[i];
           const dph = Math.max(0, f) / sr;
           let ph = s.phase[i] + dph;
           ph -= Math.floor(ph);
