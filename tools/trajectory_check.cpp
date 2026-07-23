@@ -895,6 +895,31 @@ int main()
           "ADR-058 waveshape morph bounded + NaN-clean", std::max(sq.peak, mid.peak));
   }
 
+  std::printf("== ADR-065 harmonic law (law 4) ==\n");
+  {
+    // The UNCOUPLED harmonic law is covered by exact goldens (harm-series /
+    // -partial / -reach, rms 0). The COUPLED path cannot be: at full harmonic
+    // spread the swarm is chaotic — a 1-ULP perturbation of the JS reference
+    // alone diverges to rms ~9.4e-2, i.e. as far as C++ vs JS — so sample-exact
+    // parity is impossible in principle there. Anchor its BEHAVIOUR instead.
+    // K = 0.9, not 0.6: a full harmonic stack is spread over an octave-plus, so
+    // weak coupling never overcomes it (probed: K 0.6 lifts late R by 0.006 —
+    // indistinguishable from chaotic jitter, an anchor that could flip sign on
+    // any legitimate refactor). K 0.9 is the first value that actually entrains
+    // this geometry (0.24 -> 0.70), so the claim is checked where it is true.
+    Traj uncoupled = run({{"law", 4}, {"detune", 1.0}, {"n", 7}}, 3.0);
+    Traj coupled = run({{"law", 4}, {"detune", 1.0}, {"n", 7}, {"K", 0.9}}, 3.0);
+    check(uncoupled.finite && coupled.finite && uncoupled.peak < 2.0 && coupled.peak < 2.0,
+          "ADR-065 harmonic law bounded + NaN-clean (uncoupled and coupled)",
+          std::max(uncoupled.peak, coupled.peak));
+    // Coupling must still do its job in this regime: it pulls the harmonic stack
+    // toward coherence, so late-window R under K must clearly exceed free-running R.
+    const double freeR = denseMean(uncoupled.denseR, 2.0, 3.0);
+    const double lockR = denseMean(coupled.denseR, 2.0, 3.0);
+    check(lockR - freeR > 0.2, "ADR-065 coupling entrains a harmonic stack (dR>0.2)",
+          lockR - freeR);
+  }
+
   std::printf("trajectory_check: %s (%d failure%s)\n", g_failures ? "RED" : "GREEN", g_failures,
               g_failures == 1 ? "" : "s");
   return g_failures ? 1 : 0;

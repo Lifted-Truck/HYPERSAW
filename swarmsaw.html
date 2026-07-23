@@ -208,7 +208,7 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
-               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0 };
+               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -358,6 +358,11 @@ class SwarmSynth {
       let f; const x = this.x[i];
       if (p.law === 0) { f = s.f0 * Math.pow(2, (x * p.detune * 100) / 1200); }
       else if (p.law === 1) { f = s.f0 + x * p.detune * 20; }
+      // HARMONIC (ADR-065): voice i morphs from unison (detune 0) up to its own
+      // partial — at detune 1, f0·(1 + harmReach·i), i.e. the natural series 1,2,3,…
+      // when harmReach = 1. Voice 0 stays on the root. The voice INDEX is the rung,
+      // so this law deliberately ignores the distribution (x) and the anchor.
+      else if (p.law === 4) { f = s.f0 * (1 + p.detune * p.harmReach * i); }
       else { f = s.f0 + x * p.detune * 0.35 * this.erb(s.f0); }
       // centre pin (ADR-064): scale drift by the voice's distance from the
       // fundamental (cdist, previous tick). motionCenter 0 → mw 1 → inert.

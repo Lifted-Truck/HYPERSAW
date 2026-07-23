@@ -108,6 +108,10 @@ struct Params
   // ADR-064: pan motion (depth + mode 0 drift / 1 sweep) and the centre pin,
   // which scales drift + pan motion by each voice's distance from the fundamental.
   double panMotion = 0, panMode = 0, motionCenter = 0;
+  // ADR-065 harmonic law (law 4): harmReach sets the top rung — at detune 1 voice
+  // i lands on f0*(1 + harmReach*i); 1 = the natural series 1,2,3,...,n.
+  // NAMED harmReach, not reach: `reach` is already the RING-topology radius (p.reach).
+  double harmReach = 1;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -565,6 +569,7 @@ class SwarmCore
     if (k == "panMotion") return &p.panMotion;    // ADR-064 pan motion
     if (k == "panMode") return &p.panMode;        // ADR-064 pan-motion mode
     if (k == "motionCenter") return &p.motionCenter;  // ADR-064 centre pin
+    if (k == "harmReach") return &p.harmReach;        // ADR-065 harmonic-law reach
     return nullptr;
   }
 
@@ -744,6 +749,11 @@ class SwarmCore
         const double df = f0c * (std::pow(2, (xv * p.detune * 100) / 1200) - 1);
         f = f0c + std::round(df / u) * u;
       }
+      // HARMONIC (ADR-065, parity with swarmsaw.html): voice i morphs from unison
+      // (detune 0) up to its partial — at detune 1, f0*(1 + harmReach*i). The voice
+      // INDEX is the rung, so this law ignores the distribution (xv) and anchor.
+      // NOTE law 3 is the tempo-grid law (ADR-022), hence harmonic takes index 4.
+      else if (p.law == 4) { f = f0c * (1 + p.detune * p.harmReach * i); }
       else { f = f0c + xv * p.detune * 0.35 * erb(f0c); }
       // centre pin (ADR-064): scale drift by distance from the fundamental (prev tick)
       if (p.driftDepth > 0) { const double mw = 1 - p.motionCenter * (1 - s.cdist[i]); f *= std::pow(2, (s.driftS[i] * p.driftDepth * mw) / 1200); }
