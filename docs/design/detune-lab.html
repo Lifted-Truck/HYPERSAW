@@ -125,10 +125,7 @@
       <div class="lbl"><span>Rₙ splay (formation) = <b id="rnval">0.00</b></span><span>R₁ high = sync · R₁ low + Rₙ high = splay · both low = free</span></div>
     </div>
     <canvas id="specCanvas" width="356" height="90"></canvas>
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;gap:8px;">
-      <h2>Voice map · <span style="color:var(--swarm)">pan × pitch</span> · <span style="color:var(--drift)">○ target</span> <span style="color:var(--swarm)">● actual</span></h2>
-      <label style="color:var(--dim);font-size:10px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="fitScale" style="accent-color:var(--swarm);vertical-align:middle;"> fit scale</label>
-    </div>
+    <h2 style="margin-top:12px;">Voice map · <span style="color:var(--swarm)">pan × pitch</span> · <span style="color:var(--drift)">○ target</span> <span style="color:var(--swarm)">● actual</span> · auto-fit</h2>
     <canvas id="voiceCanvas" width="356" height="210"></canvas>
     <div class="rmeter" style="margin-top:10px;">
       <div class="bar"><div class="fill" id="lvlfill"></div></div>
@@ -1036,8 +1033,7 @@ function drawVoiceMap() {
   const w = vc.width, h = vc.height, x0 = 10, x1 = w - 10, y0 = 8, y1 = h - 16;
   vctx.fillStyle = '#0b0e14'; vctx.fillRect(0, 0, w, h);
   let ratMin = 0.5, ratMax = 40;
-  const fit = $('fitScale') && $('fitScale').checked;
-  if (fit && synth) {
+  if (synth) {   // always auto-fit the scale to the current voice spread
     const s = synth.focus();
     if (s) {
       let lo = 1e9, hi = 0; const n = synth.p.n;
