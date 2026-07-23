@@ -208,10 +208,14 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
-               driftMode:0, keepPhase:0, freqGlide:0 };
+               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
+    // ADR-064 pan motion: signed base pan + per-voice LFO phase + modulated gains
+    this.pan = new Float64Array(MAXV);
+    this.panPh = new Float64Array(MAXV); this.panSweepPh = 0;
+    this.panLm = new Float64Array(MAXV); this.panRm = new Float64Array(MAXV);
     this.noteCounter = 0;
     this.tick = 0;
     this.tiltHP = false;
@@ -227,7 +231,8 @@ class SwarmSynth {
         vlp: new Float64Array(MAXV), vlpc: new Float64Array(MAXV).fill(1),
         hg: new Float64Array(MAXV).fill(1),
         driftPh: new Float64Array(MAXV), driftHoldT: new Float64Array(MAXV),
-        vfSm: new Float64Array(MAXV), fRun: new Float64Array(MAXV), vfInit: 0
+        vfSm: new Float64Array(MAXV), fRun: new Float64Array(MAXV), vfInit: 0,
+        cdist: new Float64Array(MAXV)
       });
     }
     this.lastPhase = new Float64Array(MAXV);   // keep-phase snapshot of the focus swarm
@@ -276,6 +281,7 @@ class SwarmSynth {
     for (let i = 1; i < n; i++) if (Math.abs(this.x[i]) < Math.abs(this.x[this.centerIdx])) this.centerIdx = i;
     for (let i = 0; i < n; i++) {
       const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
+      this.pan[i] = pan;   // signed base pan, kept for pan motion (ADR-064)
       const th = (pan + 1) * 0.25 * 3.14159265;
       this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
     }
@@ -353,7 +359,9 @@ class SwarmSynth {
       if (p.law === 0) { f = s.f0 * Math.pow(2, (x * p.detune * 100) / 1200); }
       else if (p.law === 1) { f = s.f0 + x * p.detune * 20; }
       else { f = s.f0 + x * p.detune * 0.35 * this.erb(s.f0); }
-      if (p.driftDepth > 0) f *= Math.pow(2, (s.driftS[i] * p.driftDepth) / 1200);
+      // centre pin (ADR-064): scale drift by the voice's distance from the
+      // fundamental (cdist, previous tick). motionCenter 0 → mw 1 → inert.
+      if (p.driftDepth > 0) { const mw = 1 - p.motionCenter * (1 - s.cdist[i]); f *= Math.pow(2, (s.driftS[i] * p.driftDepth * mw) / 1200); }
       const target = Math.max(1, f);
       if (glideOn) {
         if (firstTick) s.vfSm[i] = target; else s.vfSm[i] += gCoefT * (target - s.vfSm[i]);
@@ -363,6 +371,12 @@ class SwarmSynth {
     }
     s.vfInit = 1;
     mean /= n;
+    // per-voice distance from the fundamental, normalised — drives the centre pin
+    if (p.motionCenter > 0) {
+      let maxdev = 1e-9;
+      for (let i = 0; i < n; i++) { const dd = Math.abs(s.vf[i] - s.f0); if (dd > maxdev) maxdev = dd; }
+      for (let i = 0; i < n; i++) s.cdist[i] = Math.abs(s.vf[i] - s.f0) / maxdev;
+    }
     let varsum = 0;
     for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
     s.sigma = Math.max(0.08, Math.sqrt(varsum / n));
@@ -436,6 +450,26 @@ class SwarmSynth {
     // time constant, in seconds → coefficient. Off (0) leaves the path untouched.
     const glideOn = p.freqGlide > 0;
     const gCoefS = glideOn ? 1 - Math.exp(-1 / (p.freqGlide * 0.25 * sr)) : 0;
+    // pan motion (ADR-064): slow LFOs sweep the base pan, once per block.
+    // mode 0 = independent per-voice drift, 1 = one shared sweep of the whole image.
+    // centre pin scales the offset by each voice's distance from the fundamental.
+    let PL = this.panL, PR = this.panR;
+    const pmv = p.panMotion;
+    if (pmv > 0.001) {
+      const dtB = outL.length / sr, pmode = p.panMode | 0, cdFoc = this.focus();
+      if (pmode === 1) { this.panSweepPh += 0.1 * dtB; this.panSweepPh -= Math.floor(this.panSweepPh); }
+      const sweep = pmv * Math.sin(6.283185307 * this.panSweepPh);
+      for (let i = 0; i < n; i++) {
+        let off;
+        if (pmode === 1) off = sweep;
+        else { this.panPh[i] += (0.08 + i * 0.021) * dtB; this.panPh[i] -= Math.floor(this.panPh[i]); off = pmv * Math.sin(6.283185307 * this.panPh[i]); }
+        if (p.motionCenter > 0 && cdFoc) off *= 1 - p.motionCenter * (1 - cdFoc.cdist[i]);
+        const pan = Math.max(-1, Math.min(1, this.pan[i] + off));
+        const th = (pan + 1) * 0.25 * 3.14159265;
+        this.panLm[i] = Math.cos(th); this.panRm[i] = Math.sin(th);
+      }
+      PL = this.panLm; PR = this.panRm;
+    }
     outL.fill(0); outR.fill(0);
     for (const s of this.swarms) {
       if (!s.gate && s.env < 1e-4) continue;
@@ -463,7 +497,7 @@ class SwarmSynth {
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = this.tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.hiTame > 0) v *= s.hg[i];
           if (p.mono) { l += v * 0.7071; r += v * 0.7071; }
-          else { l += v * this.panL[i]; r += v * this.panR[i]; }
+          else { l += v * PL[i]; r += v * PR[i]; }
         }
         s.lpL += s.lpc * (l - s.lpL);
         s.lpR += s.lpc * (r - s.lpR);
