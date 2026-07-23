@@ -102,6 +102,9 @@ struct Params
   // ADR-062: drift mode (0 walk / 1 sine / 2 sample&hold; 0 = original walk) +
   // keep-phase (1 = note-on continues from last phases; 0 = retrig/random).
   double driftMode = 0, keepPhase = 0;
+  // ADR-063: opt-in frequency glide, a time constant in SECONDS (ADR-009 —
+  // seconds in, per-tick/per-sample coefficients out). 0 = off, bit-identical.
+  double freqGlide = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -133,6 +136,8 @@ class SwarmCore
     double vlp[kMaxV] = {0}, vlpc[kMaxV];  // per-voice tone-tilt state (vlpc init 1 in ctor)
     double hg[kMaxV];                      // per-voice hi-tame gain (init 1 in ctor)
     double driftPh[kMaxV] = {0}, driftHoldT[kMaxV] = {0};  // sine / S&H drift-mode state
+    double vfSm[kMaxV] = {0}, fRun[kMaxV] = {0};           // ADR-063 frequency-glide state
+    int vfInit = 0;                                        // 0 → snap the glide on the next tick
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
     // (x * 1.0 == x in IEEE), same guarantee ADR-027 leans on for p.tune.
     double noteTune = 1.0;
@@ -238,6 +243,7 @@ class SwarmCore
     s.lpL = 0;
     s.lpR = 0;
     std::memset(s.vlp, 0, sizeof(s.vlp));  // tone-tilt one-pole state
+    s.vfInit = 0;                          // ADR-063: snap the glide to the new note
     s.noteTune = 1.0;  // per-note expression resets with a fresh strike;
                        // legato retargets keep the incoming bend (MPE streams
                        // continue across mono retargets)
@@ -350,6 +356,10 @@ class SwarmCore
     const double atk = forcecore::onePoleCoef(p.attackS, sr);
     const double rel = forcecore::onePoleCoef(p.releaseS, sr);
     const double dec = forcecore::onePoleCoef(p.decayS, sr);
+    // ADR-063: per-sample leg of the frequency glide — a quarter of the
+    // control-rate time constant, seconds -> coefficient. 0 leaves the path alone.
+    const bool glideOn = p.freqGlide > 0;
+    const double gCoefS = glideOn ? 1 - std::exp(-1 / (p.freqGlide * 0.25 * sr)) : 0;
     for (int i = 0; i < frames; i++) { outL[i] = 0.0f; outR[i] = 0.0f; }
     for (auto &s : swarms)
     {
@@ -359,10 +369,11 @@ class SwarmCore
       {
         if (tick == 0) controlTick(s);
         tick = (tick + 1) & (kTick - 1);
+        if (glideOn) for (int i = 0; i < n; i++) s.fRun[i] += gCoefS * (s.eff[i] - s.fRun[i]);
         double l = 0, r = 0;
         for (int i = 0; i < n; i++)
         {
-          const double f = s.eff[i];
+          const double f = glideOn ? s.fRun[i] : s.eff[i];
           const double dph = std::max(0.0, f) / sr;
           double ph = s.phase[i] + dph;
           ph -= std::floor(ph);
@@ -522,6 +533,7 @@ class SwarmCore
     if (k == "hiTame") return &p.hiTame;  // ADR-061 hi-tame equal-loudness
     if (k == "driftMode") return &p.driftMode;  // ADR-062 drift modes
     if (k == "keepPhase") return &p.keepPhase;  // ADR-062 keep-phase
+    if (k == "freqGlide") return &p.freqGlide;  // ADR-063 frequency glide
     return nullptr;
   }
 
@@ -634,6 +646,10 @@ class SwarmCore
   {
     const int n = (int)p.n;
     const double dt = kTick / sr;
+    // ADR-063 frequency glide (parity with swarmsaw.html): seconds -> coefficient.
+    const bool firstTick = !s.vfInit;
+    const bool glideOn = p.freqGlide > 0;
+    const double gCoefT = glideOn ? 1 - std::exp(-dt / p.freqGlide) : 0;
     if (s.glideActive)
     {
       // seconds -> per-tick coefficient (ADR-009 discipline)
@@ -698,9 +714,16 @@ class SwarmCore
       }
       else { f = f0c + xv * p.detune * 0.35 * erb(f0c); }
       if (p.driftDepth > 0) f *= std::pow(2, (s.driftS[i] * p.driftDepth) / 1200);
-      s.vf[i] = std::max(1.0, f);
+      const double target = std::max(1.0, f);
+      if (glideOn)
+      {
+        if (firstTick) s.vfSm[i] = target; else s.vfSm[i] += gCoefT * (target - s.vfSm[i]);
+        s.vf[i] = s.vfSm[i];
+      }
+      else s.vf[i] = target;
       mean += s.vf[i];
     }
+    s.vfInit = 1;
     mean /= n;
     double varsum = 0;
     for (int i = 0; i < n; i++)
@@ -889,6 +912,7 @@ class SwarmCore
     else if (p.rtone < -0.001) fc = 16000 * std::pow(2, -6 * (-p.rtone) * (1 - s.R));
     fc = std::max(120.0, std::min(18000.0, fc));
     s.lpc = 1 - std::exp(-kTau * fc / sr);
+    if (glideOn && firstTick) for (int i = 0; i < n; i++) s.fRun[i] = s.eff[i];  // snap the per-sample glide
   }
 
   double sr;

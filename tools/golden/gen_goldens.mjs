@@ -87,6 +87,9 @@ const SCENARIOS = [
   { name: 'drift-sine',    p: { driftDepth: 15, driftRate: 0.5, driftMode: 1, detune: 0.4, n: 7 } },
   { name: 'drift-sh',      p: { driftDepth: 15, driftRate: 0.5, driftMode: 2, detune: 0.4, n: 7 } },
   { name: 'keep-phase',    p: { keepPhase: 1, retrig: 0, driftDepth: 12, detune: 0.4, n: 7 } },
+  // Frequency glide (ADR-063) — opt-in de-zipper; exercised against S&H drift,
+  // the steppiest source, so the smoothing is genuinely under load.
+  { name: 'freq-glide',    p: { freqGlide: 0.006, driftDepth: 40, driftMode: 2, driftRate: 0.9, detune: 0.5, n: 7 } },
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
