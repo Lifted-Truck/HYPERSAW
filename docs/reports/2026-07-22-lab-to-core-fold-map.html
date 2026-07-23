@@ -58,7 +58,8 @@
 <table>
 <tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
 <tr><td class="feat">bipolar tone tilt</td><td class="what">per-voice pitch-tracked LP (darken) / HP (thin), weighted to higher voices.</td><td class="dest">swarm_core osc/output</td><td><span class="badge b-green">superset (0 = off)</span></td></tr>
-<tr><td class="feat">master HPF · hi-tame</td><td class="what">global low-cut; equal-loudness roll-off of upper voices.</td><td class="dest">core master / per-voice</td><td><span class="badge b-green">superset</span></td></tr>
+<tr><td class="feat">hi-tame</td><td class="what">equal-loudness roll-off of the upper voices.</td><td class="dest">swarm_core (per-voice)</td><td><span class="badge b-green">FOLDED · ADR-061</span></td></tr>
+<tr><td class="feat">master HPF</td><td class="what">global low-cut. <em>Superseded by design:</em> a proper filter module (or several) in the FX rack will supply this.</td><td class="dest">FX rack (E3), not the core</td><td><span class="badge b-red">deferred — do not freeze a param</span></td></tr>
 <tr><td class="feat">roundness (glass) + round×hi</td><td class="what">per-voice morph saw→round shape, pitch-weighted. Sweet spot ≈ round 0.3 / hi 0.7.</td><td class="dest">swarmsaw osc · swarm_core</td><td><span class="badge b-amber">retargets ADR-058 · ADR</span></td></tr>
 <tr><td class="feat">saw-profile + saw-base (two-slider)</td><td class="what">base saw bank × roundness-target bank. Mechanism proven; base contents are placeholder.</td><td class="dest">swarmsaw osc · swarm_core</td><td><span class="badge b-red">needs measured synth saws</span></td></tr>
 <tr><td class="feat">Saw Shape visualizer</td><td class="what">live one-cycle waveform of the current shape.</td><td class="dest">GUI</td><td><span class="badge b-gray">face only</span></td></tr>
