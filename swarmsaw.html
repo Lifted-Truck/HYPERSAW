@@ -207,12 +207,13 @@ class SwarmSynth {
   constructor(sr) {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
-               driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1 };
+               driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
     this.noteCounter = 0;
     this.tick = 0;
+    this.tiltHP = false;
     this.swarms = [];
     for (let i = 0; i < POLY; i++) {
       this.swarms.push({
@@ -221,7 +222,8 @@ class SwarmSynth {
         eff: new Float64Array(MAXV), mom: new Float64Array(MAXV),
         f0: 220, midi: -1, gate: 0, env: 0, Kenv: 0, KsmS: 0, KsmP: 0,
         R: 0, RN: 0, psi: 0, sigma: 0, age: -1, rngState: 1, fresh: 1,
-        lpL: 0, lpR: 0, lpc: 1
+        lpL: 0, lpR: 0, lpc: 1,
+        vlp: new Float64Array(MAXV), vlpc: new Float64Array(MAXV).fill(1)
       });
     }
     this.rebuild();
@@ -289,6 +291,7 @@ class SwarmSynth {
     s.Kenv = 8 * this.p.onset * this.p.onset;
     s.KsmS = 0; s.KsmP = 0; s.fresh = 1;
     s.lpL = 0; s.lpR = 0;
+    s.vlp.fill(0);
     for (let i = 0; i < MAXV; i++) s.mom[i] = 0;
     s.rngState = (this.p.seed | 0) + s.age * 7919 + 1;
     for (let i = 0; i < MAXV; i++) {
@@ -335,6 +338,16 @@ class SwarmSynth {
     let varsum = 0;
     for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; varsum += d * d; }
     s.sigma = Math.max(0.08, Math.sqrt(varsum / n));
+    // per-voice tone tilt: pitch-tracked one-pole. >0 darken (LP), <0 thin (HP);
+    // cutoff rises as √(f/f0) so higher voices lose more top. tilt 0 → inert.
+    const tm = Math.abs(p.tilt);
+    this.tiltHP = p.tilt < 0;
+    const Ht = tm <= 0.005 ? 0 : (p.tilt > 0 ? 2 * Math.pow(200, 1 - tm) : 0.1 * Math.pow(24, tm));
+    const nyqt = this.sr * 0.5;
+    for (let i = 0; i < n; i++) {
+      if (Ht <= 0) s.vlpc[i] = 1;
+      else { const fc = Math.min(nyqt * 0.98, Ht * s.f0 * Math.sqrt(Math.max(1, s.vf[i] / s.f0))); s.vlpc[i] = 1 - Math.exp(-6.283185307 * fc / this.sr); }
+    }
     // coupling targets in units of measured spread; squared taper, bipolar knob:
     // positive = sync attractor (mean-field Kuramoto), negative = splay attractor
     const km = 4 * p.K * Math.abs(p.K);
@@ -410,6 +423,7 @@ class SwarmSynth {
             else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
             v = naive - p.digital * bl;
           }
+          if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = this.tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.mono) { l += v * 0.7071; r += v * 0.7071; }
           else { l += v * this.panL[i]; r += v * this.panR[i]; }
         }

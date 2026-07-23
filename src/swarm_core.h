@@ -93,6 +93,9 @@ struct Params
   double panScatter = 0;
   // Waveshape morph (ADR-058): 0 = saw (bit-inert), 1 = band-limited square.
   double shape = 0;
+  // Tone tilt (ADR-060, folded from swarmsaw.html): bipolar per-voice one-pole.
+  // 0 = inert; >0 darkens (LP), <0 thins (HP). cutoff rises as sqrt(f/f0).
+  double tilt = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -121,6 +124,7 @@ class SwarmCore
     int glideActive = 0;
     double glideTarget = 0;
     double lpL = 0, lpR = 0, lpc = 1;
+    double vlp[kMaxV] = {0}, vlpc[kMaxV];  // per-voice tone-tilt state (vlpc init 1 in ctor)
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
     // (x * 1.0 == x in IEEE), same guarantee ADR-027 leans on for p.tune.
     double noteTune = 1.0;
@@ -136,6 +140,8 @@ class SwarmCore
       std::memset(s.vf, 0, sizeof(s.vf));
       std::memset(s.eff, 0, sizeof(s.eff));
       std::memset(s.mom, 0, sizeof(s.mom));
+      std::memset(s.vlp, 0, sizeof(s.vlp));
+      for (int i = 0; i < kMaxV; i++) s.vlpc[i] = 1.0;  // tilt one-pole passthrough
     }
     rebuild();
   }
@@ -223,6 +229,7 @@ class SwarmCore
     s.inAttack = 1;
     s.lpL = 0;
     s.lpR = 0;
+    std::memset(s.vlp, 0, sizeof(s.vlp));  // tone-tilt one-pole state
     s.noteTune = 1.0;  // per-note expression resets with a fresh strike;
                        // legato retargets keep the incoming bend (MPE streams
                        // continue across mono retargets)
@@ -380,6 +387,7 @@ class SwarmCore
             }
             v = v - p.shape * saw2;
           }
+          if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.mono != 0) { l += v * 0.7071; r += v * 0.7071; }
           else { l += v * panL[i]; r += v * panR[i]; }
         }
@@ -497,6 +505,7 @@ class SwarmCore
     if (k == "scatter") return &p.scatter;
     if (k == "panScatter") return &p.panScatter;
     if (k == "shape") return &p.shape;  // ADR-058 waveshape morph
+    if (k == "tilt") return &p.tilt;    // ADR-060 tone tilt
     return nullptr;
   }
 
@@ -669,6 +678,17 @@ class SwarmCore
       varsum += d * d;
     }
     s.sigma = std::max(0.08, std::sqrt(varsum / n));
+    // per-voice tone tilt (ADR-060, parity with swarmsaw.html): pitch-tracked
+    // one-pole. >0 darken (LP), <0 thin (HP); cutoff rises as sqrt(f/f0). 0 = inert.
+    const double tm = std::fabs(p.tilt);
+    tiltHP = p.tilt < 0;
+    const double Ht = tm <= 0.005 ? 0 : (p.tilt > 0 ? 2 * std::pow(200.0, 1 - tm) : 0.1 * std::pow(24.0, tm));
+    const double nyqt = sr * 0.5;
+    for (int i = 0; i < n; i++)
+    {
+      if (Ht <= 0) s.vlpc[i] = 1;
+      else { const double fc = std::min(nyqt * 0.98, Ht * s.f0 * std::sqrt(std::max(1.0, s.vf[i] / s.f0))); s.vlpc[i] = 1 - std::exp(-kTau * fc / sr); }
+    }
     const double km = 4 * p.K * std::fabs(p.K);
     // absK (ADR-004/ADR-033): coupling in absolute units of 2.5 Hz (max
     // pull 4*K^2*2.5 = 10 Hz at knob 1) so identical-oscillator states are
@@ -851,6 +871,7 @@ class SwarmCore
   long noteCounter = 0;
   int tick = 0;
   int centerIdx = 0;
+  bool tiltHP = false;  // tone-tilt sign (ADR-060), set each control tick
   uint32_t grng = 1;
   Swarm swarms[kPoly];
 };
