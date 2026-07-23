@@ -59,3 +59,11 @@ the core's tempo-grid law 3), golden distribution, octave spread + root-anchor.
 Then the divergences (root-pivot topology, pan default image, saw-shape
 retarget). CLAP params batched last. Master HPF deliberately NOT folded —
 deferred to a proper filter module.
+
+## Amendment applied (2026-07-23, human-approved)
+`ACCEPTANCE.md` §L0-1 (protected path) gained the **Domain limit (ADR-065)**
+paragraph: parity is a valid oracle only in non-chaotic regimes; chaotic ones
+are covered by behavioural anchors. The last sentence is deliberate load-bearing
+friction — excluding a scenario requires the bracketed divergence curve AND a
+reference-only perturbation test, so the clause cannot become an escape hatch
+for any inconvenient red. `./verify fast` EXIT 0.

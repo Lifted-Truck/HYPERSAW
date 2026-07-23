@@ -8,6 +8,8 @@ Standard test note: A3 = 220 Hz, 44.1 kHz, defaults unless stated. "R" = first-h
 
 C++ core vs JS reference (`SwarmSynth` / `SpectraSynth` / `DynSynth`): identical mulberry32 streams, identical seeding scheme, identical control-tick ordering → sample outputs match within ε = 1e-6 RMS over 4 s renders, for a matrix of {3 seeds} × {per-engine param vectors covering each subsystem}. Any intentional divergence requires an ADR.
 
+**Domain limit (ADR-065, human-approved 2026-07-23).** L0-1 is a valid oracle only in non-chaotic regimes. Where the dynamics have a positive Lyapunov exponent — measured case: the harmonic law (4) at full spread under strong coupling — a 1-ULP perturbation of the JS reference *alone* diverges to rms ≈ 9.4e-2, matching the C++/JS gap, so sample-exact agreement is impossible in principle (`Math.sin` and `std::sin` are not identically rounded). Such regimes are excluded from the golden matrix and covered by behavioural anchors in `trajectory_check` instead: boundedness, NaN-cleanliness, and the qualitative claim the parameter exists to make, each checked with stated margin. Excluding a scenario on these grounds requires the same evidence ADR-065 records — a bracketed divergence curve **and** a reference-only perturbation test — never a bare assertion that a failure is "just floating point."
+
 ## L0-2 · Sync phase transition (SAW core)
 
 From retriggered start, K in ×σ units, R sampled ~1/s:
