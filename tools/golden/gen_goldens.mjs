@@ -82,6 +82,11 @@ const SCENARIOS = [
   { name: 'tilt-thin',     p: { tilt: -0.6, detune: 0.5, n: 7 } },
   // Hi-tame (ADR-061) — per-voice equal-loudness roll-off across a wide stack.
   { name: 'hi-tame',       p: { hiTame: 1.0, detune: 0.6, n: 12 } },
+  // Drift modes + keep-phase (ADR-062). keep-phase also exercises the rngNext-skip
+  // in note-on (it must leave rngState identical across engines → same drift).
+  { name: 'drift-sine',    p: { driftDepth: 15, driftRate: 0.5, driftMode: 1, detune: 0.4, n: 7 } },
+  { name: 'drift-sh',      p: { driftDepth: 15, driftRate: 0.5, driftMode: 2, detune: 0.4, n: 7 } },
+  { name: 'keep-phase',    p: { keepPhase: 1, retrig: 0, driftDepth: 12, detune: 0.4, n: 7 } },
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
