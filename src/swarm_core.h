@@ -96,6 +96,9 @@ struct Params
   // Tone tilt (ADR-060, folded from swarmsaw.html): bipolar per-voice one-pole.
   // 0 = inert; >0 darkens (LP), <0 thins (HP). cutoff rises as sqrt(f/f0).
   double tilt = 0;
+  // Hi-tame (ADR-061): equal-loudness per-voice roll-off, gain (f0/f)^hiTame.
+  // 0 = inert; >0 turns the higher voices down so a tall stack isn't harsh.
+  double hiTame = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -125,6 +128,7 @@ class SwarmCore
     double glideTarget = 0;
     double lpL = 0, lpR = 0, lpc = 1;
     double vlp[kMaxV] = {0}, vlpc[kMaxV];  // per-voice tone-tilt state (vlpc init 1 in ctor)
+    double hg[kMaxV];                      // per-voice hi-tame gain (init 1 in ctor)
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
     // (x * 1.0 == x in IEEE), same guarantee ADR-027 leans on for p.tune.
     double noteTune = 1.0;
@@ -141,7 +145,7 @@ class SwarmCore
       std::memset(s.eff, 0, sizeof(s.eff));
       std::memset(s.mom, 0, sizeof(s.mom));
       std::memset(s.vlp, 0, sizeof(s.vlp));
-      for (int i = 0; i < kMaxV; i++) s.vlpc[i] = 1.0;  // tilt one-pole passthrough
+      for (int i = 0; i < kMaxV; i++) { s.vlpc[i] = 1.0; s.hg[i] = 1.0; }  // tilt/hi-tame passthrough
     }
     rebuild();
   }
@@ -388,6 +392,7 @@ class SwarmCore
             v = v - p.shape * saw2;
           }
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
+          if (p.hiTame > 0) v *= s.hg[i];
           if (p.mono != 0) { l += v * 0.7071; r += v * 0.7071; }
           else { l += v * panL[i]; r += v * panR[i]; }
         }
@@ -506,6 +511,7 @@ class SwarmCore
     if (k == "panScatter") return &p.panScatter;
     if (k == "shape") return &p.shape;  // ADR-058 waveshape morph
     if (k == "tilt") return &p.tilt;    // ADR-060 tone tilt
+    if (k == "hiTame") return &p.hiTame;  // ADR-061 hi-tame equal-loudness
     return nullptr;
   }
 
@@ -689,6 +695,9 @@ class SwarmCore
       if (Ht <= 0) s.vlpc[i] = 1;
       else { const double fc = std::min(nyqt * 0.98, Ht * s.f0 * std::sqrt(std::max(1.0, s.vf[i] / s.f0))); s.vlpc[i] = 1 - std::exp(-kTau * fc / sr); }
     }
+    // hi-tame (ADR-061, parity with swarmsaw.html): equal-loudness roll-off,
+    // gain (f0/f)^hiTame turns the higher voices down. hiTame 0 → inert.
+    if (p.hiTame > 0) for (int i = 0; i < n; i++) s.hg[i] = std::pow(s.f0 / std::max(s.f0, s.vf[i]), p.hiTame);
     const double km = 4 * p.K * std::fabs(p.K);
     // absK (ADR-004/ADR-033): coupling in absolute units of 2.5 Hz (max
     // pull 4*K^2*2.5 = 10 Hz at knob 1) so identical-oscillator states are
