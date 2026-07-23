@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detune lab → reference → core · fold map</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#2a3040; --text:#e8ecf2; --dim:#8b94a6;
+          --green:#5fd08a; --amber:#ffc24b; --red:#ff6b8a; --gray:#7c8698; --cyan:#5ff2e0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.55 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:24px; max-width:1100px; margin:0 auto; }
+  h1 { font-size:22px; font-weight:600; letter-spacing:.02em; margin-bottom:4px; }
+  h1 .star { color:var(--cyan); }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:20px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.12em; color:var(--cyan); margin:26px 0 8px; }
+  .legend { display:flex; flex-wrap:wrap; gap:14px; margin:12px 0 8px; font-size:12px; color:var(--dim); }
+  .legend span { display:flex; align-items:center; gap:6px; }
+  .dot { width:10px; height:10px; border-radius:2px; display:inline-block; }
+  table { width:100%; border-collapse:collapse; margin-bottom:6px; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); padding:6px 8px; border-bottom:1px solid var(--line); font-weight:500; }
+  td { padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td.feat { color:var(--text); font-weight:500; white-space:nowrap; }
+  td.what { color:var(--dim); font-size:12.5px; }
+  td.dest { color:var(--cyan); font-size:12px; white-space:nowrap; }
+  .badge { font-size:10.5px; padding:2px 7px; border-radius:3px; white-space:nowrap; font-weight:500; }
+  .b-green { background:rgba(95,208,138,.16); color:var(--green); }
+  .b-amber { background:rgba(255,194,75,.16); color:var(--amber); }
+  .b-red { background:rgba(255,107,138,.16); color:var(--red); }
+  .b-gray { background:rgba(124,134,152,.16); color:var(--gray); }
+  .seq { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin-top:14px; }
+  .seq ol { margin:6px 0 0 20px; } .seq li { margin:5px 0; }
+  .seq b { color:var(--cyan); font-weight:600; }
+  .note { color:var(--dim); font-size:12px; margin-top:6px; }
+  em { color:var(--amber); font-style:normal; }
+</style>
+</head>
+<body>
+<h1>SWARM<span class="star">✱</span> · detune lab → reference → core · fold map</h1>
+<div class="sub">2026-07-22 · what the audition lab (docs/design/detune-lab.html) produced, and how each piece folds into swarmsaw.html (the reference/oracle) → swarm_core.h (parity port). For review + posterity.</div>
+
+<div class="legend">
+  <span><i class="dot b-green" style="background:var(--green)"></i> superset · default bit-exact → low parity risk</span>
+  <span><i class="dot b-amber" style="background:var(--amber)"></i> divergence · changes a path → ADR + re-measured golden</span>
+  <span><i class="dot b-red" style="background:var(--red)"></i> decision / placeholder · needs a human call or missing content</span>
+  <span><i class="dot b-gray" style="background:var(--gray)"></i> GUI / face only · no DSP parity impact</span>
+</div>
+
+<h2>Detune geometry — the placement laws</h2>
+<table>
+<tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
+<tr><td class="feat">harmonic law + reach</td><td class="what">unison→harmonic-series morph; reach decouples top harmonic from voice count. The coherent-metallic "spread".</td><td class="dest">swarmsaw law table · swarm_core</td><td><span class="badge b-amber">new law · ADR + golden</span></td></tr>
+<tr><td class="feat">octave spread + root-anchor</td><td class="what">detune depth widened to 2 oct; anchor pins the lowest voice to the root (NI-style).</td><td class="dest">swarmsaw · swarm_core</td><td><span class="badge b-green">superset (±semitone default)</span></td></tr>
+<tr><td class="feat">stretch (inharmonic) law</td><td class="what">cents offset × (1+B·x²) — outer voices spread inharmonically (bell/metal).</td><td class="dest">swarmsaw law table · swarm_core</td><td><span class="badge b-amber">new law · ADR + golden</span></td></tr>
+<tr><td class="feat">golden distribution</td><td class="what">low-discrepancy irrational voice placement.</td><td class="dest">swarmsaw dist menu · swarm_core</td><td><span class="badge b-green">superset (new option)</span></td></tr>
+</table>
+
+<h2>Voice tone &amp; saw shape</h2>
+<table>
+<tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
+<tr><td class="feat">bipolar tone tilt</td><td class="what">per-voice pitch-tracked LP (darken) / HP (thin), weighted to higher voices.</td><td class="dest">swarm_core osc/output</td><td><span class="badge b-green">superset (0 = off)</span></td></tr>
+<tr><td class="feat">master HPF · hi-tame</td><td class="what">global low-cut; equal-loudness roll-off of upper voices.</td><td class="dest">core master / per-voice</td><td><span class="badge b-green">superset</span></td></tr>
+<tr><td class="feat">roundness (glass) + round×hi</td><td class="what">per-voice morph saw→round shape, pitch-weighted. Sweet spot ≈ round 0.3 / hi 0.7.</td><td class="dest">swarmsaw osc · swarm_core</td><td><span class="badge b-amber">retargets ADR-058 · ADR</span></td></tr>
+<tr><td class="feat">saw-profile + saw-base (two-slider)</td><td class="what">base saw bank × roundness-target bank. Mechanism proven; base contents are placeholder.</td><td class="dest">swarmsaw osc · swarm_core</td><td><span class="badge b-red">needs measured synth saws</span></td></tr>
+<tr><td class="feat">Saw Shape visualizer</td><td class="what">live one-cycle waveform of the current shape.</td><td class="dest">GUI</td><td><span class="badge b-gray">face only</span></td></tr>
+</table>
+
+<h2>Coupling &amp; motion</h2>
+<table>
+<tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
+<tr><td class="feat">root-pivot pacemaker</td><td class="what"><em>sync pivot</em> toggle: mean-field vs root (voices entrain to the fundamental → pitch-stable collapse). Keep BOTH.</td><td class="dest">swarmsaw coupling · swarm_core</td><td><span class="badge b-amber">topology divergence · ADR</span></td></tr>
+<tr><td class="feat">drift modes · centre-pin</td><td class="what">walk / sine / S&amp;H per-voice drift; centre-pin scales motion by distance from the fundamental.</td><td class="dest">swarm_core</td><td><span class="badge b-green">superset (walk / 0 = current)</span></td></tr>
+<tr><td class="feat">per-voice + per-sample freq smoothing</td><td class="what">de-zippers fast sweeps; converges to target (seconds→per-tick, ADR-009).</td><td class="dest">swarm_core</td><td><span class="badge b-green">superset (steady = exact)</span></td></tr>
+<tr><td class="feat">keep-phase</td><td class="what">note-on continues from last phases — 3rd phase mode.</td><td class="dest">swarm_core note-on</td><td><span class="badge b-green">superset (new option)</span></td></tr>
+</table>
+
+<h2>Spatial · dynamics · metallic</h2>
+<table>
+<tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
+<tr><td class="feat">pan fan + curve/invert + pitch-order</td><td class="what">root-centred alternating fan, ranked by pitch; curve/invert reshape it. New default pan image.</td><td class="dest">swarm_core pan</td><td><span class="badge b-amber">default-image change · ADR</span></td></tr>
+<tr><td class="feat">pan-motion modes</td><td class="what">per-voice drift / whole-image sweep of the stereo field.</td><td class="dest">swarm_core / GUI</td><td><span class="badge b-green">superset (0 = still)</span></td></tr>
+<tr><td class="feat">compress + limiter</td><td class="what">mild peak comp + brickwall limiter — tame chord clipping.</td><td class="dest">FX rack (ADR-054) or master</td><td><span class="badge b-green">superset (off)</span></td></tr>
+<tr><td class="feat">polyphonic Karplus-Strong comb</td><td class="what">per-note tuned feedback comb — coherent metallic on the detuned stack.</td><td class="dest">FX rack slot / core module</td><td><span class="badge b-amber">new DSP module</span></td></tr>
+<tr><td class="feat">voice map · clip meter · scopes</td><td class="what">pan×pitch map (target vs actual), level/clip meter — seeds of the visual language.</td><td class="dest">GUI (Phase 5)</td><td><span class="badge b-gray">face only</span></td></tr>
+</table>
+
+<h2>Recommended fold sequence</h2>
+<div class="seq">
+<ol>
+<li><b>Supersets first</b> — tone tilt/HPF/hi-tame, drift modes + centre-pin, freq smoothing, keep-phase, pan-motion, comp/limiter. Each: reference edit → parity holds (default bit-exact) → one increment. Lowest risk, biggest surface.</li>
+<li><b>New detune laws</b> — harmonic+reach, stretch, golden, spread/anchor. Each is a reference law-table addition → new golden → ADR. Inert when unselected, but each is a spec change to swarmsaw.html.</li>
+<li><b>Divergences needing a decision</b> — <em>root-pivot topology</em> (keep both; ADR), <em>pan default image</em> (ADR — it changes existing patches' stereo), <em>saw-shape retarget</em> (supersede ADR-058; needs measured synth-saw profiles for the base bank).</li>
+<li><b>New modules</b> — polyphonic KS comb (as an FX-rack slot, reusing the filter/notch/time-core precedent).</li>
+<li><b>Face &amp; naming</b> — the visual language + name-by-feel glossary (K→"cooperation", swarm→"horde"), Phase 5.</li>
+</ol>
+<div class="note">Parity contract stays absolute: every superset must render bit-identically at its default so the existing goldens pass; every divergence gets its own re-measured golden + ADR. The lab file itself is <em>not</em> ported — it is the spec-in-code the reference edits are transcribed from.</div>
+</div>
+</body>
+</html>
