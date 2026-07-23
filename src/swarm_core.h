@@ -99,6 +99,9 @@ struct Params
   // Hi-tame (ADR-061): equal-loudness per-voice roll-off, gain (f0/f)^hiTame.
   // 0 = inert; >0 turns the higher voices down so a tall stack isn't harsh.
   double hiTame = 0;
+  // ADR-062: drift mode (0 walk / 1 sine / 2 sample&hold; 0 = original walk) +
+  // keep-phase (1 = note-on continues from last phases; 0 = retrig/random).
+  double driftMode = 0, keepPhase = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -129,6 +132,7 @@ class SwarmCore
     double lpL = 0, lpR = 0, lpc = 1;
     double vlp[kMaxV] = {0}, vlpc[kMaxV];  // per-voice tone-tilt state (vlpc init 1 in ctor)
     double hg[kMaxV];                      // per-voice hi-tame gain (init 1 in ctor)
+    double driftPh[kMaxV] = {0}, driftHoldT[kMaxV] = {0};  // sine / S&H drift-mode state
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
     // (x * 1.0 == x in IEEE), same guarantee ADR-027 leans on for p.tune.
     double noteTune = 1.0;
@@ -242,8 +246,10 @@ class SwarmCore
     s.rngState = (uint32_t)((int64_t)toInt32(p.seed) + (int64_t)s.age * 7919 + 1);
     for (int i = 0; i < kMaxV; i++)
     {
-      s.driftS[i] = 0;
-      if (p.scatter > 0)
+      s.driftS[i] = 0; s.driftPh[i] = i * 0.13; s.driftHoldT[i] = 0;
+      if (p.keepPhase != 0)
+        s.phase[i] = lastPhase[i];  // ADR-062 keep-phase: continue from last (matches swarmsaw precedence)
+      else if (p.scatter > 0)
         s.phase[i] = rngNext(s.rngState) * p.scatter;  // ADR-033 partial scatter
       else
         s.phase[i] = (p.retrig != 0) ? 0.0 : rngNext(s.rngState);
@@ -457,6 +463,8 @@ class SwarmCore
       outL[smp] = (float)std::tanh((double)outL[smp]);
       outR[smp] = (float)std::tanh((double)outR[smp]);
     }
+    const Swarm *foc = focus();
+    if (foc) std::memcpy(lastPhase, foc->phase, sizeof(lastPhase));   // ADR-062 keep-phase snapshot
   }
 
   Params p;
@@ -512,6 +520,8 @@ class SwarmCore
     if (k == "shape") return &p.shape;  // ADR-058 waveshape morph
     if (k == "tilt") return &p.tilt;    // ADR-060 tone tilt
     if (k == "hiTame") return &p.hiTame;  // ADR-061 hi-tame equal-loudness
+    if (k == "driftMode") return &p.driftMode;  // ADR-062 drift modes
+    if (k == "keepPhase") return &p.keepPhase;  // ADR-062 keep-phase
     return nullptr;
   }
 
@@ -643,13 +653,28 @@ class SwarmCore
     s.Kenv *= std::exp(-dt / std::max(0.01, p.dissolve));
     if (p.driftDepth > 0)
     {
+      // ADR-062 drift modes (0 walk = original 1/f; 1 sine; 2 sample&hold), parity with swarmsaw.html
+      const int dm = (int)p.driftMode;
       const double rate = (0.2 + p.driftRate * 8);
       for (int i = 0; i < n; i++)
       {
-        s.driftS[i] += (rngNext(s.rngState) - 0.5) * 2 * std::sqrt(rate * dt);
-        s.driftS[i] -= s.driftS[i] * 0.4 * dt;
-        if (s.driftS[i] > 1) s.driftS[i] = 1;
-        if (s.driftS[i] < -1) s.driftS[i] = -1;
+        if (dm == 1)
+        {
+          s.driftPh[i] += (0.05 + p.driftRate * 4) * (0.6 + i * 0.09) * dt;
+          s.driftS[i] = std::sin(6.283185307 * s.driftPh[i]);
+        }
+        else if (dm == 2)
+        {
+          s.driftHoldT[i] -= dt;
+          if (s.driftHoldT[i] <= 0) { s.driftS[i] = rngNext(s.rngState) * 2 - 1; s.driftHoldT[i] = 0.03 + (1 - p.driftRate) * 0.6; }
+        }
+        else
+        {
+          s.driftS[i] += (rngNext(s.rngState) - 0.5) * 2 * std::sqrt(rate * dt);
+          s.driftS[i] -= s.driftS[i] * 0.4 * dt;
+          if (s.driftS[i] > 1) s.driftS[i] = 1;
+          if (s.driftS[i] < -1) s.driftS[i] = -1;
+        }
       }
     }
     double mean = 0;
@@ -877,6 +902,7 @@ class SwarmCore
 
  private:
   double x[kMaxV] = {0}, panL[kMaxV] = {0}, panR[kMaxV] = {0};
+  double lastPhase[kMaxV] = {0};   // keep-phase snapshot of the focus swarm
   long noteCounter = 0;
   int tick = 0;
   int centerIdx = 0;
