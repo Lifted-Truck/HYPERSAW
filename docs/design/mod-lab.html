@@ -170,7 +170,9 @@ class ClassicLFO {
 
 /* ---- ADSR env (seconds in, coeffs out — ADR-009) ---- */
 class ModEnv {
-  constructor(sr) { this.sr = sr; this.p = { a: 0.01, d: 1.2, s: 0.0, r: 0.3 }; this.v = 0; this.gate = 0; this.stage = 0; }
+  // sharedP: per-note instances share ONE ADSR setting object (finding #2 —
+  // poly-mod is per-note STATE, not per-note settings).
+  constructor(sr, sharedP) { this.sr = sr; this.p = sharedP || { a: 0.01, d: 1.2, s: 0.0, r: 0.3 }; this.v = 0; this.gate = 0; this.stage = 0; }
   noteOn() { this.gate = 1; this.stage = 1; }
   noteOff() { this.gate = 0; this.stage = 4; }
   tick(dt) {
@@ -194,12 +196,14 @@ class MiniSwarm {
     this.sw = [];
     for (let v = 0; v < 4; v++) this.sw.push(this.mkVoice());
     this.tick = 0; this.noteCounter = 0;
+    this.perNoteKb = 0;   // ENV->Kboost depth routed per-note (set by the host)
     this.rebuild();
   }
   mkVoice() {
     return { midi: -1, f0: 220, gate: 0, env: 0, age: -1, Kenv: 0, Ksm: 0,
              phase: new Float64Array(MAXV), eff: new Float64Array(MAXV),
-             vf: new Float64Array(MAXV), lpL: 0, lpR: 0, sigma: 1 };
+             vf: new Float64Array(MAXV), lpL: 0, lpR: 0, sigma: 1,
+             modEnv: null };   // per-note ModEnv, attached by the lab host
   }
   rebuild() {
     const n = this.p.n;
@@ -227,10 +231,15 @@ class MiniSwarm {
     s.Kenv = 8 * this.p.onset * Math.abs(this.p.onset); s.Ksm = 0;
     const rng = mulberry((this.p.seed | 0) + s.age * 7919 + 1);
     for (let i = 0; i < this.p.n; i++) s.phase[i] = rng();
+    return s;   // the host attaches/triggers this note's per-note env
   }
   noteOff(midi) { for (const s of this.sw) if (s.midi === midi && s.gate) s.gate = 0; }
   control(s, kMod, kbMod, detMod) {
     const p = this.p, n = p.n, dt = TICK / this.sr;
+    // per-note env (finding #2): this NOTE's envelope, ticked on this note's
+    // clock, contributing to this note's coupling only — the structural match
+    // for onset lock's per-note Kenv. kbMod stays the GLOBAL matrix part.
+    if (s.modEnv) { s.modEnvVal = s.modEnv.tick(dt); kbMod = kbMod + this.perNoteKb * s.modEnvVal; }
     const det = Math.max(0, p.detune + detMod);
     let mean = 0, m2 = 0;
     for (let i = 0; i < n; i++) {
@@ -299,16 +308,26 @@ class ModLab {
     this.rotor = new KuroRotor(sr);
     this.lfoA = new ClassicLFO(sr, 101);
     this.lfoB = new ClassicLFO(sr, 202);
-    this.env = new ModEnv(sr);
+    this.envP = { a: 0.01, d: 1.2, s: 0.0, r: 0.3 };   // shared ADSR settings
+    this.env = new ModEnv(sr, this.envP);               // the GLOBAL instance
+    this.envPerNote = 0;                                // finding #2 toggle
     this.synth = new MiniSwarm(sr);
+    for (const sw of this.synth.sw) sw.modEnv = new ModEnv(sr, this.envP);
     // depth[src][dst] in -1..1
     this.depth = SOURCES.map(() => DESTS.map(() => 0));
     this.mods = { k: 0, kb: 0, det: 0, cut: 0, amp: 0 };
     this.tick = 0;
     this.srcVal = new Float64Array(SOURCES.length);
   }
-  noteOn(midi, f) { this.synth.noteOn(midi, f); this.env.noteOn(); this.lfoA.noteOn(); this.lfoB.noteOn(); }
-  noteOff(midi) { this.synth.noteOff(midi); this.env.noteOff(); }
+  noteOn(midi, f) {
+    const s = this.synth.noteOn(midi, f);
+    s.modEnv.noteOn();                      // this note's own envelope
+    this.env.noteOn(); this.lfoA.noteOn(); this.lfoB.noteOn();
+  }
+  noteOff(midi) {
+    for (const s of this.synth.sw) if (s.midi === midi && s.gate) s.modEnv.noteOff();
+    this.synth.noteOff(midi); this.env.noteOff();
+  }
   controlTick() {
     const dt = TICK / this.sr;
     // (rotor ticks itself inside advance(), matching the prototype structure;
@@ -330,12 +349,19 @@ class ModLab {
     const out = { k: 0, kb: 0, det: 0, cut: 0, amp: 0 };
     for (let si = 0; si < SOURCES.length; si++) {
       const d = this.depth[si];
+      // finding #2: with per-note ON, the ENV source's Kboost route is
+      // evaluated PER NOTE inside the swarm (each note's own env instance),
+      // not here — the global path would re-surge every sounding note on
+      // each new key. ENV's other routes stay global (cutoff/level are
+      // per-block quantities in this mini-synth; scope recorded).
+      const perNoteDiverted = (si === 7 && this.envPerNote);
       if (d[0]) out.k += d[0] * s[si] * SCALE.K;
-      if (d[1]) out.kb += d[1] * s[si] * SCALE.Kboost;
+      if (d[1] && !perNoteDiverted) out.kb += d[1] * s[si] * SCALE.Kboost;
       if (d[2]) out.det += d[2] * s[si] * SCALE.detune;
       if (d[3]) out.cut += d[3] * s[si] * SCALE.cutoff;
       if (d[4]) out.amp += d[4] * s[si] * SCALE.level;
     }
+    this.synth.perNoteKb = this.envPerNote ? this.depth[7][1] * SCALE.Kboost : 0;
     this.mods = out;
   }
   render(outL, outR) {
@@ -374,6 +400,8 @@ class ModLab {
     <div class="row"><label>env D</label><input type="range" id="eD" min="0.02" max="4" step="0.01" value="1.2"><output id="eD_o"></output></div>
     <div class="row"><label>env S</label><input type="range" id="eS" min="0" max="1" step="0.01" value="0"><output id="eS_o"></output></div>
     <div class="row"><label>env R</label><input type="range" id="eR" min="0.02" max="4" step="0.01" value="0.3"><output id="eR_o"></output></div>
+    <div class="row"><label>env per-note</label><input type="checkbox" id="ePerNote">
+      <span class="hint" style="margin:0">each note gets its own env instance (poly-mod; Kboost route only)</span></div>
     <canvas id="scope" width="250" height="90" style="margin-top:6px"></canvas>
   </div>
 
@@ -387,7 +415,7 @@ class ModLab {
       <button id="abEnv">B: ENV→K route</button>
       <button id="abClear">clear</button>
     </div>
-    <div class="hint">A sets onset 0.8 / dissolve 1.2 s (the dedicated params). B zeroes them and routes ENV→<b>Kboost</b> at 0.64 (= onset·|onset|, the SAME coupling units) with D 1.2 s, S 0. FINDING: the generic K destination cannot reach onset's strength (km caps at 4 at K=1; onset 0.8 injects 5.12) — a fair A/B needs a coupling-domain destination. Judge by ear; the K-trace overlays both.</div>
+    <div class="hint">A sets onset 0.8 / dissolve 1.2 s (the dedicated params). B zeroes them and routes ENV→<b>Kboost</b> at 0.64 <b>per-note</b> (each note its own env instance). Findings so far: #1 the generic K destination can't reach onset's strength (km caps at 4; onset 0.8 injects 5.12) → coupling-domain destination required. #2 a GLOBAL env re-surges every sounding note on each new key — per-note instances are required for the poly feel (uncheck per-note to hear the defect). Judge on CHORDS and staggered lines.</div>
   </div>
 
   <div class="cluster">
@@ -475,7 +503,9 @@ $('abOnset').addEventListener('click', () => {
   setDepth(7, 0, 0); setDepth(7, 1, 0);
   $('abOnset').classList.add('on'); $('abEnv').classList.remove('on');
 });
+$('ePerNote').addEventListener('change', () => { lab.envPerNote = $('ePerNote').checked ? 1 : 0; });
 $('abEnv').addEventListener('click', () => {
+  $('ePerNote').checked = true; lab.envPerNote = 1;   // finding #2: the fair poly A/B
   $('sOn').value = 0; $('sOn').dispatchEvent(new Event('input'));
   $('eA').value = 0.001; $('eA').dispatchEvent(new Event('input'));
   $('eD').value = 1.2; $('eD').dispatchEvent(new Event('input'));
