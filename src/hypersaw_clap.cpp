@@ -66,7 +66,8 @@ static const char *const kLawLabels[] = {"cents-constant", "Hz-constant", "ERB-f
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
-static const char *const kFxTypeLabels[] = {"Off", "Drive", "Filter", "Gain"};
+static const char *const kFxTypeLabels[] = {"Off",  "Drive", "Filter",
+                                            "Gain", "Comp",  "Comb"};
 // Display names for the gravity ratio readout (indices match core kRatios)
 static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
                                             "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
@@ -150,13 +151,13 @@ static const ParamDef kParams[] = {
     // amount, processed in slot order. Default type Off = bit-exact passthrough
     // (the parity gate). coreKeys are unique non-core strings — used only as
     // state-blob keys; apply/readParam intercept these ids and route to `rack`.
-    {57, "fx1type", "FX1 Type", 0, 3, 0, true, kFxTypeLabels},
+    {57, "fx1type", "FX1 Type", 0, 5, 0, true, kFxTypeLabels},
     {58, "fx1amt", "FX1 Amount", 0, 1, 0.5, false, nullptr},
-    {59, "fx2type", "FX2 Type", 0, 3, 0, true, kFxTypeLabels},
+    {59, "fx2type", "FX2 Type", 0, 5, 0, true, kFxTypeLabels},
     {60, "fx2amt", "FX2 Amount", 0, 1, 0.5, false, nullptr},
-    {61, "fx3type", "FX3 Type", 0, 3, 0, true, kFxTypeLabels},
+    {61, "fx3type", "FX3 Type", 0, 5, 0, true, kFxTypeLabels},
     {62, "fx3amt", "FX3 Amount", 0, 1, 0.5, false, nullptr},
-    {63, "fx4type", "FX4 Type", 0, 3, 0, true, kFxTypeLabels},
+    {63, "fx4type", "FX4 Type", 0, 5, 0, true, kFxTypeLabels},
     {64, "fx4amt", "FX4 Amount", 0, 1, 0.5, false, nullptr},
     // SPECTRA ADSR (ADR-055; SPECTRA-only, ids route to the spectra core).
     // SEPARATE from the SAW ADSR (ids 19-22): the two references have
@@ -785,6 +786,9 @@ struct Plugin
           break;
         }
         const double freq = 440.0 * std::pow(2.0, (n->key - 69) / 12.0);
+        // ADR-071: note-context feed for the rack's per-note comb — common to
+        // both engines (the comb resonates whatever is played, SAW or SPECTRA).
+        rack.noteOn(n->key, freq);
         if (spectraMode())
         {
           // SPECTRA v1: plain poly (mono/glide are SAW-side features; ADR-037).
@@ -1004,6 +1008,7 @@ bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
   pl->spectra = hypersaw::SpectraCore(sr);
   pl->spectra.p = sp;
   pl->spectra.rebuild();
+  pl->rack.setSampleRate(sr);  // ADR-071: size comb lines + derive comp coeffs at sr
   return true;
 }
 
