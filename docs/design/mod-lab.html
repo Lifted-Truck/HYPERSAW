@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SWARM✱ mod lab — Kuro rotor · LFOs · env · matrix</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#2a3040; --text:#e8ecf2; --dim:#8b94a6;
+          --green:#5fd08a; --amber:#ffc24b; --red:#ff6b8a; --cyan:#5ff2e0; --vio:#b48cff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:13px/1.5 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:14px; }
+  h1 { font-size:17px; margin-bottom:2px; } h1 .star { color:var(--cyan); }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:10px; }
+  .cols { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .cluster { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:250px; }
+  .cluster h2 { font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--cyan); margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:6px; margin:4px 0; }
+  .row label { width:88px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:52px; text-align:right; font-size:11px; }
+  .row select { background:#0d1016; color:var(--text); border:1px solid var(--line); font:inherit; font-size:11px; }
+  canvas { background:#0b0e13; border:1px solid var(--line); border-radius:4px; display:block; }
+  button { background:#0d1016; color:var(--text); border:1px solid var(--line); border-radius:4px; font:inherit; font-size:11px; padding:3px 9px; cursor:pointer; }
+  button.on { border-color:var(--cyan); color:var(--cyan); }
+  table.mtx { border-collapse:collapse; margin-top:4px; }
+  table.mtx th { font-size:9px; color:var(--dim); padding:2px 4px; font-weight:500; text-transform:uppercase; letter-spacing:.06em; }
+  table.mtx td { padding:1px; }
+  table.mtx input { width:44px; background:#0d1016; color:var(--text); border:1px solid var(--line); font:inherit; font-size:10px; text-align:center; padding:2px 1px; }
+  table.mtx input.hot { border-color:var(--amber); color:var(--amber); }
+  .hint { color:var(--dim); font-size:10.5px; margin-top:6px; max-width:280px; }
+  .ab { display:flex; gap:6px; margin-top:6px; }
+  kbd { background:#0d1016; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+</style>
+</head>
+<body>
+<h1>SWARM<span class="star">✱</span> · mod lab</h1>
+<div class="tagline">Lab campaign 2.2 — Kuro rotor (ADR-053) toward golden (incl. the A5 splay fix, rank-based law) · classic LFOs + ADSR as first-class sources · mod matrix · env→K vs onset-lock consolidation A/B. Audition lab, spec-in-code — NOT a reference. Keys: <kbd>a</kbd>..<kbd>k</kbd> play, <kbd>space</kbd> drone.</div>
+
+<script>
+/* ================= DSP ================= */
+/* Everything above the UI banner is extractable (extract_core.mjs pattern):
+   no document/window/canvas references in this section. */
+const TICK = 16, TAU = 6.283185307, NV = 4, MAXV = 16;
+
+function mulberry(seed) {  // mulberry32, the house stream
+  let s = seed | 0;
+  return () => {
+    s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ---- Kuro rotor: the ADR-053 primitive, stripped per golden-spec §1 ----
+   4 phase-coupled LFOs; NO demo synth, NO rng. splayLaw selects the A5 fix:
+   0 = legacy (psi + i/NV slots — settles into anti-phase PAIRS, the measured
+       A5 failure: min gap 0.038, not even interleave);
+   1 = RANK-BASED (the golden-spec §7 suggested fix): each voice targets
+       anchor + rank/NV where anchor is the rank-0 voice's phase and rank is
+       the voice's CURRENT circular order. The lattice is built from the
+       actual configuration, so it cannot fight a drifting psi, and pairs are
+       broken because equal phases get DISTINCT ranks (ties by index). */
+class KuroRotor {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { K: 0.35, gRate: 1, shape: 0, splayLaw: 1,
+               r0: 0.7, r1: 0.4, r2: 0.95, r3: 0.55 };
+    this.phase = new Float64Array(NV);
+    this.lfo = new Float64Array(NV);     // constructor-init: readable at tick 0
+    this.rate = new Float64Array(NV);
+    this.R = 0; this.psi = 0;
+    this.phase[0] = 0.0; this.phase[1] = 0.25; this.phase[2] = 0.5; this.phase[3] = 0.75;
+    this.tick = 0;
+    this.updateRates();
+    this.controlTick();
+  }
+  setParam(k, v) { this.p[k] = v; if (k[0] === 'r' || k === 'gRate') this.updateRates(); }
+  updateRates() {
+    this.rate[0] = this.p.r0 * this.p.gRate; this.rate[1] = this.p.r1 * this.p.gRate;
+    this.rate[2] = this.p.r2 * this.p.gRate; this.rate[3] = this.p.r3 * this.p.gRate;
+  }
+  shapeOf(ph) {
+    switch (this.p.shape) {
+      case 1: return ph < 0.5 ? (4 * ph - 1) : (3 - 4 * ph);
+      case 2: return 2 * ph - 1;
+      case 3: return ph < 0.5 ? 1 : -1;
+      default: return Math.sin(TAU * ph);
+    }
+  }
+  controlTick() {
+    let cx = 0, cy = 0;
+    for (let i = 0; i < NV; i++) { const a = TAU * this.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    this.R = Math.sqrt(cx * cx + cy * cy) / NV;
+    this.psi = Math.atan2(cy, cx);
+    for (let i = 0; i < NV; i++) this.lfo[i] = this.shapeOf(this.phase[i]);
+  }
+  // Advance nSmp samples of phase dynamics. controlTick is interleaved every
+  // TICK samples exactly as the prototype does (the golden spec FREEZES that
+  // structure — R/psi must refresh mid-block, not once per host block).
+  advance(nSmp) {
+    const p = this.p, sr = this.sr, K = p.K;
+    const kHz = (K > 0 ? K * K : -K * K) * 3.0;
+    for (let smp = 0; smp < nSmp; smp++) {
+      if (this.tick === 0) this.controlTick();
+      this.tick = (this.tick + 1) & (TICK - 1);
+      if (K < 0 && p.splayLaw === 1) {
+        // rank-based even lattice: ranks from current circular order (anchor =
+        // rank-0 voice), recomputed per sample — NV=4, trivially cheap.
+        // ATTRACTION to the lattice needs |kHz|: kHz is NEGATIVE for K<0 (the
+        // legacy repel-from-slot law is built around that sign) — using it raw
+        // repels from the lattice and CLUSTERS (measured: meanR 0.842, gap 0).
+        const kMag = -kHz;
+        const idx = [0, 1, 2, 3];
+        idx.sort((a, b) => this.phase[a] - this.phase[b] || a - b);
+        const anchor = this.phase[idx[0]];
+        for (let r = 0; r < NV; r++) {
+          const i = idx[r];
+          const target = anchor + r / NV;
+          this.phase[i] += this.rate[i] / sr + kMag * Math.sin(TAU * (target - this.phase[i])) / sr;
+        }
+      } else {
+        for (let i = 0; i < NV; i++) {
+          let adv = this.rate[i] / sr;
+          if (K > 0) adv += kHz * this.R * Math.sin(this.psi - TAU * this.phase[i]) / sr;
+          else if (K < 0) {
+            const slot = this.psi + TAU * i / NV;   // legacy defective law, kept for A/B
+            adv += kHz * Math.sin(slot - TAU * this.phase[i]) / sr;
+          }
+          this.phase[i] += adv;
+        }
+      }
+      for (let i = 0; i < NV; i++) this.phase[i] -= Math.floor(this.phase[i]);
+    }
+  }
+}
+
+/* ---- classic LFO: free or key-sync; deterministic S&H via mulberry ---- */
+class ClassicLFO {
+  constructor(sr, seed) {
+    this.sr = sr;
+    this.p = { rate: 1.0, shape: 0, retrig: 0 };  // shape: 0 sine 1 tri 2 saw 3 sq 4 S&H
+    this.ph = 0; this.rng = mulberry(seed); this.hold = this.rng() * 2 - 1; this.out = 0;
+  }
+  noteOn() { if (this.p.retrig) { this.ph = 0; this.hold = this.rng() * 2 - 1; } }
+  tick(dt) {
+    const prev = this.ph;
+    this.ph += this.p.rate * dt; if (this.ph >= 1) { this.ph -= Math.floor(this.ph); if (this.p.shape === 4) this.hold = this.rng() * 2 - 1; }
+    const ph = this.ph;
+    switch (this.p.shape) {
+      case 1: this.out = ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph; break;
+      case 2: this.out = 2 * ph - 1; break;
+      case 3: this.out = ph < 0.5 ? 1 : -1; break;
+      case 4: this.out = this.hold; break;
+      default: this.out = Math.sin(TAU * ph);
+    }
+    return this.out;
+  }
+}
+
+/* ---- ADSR env (seconds in, coeffs out — ADR-009) ---- */
+class ModEnv {
+  constructor(sr) { this.sr = sr; this.p = { a: 0.01, d: 1.2, s: 0.0, r: 0.3 }; this.v = 0; this.gate = 0; this.stage = 0; }
+  noteOn() { this.gate = 1; this.stage = 1; }
+  noteOff() { this.gate = 0; this.stage = 4; }
+  tick(dt) {
+    const p = this.p;
+    if (this.stage === 1) { this.v += dt / Math.max(1e-4, p.a); if (this.v >= 1) { this.v = 1; this.stage = 2; } }
+    else if (this.stage === 2) { const c = 1 - Math.exp(-dt / Math.max(1e-4, p.d)); this.v += (p.s - this.v) * c; if (Math.abs(this.v - p.s) < 1e-4) this.stage = 3; }
+    else if (this.stage === 4) { const c = 1 - Math.exp(-dt / Math.max(1e-4, p.r)); this.v += (0 - this.v) * c; if (this.v < 1e-4) { this.v = 0; this.stage = 0; } }
+    return this.v;
+  }
+}
+
+/* ---- mini swarm: compact audition synth (NOT the reference; just enough of
+   the real thing that matrix routes are judged in context: cents detune,
+   bipolar K sync/splay, onset lock + dissolve (the consolidation A/B target),
+   pitch-ranked pan fan (the ADR-070 default image), one-pole LP, AR amp. ---- */
+class MiniSwarm {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { n: 7, detune: 0.3, K: 0, onset: 0, dissolve: 0.63, cutoff: 1.0,
+               width: 0.8, vol: 0.45, seed: 1234 };
+    this.sw = [];
+    for (let v = 0; v < 4; v++) this.sw.push(this.mkVoice());
+    this.tick = 0; this.noteCounter = 0;
+    this.rebuild();
+  }
+  mkVoice() {
+    return { midi: -1, f0: 220, gate: 0, env: 0, age: -1, Kenv: 0, Ksm: 0,
+             phase: new Float64Array(MAXV), eff: new Float64Array(MAXV),
+             vf: new Float64Array(MAXV), lpL: 0, lpR: 0, sigma: 1 };
+  }
+  rebuild() {
+    const n = this.p.n;
+    this.x = new Float64Array(n);
+    for (let i = 0; i < n; i++) this.x[i] = n === 1 ? 0 : 2 * (i / (n - 1)) - 1;
+    // ADR-070 fan: rank == index for the even spread; alternating sides
+    this.panL = new Float64Array(n); this.panR = new Float64Array(n);
+    for (let r = 0; r < n; r++) {
+      const d = n === 1 ? 0 : r / (n - 1);
+      const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * d * this.p.width));
+      const th = (pan + 1) * 0.25 * 3.14159265;
+      this.panL[r] = Math.cos(th); this.panR[r] = Math.sin(th);
+    }
+  }
+  alloc() {
+    let best = null;
+    for (const s of this.sw) if (!s.gate && s.env < 1e-3) { if (!best || s.age < best.age) best = s; }
+    if (best) return best;
+    for (const s of this.sw) if (!best || s.age < best.age) best = s;
+    return best;
+  }
+  noteOn(midi, f) {
+    const s = this.alloc();
+    s.midi = midi; s.f0 = f; s.gate = 1; s.age = this.noteCounter++;
+    s.Kenv = 8 * this.p.onset * Math.abs(this.p.onset); s.Ksm = 0;
+    const rng = mulberry((this.p.seed | 0) + s.age * 7919 + 1);
+    for (let i = 0; i < this.p.n; i++) s.phase[i] = rng();
+  }
+  noteOff(midi) { for (const s of this.sw) if (s.midi === midi && s.gate) s.gate = 0; }
+  control(s, kMod, detMod) {
+    const p = this.p, n = p.n, dt = TICK / this.sr;
+    const det = Math.max(0, p.detune + detMod);
+    let mean = 0, m2 = 0;
+    for (let i = 0; i < n; i++) {
+      s.vf[i] = s.f0 * Math.pow(2, (this.x[i] * det * 100) / 1200);
+      mean += s.vf[i];
+    }
+    mean /= n;
+    for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; m2 += d * d; }
+    s.sigma = Math.max(0.3, Math.sqrt(m2 / n));
+    // onset lock decays over dissolve (the built-in the env route must match)
+    s.Kenv += (0 - s.Kenv) * (1 - Math.exp(-dt / Math.max(0.05, p.dissolve)));
+    const K = Math.max(-1, Math.min(1, p.K + kMod));
+    const km = 4 * K * Math.abs(K);
+    const target = (Math.max(0, km) + Math.max(0, s.Kenv)) * s.sigma;
+    s.Ksm += (target - s.Ksm) * 0.08;
+    // mean field
+    let cx = 0, cy = 0;
+    for (let i = 0; i < n; i++) { const a = TAU * s.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    const R = Math.sqrt(cx * cx + cy * cy) / n, psi = Math.atan2(cy, cx);
+    s.R = R;
+    const splay = (Math.max(0, -km) * 3 + Math.max(0, -s.Kenv) * 3) * s.sigma;
+    for (let i = 0; i < n; i++) {
+      let c = s.Ksm * R * Math.sin(psi - TAU * s.phase[i]);
+      if (splay > 0.001) c += splay * Math.sin(TAU * (s.phase[0] + i / n - s.phase[i]));
+      s.eff[i] = s.vf[i] + c;
+    }
+  }
+  render(outL, outR, mods) {
+    // mods: {k, det, cut, amp, wid} — matrix outputs, applied at control rate
+    const p = this.p, sr = this.sr, n = p.n;
+    const atk = 1 - Math.exp(-1 / (0.003 * sr)), rel = 1 - Math.exp(-1 / (0.16 * sr));
+    const cut = Math.max(0.02, Math.min(1, p.cutoff + mods.cut));
+    const fc = 200 * Math.pow(100, cut);           // 200 Hz .. 20 kHz log map
+    const lpc = 1 - Math.exp(-TAU * Math.min(18000, fc) / sr);
+    const amp = Math.max(0, Math.min(1.5, p.vol + mods.amp));
+    for (let smp = 0; smp < outL.length; smp++) { outL[smp] = 0; outR[smp] = 0; }
+    for (const s of this.sw) {
+      if (!s.gate && s.env < 1e-4) continue;
+      for (let smp = 0; smp < outL.length; smp++) {
+        if (this.tick === 0) this.control(s, mods.k, mods.det);
+        this.tick = (this.tick + 1) & (TICK - 1);
+        let l = 0, r = 0;
+        for (let i = 0; i < n; i++) {
+          s.phase[i] += s.eff[i] / sr; s.phase[i] -= Math.floor(s.phase[i]);
+          const v = 2 * s.phase[i] - 1;
+          l += v * this.panL[i]; r += v * this.panR[i];
+        }
+        const g = 1 / Math.sqrt(n);
+        s.lpL += lpc * (l * g - s.lpL); s.lpR += lpc * (r * g - s.lpR);
+        const coef = s.gate ? atk : rel;
+        s.env += ((s.gate ? 1 : 0) - s.env) * coef;
+        outL[smp] += Math.tanh(s.lpL * amp * s.env);
+        outR[smp] += Math.tanh(s.lpR * amp * s.env);
+      }
+    }
+  }
+}
+
+/* ---- the lab host: rotor + LFOs + env + matrix + mini swarm ---- */
+const SOURCES = ['K1', 'K2', 'K3', 'K4', 'R', 'LFOA', 'LFOB', 'ENV'];
+const DESTS = ['K', 'detune', 'cutoff', 'level'];
+class ModLab {
+  constructor(sr) {
+    this.sr = sr;
+    this.rotor = new KuroRotor(sr);
+    this.lfoA = new ClassicLFO(sr, 101);
+    this.lfoB = new ClassicLFO(sr, 202);
+    this.env = new ModEnv(sr);
+    this.synth = new MiniSwarm(sr);
+    // depth[src][dst] in -1..1
+    this.depth = SOURCES.map(() => DESTS.map(() => 0));
+    this.mods = { k: 0, det: 0, cut: 0, amp: 0 };
+    this.tick = 0;
+    this.srcVal = new Float64Array(SOURCES.length);
+  }
+  noteOn(midi, f) { this.synth.noteOn(midi, f); this.env.noteOn(); this.lfoA.noteOn(); this.lfoB.noteOn(); }
+  noteOff(midi) { this.synth.noteOff(midi); this.env.noteOff(); }
+  controlTick() {
+    const dt = TICK / this.sr;
+    // (rotor ticks itself inside advance(), matching the prototype structure;
+    // srcVal reads its latest published lfo/R)
+    const a = this.lfoA.tick(dt), b = this.lfoB.tick(dt), e = this.env.tick(dt);
+    const s = this.srcVal;
+    s[0] = this.rotor.lfo[0]; s[1] = this.rotor.lfo[1]; s[2] = this.rotor.lfo[2]; s[3] = this.rotor.lfo[3];
+    s[4] = this.rotor.R * 2 - 1;   // R mapped bipolar so depth semantics match
+    s[5] = a; s[6] = b; s[7] = e;
+    // matrix: dest scales chosen so depth 1 spans the musically-full range
+    const SCALE = { K: 1.0, detune: 0.5, cutoff: 1.0, level: 0.6 };
+    const out = { k: 0, det: 0, cut: 0, amp: 0 };
+    for (let si = 0; si < SOURCES.length; si++) {
+      const d = this.depth[si];
+      if (d[0]) out.k += d[0] * s[si] * SCALE.K;
+      if (d[1]) out.det += d[1] * s[si] * SCALE.detune;
+      if (d[2]) out.cut += d[2] * s[si] * SCALE.cutoff;
+      if (d[3]) out.amp += d[3] * s[si] * SCALE.level;
+    }
+    this.mods = out;
+  }
+  render(outL, outR) {
+    const nSmp = outL.length;
+    // control-rate loop shared with the synth's own tick counter
+    for (let off = 0; off < nSmp; off += TICK) this.controlTick();
+    this.rotor.advance(nSmp);
+    this.synth.render(outL, outR, this.mods);
+  }
+}
+/* ================= UI (below this banner: DOM only) ================= */
+</script>
+
+<div class="cols">
+  <div class="cluster">
+    <h2>Kuro rotor (ADR-053)</h2>
+    <canvas id="rotorViz" width="230" height="150"></canvas>
+    <div class="row"><label>K (pull)</label><input type="range" id="rK" min="-1" max="1" step="0.01" value="0.35"><output id="rK_o"></output></div>
+    <div class="row"><label>global rate</label><input type="range" id="rG" min="0.1" max="4" step="0.05" value="1"><output id="rG_o"></output></div>
+    <div class="row"><label>shape</label><select id="rShape"><option value="0">sine</option><option value="1">triangle</option><option value="2">saw</option><option value="3">square</option></select></div>
+    <div class="row"><label>splay law</label><select id="rSplay"><option value="1" selected>rank-based (A5 fix)</option><option value="0">legacy (defective)</option></select></div>
+    <div class="hint">K&lt;0 splays. The legacy law settles into ANTI-PHASE PAIRS (A5 failure: min gap 0.038); rank-based targets the even lattice built from the current order. Watch the circle at K=−1.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Classic sources</h2>
+    <div class="row"><label>LFO A rate</label><input type="range" id="aRate" min="0.05" max="12" step="0.05" value="1"><output id="aRate_o"></output></div>
+    <div class="row"><label>LFO A shape</label><select id="aShape"><option value="0">sine</option><option value="1">tri</option><option value="2">saw</option><option value="3">square</option><option value="4">S&amp;H</option></select>
+      <label style="width:auto">sync</label><input type="checkbox" id="aRetrig"></div>
+    <div class="row"><label>LFO B rate</label><input type="range" id="bRate" min="0.05" max="12" step="0.05" value="0.25"><output id="bRate_o"></output></div>
+    <div class="row"><label>LFO B shape</label><select id="bShape"><option value="0">sine</option><option value="1">tri</option><option value="2" selected>saw</option><option value="3">square</option><option value="4">S&amp;H</option></select>
+      <label style="width:auto">sync</label><input type="checkbox" id="bRetrig"></div>
+    <div class="row"><label>env A</label><input type="range" id="eA" min="0.001" max="2" step="0.001" value="0.01"><output id="eA_o"></output></div>
+    <div class="row"><label>env D</label><input type="range" id="eD" min="0.02" max="4" step="0.01" value="1.2"><output id="eD_o"></output></div>
+    <div class="row"><label>env S</label><input type="range" id="eS" min="0" max="1" step="0.01" value="0"><output id="eS_o"></output></div>
+    <div class="row"><label>env R</label><input type="range" id="eR" min="0.02" max="4" step="0.01" value="0.3"><output id="eR_o"></output></div>
+    <canvas id="scope" width="250" height="90" style="margin-top:6px"></canvas>
+  </div>
+
+  <div class="cluster">
+    <h2>Matrix — depth −1..+1</h2>
+    <table class="mtx" id="mtx"></table>
+    <div class="hint">Rows = sources (K1–K4 the rotor voices, R its coherence, then classic). Cols = mini-swarm destinations. Type or drag values.</div>
+    <h2 style="margin-top:10px">Consolidation A/B (onset lock vs env→K)</h2>
+    <div class="ab">
+      <button id="abOnset">A: built-in onset lock</button>
+      <button id="abEnv">B: ENV→K route</button>
+      <button id="abClear">clear</button>
+    </div>
+    <div class="hint">A sets onset 0.8 / dissolve 1.2 s (the dedicated params). B zeroes them and routes ENV→K at 0.8 with D 1.2 s, S 0 — the consolidation-review claim is that B reproduces A. Judge by ear; the K-trace overlays both.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Mini swarm (audition target)</h2>
+    <div class="row"><label>voices</label><input type="range" id="sN" min="1" max="16" step="1" value="7"><output id="sN_o"></output></div>
+    <div class="row"><label>detune</label><input type="range" id="sDet" min="0" max="1" step="0.005" value="0.3"><output id="sDet_o"></output></div>
+    <div class="row"><label>K base</label><input type="range" id="sK" min="-1" max="1" step="0.01" value="0"><output id="sK_o"></output></div>
+    <div class="row"><label>onset</label><input type="range" id="sOn" min="-1" max="1" step="0.01" value="0"><output id="sOn_o"></output></div>
+    <div class="row"><label>dissolve</label><input type="range" id="sDis" min="0.05" max="4" step="0.01" value="0.63"><output id="sDis_o"></output></div>
+    <div class="row"><label>cutoff</label><input type="range" id="sCut" min="0" max="1" step="0.005" value="1"><output id="sCut_o"></output></div>
+    <div class="row"><label>width</label><input type="range" id="sWid" min="0" max="1" step="0.01" value="0.8"><output id="sWid_o"></output></div>
+    <div class="row"><label>volume</label><input type="range" id="sVol" min="0" max="1" step="0.01" value="0.45"><output id="sVol_o"></output></div>
+    <div class="row"><button id="drone">drone (space)</button><span class="hint" style="margin:0">keys a s d f g h j k</span></div>
+    <canvas id="kTrace" width="250" height="70" style="margin-top:6px"></canvas>
+    <div class="hint">K trace: effective coupling into the swarm (base + onset Kenv + matrix). The A/B question is whether the two paths draw the same curve and sound the same.</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const lab = new ModLab(ctx.sampleRate);
+let spn = null;
+function ensureAudio() {
+  if (spn) return;
+  spn = ctx.createScriptProcessor(1024, 0, 2);
+  spn.onaudioprocess = e => lab.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+  spn.connect(ctx.destination);
+  ctx.resume();
+}
+
+/* sliders */
+const wire = (id, fn, fmt) => { const el = $(id); const out = $(id + '_o'); const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); }; el.addEventListener('input', f); f(); };
+wire('rK', v => lab.rotor.setParam('K', v));
+wire('rG', v => lab.rotor.setParam('gRate', v), v => v.toFixed(2) + 'x');
+$('rShape').addEventListener('change', () => lab.rotor.setParam('shape', +$('rShape').value));
+$('rSplay').addEventListener('change', () => lab.rotor.setParam('splayLaw', +$('rSplay').value));
+wire('aRate', v => lab.lfoA.p.rate = v, v => v.toFixed(2) + ' Hz');
+$('aShape').addEventListener('change', () => lab.lfoA.p.shape = +$('aShape').value);
+$('aRetrig').addEventListener('change', () => lab.lfoA.p.retrig = $('aRetrig').checked ? 1 : 0);
+wire('bRate', v => lab.lfoB.p.rate = v, v => v.toFixed(2) + ' Hz');
+$('bShape').addEventListener('change', () => lab.lfoB.p.shape = +$('bShape').value);
+$('bRetrig').addEventListener('change', () => lab.lfoB.p.retrig = $('bRetrig').checked ? 1 : 0);
+wire('eA', v => lab.env.p.a = v, v => v.toFixed(3) + ' s');
+wire('eD', v => lab.env.p.d = v, v => v.toFixed(2) + ' s');
+wire('eS', v => lab.env.p.s = v);
+wire('eR', v => lab.env.p.r = v, v => v.toFixed(2) + ' s');
+wire('sN', v => { lab.synth.p.n = v | 0; lab.synth.rebuild(); }, v => '' + v);
+wire('sDet', v => lab.synth.p.detune = v);
+wire('sK', v => lab.synth.p.K = v);
+wire('sOn', v => lab.synth.p.onset = v);
+wire('sDis', v => lab.synth.p.dissolve = v, v => v.toFixed(2) + ' s');
+wire('sCut', v => lab.synth.p.cutoff = v);
+wire('sWid', v => { lab.synth.p.width = v; lab.synth.rebuild(); });
+wire('sVol', v => lab.synth.p.vol = v);
+
+/* matrix grid */
+const mtx = $('mtx');
+{
+  let html = '<tr><th></th>' + DESTS.map(d => `<th>${d}</th>`).join('') + '</tr>';
+  SOURCES.forEach((s, si) => {
+    html += `<tr><th>${s}</th>` + DESTS.map((d, di) =>
+      `<td><input data-s="${si}" data-d="${di}" value="0"></td>`).join('') + '</tr>';
+  });
+  mtx.innerHTML = html;
+  mtx.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const v = Math.max(-1, Math.min(1, parseFloat(inp.value) || 0));
+      inp.value = v ? v.toFixed(2) : '0';
+      inp.classList.toggle('hot', v !== 0);
+      lab.depth[+inp.dataset.s][+inp.dataset.d] = v;
+    });
+  });
+}
+function setDepth(si, di, v) {
+  lab.depth[si][di] = v;
+  const inp = mtx.querySelector(`input[data-s="${si}"][data-d="${di}"]`);
+  inp.value = v ? v.toFixed(2) : '0'; inp.classList.toggle('hot', v !== 0);
+}
+
+/* consolidation A/B */
+$('abOnset').addEventListener('click', () => {
+  $('sOn').value = 0.8; $('sOn').dispatchEvent(new Event('input'));
+  $('sDis').value = 1.2; $('sDis').dispatchEvent(new Event('input'));
+  setDepth(7, 0, 0);
+  $('abOnset').classList.add('on'); $('abEnv').classList.remove('on');
+});
+$('abEnv').addEventListener('click', () => {
+  $('sOn').value = 0; $('sOn').dispatchEvent(new Event('input'));
+  $('eA').value = 0.001; $('eA').dispatchEvent(new Event('input'));
+  $('eD').value = 1.2; $('eD').dispatchEvent(new Event('input'));
+  $('eS').value = 0; $('eS').dispatchEvent(new Event('input'));
+  setDepth(7, 0, 0.8);
+  $('abEnv').classList.add('on'); $('abOnset').classList.remove('on');
+});
+$('abClear').addEventListener('click', () => {
+  $('sOn').value = 0; $('sOn').dispatchEvent(new Event('input'));
+  setDepth(7, 0, 0);
+  $('abOnset').classList.remove('on'); $('abEnv').classList.remove('on');
+});
+
+/* keys + drone */
+const KEYS = { a: 57, s: 59, d: 61, f: 62, g: 64, h: 66, j: 68, k: 69 };
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const down = new Set();
+addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'Space') { e.preventDefault(); $('drone').click(); return; }
+  const m = KEYS[e.key]; if (m === undefined || down.has(m)) return;
+  ensureAudio(); down.add(m); lab.noteOn(m, mtof(m));
+});
+addEventListener('keyup', e => {
+  const m = KEYS[e.key]; if (m === undefined) return;
+  down.delete(m); lab.noteOff(m);
+});
+let droneOn = false;
+$('drone').addEventListener('click', () => {
+  ensureAudio(); droneOn = !droneOn;
+  $('drone').classList.toggle('on', droneOn);
+  if (droneOn) lab.noteOn(45, mtof(45)); else lab.noteOff(45);
+});
+
+/* viz */
+const rv = $('rotorViz').getContext('2d'), sc = $('scope').getContext('2d'), kt = $('kTrace').getContext('2d');
+const scopeHist = [[], [], [], [], [], [], [], []];
+const kHist = [];
+function draw() {
+  requestAnimationFrame(draw);
+  /* rotor circle */
+  rv.fillStyle = '#0b0e13'; rv.fillRect(0, 0, 230, 150);
+  const cx = 75, cy = 75, rad = 58;
+  rv.strokeStyle = '#2a3040'; rv.beginPath(); rv.arc(cx, cy, rad, 0, TAU); rv.stroke();
+  const cols = ['#5ff2e0', '#ffc24b', '#b48cff', '#5fd08a'];
+  for (let i = 0; i < NV; i++) {
+    const a = TAU * lab.rotor.phase[i] - Math.PI / 2;
+    rv.fillStyle = cols[i];
+    rv.beginPath(); rv.arc(cx + rad * Math.cos(a), cy + rad * Math.sin(a), 5, 0, TAU); rv.fill();
+  }
+  rv.strokeStyle = '#e8ecf2';
+  rv.beginPath(); rv.moveTo(cx, cy);
+  rv.lineTo(cx + rad * lab.rotor.R * Math.cos(lab.rotor.psi - Math.PI / 2), cy + rad * lab.rotor.R * Math.sin(lab.rotor.psi - Math.PI / 2)); rv.stroke();
+  rv.fillStyle = '#8b94a6'; rv.font = '10px monospace';
+  rv.fillText('R ' + lab.rotor.R.toFixed(3), 158, 20);
+  // min circular gap (the A5 readout, live)
+  const ph = [...lab.rotor.phase].sort((a, b) => a - b);
+  let gap = 1;
+  for (let i = 0; i < NV; i++) { const g = (i === NV - 1 ? ph[0] + 1 - ph[i] : ph[i + 1] - ph[i]); if (g < gap) gap = g; }
+  rv.fillText('min gap ' + gap.toFixed(3), 158, 34);
+  rv.fillText(gap > 0.2 ? 'interleave ✓' : (lab.rotor.p.K < 0 ? 'clustered' : ''), 158, 48);
+  /* scope: sources */
+  const srcs = lab.srcVal;
+  for (let i = 0; i < 8; i++) { scopeHist[i].push(srcs[i]); if (scopeHist[i].length > 250) scopeHist[i].shift(); }
+  sc.fillStyle = '#0b0e13'; sc.fillRect(0, 0, 250, 90);
+  const scCols = [...cols, '#e8ecf2', '#ff6b8a', '#8b94a6', '#5fd08a'];
+  for (let i = 0; i < 8; i++) {
+    sc.strokeStyle = scCols[i]; sc.globalAlpha = i < 4 ? 0.9 : 0.7; sc.beginPath();
+    scopeHist[i].forEach((v, x) => { const y = 45 - v * 40; x ? sc.lineTo(x, y) : sc.moveTo(x, y); });
+    sc.stroke();
+  }
+  sc.globalAlpha = 1;
+  /* K trace: base + Kenv + matrix mod on the focused (loudest) voice */
+  let focus = null;
+  for (const s of lab.synth.sw) if (s.gate || s.env > 1e-3) { if (!focus || s.age > focus.age) focus = s; }
+  const kEff = Math.max(-1, Math.min(1, lab.synth.p.K + lab.mods.k)) + (focus ? Math.max(0, focus.Kenv) / 8 : 0);
+  kHist.push(kEff); if (kHist.length > 250) kHist.shift();
+  kt.fillStyle = '#0b0e13'; kt.fillRect(0, 0, 250, 70);
+  kt.strokeStyle = '#2a3040'; kt.beginPath(); kt.moveTo(0, 35); kt.lineTo(250, 35); kt.stroke();
+  kt.strokeStyle = '#5ff2e0'; kt.beginPath();
+  kHist.forEach((v, x) => { const y = 35 - v * 30; x ? kt.lineTo(x, y) : kt.moveTo(x, y); });
+  kt.stroke();
+}
+draw();
+</script>
+</body>
+</html>
