@@ -36,7 +36,7 @@
 </head>
 <body>
 <h1>SWARM<span class="star">✱</span> · detune lab → reference → core · fold map</h1>
-<div class="sub">2026-07-22 · what the audition lab (docs/design/detune-lab.html) produced, and how each piece folds into swarmsaw.html (the reference/oracle) → swarm_core.h (parity port). For review + posterity.</div>
+<div class="sub">2026-07-22 · what the audition lab (docs/design/detune-lab.html) produced, and how each piece folds into swarmsaw.html (the reference/oracle) → swarm_core.h (parity port). For review + posterity. <em>Fold status updated 2026-07-23: ADR-060..066 landed, parity 54/54 → 102/102.</em></div>
 
 <div class="legend">
   <span><i class="dot b-green" style="background:var(--green)"></i> superset · default bit-exact → low parity risk</span>
@@ -48,16 +48,16 @@
 <h2>Detune geometry — the placement laws</h2>
 <table>
 <tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
-<tr><td class="feat">harmonic law + reach</td><td class="what">unison→harmonic-series morph; reach decouples top harmonic from voice count. The coherent-metallic "spread".</td><td class="dest">swarmsaw law table · swarm_core</td><td><span class="badge b-amber">new law · ADR + golden</span></td></tr>
+<tr><td class="feat">harmonic law + reach</td><td class="what">unison→harmonic-series morph; reach decouples top harmonic from voice count. The coherent-metallic "spread".</td><td class="dest">swarmsaw law table · swarm_core</td><td><span class="badge b-green">FOLDED · ADR-065 (+ parity domain limit)</span></td></tr>
 <tr><td class="feat">octave spread + root-anchor</td><td class="what">detune depth widened to 2 oct; anchor pins the lowest voice to the root (NI-style).</td><td class="dest">swarmsaw · swarm_core</td><td><span class="badge b-green">superset (±semitone default)</span></td></tr>
-<tr><td class="feat">stretch (inharmonic) law</td><td class="what">cents offset × (1+B·x²) — outer voices spread inharmonically (bell/metal).</td><td class="dest">swarmsaw law table · swarm_core</td><td><span class="badge b-amber">new law · ADR + golden</span></td></tr>
+<tr><td class="feat">stretch (inharmonic) law</td><td class="what">cents offset × (1+B·x²) — outer voices spread inharmonically (bell/metal).</td><td class="dest">swarmsaw law table · swarm_core</td><td><span class="badge b-green">FOLDED · ADR-066 (as law 5)</span></td></tr>
 <tr><td class="feat">golden distribution</td><td class="what">low-discrepancy irrational voice placement.</td><td class="dest">swarmsaw dist menu · swarm_core</td><td><span class="badge b-green">superset (new option)</span></td></tr>
 </table>
 
 <h2>Voice tone &amp; saw shape</h2>
 <table>
 <tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
-<tr><td class="feat">bipolar tone tilt</td><td class="what">per-voice pitch-tracked LP (darken) / HP (thin), weighted to higher voices.</td><td class="dest">swarm_core osc/output</td><td><span class="badge b-green">superset (0 = off)</span></td></tr>
+<tr><td class="feat">bipolar tone tilt</td><td class="what">per-voice pitch-tracked LP (darken) / HP (thin), weighted to higher voices.</td><td class="dest">swarm_core osc/output</td><td><span class="badge b-green">FOLDED · ADR-060</span></td></tr>
 <tr><td class="feat">hi-tame</td><td class="what">equal-loudness roll-off of the upper voices.</td><td class="dest">swarm_core (per-voice)</td><td><span class="badge b-green">FOLDED · ADR-061</span></td></tr>
 <tr><td class="feat">master HPF</td><td class="what">global low-cut. <em>Superseded by design:</em> a proper filter module (or several) in the FX rack will supply this.</td><td class="dest">FX rack (E3), not the core</td><td><span class="badge b-red">deferred — do not freeze a param</span></td></tr>
 <tr><td class="feat">roundness (glass) + round×hi</td><td class="what">per-voice morph saw→round shape, pitch-weighted. Sweet spot ≈ round 0.3 / hi 0.7.</td><td class="dest">swarmsaw osc · swarm_core</td><td><span class="badge b-amber">retargets ADR-058 · ADR</span></td></tr>
@@ -69,17 +69,17 @@
 <table>
 <tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
 <tr><td class="feat">root-pivot pacemaker</td><td class="what"><em>sync pivot</em> toggle: mean-field vs root (voices entrain to the fundamental → pitch-stable collapse). Keep BOTH.</td><td class="dest">swarmsaw coupling · swarm_core</td><td><span class="badge b-amber">topology divergence · ADR</span></td></tr>
-<tr><td class="feat">drift modes · centre-pin</td><td class="what">walk / sine / S&amp;H per-voice drift; centre-pin scales motion by distance from the fundamental.</td><td class="dest">swarm_core</td><td><span class="badge b-green">superset (walk / 0 = current)</span></td></tr>
-<tr><td class="feat">per-voice + per-sample freq smoothing</td><td class="what">de-zippers fast sweeps; converges to target (seconds→per-tick, ADR-009).</td><td class="dest">swarm_core</td><td><span class="badge b-green">superset (steady = exact)</span></td></tr>
-<tr><td class="feat">keep-phase</td><td class="what">note-on continues from last phases — 3rd phase mode.</td><td class="dest">swarm_core note-on</td><td><span class="badge b-green">superset (new option)</span></td></tr>
+<tr><td class="feat">drift modes · centre-pin</td><td class="what">walk / sine / S&amp;H per-voice drift; centre-pin scales motion by distance from the fundamental.</td><td class="dest">swarm_core</td><td><span class="badge b-green">FOLDED · ADR-062 + 064</span></td></tr>
+<tr><td class="feat">per-voice + per-sample freq smoothing</td><td class="what">de-zippers fast sweeps; converges to target (seconds→per-tick, ADR-009).</td><td class="dest">swarm_core</td><td><span class="badge b-green">FOLDED · ADR-063 (opt-in)</span></td></tr>
+<tr><td class="feat">keep-phase</td><td class="what">note-on continues from last phases — 3rd phase mode.</td><td class="dest">swarm_core note-on</td><td><span class="badge b-green">FOLDED · ADR-062</span></td></tr>
 </table>
 
 <h2>Spatial · dynamics · metallic</h2>
 <table>
 <tr><th>feature</th><th>what it is</th><th>folds to</th><th>class</th></tr>
 <tr><td class="feat">pan fan + curve/invert + pitch-order</td><td class="what">root-centred alternating fan, ranked by pitch; curve/invert reshape it. New default pan image.</td><td class="dest">swarm_core pan</td><td><span class="badge b-amber">default-image change · ADR</span></td></tr>
-<tr><td class="feat">pan-motion modes</td><td class="what">per-voice drift / whole-image sweep of the stereo field.</td><td class="dest">swarm_core / GUI</td><td><span class="badge b-green">superset (0 = still)</span></td></tr>
-<tr><td class="feat">compress + limiter</td><td class="what">mild peak comp + brickwall limiter — tame chord clipping.</td><td class="dest">FX rack (ADR-054) or master</td><td><span class="badge b-green">superset (off)</span></td></tr>
+<tr><td class="feat">pan-motion modes</td><td class="what">per-voice drift / whole-image sweep of the stereo field.</td><td class="dest">swarm_core / GUI</td><td><span class="badge b-green">FOLDED · ADR-064</span></td></tr>
+<tr><td class="feat">compress + limiter</td><td class="what">mild peak comp + brickwall limiter — tame chord clipping.</td><td class="dest">FX rack (ADR-054) or master</td><td><span class="badge b-amber">OPEN — core fold vs FX-rack slot (cf. HPF ruling)</span></td></tr>
 <tr><td class="feat">polyphonic Karplus-Strong comb</td><td class="what">per-note tuned feedback comb — coherent metallic on the detuned stack.</td><td class="dest">FX rack slot / core module</td><td><span class="badge b-amber">new DSP module</span></td></tr>
 <tr><td class="feat">voice map · clip meter · scopes</td><td class="what">pan×pitch map (target vs actual), level/clip meter — seeds of the visual language.</td><td class="dest">GUI (Phase 5)</td><td><span class="badge b-gray">face only</span></td></tr>
 </table>
