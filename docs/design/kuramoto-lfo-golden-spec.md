@@ -208,7 +208,16 @@ these when the rotor graduates:
   Measured (spec §6 protocol): gap 0.250 exact, meanR 0.000, R sd 0.0000
   (legacy: gap 0.048, meanR 0.189, sd 0.1567). A1–A3 unchanged to the digit
   (0.475/0.469/0.648/0.990/0.998); A7 determinism exact. A5's golden number
-  re-measures on the hardened reference as planned.
+  re-measures on the hardened reference as planned. **EAR-CHECKED AND CONFIRMED
+  by the human 2026-07-24** ("splay now working properly") — §7's pre-golden fix
+  requirement is DISCHARGED and the rotor may proceed to the §3 harness
+  deliverables.
+- **Polarity is a matrix-level question, not a rotor one (human note,
+  2026-07-24).** Unipolar vs bipolar per source/route (ROADMAP, mod-matrix
+  polarity entry) affects how `lfo[]` and `R` are CONSUMED, not how they are
+  produced — the rotor golden logs raw `lfo[]∈[−1,1]` and `R∈[0,1]` and stays
+  polarity-agnostic. Recorded here so the eventual port does not bake a
+  polarity convention into the source.
 - **Per-voice shape (§2 delta).** `shape` is now per-voice `shape0..3` (human,
   2026-07-24) — the structural contract's "one global choice" is superseded;
   the golden logs are unchanged in form (lfo[i] already per-voice).
