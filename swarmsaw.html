@@ -208,7 +208,7 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
-               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1 };
+               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -363,6 +363,16 @@ class SwarmSynth {
       // when harmReach = 1. Voice 0 stays on the root. The voice INDEX is the rung,
       // so this law deliberately ignores the distribution (x) and the anchor.
       else if (p.law === 4) { f = s.f0 * (1 + p.detune * p.harmReach * i); }
+      // STRETCH (inharmonic, ADR-066): cents placement, then the offset itself
+      // stretched by (1 + B·x²) so OUTER voices spread disproportionately —
+      // piano/bell inharmonicity, the metallic end of the law set. B = 0 is
+      // algebraically law 0 (rat·1 folds back to the pow), so B is the whole law.
+      // Law index 5, NOT the lab's 3: law 3 is the tempo-grid law (ADR-022) and
+      // 4 is harmonic (ADR-065) — the lab numbers its own menu independently.
+      else if (p.law === 5) {
+        const rat = Math.pow(2, (x * p.detune * 100) / 1200) - 1;
+        f = s.f0 * (1 + rat * (1 + p.stretchB * x * x));
+      }
       else { f = s.f0 + x * p.detune * 0.35 * this.erb(s.f0); }
       // centre pin (ADR-064): scale drift by the voice's distance from the
       // fundamental (cdist, previous tick). motionCenter 0 → mw 1 → inert.

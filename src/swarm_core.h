@@ -112,6 +112,10 @@ struct Params
   // i lands on f0*(1 + harmReach*i); 1 = the natural series 1,2,3,...,n.
   // NAMED harmReach, not reach: `reach` is already the RING-topology radius (p.reach).
   double harmReach = 1;
+  // ADR-066 stretch law (law 5): the cents offset is itself stretched by
+  // (1 + stretchB*x^2), so outer voices spread disproportionately — piano/bell
+  // inharmonicity. 0 is algebraically law 0, so this is the whole law.
+  double stretchB = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -570,6 +574,7 @@ class SwarmCore
     if (k == "panMode") return &p.panMode;        // ADR-064 pan-motion mode
     if (k == "motionCenter") return &p.motionCenter;  // ADR-064 centre pin
     if (k == "harmReach") return &p.harmReach;        // ADR-065 harmonic-law reach
+    if (k == "stretchB") return &p.stretchB;          // ADR-066 stretch-law inharmonicity
     return nullptr;
   }
 
@@ -754,6 +759,14 @@ class SwarmCore
       // INDEX is the rung, so this law ignores the distribution (xv) and anchor.
       // NOTE law 3 is the tempo-grid law (ADR-022), hence harmonic takes index 4.
       else if (p.law == 4) { f = f0c * (1 + p.detune * p.harmReach * i); }
+      // STRETCH (ADR-066, parity with swarmsaw.html): cents placement with the
+      // offset stretched by (1 + stretchB*x^2) — outer voices spread further,
+      // piano/bell inharmonicity. Law index 5: 3 is tempo-grid, 4 is harmonic.
+      else if (p.law == 5)
+      {
+        const double rat = std::pow(2, (xv * p.detune * 100) / 1200) - 1;
+        f = f0c * (1 + rat * (1 + p.stretchB * xv * xv));
+      }
       else { f = f0c + xv * p.detune * 0.35 * erb(f0c); }
       // centre pin (ADR-064): scale drift by distance from the fundamental (prev tick)
       if (p.driftDepth > 0) { const double mw = 1 - p.motionCenter * (1 - s.cdist[i]); f *= std::pow(2, (s.driftS[i] * p.driftDepth * mw) / 1200); }
