@@ -219,3 +219,16 @@ these when the rotor graduates:
   measured rms(A−B) = 0.002 over 3 s against a 5.12 peak. CONSEQUENCE for the
   consolidation review: retiring onset/dissolve via the matrix requires the
   mod bus to reach the COUPLING TARGET, not the clamped K knob.
+- **Consolidation finding #2 (per-note instances; 2026-07-24 evening).** Onset
+  lock is PER-NOTE (each note's swarm seeds its own Kenv, decaying on its own
+  clock); a GLOBAL envelope re-surges every sounding note on each new key —
+  heard by the human, then measured on a staggered two-note test: when note 2
+  arrives, note 1's coupling under a global env jumps 2.10 → 4.93 (rms vs
+  onset lock 1.274), while a PER-NOTE env instance matches onset lock at rms
+  0.002 on BOTH notes. CONSEQUENCE: the mod matrix must distinguish per-note
+  sources (envelopes) from global sources (LFOs, the rotor) — retiring
+  onset/dissolve requires per-note envelope instances routed to per-note
+  coupling. With #1 + #2 both met, the lab A/B is indistinguishable mono AND
+  poly; the retirement case is closed at lab level, pending the human's ear.
+  (The mono-only rms 0.002 previously reported was honest but incomplete —
+  global and per-note are structurally identical with one note sounding.)
