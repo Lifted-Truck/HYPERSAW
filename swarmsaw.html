@@ -208,7 +208,7 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
-               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0 };
+               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0, spread:1, anchor:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -285,6 +285,10 @@ class SwarmSynth {
     if (n === 1) this.x[0] = 0;
     this.centerIdx = 0;
     for (let i = 1; i < n; i++) if (Math.abs(this.x[i]) < Math.abs(this.x[this.centerIdx])) this.centerIdx = i;
+    // lowest raw-x voice, for the root anchor (ADR-068): anchor shifts every x by
+    // −anchor·xmin so at anchor 1 the lowest voice sits exactly on the root.
+    this.xmin = this.x[0];
+    for (let i = 1; i < n; i++) if (this.x[i] < this.xmin) this.xmin = this.x[i];
     for (let i = 0; i < n; i++) {
       const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
       this.pan[i] = pan;   // signed base pan, kept for pan motion (ADR-064)
@@ -359,16 +363,23 @@ class SwarmSynth {
       }
     }
     // per-voice natural frequencies + measured spread
+    // OCTAVE SPREAD + ROOT ANCHOR (ADR-068): dep multiplies detune (spread 1..24
+    // takes law 0 from ±1 st to ±2 oct); anchor shifts every x by −anchor·xmin so
+    // at anchor 1 the LOWEST voice sits on the root and the rest fan upward (the
+    // NI-style unipolar image). Both thread through EVERY law below. Defaults are
+    // bit-inert: detune·1 == detune and x − 0·xmin == x in IEEE.
+    const dep = p.detune * p.spread;
     let mean = 0;
     for (let i = 0; i < n; i++) {
-      let f; const x = this.x[i];
-      if (p.law === 0) { f = s.f0 * Math.pow(2, (x * p.detune * 100) / 1200); }
-      else if (p.law === 1) { f = s.f0 + x * p.detune * 20; }
-      // HARMONIC (ADR-065): voice i morphs from unison (detune 0) up to its own
-      // partial — at detune 1, f0·(1 + harmReach·i), i.e. the natural series 1,2,3,…
+      let f; const x = this.x[i] - p.anchor * this.xmin;
+      if (p.law === 0) { f = s.f0 * Math.pow(2, (x * dep * 100) / 1200); }
+      else if (p.law === 1) { f = s.f0 + x * dep * 20; }
+      // HARMONIC (ADR-065): voice i morphs from unison (dep 0) up to its own
+      // partial — at dep 1, f0·(1 + harmReach·i), i.e. the natural series 1,2,3,…
       // when harmReach = 1. Voice 0 stays on the root. The voice INDEX is the rung,
-      // so this law deliberately ignores the distribution (x) and the anchor.
-      else if (p.law === 4) { f = s.f0 * (1 + p.detune * p.harmReach * i); }
+      // so this law deliberately ignores the distribution (x) and the anchor
+      // (it is inherently root-anchored); spread still scales it (ADR-068).
+      else if (p.law === 4) { f = s.f0 * (1 + dep * p.harmReach * i); }
       // STRETCH (inharmonic, ADR-066): cents placement, then the offset itself
       // stretched by (1 + B·x²) so OUTER voices spread disproportionately —
       // piano/bell inharmonicity, the metallic end of the law set. B = 0 is
@@ -376,10 +387,10 @@ class SwarmSynth {
       // Law index 5, NOT the lab's 3: law 3 is the tempo-grid law (ADR-022) and
       // 4 is harmonic (ADR-065) — the lab numbers its own menu independently.
       else if (p.law === 5) {
-        const rat = Math.pow(2, (x * p.detune * 100) / 1200) - 1;
+        const rat = Math.pow(2, (x * dep * 100) / 1200) - 1;
         f = s.f0 * (1 + rat * (1 + p.stretchB * x * x));
       }
-      else { f = s.f0 + x * p.detune * 0.35 * this.erb(s.f0); }
+      else { f = s.f0 + x * dep * 0.35 * this.erb(s.f0); }
       // centre pin (ADR-064): scale drift by the voice's distance from the
       // fundamental (cdist, previous tick). motionCenter 0 → mw 1 → inert.
       if (p.driftDepth > 0) { const mw = 1 - p.motionCenter * (1 - s.cdist[i]); f *= Math.pow(2, (s.driftS[i] * p.driftDepth * mw) / 1200); }

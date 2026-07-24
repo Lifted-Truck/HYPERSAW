@@ -116,6 +116,10 @@ struct Params
   // (1 + stretchB*x^2), so outer voices spread disproportionately — piano/bell
   // inharmonicity. 0 is algebraically law 0, so this is the whole law.
   double stretchB = 0;
+  // ADR-068 octave spread + root anchor: spread multiplies detune (1..24 takes
+  // law 0 from +/-1 st to +/-2 oct); anchor shifts every x by -anchor*xmin so at
+  // 1 the lowest voice sits on the root. Defaults bit-inert (x*1, x-0).
+  double spread = 1, anchor = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -575,6 +579,8 @@ class SwarmCore
     if (k == "motionCenter") return &p.motionCenter;  // ADR-064 centre pin
     if (k == "harmReach") return &p.harmReach;        // ADR-065 harmonic-law reach
     if (k == "stretchB") return &p.stretchB;          // ADR-066 stretch-law inharmonicity
+    if (k == "spread") return &p.spread;              // ADR-068 detune multiplier
+    if (k == "anchor") return &p.anchor;              // ADR-068 root anchor
     return nullptr;
   }
 
@@ -644,6 +650,10 @@ class SwarmCore
     centerIdx = 0;
     for (int i = 1; i < n; i++)
       if (std::fabs(x[i]) < std::fabs(x[centerIdx])) centerIdx = i;
+    // lowest raw-x voice for the root anchor (ADR-068), mirroring swarmsaw
+    xmin = x[0];
+    for (int i = 1; i < n; i++)
+      if (x[i] < xmin) xmin = x[i];
     // Pan scatter (ADR-035): at 0 the arithmetic below is the legacy path
     // exactly (goldens are the proof). At > 0, blend each voice's pan
     // position toward a seeded permutation of the legacy positions — the
@@ -745,12 +755,16 @@ class SwarmCore
     double mean = 0;
     // ADR-027/036; tune and noteTune at 1.0 -> bit-identical
     const double f0c = s.f0cur * p.tune * s.noteTune;
+    // ADR-068 octave spread + root anchor, threading through EVERY law below
+    // (including tempo-grid, which the lab lacks — uniform placement semantics,
+    // recorded in the ADR). Defaults bit-inert: detune*1 == detune, x - 0 == x.
+    const double dep = p.detune * p.spread;
     for (int i = 0; i < n; i++)
     {
       double f;
-      const double xv = x[i];
-      if (p.law == 0) { f = f0c * std::pow(2, (xv * p.detune * 100) / 1200); }
-      else if (p.law == 1) { f = f0c + xv * p.detune * 20; }
+      const double xv = x[i] - p.anchor * xmin;
+      if (p.law == 0) { f = f0c * std::pow(2, (xv * dep * 100) / 1200); }
+      else if (p.law == 1) { f = f0c + xv * dep * 20; }
       else if (p.law == 3)
       {
         // tempo-grid (ADR-022): cents placement, then snap the Hz offset to
@@ -758,23 +772,24 @@ class SwarmCore
         // exact grid multiple. Expression ported verbatim from the DYNAMICS
         // reference. Drift (below) deliberately loosens the grid when used.
         const double u = (p.bpm / 60.0) * p.beatMult;
-        const double df = f0c * (std::pow(2, (xv * p.detune * 100) / 1200) - 1);
+        const double df = f0c * (std::pow(2, (xv * dep * 100) / 1200) - 1);
         f = f0c + std::round(df / u) * u;
       }
       // HARMONIC (ADR-065, parity with swarmsaw.html): voice i morphs from unison
-      // (detune 0) up to its partial — at detune 1, f0*(1 + harmReach*i). The voice
-      // INDEX is the rung, so this law ignores the distribution (xv) and anchor.
+      // (dep 0) up to its partial — at dep 1, f0*(1 + harmReach*i). The voice
+      // INDEX is the rung, so this law ignores the distribution (xv) and anchor
+      // (inherently root-anchored); spread still scales it (ADR-068).
       // NOTE law 3 is the tempo-grid law (ADR-022), hence harmonic takes index 4.
-      else if (p.law == 4) { f = f0c * (1 + p.detune * p.harmReach * i); }
+      else if (p.law == 4) { f = f0c * (1 + dep * p.harmReach * i); }
       // STRETCH (ADR-066, parity with swarmsaw.html): cents placement with the
       // offset stretched by (1 + stretchB*x^2) — outer voices spread further,
       // piano/bell inharmonicity. Law index 5: 3 is tempo-grid, 4 is harmonic.
       else if (p.law == 5)
       {
-        const double rat = std::pow(2, (xv * p.detune * 100) / 1200) - 1;
+        const double rat = std::pow(2, (xv * dep * 100) / 1200) - 1;
         f = f0c * (1 + rat * (1 + p.stretchB * xv * xv));
       }
-      else { f = f0c + xv * p.detune * 0.35 * erb(f0c); }
+      else { f = f0c + xv * dep * 0.35 * erb(f0c); }
       // centre pin (ADR-064): scale drift by distance from the fundamental (prev tick)
       if (p.driftDepth > 0) { const double mw = 1 - p.motionCenter * (1 - s.cdist[i]); f *= std::pow(2, (s.driftS[i] * p.driftDepth * mw) / 1200); }
       const double target = std::max(1.0, f);
@@ -1003,6 +1018,7 @@ class SwarmCore
   long noteCounter = 0;
   int tick = 0;
   int centerIdx = 0;
+  double xmin = 0;  // lowest raw x, for the root anchor (ADR-068)
   bool tiltHP = false;  // tone-tilt sign (ADR-060), set each control tick
   uint32_t grng = 1;
   Swarm swarms[kPoly];
