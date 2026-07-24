@@ -108,6 +108,13 @@ const SCENARIOS = [
   // in trajectory_check, not by a golden. See ADR-065.
   // Stretch law (ADR-066, law 5). stretch-flat pins the algebraic identity
   // B = 0 ≡ law 0; the other two cover mild and full bell inharmonicity.
+  // Root-pinned pacemaker (ADR-069). Pivot only acts THROUGH coupling, so these
+  // are coupled by necessity — spreads kept modest to stay inside the parity
+  // domain (ACCEPTANCE L0-1 limit, ADR-065). Sync collapse, splay anchored on
+  // the root, and the musical combo with the ADR-068 root-anchored geometry.
+  { name: 'pivot-lock',       p: { pivotMode: 1, K: 0.8, detune: 0.4, n: 9 } },
+  { name: 'pivot-splay',      p: { pivotMode: 1, K: -0.8, detune: 0.3, n: 7 } },
+  { name: 'pivot-anchor',     p: { pivotMode: 1, anchor: 1, spread: 4, detune: 0.5, K: 0.7, n: 7 } },
   // Octave spread + root anchor (ADR-068). spread multiplies detune (dep 12 =
   // ±1 oct on law 0); anchor 1 pins the lowest voice to the root (unipolar fan).
   // anchor-root uses seeded cauchy so xmin varies per seed and is exercised for
