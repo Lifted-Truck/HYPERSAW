@@ -311,3 +311,20 @@ MECHANICS: the reference's cauchy branch was the trailing `else` (the menu caps 
 PARITY, with the inertness proof made explicit this time: golden manifests were generated from BOTH the edited reference and origin/main's reference and diffed per-scenario — all 102 pre-existing renders **sha256-identical**, only the 6 new files added. Then `parity_check` 102/102 → **108/108** within ε, the 6 new (golden-dist wide/11-voice; golden-sync coupled K=0.8) at **rms 0.000e+00**; all chains + notefuzz green. The coupled scenario is safe under the ADR-065 domain limit — K 0.8 over a ±semitone-class spread is the same regime as the long-standing sync goldens, and it renders exactly.
 
 NOT YET a CLAP param — `dist` id 4 currently ranges 0..3 (kDistLabels); widening to 0..4 joins the batched CLAP pass (task #18) alongside the law 0..5 widening. Trace: 2026-07-24-fold-golden-dist.md.
+
+## ADR-068 · Octave spread + root anchor — the placement-block rewrite — folded into the SAW reference + core — ACCEPTED (parity-safe superset)
+Ninth fold, and the one the fold map warned about: unlike every previous fold (a new guarded branch), `spread` and `anchor` thread through EVERY detune law — the placement block is rewritten, not extended. `dep = detune·spread` replaces `detune` in all six laws, and each voice's position becomes `x − anchor·xmin` (xmin = the lowest raw x, recomputed per rebuild). At spread 24 law 0 goes from ±1 st to ±2 oct; at anchor 1 the LOWEST voice lands exactly on the root and the ensemble fans upward — the NI-style unipolar image the whole detune-lab campaign started from.
+
+SEMANTIC RULINGS (recorded because the lab could not decide them):
+- **Harmonic law (4)** ignores x and therefore the anchor (it is inherently root-anchored), but spread DOES scale it — `1 + dep·harmReach·i` — matching the lab.
+- **Stretch law (5)** uses the ANCHORED x in its `x²` term, matching the lab: the inharmonicity follows the shifted geometry, not the raw one.
+- **Tempo-grid law (3)** exists only in the core (the lab and the SAW reference have no law 3), so the lab is silent on it. Ruling: dep and the anchored x apply uniformly there too — placement semantics stay singular across the law table. Bit-inert at defaults; a non-default spread/anchor on the grid is C++-reachable-only behavior (same posture as ADR-025 super-width) until a golden covers it.
+- **rootWeight is OUT of scope**: the lab entangles it with anchor (`aw = anchor` gates it), but it is a GAIN feature, not placement; it stays lab-only pending its own fold.
+
+INERTNESS — the load-bearing proof, done the ADR-067 way: goldens generated from the edited reference AND origin/main's reference, manifests diffed per scenario — all **108 pre-existing renders sha256-identical**. The IEEE identities doing the work (`detune·1.0 == detune`, `x − 0.0 == x`) hold exactly, including for negative and ±0 x.
+
+PARITY: 3 new golden scenarios × 3 seeds — spread-octave (±1 oct, even), anchor-root (anchor 1 over SEEDED cauchy, so xmin varies per seed and the anchor path is exercised for real — its three seed hashes all differ, as designed), spread-anchor-ni (JP, spread 8, anchor 1 — the NI image). `parity_check` 108/108 → **117/117**, the 9 new at **rms 0.000e+00**; all chains + notefuzz green. Wide-spread scenarios stay UNCOUPLED (K 0): wide + strong K is the chaotic regime the ACCEPTANCE §L0-1 domain limit excludes (ADR-065); coupled-wide behaviour is anchor territory, not golden territory.
+
+GEOMETRY, measured on the reference before the goldens: spread 24·detune 0.5 puts the bottom voice at exactly 0.5000·f0 (−1200 c); anchor 1 over cauchy pins the lowest voice at exactly 1.0000·f0 with every other voice above it. Interior voices sit off naive positions because density-comp (normExp 0.75) is active at defaults — the established engine layer, not this change.
+
+NOT YET CLAP params — spread/anchor join the batched pass (task #18). Trace: 2026-07-24-fold-spread-anchor.md.

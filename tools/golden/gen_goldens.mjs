@@ -108,6 +108,14 @@ const SCENARIOS = [
   // in trajectory_check, not by a golden. See ADR-065.
   // Stretch law (ADR-066, law 5). stretch-flat pins the algebraic identity
   // B = 0 ≡ law 0; the other two cover mild and full bell inharmonicity.
+  // Octave spread + root anchor (ADR-068). spread multiplies detune (dep 12 =
+  // ±1 oct on law 0); anchor 1 pins the lowest voice to the root (unipolar fan).
+  // anchor-root uses seeded cauchy so xmin varies per seed and is exercised for
+  // real. Wide-spread scenarios stay UNCOUPLED (K 0) — wide + strong K is the
+  // chaotic regime excluded by the ACCEPTANCE L0-1 domain limit (ADR-065).
+  { name: 'spread-octave',    p: { spread: 24, detune: 0.5, n: 9 } },
+  { name: 'anchor-root',      p: { anchor: 1, dist: 3, detune: 0.4, n: 9 } },
+  { name: 'spread-anchor-ni', p: { spread: 8, detune: 0.6, anchor: 1, n: 7 } },
   // Golden distribution (ADR-067, dist 4). Deterministic (no rng draws), so like
   // even/JP the seed axis is inert — covered across width + a coupled variant.
   { name: 'golden-dist',   p: { dist: 4, detune: 0.5, n: 11, width: 0.9 } },
