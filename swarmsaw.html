@@ -270,9 +270,15 @@ class SwarmSynth {
         const u1 = Math.max(this.rngG(), 1e-9), u2 = this.rngG();
         x = Math.sqrt(-2 * Math.log(u1)) * Math.cos(6.283185307 * u2) / 2.5;
         if (x > 1) x = 1; if (x < -1) x = -1;
-      } else {
+      } else if (this.p.dist === 3) {
         x = Math.tan(3.14159265 * (this.rngG() - 0.5)) / 4;
         if (x > 1) x = 1; if (x < -1) x = -1;
+      } else {
+        // GOLDEN (ADR-067): low-discrepancy irrational placement — (i+1)·φ⁻¹ mod 1
+        // never repeats and never clusters, so voices are even-but-inharmonic.
+        // Deterministic: consumes NO rngG draws (grng resets each rebuild, so the
+        // seeded dists are unaffected by its presence).
+        x = 2 * (((i + 1) * 0.6180339887498949) % 1) - 1;
       }
       this.x[i] = x;
     }

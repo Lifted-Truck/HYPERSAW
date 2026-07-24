@@ -108,6 +108,10 @@ const SCENARIOS = [
   // in trajectory_check, not by a golden. See ADR-065.
   // Stretch law (ADR-066, law 5). stretch-flat pins the algebraic identity
   // B = 0 ≡ law 0; the other two cover mild and full bell inharmonicity.
+  // Golden distribution (ADR-067, dist 4). Deterministic (no rng draws), so like
+  // even/JP the seed axis is inert — covered across width + a coupled variant.
+  { name: 'golden-dist',   p: { dist: 4, detune: 0.5, n: 11, width: 0.9 } },
+  { name: 'golden-sync',   p: { dist: 4, detune: 0.35, n: 9, K: 0.8 } },
   { name: 'stretch-flat',  p: { law: 5, detune: 0.3, n: 9 } },
   { name: 'stretch-mild',  p: { law: 5, stretchB: 2, detune: 0.3, n: 9 } },
   { name: 'stretch-bell',  p: { law: 5, stretchB: 6, detune: 0.5, n: 12 } },
