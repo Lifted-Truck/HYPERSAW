@@ -120,6 +120,9 @@ struct Params
   // law 0 from +/-1 st to +/-2 oct); anchor shifts every x by -anchor*xmin so at
   // 1 the lowest voice sits on the root. Defaults bit-inert (x*1, x-0).
   double spread = 1, anchor = 0;
+  // ADR-069 sync pivot: 0 = mean-field (reference), 1 = root-pinned pacemaker —
+  // every voice entrains to the voice nearest f0; pitch-stable collapse.
+  double pivotMode = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -581,6 +584,7 @@ class SwarmCore
     if (k == "stretchB") return &p.stretchB;          // ADR-066 stretch-law inharmonicity
     if (k == "spread") return &p.spread;              // ADR-068 detune multiplier
     if (k == "anchor") return &p.anchor;              // ADR-068 root anchor
+    if (k == "pivotMode") return &p.pivotMode;        // ADR-069 sync pivot
     return nullptr;
   }
 
@@ -891,10 +895,31 @@ class SwarmCore
       else
       {
         s.RQ = 0;
-        const int c0 = centerIdx < n ? centerIdx : 0;
+        // ROOT-PINNED PACEMAKER (ADR-069, parity with swarmsaw.html): pivotMode 1
+        // entrains every voice to the FUNDAMENTAL (voice nearest f0); sin(root-self)
+        // is zero for the root, so it stays and the swarm folds onto the played
+        // pitch. Applies on THIS path only (topo 0, poles 1 — the lab has neither
+        // topology nor Daido poles; other combinations are gated off, see ADR).
+        // Lab-measured trait, kept: the pacemaker drops the R scaler, so its
+        // onset just off K=0 is a touch stronger than mean-field's. alphaR rides
+        // along uniformly (0 in the SAW reference -> bit-equal).
+        const bool pivotRoot = p.pivotMode != 0;
+        int rootIdx = 0;
+        if (pivotRoot)
+        {
+          double rootD = std::fabs(s.vf[0] - s.f0);
+          for (int i = 1; i < n; i++)
+          {
+            const double dd = std::fabs(s.vf[i] - s.f0);
+            if (dd < rootD) { rootD = dd; rootIdx = i; }
+          }
+        }
+        const int c0 = pivotRoot ? rootIdx : (centerIdx < n ? centerIdx : 0);
         for (int i = 0; i < n; i++)
         {
-          double c = s.KsmS * s.R * std::sin(s.psi - s.phase[i] * kTau - alphaR);
+          double c = pivotRoot
+                       ? s.KsmS * std::sin(kTau * (s.phase[rootIdx] - s.phase[i]) - alphaR)
+                       : s.KsmS * s.R * std::sin(s.psi - s.phase[i] * kTau - alphaR);
           if (s.KsmP > 0.001)
             c += s.KsmP * std::sin(kTau * (s.phase[c0] + (double)(i - c0) / n - s.phase[i]));
           s.couple[i] = c;

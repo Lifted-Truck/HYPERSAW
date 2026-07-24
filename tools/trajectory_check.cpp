@@ -920,6 +920,22 @@ int main()
           lockR - freeR);
   }
 
+  std::printf("== ADR-069 root-pinned pacemaker (pivotMode 1) ==\n");
+  {
+    // Parity is carried by the pivot goldens; this anchors the qualitative claim
+    // the toggle exists to make — the pacemaker still ENTRAINS (late R under K
+    // clearly above free-running) — plus bounded/NaN-clean on both K signs.
+    Traj freeRun = run({{"pivotMode", 1}, {"detune", 0.4}, {"n", 9}}, 3.0);
+    Traj lock = run({{"pivotMode", 1}, {"detune", 0.4}, {"n", 9}, {"K", 0.8}}, 3.0);
+    Traj splay = run({{"pivotMode", 1}, {"detune", 0.3}, {"n", 7}, {"K", -0.8}}, 3.0);
+    check(freeRun.finite && lock.finite && splay.finite && lock.peak < 2.0 && splay.peak < 2.0,
+          "ADR-069 pacemaker bounded + NaN-clean (free/lock/splay)",
+          std::max(lock.peak, splay.peak));
+    const double freeR = denseMean(freeRun.denseR, 2.0, 3.0);
+    const double lockR = denseMean(lock.denseR, 2.0, 3.0);
+    check(lockR - freeR > 0.2, "ADR-069 pacemaker entrains (dR>0.2)", lockR - freeR);
+  }
+
   std::printf("trajectory_check: %s (%d failure%s)\n", g_failures ? "RED" : "GREEN", g_failures,
               g_failures == 1 ? "" : "s");
   return g_failures ? 1 : 0;

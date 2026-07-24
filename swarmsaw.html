@@ -208,7 +208,7 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
-               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0, spread:1, anchor:0 };
+               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0, spread:1, anchor:0, pivotMode:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -440,11 +440,27 @@ class SwarmSynth {
     let nx = 0, ny = 0;
     for (let i = 0; i < n; i++) { const a = s.phase[i] * 6.283185307 * n; nx += Math.cos(a); ny += Math.sin(a); }
     s.RN = Math.sqrt(nx * nx + ny * ny) / n;
-    const c0 = this.centerIdx < n ? this.centerIdx : 0;
+    // ROOT-PINNED PACEMAKER (ADR-069): pivotMode 1 makes every voice entrain to
+    // the FUNDAMENTAL — the voice nearest f0 (min |vf−f0|: the centre voice in
+    // symmetric detune, the lowest in anchored/harmonic modes). sin(root−self)
+    // is zero for the root itself, so it stays put and the swarm folds ONTO the
+    // played pitch (pitch-stable collapse) instead of onto the drifting mean.
+    // Known trait (lab-measured, kept): the pacemaker term drops the R scaler,
+    // so its onset just off K=0 is a touch stronger than mean-field's.
+    const pivotRoot = p.pivotMode === 1;
+    let rootIdx = 0;
+    if (pivotRoot) {
+      let rootD = Math.abs(s.vf[0] - s.f0);
+      for (let i = 1; i < n; i++) { const dd = Math.abs(s.vf[i] - s.f0); if (dd < rootD) { rootD = dd; rootIdx = i; } }
+    }
+    const c0 = pivotRoot ? rootIdx : (this.centerIdx < n ? this.centerIdx : 0);
     for (let i = 0; i < n; i++) {
-      let c = s.KsmS * s.R * Math.sin(s.psi - s.phase[i] * 6.283185307);
+      let c = pivotRoot
+        ? s.KsmS * Math.sin(6.283185307 * (s.phase[rootIdx] - s.phase[i]))
+        : s.KsmS * s.R * Math.sin(s.psi - s.phase[i] * 6.283185307);
       if (s.KsmP > 0.001) {
-        // pull voice i toward anchor phase + i-th splay slot; anchored on the center voice
+        // pull voice i toward anchor phase + i-th splay slot; anchored on the
+        // pivot voice (root when pivoting, centre voice otherwise)
         c += s.KsmP * Math.sin(6.283185307 * (s.phase[c0] + (i - c0) / n - s.phase[i]));
       }
       s.couple[i] = c;
