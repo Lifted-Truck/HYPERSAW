@@ -192,3 +192,30 @@ pairs) state (measured K=−1 → phases `[0.17, 0.23, 0.75, 0.79]`). Because
   (and the seed axis) when those axes are added; the rotor golden is RNG-free.
 - The mod-matrix routing surface — standard sources×destinations scaffolding; the
   rotor golden only guarantees the source (the four `lfo[]` values + R).
+
+---
+
+## Amendments from the mod lab (2026-07-24, `docs/design/mod-lab.html`)
+
+Human-directed design evolution auditioned in the lab; the golden re-freezes
+these when the rotor graduates:
+
+- **A5 splay law RESOLVED (rank-based lattice + rate entrainment).** Slots are
+  assigned by current circular rank (anchor = rank-0 voice); attraction uses
+  |kHz| (kHz is negative for K<0 — using it raw repels and CLUSTERS, measured
+  meanR 0.842). Each voice's rate blends toward the MEAN rate by |K|, so at
+  K=−1 the lattice is rigid at the global rate — the mirror of K=+1's cluster.
+  Measured (spec §6 protocol): gap 0.250 exact, meanR 0.000, R sd 0.0000
+  (legacy: gap 0.048, meanR 0.189, sd 0.1567). A1–A3 unchanged to the digit
+  (0.475/0.469/0.648/0.990/0.998); A7 determinism exact. A5's golden number
+  re-measures on the hardened reference as planned.
+- **Per-voice shape (§2 delta).** `shape` is now per-voice `shape0..3` (human,
+  2026-07-24) — the structural contract's "one global choice" is superseded;
+  the golden logs are unchanged in form (lfo[i] already per-voice).
+- **Consolidation finding (env→K vs onset lock).** The generic K destination
+  cannot reproduce onset lock: km saturates at 4 (K=1) while onset 0.8 injects
+  8·0.64 = 5.12 — the dedicated param out-reaches the whole knob range. A
+  coupling-domain destination (lab: `Kboost`, in Kenv units) closes it:
+  measured rms(A−B) = 0.002 over 3 s against a 5.12 peak. CONSEQUENCE for the
+  consolidation review: retiring onset/dissolve via the matrix requires the
+  mod bus to reach the COUPLING TARGET, not the clamped K knob.

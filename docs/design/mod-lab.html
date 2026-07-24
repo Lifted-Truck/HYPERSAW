@@ -63,7 +63,8 @@ function mulberry(seed) {  // mulberry32, the house stream
 class KuroRotor {
   constructor(sr) {
     this.sr = sr;
-    this.p = { K: 0.35, gRate: 1, shape: 0, splayLaw: 1,
+    this.p = { K: 0.35, gRate: 1, splayLaw: 1,
+               shape0: 0, shape1: 0, shape2: 0, shape3: 0,   // per-voice (human, 2026-07-24)
                r0: 0.7, r1: 0.4, r2: 0.95, r3: 0.55 };
     this.phase = new Float64Array(NV);
     this.lfo = new Float64Array(NV);     // constructor-init: readable at tick 0
@@ -79,8 +80,8 @@ class KuroRotor {
     this.rate[0] = this.p.r0 * this.p.gRate; this.rate[1] = this.p.r1 * this.p.gRate;
     this.rate[2] = this.p.r2 * this.p.gRate; this.rate[3] = this.p.r3 * this.p.gRate;
   }
-  shapeOf(ph) {
-    switch (this.p.shape) {
+  shapeOf(ph, vi) {
+    switch (this.p['shape' + vi]) {
       case 1: return ph < 0.5 ? (4 * ph - 1) : (3 - 4 * ph);
       case 2: return 2 * ph - 1;
       case 3: return ph < 0.5 ? 1 : -1;
@@ -92,7 +93,7 @@ class KuroRotor {
     for (let i = 0; i < NV; i++) { const a = TAU * this.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
     this.R = Math.sqrt(cx * cx + cy * cy) / NV;
     this.psi = Math.atan2(cy, cx);
-    for (let i = 0; i < NV; i++) this.lfo[i] = this.shapeOf(this.phase[i]);
+    for (let i = 0; i < NV; i++) this.lfo[i] = this.shapeOf(this.phase[i], i);
   }
   // Advance nSmp samples of phase dynamics. controlTick is interleaved every
   // TICK samples exactly as the prototype does (the golden spec FREEZES that
@@ -110,13 +111,23 @@ class KuroRotor {
         // legacy repel-from-slot law is built around that sign) — using it raw
         // repels from the lattice and CLUSTERS (measured: meanR 0.842, gap 0).
         const kMag = -kHz;
+        // RATE ENTRAINMENT (human request 2026-07-24, the de-jump): each voice's
+        // rate blends toward the MEAN rate by |K|, mirroring what sync does
+        // implicitly — at K=-1 all voices run the global rate, so nothing ever
+        // passes anything: ranks stop churning, the lattice is rigid, and the
+        // splay is a clean even rotation instead of a jumpy one. Measured over
+        // the spec window: R sd 0.1567 (legacy) -> 0.0000; gap 0.229 (rank law
+        // without entrainment) -> 0.250 exact; meanR 0.026 -> 0.000.
+        const mr = (this.rate[0] + this.rate[1] + this.rate[2] + this.rate[3]) / NV;
+        const blend = -K;   // 0..1 over the splay range
         const idx = [0, 1, 2, 3];
         idx.sort((a, b) => this.phase[a] - this.phase[b] || a - b);
         const anchor = this.phase[idx[0]];
         for (let r = 0; r < NV; r++) {
           const i = idx[r];
           const target = anchor + r / NV;
-          this.phase[i] += this.rate[i] / sr + kMag * Math.sin(TAU * (target - this.phase[i])) / sr;
+          const eff = this.rate[i] + (mr - this.rate[i]) * blend;
+          this.phase[i] += eff / sr + kMag * Math.sin(TAU * (target - this.phase[i])) / sr;
         }
       } else {
         for (let i = 0; i < NV; i++) {
@@ -218,7 +229,7 @@ class MiniSwarm {
     for (let i = 0; i < this.p.n; i++) s.phase[i] = rng();
   }
   noteOff(midi) { for (const s of this.sw) if (s.midi === midi && s.gate) s.gate = 0; }
-  control(s, kMod, detMod) {
+  control(s, kMod, kbMod, detMod) {
     const p = this.p, n = p.n, dt = TICK / this.sr;
     const det = Math.max(0, p.detune + detMod);
     let mean = 0, m2 = 0;
@@ -233,7 +244,8 @@ class MiniSwarm {
     s.Kenv += (0 - s.Kenv) * (1 - Math.exp(-dt / Math.max(0.05, p.dissolve)));
     const K = Math.max(-1, Math.min(1, p.K + kMod));
     const km = 4 * K * Math.abs(K);
-    const target = (Math.max(0, km) + Math.max(0, s.Kenv)) * s.sigma;
+    const kb = 8 * Math.max(0, kbMod);   // matrix Kboost, onset-Kenv units
+    const target = (Math.max(0, km) + Math.max(0, s.Kenv) + kb) * s.sigma;
     s.Ksm += (target - s.Ksm) * 0.08;
     // mean field
     let cx = 0, cy = 0;
@@ -259,7 +271,7 @@ class MiniSwarm {
     for (const s of this.sw) {
       if (!s.gate && s.env < 1e-4) continue;
       for (let smp = 0; smp < outL.length; smp++) {
-        if (this.tick === 0) this.control(s, mods.k, mods.det);
+        if (this.tick === 0) this.control(s, mods.k, mods.kb, mods.det);
         this.tick = (this.tick + 1) & (TICK - 1);
         let l = 0, r = 0;
         for (let i = 0; i < n; i++) {
@@ -280,7 +292,7 @@ class MiniSwarm {
 
 /* ---- the lab host: rotor + LFOs + env + matrix + mini swarm ---- */
 const SOURCES = ['K1', 'K2', 'K3', 'K4', 'R', 'LFOA', 'LFOB', 'ENV'];
-const DESTS = ['K', 'detune', 'cutoff', 'level'];
+const DESTS = ['K', 'Kboost', 'detune', 'cutoff', 'level'];
 class ModLab {
   constructor(sr) {
     this.sr = sr;
@@ -291,7 +303,7 @@ class ModLab {
     this.synth = new MiniSwarm(sr);
     // depth[src][dst] in -1..1
     this.depth = SOURCES.map(() => DESTS.map(() => 0));
-    this.mods = { k: 0, det: 0, cut: 0, amp: 0 };
+    this.mods = { k: 0, kb: 0, det: 0, cut: 0, amp: 0 };
     this.tick = 0;
     this.srcVal = new Float64Array(SOURCES.length);
   }
@@ -307,14 +319,22 @@ class ModLab {
     s[4] = this.rotor.R * 2 - 1;   // R mapped bipolar so depth semantics match
     s[5] = a; s[6] = b; s[7] = e;
     // matrix: dest scales chosen so depth 1 spans the musically-full range
-    const SCALE = { K: 1.0, detune: 0.5, cutoff: 1.0, level: 0.6 };
-    const out = { k: 0, det: 0, cut: 0, amp: 0 };
+    // Kboost is COUPLING-DOMAIN (units of the onset-lock Kenv, x8 applied in
+    // the swarm): the generic K destination saturates at km(K=1)=4 while
+    // onset 0.8 injects 8*0.64=5.12 — the dedicated param out-reaches the
+    // knob's whole range, so a fair env->onset consolidation A/B NEEDS a
+    // coupling-domain destination. That asymmetry is a consolidation-review
+    // FINDING, not a lab quirk: retiring onset lock via the matrix requires
+    // the bus to reach the coupling target, not the clamped K knob.
+    const SCALE = { K: 1.0, Kboost: 1.0, detune: 0.5, cutoff: 1.0, level: 0.6 };
+    const out = { k: 0, kb: 0, det: 0, cut: 0, amp: 0 };
     for (let si = 0; si < SOURCES.length; si++) {
       const d = this.depth[si];
       if (d[0]) out.k += d[0] * s[si] * SCALE.K;
-      if (d[1]) out.det += d[1] * s[si] * SCALE.detune;
-      if (d[2]) out.cut += d[2] * s[si] * SCALE.cutoff;
-      if (d[3]) out.amp += d[3] * s[si] * SCALE.level;
+      if (d[1]) out.kb += d[1] * s[si] * SCALE.Kboost;
+      if (d[2]) out.det += d[2] * s[si] * SCALE.detune;
+      if (d[3]) out.cut += d[3] * s[si] * SCALE.cutoff;
+      if (d[4]) out.amp += d[4] * s[si] * SCALE.level;
     }
     this.mods = out;
   }
@@ -335,9 +355,11 @@ class ModLab {
     <canvas id="rotorViz" width="230" height="150"></canvas>
     <div class="row"><label>K (pull)</label><input type="range" id="rK" min="-1" max="1" step="0.01" value="0.35"><output id="rK_o"></output></div>
     <div class="row"><label>global rate</label><input type="range" id="rG" min="0.1" max="4" step="0.05" value="1"><output id="rG_o"></output></div>
-    <div class="row"><label>shape</label><select id="rShape"><option value="0">sine</option><option value="1">triangle</option><option value="2">saw</option><option value="3">square</option></select></div>
+    <div class="row"><label>shapes K1–K4</label>
+      <select id="rShape0"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><select id="rShape1"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select>
+      <select id="rShape2"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><select id="rShape3"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select></div>
     <div class="row"><label>splay law</label><select id="rSplay"><option value="1" selected>rank-based (A5 fix)</option><option value="0">legacy (defective)</option></select></div>
-    <div class="hint">K&lt;0 splays. The legacy law settles into ANTI-PHASE PAIRS (A5 failure: min gap 0.038); rank-based targets the even lattice built from the current order. Watch the circle at K=−1.</div>
+    <div class="hint">K&lt;0 splays. Rank-based law + rate entrainment: at K=−1 all voices run the GLOBAL rate in a rigid even lattice (gap 0.250 exact, R sd 0) — the mirror of K=+1's tight cluster. Legacy law kept for A/B (anti-phase pairs + jumpy). Watch the circle at K=−1.</div>
   </div>
 
   <div class="cluster">
@@ -365,7 +387,7 @@ class ModLab {
       <button id="abEnv">B: ENV→K route</button>
       <button id="abClear">clear</button>
     </div>
-    <div class="hint">A sets onset 0.8 / dissolve 1.2 s (the dedicated params). B zeroes them and routes ENV→K at 0.8 with D 1.2 s, S 0 — the consolidation-review claim is that B reproduces A. Judge by ear; the K-trace overlays both.</div>
+    <div class="hint">A sets onset 0.8 / dissolve 1.2 s (the dedicated params). B zeroes them and routes ENV→<b>Kboost</b> at 0.64 (= onset·|onset|, the SAME coupling units) with D 1.2 s, S 0. FINDING: the generic K destination cannot reach onset's strength (km caps at 4 at K=1; onset 0.8 injects 5.12) — a fair A/B needs a coupling-domain destination. Judge by ear; the K-trace overlays both.</div>
   </div>
 
   <div class="cluster">
@@ -401,7 +423,7 @@ function ensureAudio() {
 const wire = (id, fn, fmt) => { const el = $(id); const out = $(id + '_o'); const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); }; el.addEventListener('input', f); f(); };
 wire('rK', v => lab.rotor.setParam('K', v));
 wire('rG', v => lab.rotor.setParam('gRate', v), v => v.toFixed(2) + 'x');
-$('rShape').addEventListener('change', () => lab.rotor.setParam('shape', +$('rShape').value));
+for (let i = 0; i < 4; i++) { const el = $('rShape' + i); el.addEventListener('change', () => lab.rotor.setParam('shape' + i, +el.value)); }
 $('rSplay').addEventListener('change', () => lab.rotor.setParam('splayLaw', +$('rSplay').value));
 wire('aRate', v => lab.lfoA.p.rate = v, v => v.toFixed(2) + ' Hz');
 $('aShape').addEventListener('change', () => lab.lfoA.p.shape = +$('aShape').value);
@@ -450,7 +472,7 @@ function setDepth(si, di, v) {
 $('abOnset').addEventListener('click', () => {
   $('sOn').value = 0.8; $('sOn').dispatchEvent(new Event('input'));
   $('sDis').value = 1.2; $('sDis').dispatchEvent(new Event('input'));
-  setDepth(7, 0, 0);
+  setDepth(7, 0, 0); setDepth(7, 1, 0);
   $('abOnset').classList.add('on'); $('abEnv').classList.remove('on');
 });
 $('abEnv').addEventListener('click', () => {
@@ -458,12 +480,15 @@ $('abEnv').addEventListener('click', () => {
   $('eA').value = 0.001; $('eA').dispatchEvent(new Event('input'));
   $('eD').value = 1.2; $('eD').dispatchEvent(new Event('input'));
   $('eS').value = 0; $('eS').dispatchEvent(new Event('input'));
-  setDepth(7, 0, 0.8);
+  setDepth(7, 0, 0);
+  // Kboost 0.64 = onset*|onset| at onset 0.8 — SAME coupling units as Kenv,
+  // so A and B now inject identical peak coupling (the fair A/B).
+  setDepth(7, 1, 0.64);
   $('abEnv').classList.add('on'); $('abOnset').classList.remove('on');
 });
 $('abClear').addEventListener('click', () => {
   $('sOn').value = 0; $('sOn').dispatchEvent(new Event('input'));
-  setDepth(7, 0, 0);
+  setDepth(7, 0, 0); setDepth(7, 1, 0);
   $('abOnset').classList.remove('on'); $('abEnv').classList.remove('on');
 });
 
@@ -529,7 +554,7 @@ function draw() {
   /* K trace: base + Kenv + matrix mod on the focused (loudest) voice */
   let focus = null;
   for (const s of lab.synth.sw) if (s.gate || s.env > 1e-3) { if (!focus || s.age > focus.age) focus = s; }
-  const kEff = Math.max(-1, Math.min(1, lab.synth.p.K + lab.mods.k)) + (focus ? Math.max(0, focus.Kenv) / 8 : 0);
+  const kEff = Math.max(-1, Math.min(1, lab.synth.p.K + lab.mods.k)) + (focus ? Math.max(0, focus.Kenv) / 8 : 0) + Math.max(0, lab.mods.kb);
   kHist.push(kEff); if (kHist.length > 250) kHist.shift();
   kt.fillStyle = '#0b0e13'; kt.fillRect(0, 0, 250, 70);
   kt.strokeStyle = '#2a3040'; kt.beginPath(); kt.moveTo(0, 35); kt.lineTo(250, 35); kt.stroke();
