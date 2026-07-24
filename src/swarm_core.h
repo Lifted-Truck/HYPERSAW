@@ -25,6 +25,7 @@
  */
 #pragma once
 
+#include <algorithm>  // std::stable_sort — the ADR-070 pan fan; stability is parity-relevant
 #include <cstdint>
 #include <cmath>
 #include <cstring>
@@ -123,6 +124,9 @@ struct Params
   // ADR-069 sync pivot: 0 = mean-field (reference), 1 = root-pinned pacemaker —
   // every voice entrains to the voice nearest f0; pitch-stable collapse.
   double pivotMode = 0;
+  // ADR-070 pan image: layout 0 = alternating pitch-ranked fan (the NEW default
+  // — root centred, ensemble widens as it climbs), 1 = legacy x-proportional.
+  double panLayout = 0, panCurve = 0.5, panInvert = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -193,8 +197,9 @@ class SwarmCore
     if (!slot) return false;
     *slot = v;
     if (k == "n" || k == "dist" || k == "seed" || k == "width" || k == "topo" ||
-        k == "panScatter")
-      rebuild();
+        k == "panScatter" || k == "law" || k == "panLayout" || k == "panCurve" ||
+        k == "panInvert")
+      rebuild();  // law/pan* added by ADR-070 (fan ranks by pitch); idempotent
     return true;
   }
 
@@ -585,6 +590,9 @@ class SwarmCore
     if (k == "spread") return &p.spread;              // ADR-068 detune multiplier
     if (k == "anchor") return &p.anchor;              // ADR-068 root anchor
     if (k == "pivotMode") return &p.pivotMode;        // ADR-069 sync pivot
+    if (k == "panLayout") return &p.panLayout;        // ADR-070 pan image
+    if (k == "panCurve") return &p.panCurve;          // ADR-070 fan curve
+    if (k == "panInvert") return &p.panInvert;        // ADR-070 fan invert
     return nullptr;
   }
 
@@ -678,8 +686,35 @@ class SwarmCore
       }
     }
     double pos[kMaxV];
-    for (int i = 0; i < n; i++)
-      pos[i] = std::max(-1.0, std::min(1.0, x[i])) * std::min(1.0, p.width);
+    const double wCap = std::min(1.0, p.width);  // super-width (ADR-025) acts later
+    if ((int)p.panLayout == 1)
+    {
+      // legacy image (pre-ADR-070): pan proportional to raw x
+      for (int i = 0; i < n; i++)
+        pos[i] = std::max(-1.0, std::min(1.0, x[i])) * wCap;
+    }
+    else
+    {
+      // ALTERNATING PITCH-RANKED FAN (ADR-070, the new DEFAULT — parity with
+      // swarmsaw.html): rank by pitch (by index when harmonic), rank r steps out
+      // from centre on alternating sides, distance reshaped by panCurve; invert
+      // flips the triangle. Rank 0 (the fundamental) sits exactly centre.
+      // std::stable_sort, NOT std::sort: JS Array.sort is stable (ES2019), and
+      // gaussian/cauchy clamp at +/-1 so ties are REACHABLE — an unstable sort
+      // would order ties differently and break parity.
+      int idx[kMaxV];
+      for (int i = 0; i < n; i++) idx[i] = i;
+      if ((int)p.law != 4)
+        std::stable_sort(idx, idx + n, [&](int a, int b) { return x[a] < x[b]; });
+      const double gamma = std::pow(6, 0.5 - p.panCurve);
+      for (int r = 0; r < n; r++)
+      {
+        double d = (n == 1) ? 0.0 : (double)r / (n - 1);
+        if (p.panInvert != 0) d = 1 - d;
+        d = std::pow(d, gamma);
+        pos[idx[r]] = std::max(-1.0, std::min(1.0, (r % 2 == 0 ? -1.0 : 1.0) * d * wCap));
+      }
+    }
     for (int i = 0; i < n; i++)
     {
       double pan = pos[i];

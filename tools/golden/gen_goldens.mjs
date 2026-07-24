@@ -40,7 +40,10 @@ const SEEDS = [1234, 777, 42];
 // no-output-pole config (the one structural difference between references).
 // All dyn scenarios pin the DYN defaults that differ from SAW defaults
 // explicitly (n, detune, retrig) so the core replay is self-contained.
-const DYN_BASE = { lpOut: 0, n: 24, detune: 0.2, retrig: 0, dist: 0 };  // dyn is always even-spread
+// panLayout 1 (ADR-070): the DYN reference is a separate frozen program whose
+// pan image is the legacy x-proportional one — when the CORE's default moved to
+// the fan, these scenarios had to say so explicitly (coreToDyn drops the key).
+const DYN_BASE = { lpOut: 0, n: 24, detune: 0.2, retrig: 0, dist: 0, panLayout: 1 };  // dyn is always even-spread
 const DYN_SCENARIOS = [
   { name: 'dyn-meanfield-alpha', p: { ...DYN_BASE, K: 0.9, alpha: 60 } },
   { name: 'dyn-ring',            p: { ...DYN_BASE, topo: 1, reach: 5, alpha: 80, K: 0.9 } },
@@ -57,6 +60,7 @@ function coreToDyn(k, v) {
   if (k === 'width') return ['swidth', v];
   if (k === 'law') return v === 3 ? ['beatQ', 1] : null;
   if (k === 'lpOut') return null;
+  if (k === 'panLayout') return null;  // ADR-070: dyn has no layout selector
   return [k, v];
 }
 
@@ -108,6 +112,16 @@ const SCENARIOS = [
   // in trajectory_check, not by a golden. See ADR-065.
   // Stretch law (ADR-066, law 5). stretch-flat pins the algebraic identity
   // B = 0 ≡ law 0; the other two cover mild and full bell inharmonicity.
+  // Pan image (ADR-070 — THE default-changing divergence: the alternating
+  // pitch-ranked fan replaced the x-proportional image as default, so every
+  // width-bearing SAW golden re-measured at that merge; dyn/spectra untouched).
+  // pan-legacy pins the OLD image: same params as tilt-thin + panLayout 1 — it
+  // must hash-equal the pre-ADR-070 tilt-thin render (checked at fold time).
+  { name: 'pan-fan-gauss',  p: { dist: 2, detune: 0.5, n: 9, width: 0.9 } },
+  { name: 'pan-fan-curve',  p: { panCurve: 0.15, detune: 0.5, n: 9, width: 0.9 } },
+  { name: 'pan-fan-invert', p: { panInvert: 1, detune: 0.5, n: 9, width: 0.9 } },
+  { name: 'pan-fan-harm',   p: { law: 4, detune: 0.8, n: 7, width: 0.9 } },
+  { name: 'pan-legacy',     p: { panLayout: 1, tilt: -0.6, detune: 0.5, n: 7 } },
   // Root-pinned pacemaker (ADR-069). Pivot only acts THROUGH coupling, so these
   // are coupled by necessity — spreads kept modest to stay inside the parity
   // domain (ACCEPTANCE L0-1 limit, ADR-065). Sync collapse, splay anchored on
