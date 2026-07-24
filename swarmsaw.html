@@ -208,7 +208,7 @@ class SwarmSynth {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
                driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
-               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0, spread:1, anchor:0, pivotMode:0 };
+               driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0, spread:1, anchor:0, pivotMode:0, panLayout:0, panCurve:0.5, panInvert:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
     this.panR = new Float64Array(MAXV);
@@ -240,7 +240,11 @@ class SwarmSynth {
   }
   setParam(k, v) {
     this.p[k] = v;
-    if (k === 'n' || k === 'dist' || k === 'seed' || k === 'width') this.rebuild();
+    if (k === 'n' || k === 'dist' || k === 'seed' || k === 'width' ||
+        k === 'law' || k === 'panLayout' || k === 'panCurve' || k === 'panInvert') this.rebuild();
+    // law/pan* trigger too (ADR-070): the fan ranks by pitch (index when
+    // harmonic), so the image depends on them. rebuild() is idempotent — x[] is
+    // deterministic from seed — so extra triggers cannot change a render.
   }
   rngG() { // global stream for offset draws
     this.grng |= 0; this.grng = (this.grng + 0x6D2B79F5) | 0;
@@ -289,11 +293,37 @@ class SwarmSynth {
     // −anchor·xmin so at anchor 1 the lowest voice sits exactly on the root.
     this.xmin = this.x[0];
     for (let i = 1; i < n; i++) if (this.x[i] < this.xmin) this.xmin = this.x[i];
-    for (let i = 0; i < n; i++) {
-      const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
-      this.pan[i] = pan;   // signed base pan, kept for pan motion (ADR-064)
-      const th = (pan + 1) * 0.25 * 3.14159265;
-      this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
+    if (this.p.panLayout === 1) {
+      // legacy image (pre-ADR-070): pan proportional to raw x — the position in
+      // the DISTRIBUTION drives the position in the FIELD, so gaussian/cauchy
+      // scramble the stereo order. Kept selectable; no longer the default.
+      for (let i = 0; i < n; i++) {
+        const pan = Math.max(-1, Math.min(1, this.x[i])) * this.p.width;
+        this.pan[i] = pan;   // signed base pan, kept for pan motion (ADR-064)
+        const th = (pan + 1) * 0.25 * 3.14159265;
+        this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
+      }
+    } else {
+      // ALTERNATING PITCH-RANKED FAN (ADR-070, the new DEFAULT image): rank
+      // voices by pitch (by index when harmonic — law 4's rung IS the pitch
+      // order), then rank r steps out from dead centre on alternating sides,
+      // distance r/(n−1) reshaped by curve (0.5 linear · <0.5 centre-focused ·
+      // >0.5 side-focused); invert flips the triangle (top voice centred).
+      // Rank 0 — the fundamental — sits exactly centre: the root holds the
+      // middle and the ensemble widens as it climbs.
+      const idx = Array.from({ length: n }, (_, i) => i);
+      idx.sort((a, b) => this.p.law === 4 ? a - b : this.x[a] - this.x[b]);
+      const gamma = Math.pow(6, 0.5 - this.p.panCurve);
+      for (let r = 0; r < n; r++) {
+        const i = idx[r];
+        let d = (n === 1) ? 0 : r / (n - 1);
+        if (this.p.panInvert) d = 1 - d;
+        d = Math.pow(d, gamma);
+        const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * d * this.p.width));
+        this.pan[i] = pan;   // signed base pan, kept for pan motion (ADR-064)
+        const th = (pan + 1) * 0.25 * 3.14159265;
+        this.panL[i] = Math.cos(th); this.panR[i] = Math.sin(th);
+      }
     }
   }
   alloc() {
