@@ -620,11 +620,18 @@ class SwarmCore
         if (xv > 1) xv = 1;
         if (xv < -1) xv = -1;
       }
-      else
+      else if (p.dist == 3)
       {
         xv = std::tan(kPiRef * (rngNext(grng) - 0.5)) / 4;
         if (xv > 1) xv = 1;
         if (xv < -1) xv = -1;
+      }
+      else
+      {
+        // GOLDEN (ADR-067, parity with swarmsaw.html): low-discrepancy irrational
+        // placement, (i+1)*phi^-1 mod 1 — even-but-inharmonic, no rng draws.
+        // std::fmod == JS % here (both operands positive).
+        xv = 2 * std::fmod((i + 1) * 0.6180339887498949, 1.0) - 1;
       }
       x[i] = xv;
     }
