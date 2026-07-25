@@ -212,6 +212,50 @@ these when the rotor graduates:
   by the human 2026-07-24** ("splay now working properly") — §7's pre-golden fix
   requirement is DISCHARGED and the rotor may proceed to the §3 harness
   deliverables.
+- **THE ROTOR BECAME A SWARM — §2's structural contract is SUPERSEDED (human
+  direction, 2026-07-24 evening).** Asked for the SAW oscillator's surface on
+  the modulation source, the rotor now carries: variable voice count (1..8),
+  a rate-DETUNE law with an anchor selector (geometric mean / slowest /
+  fastest voice pinned to the global rate), and the topology family
+  (mean-field / ring+reach / two-cluster+μ+balance). Three §2 lines no longer
+  hold: **NV = 4 fixed** (now 1..8), **one global shape** (already per-voice
+  since the morning), and **"no seed axis is needed"** (still true today —
+  the swarm remains RNG-free — but only until a seeded rate distribution is
+  added, which the detune law invites). CONSEQUENCE: **do not harden the
+  rotor to a golden until these axes settle** — a golden measured now would be
+  re-measured within a session, and its ACCEPTANCE rows (a protected-path
+  edit) would churn with it. The deeper observation, worth its own ADR when
+  the port comes: the mod source and the audio engine are now the SAME
+  phase-domain Kuramoto swarm at two rates, so the port should reuse
+  SwarmCore's machinery rather than grow a parallel implementation.
+  Measured on the generalised swarm (12 s, steady window 4–12 s):
+  splay gap = **exactly 1/n** at n ∈ {2,4,6,8}; free-run floor falls
+  0.631 → 0.425 → 0.389 → 0.360 (tracking the 1/√n incoherent floor);
+  ring coherence rises monotonically with reach (r1 0.842 · r2 0.966 ·
+  r3 0.983 at n=8, K=0.7); A/B balance splays cluster B (0.988 → 0.634 →
+  0.365). A1–A3 shift slightly from the concept-test numbers (K=0 0.425,
+  K=0.7 0.974, K=1 0.994) because the hard-coded rate set {0.7,0.4,0.95,0.55}
+  is replaced by the detune law — expected, and the reason those anchors are
+  re-measured on the hardened reference rather than copied.
+- **Degenerate-equilibrium trap (measured, and a defaults decision).** At
+  detune 0 every voice shares one rate, and evenly-spaced phases with
+  identical rates is an exact fixed point of mean-field Kuramoto: R = 0, so
+  the coupling force (∝ R) is exactly zero and the lattice never moves at ANY
+  K. The concept test never hit this because its four rates were hard-coded
+  heterogeneous. The state is real physics and stays reachable, but the
+  DEFAULT detune is non-zero (0.3, ≈1.2 octaves of spread) so the rotor does
+  not present as broken. Any future golden must state the rate configuration
+  with its anchors — an anchor measured at detune 0 is measuring the fixed
+  point, not the dynamics.
+- **Satellite swarms + link taper (chorus/phaser own swarms).** Each effect
+  now drives from its OWN swarm, with a `link` amount pulling it toward the
+  main swarm's mean phase (0 = independent, 1 = entrained). The gain is
+  **link² · 2 · R_master**: a linear gain locked the satellite by link 0.15 and
+  did nothing above it — the entire slider was one step. Quadratic puts the
+  threshold mid-travel (measured ψ-coherence: link 0.20 → 0.019, 0.35 → 0.257,
+  0.50 → 1.000), so "partly participating" is reachable. Same taper failure
+  ADR-059 recorded for the inertia knob; worth treating as a standing check on
+  any new coupling control.
 - **Polarity is a matrix-level question, not a rotor one (human note,
   2026-07-24).** Unipolar vs bipolar per source/route (ROADMAP, mod-matrix
   polarity entry) affects how `lfo[]` and `R` are CONSUMED, not how they are
