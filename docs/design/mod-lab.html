@@ -58,96 +58,162 @@ function mulberry(seed) {  // mulberry32, the house stream
   };
 }
 
-/* ---- Kuro rotor: the ADR-053 primitive, stripped per golden-spec §1 ----
-   4 phase-coupled LFOs; NO demo synth, NO rng. splayLaw selects the A5 fix:
-   0 = legacy (psi + i/NV slots — settles into anti-phase PAIRS, the measured
-       A5 failure: min gap 0.038, not even interleave);
-   1 = RANK-BASED (the golden-spec §7 suggested fix): each voice targets
-       anchor + rank/NV where anchor is the rank-0 voice's phase and rank is
-       the voice's CURRENT circular order. The lattice is built from the
-       actual configuration, so it cannot fight a drifting psi, and pairs are
-       broken because equal phases get DISTINCT ranks (ties by index). */
-class KuroRotor {
-  constructor(sr) {
+/* ---- KuroSwarm: the rotor generalised into a real Kuramoto swarm ----
+   Human direction 2026-07-24 asked the rotor for what the SAW oscillator has:
+   variable voice count, a detune law with an anchor choice, and the topology
+   family (ring / two-cluster) with their controls. Granting that turns the
+   "4-LFO rotor" into the SAME phase-domain swarm the audio engine runs, only
+   at control rate — one physics, two rates. CONSEQUENCE, recorded because it
+   is load-bearing: this breaks three lines the golden spec froze (NV=4 fixed,
+   one global shape, "no seed axis needed"), so the rotor must NOT be hardened
+   to a golden until these axes settle — see the spec amendments.
+
+   Satellites: a swarm may carry a `master` reference and a `link` amount, so
+   the chorus/phaser swarms can run independent (link 0) or be entrained by the
+   main swarm (link 1) — the "participating vs independent" slider. ---- */
+const MAXK = 8;
+class KuroSwarm {
+  constructor(sr, n) {
     this.sr = sr;
-    this.p = { K: 0.35, gRate: 1, splayLaw: 1,
-               shape0: 0, shape1: 0, shape2: 0, shape3: 0,   // per-voice (human, 2026-07-24)
-               r0: 0.7, r1: 0.4, r2: 0.95, r3: 0.55 };
-    this.phase = new Float64Array(NV);
-    this.lfo = new Float64Array(NV);     // constructor-init: readable at tick 0
-    this.rate = new Float64Array(NV);
-    this.R = 0; this.psi = 0;
-    this.phase[0] = 0.0; this.phase[1] = 0.25; this.phase[2] = 0.5; this.phase[3] = 0.75;
+    // detune DEFAULTS NON-ZERO on purpose. At detune 0 every voice shares one
+    // rate, and evenly-spaced phases with identical rates is a DEGENERATE
+    // EQUILIBRIUM of mean-field Kuramoto: R = 0 exactly, so the coupling force
+    // (which scales by R) is exactly zero and the lattice never moves at any K.
+    // That state is real physics and stays reachable (a perfectly rigid stagger
+    // is musically useful), but it must not be the default or the rotor looks
+    // broken. The old 4-voice prototype dodged this only because its rates were
+    // hard-coded heterogeneous ({0.7,0.4,0.95,0.55}); detune 0.3 spreads rates
+    // over ~1.2 octaves, the same order as that set.
+    this.p = { n: n || 4, K: 0.35, gRate: 1, detune: 0.3, anchor: 0, splayLaw: 1,
+               topo: 0, reach: 1, mu: 0.6, balance: 0, link: 0 };
+    this.shape = new Int32Array(MAXK);
+    this.phase = new Float64Array(MAXK);
+    this.lfo = new Float64Array(MAXK);   // constructor-init: readable at tick 0
+    this.rate = new Float64Array(MAXK);
+    this.R = 0; this.psi = 0; this.RA = 0; this.RB = 0;
     this.tick = 0;
+    this.master = null;                  // satellite swarms point at the main one
+    this.initPhases();
     this.updateRates();
     this.controlTick();
   }
-  setParam(k, v) { this.p[k] = v; if (k[0] === 'r' || k === 'gRate') this.updateRates(); }
+  // Even placement round the circle — the deterministic start the spec pins,
+  // generalised from the hard-coded 0/.25/.5/.75.
+  initPhases() { const n = Math.max(1, this.p.n | 0); for (let i = 0; i < MAXK; i++) this.phase[i] = (i % n) / n; }
+  setParam(k, v) {
+    this.p[k] = v;
+    if (k === 'n') { this.initPhases(); this.updateRates(); }
+    else if (k === 'gRate' || k === 'detune' || k === 'anchor') this.updateRates();
+  }
+  setShape(i, v) { this.shape[i] = v | 0; }
+  // DETUNE + ANCHOR (ask 1): voices spread geometrically over +-2 octaves at
+  // detune 1, then the whole set is normalised so the chosen reference voice
+  // sits exactly on gRate. anchor 0 = geometric MEAN on gRate (spread splits
+  // around it), 1 = SLOWEST on gRate (everything fans upward), 2 = FASTEST on
+  // gRate (everything fans downward). Ratios, not cents: LFO rates are heard
+  // as tempo relationships, so equal ratio steps are the musical spacing.
   updateRates() {
-    this.rate[0] = this.p.r0 * this.p.gRate; this.rate[1] = this.p.r1 * this.p.gRate;
-    this.rate[2] = this.p.r2 * this.p.gRate; this.rate[3] = this.p.r3 * this.p.gRate;
+    const p = this.p, n = Math.max(1, p.n | 0);
+    const ratios = new Float64Array(n);
+    let mn = 1e9, mx = -1e9, lg = 0;
+    for (let i = 0; i < n; i++) {
+      const x = n === 1 ? 0 : (2 * i / (n - 1) - 1);
+      const r = Math.pow(2, x * p.detune * 2);
+      ratios[i] = r; lg += Math.log(r);
+      if (r < mn) mn = r; if (r > mx) mx = r;
+    }
+    const norm = p.anchor === 1 ? mn : (p.anchor === 2 ? mx : Math.exp(lg / n));
+    for (let i = 0; i < n; i++) this.rate[i] = p.gRate * ratios[i] / norm;
+    for (let i = n; i < MAXK; i++) this.rate[i] = 0;
   }
   shapeOf(ph, vi) {
-    switch (this.p['shape' + vi]) {
+    switch (this.shape[vi]) {
       case 1: return ph < 0.5 ? (4 * ph - 1) : (3 - 4 * ph);
       case 2: return 2 * ph - 1;
       case 3: return ph < 0.5 ? 1 : -1;
       default: return Math.sin(TAU * ph);
     }
   }
+  // Order parameter over the ACTIVE voices, plus the A/B halves the two-cluster
+  // topology needs (mirrors SwarmCore's RA/RB readouts).
   controlTick() {
+    const n = Math.max(1, this.p.n | 0);
     let cx = 0, cy = 0;
-    for (let i = 0; i < NV; i++) { const a = TAU * this.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
-    this.R = Math.sqrt(cx * cx + cy * cy) / NV;
+    for (let i = 0; i < n; i++) { const a = TAU * this.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    this.R = Math.sqrt(cx * cx + cy * cy) / n;
     this.psi = Math.atan2(cy, cx);
-    for (let i = 0; i < NV; i++) this.lfo[i] = this.shapeOf(this.phase[i], i);
+    const h = n >> 1;
+    let ax = 0, ay = 0, bx = 0, by = 0;
+    for (let i = 0; i < h; i++) { const a = TAU * this.phase[i]; ax += Math.cos(a); ay += Math.sin(a); }
+    for (let i = h; i < n; i++) { const a = TAU * this.phase[i]; bx += Math.cos(a); by += Math.sin(a); }
+    this.RA = h ? Math.sqrt(ax * ax + ay * ay) / h : 0;
+    this.psiA = Math.atan2(ay, ax);
+    this.RB = (n - h) ? Math.sqrt(bx * bx + by * by) / (n - h) : 0;
+    this.psiB = Math.atan2(by, bx);
+    for (let i = 0; i < n; i++) this.lfo[i] = this.shapeOf(this.phase[i], i);
+    for (let i = n; i < MAXK; i++) this.lfo[i] = 0;
   }
-  // Advance nSmp samples of phase dynamics. controlTick is interleaved every
-  // TICK samples exactly as the prototype does (the golden spec FREEZES that
-  // structure — R/psi must refresh mid-block, not once per host block).
   advance(nSmp) {
-    const p = this.p, sr = this.sr, K = p.K;
+    const p = this.p, sr = this.sr, K = p.K, n = Math.max(1, p.n | 0);
     const kHz = (K > 0 ? K * K : -K * K) * 3.0;
+    const topo = p.topo | 0;
     for (let smp = 0; smp < nSmp; smp++) {
       if (this.tick === 0) this.controlTick();
       this.tick = (this.tick + 1) & (TICK - 1);
+      // cross-swarm entrainment (ask 4): a satellite is pulled toward its
+      // master's mean phase by `link`; 0 = fully independent.
+      // QUADRATIC taper (measured): a linear gain locked the satellite by
+      // link 0.15 and did nothing above it — the whole slider was one step.
+      // link^2 * 2.0 puts the entrainment threshold mid-travel for typical
+      // rate differences, so "partly participating" is actually reachable.
+      // Same failure mode ADR-059 recorded for the inertia knob.
+      const m = this.master, lk = m ? p.link * p.link * 2.0 * m.R : 0;
       if (K < 0 && p.splayLaw === 1) {
-        // rank-based even lattice: ranks from current circular order (anchor =
-        // rank-0 voice), recomputed per sample — NV=4, trivially cheap.
-        // ATTRACTION to the lattice needs |kHz|: kHz is NEGATIVE for K<0 (the
-        // legacy repel-from-slot law is built around that sign) — using it raw
-        // repels from the lattice and CLUSTERS (measured: meanR 0.842, gap 0).
-        const kMag = -kHz;
-        // RATE ENTRAINMENT (human request 2026-07-24, the de-jump): each voice's
-        // rate blends toward the MEAN rate by |K|, mirroring what sync does
-        // implicitly — at K=-1 all voices run the global rate, so nothing ever
-        // passes anything: ranks stop churning, the lattice is rigid, and the
-        // splay is a clean even rotation instead of a jumpy one. Measured over
-        // the spec window: R sd 0.1567 (legacy) -> 0.0000; gap 0.229 (rank law
-        // without entrainment) -> 0.250 exact; meanR 0.026 -> 0.000.
-        const mr = (this.rate[0] + this.rate[1] + this.rate[2] + this.rate[3]) / NV;
-        const blend = -K;   // 0..1 over the splay range
-        const idx = [0, 1, 2, 3];
+        // rank lattice + rate entrainment (the A5 fix), generalised to n
+        const kMag = -kHz, blend = -K;
+        let mr = 0; for (let i = 0; i < n; i++) mr += this.rate[i]; mr /= n;
+        const idx = []; for (let i = 0; i < n; i++) idx.push(i);
         idx.sort((a, b) => this.phase[a] - this.phase[b] || a - b);
         const anchor = this.phase[idx[0]];
-        for (let r = 0; r < NV; r++) {
+        for (let r = 0; r < n; r++) {
           const i = idx[r];
-          const target = anchor + r / NV;
           const eff = this.rate[i] + (mr - this.rate[i]) * blend;
-          this.phase[i] += eff / sr + kMag * Math.sin(TAU * (target - this.phase[i])) / sr;
-        }
-      } else {
-        for (let i = 0; i < NV; i++) {
-          let adv = this.rate[i] / sr;
-          if (K > 0) adv += kHz * this.R * Math.sin(this.psi - TAU * this.phase[i]) / sr;
-          else if (K < 0) {
-            const slot = this.psi + TAU * i / NV;   // legacy defective law, kept for A/B
-            adv += kHz * Math.sin(slot - TAU * this.phase[i]) / sr;
-          }
+          let adv = eff / sr + kMag * Math.sin(TAU * (anchor + r / n - this.phase[i])) / sr;
+          if (lk) adv += lk * Math.sin(m.psi - TAU * this.phase[i]) / sr;
           this.phase[i] += adv;
         }
+      } else {
+        const h = n >> 1, kB = kHz * (1 - 2 * p.balance);   // ADR-051 A/B balance
+        const reach = Math.max(1, Math.min((n - 1) >> 1, p.reach | 0));
+        for (let i = 0; i < n; i++) {
+          const th = TAU * this.phase[i];
+          let c = 0;
+          if (K > 0) {
+            if (topo === 1) {
+              // RING: only the `reach` nearest neighbours either side
+              let acc = 0;
+              for (let d = 1; d <= reach; d++) {
+                acc += Math.sin(TAU * this.phase[(i - d + n) % n] - th);
+                acc += Math.sin(TAU * this.phase[(i + d) % n] - th);
+              }
+              c = kHz * acc / (2 * reach);
+            } else if (topo === 2) {
+              // TWO-CLUSTER: full intra-cluster pull, mu across the divide;
+              // cluster B's gain is scaled by balance (0 symmetric, 1 splayed)
+              const inA = i < h;
+              const own = inA ? this.RA : this.RB, ownPsi = inA ? this.psiA : this.psiB;
+              const oth = inA ? this.RB : this.RA, othPsi = inA ? this.psiB : this.psiA;
+              const g = inA ? kHz : kB;
+              c = g * (own * Math.sin(ownPsi - th) + p.mu * oth * Math.sin(othPsi - th));
+            } else {
+              c = kHz * this.R * Math.sin(this.psi - th);
+            }
+          }
+          if (lk) c += lk * Math.sin(m.psi - th);
+          this.phase[i] += (this.rate[i] + c) / sr;
+        }
       }
-      for (let i = 0; i < NV; i++) this.phase[i] -= Math.floor(this.phase[i]);
+      for (let i = 0; i < n; i++) this.phase[i] -= Math.floor(this.phase[i]);
     }
   }
 }
@@ -346,32 +412,35 @@ class KuroChorus {
     this.len = 1 << 13;                    // 8192 >= max delay (base+depth) * sr
     this.line = new Float64Array(this.len);
     this.w = 0;
-    this.dly = new Float64Array(NV);       // smoothed per-tap delay, in samples
+    this.dly = new Float64Array(MAXK);     // smoothed per-tap delay, in samples
     this.primed = 0;
-    this.tapL = new Float64Array(NV);
-    this.tapR = new Float64Array(NV);
+    this.tapL = new Float64Array(MAXK);
+    this.tapR = new Float64Array(MAXK);
+    this.panN = 0;
     this.smoothS = 0.002;                  // 2 ms delay-target smoothing
     this.spreadCached = -1;
   }
-  updatePans() {
-    for (let t = 0; t < NV; t++) {
-      const pos = (NV === 1 ? 0 : (2 * t / (NV - 1) - 1)) * this.p.spread;
+  updatePans(NT) {
+    this.panN = NT;
+    for (let t = 0; t < NT; t++) {
+      const pos = (NT === 1 ? 0 : (2 * t / (NT - 1) - 1)) * this.p.spread;
       const th = (pos + 1) * 0.25 * 3.14159265;
       this.tapL[t] = Math.cos(th); this.tapR[t] = Math.sin(th);
     }
     this.spreadCached = this.p.spread;
   }
-  process(L, R, off, cnt, lfo, depthMod) {
+  process(L, R, off, cnt, lfo, nv, depthMod) {
     const p = this.p, sr = this.sr;
     if (p.mix <= 0.0001) { this.primed = 0; return; }
-    if (this.spreadCached !== p.spread) this.updatePans();
+    const NT = Math.max(1, Math.min(MAXK, nv | 0));   // taps = its swarm's voices
+    if (this.spreadCached !== p.spread || this.panN !== NT) this.updatePans(NT);
     const c = 1 - Math.exp(-1 / (this.smoothS * sr));
     const dep = Math.max(0, Math.min(0.02, p.depth + (depthMod || 0) * 0.01));
-    const norm = 1 / NV, end = off + cnt, len = this.len;
+    const norm = 1 / NT, end = off + cnt, len = this.len;
     for (let i = off; i < end; i++) {
       const dry = (L[i] + R[i]) * 0.5;
       let wetL = 0, wetR = 0, wetM = 0;
-      for (let t = 0; t < NV; t++) {
+      for (let t = 0; t < NT; t++) {
         const target = Math.max(2, (p.base + dep * lfo[t]) * sr);
         if (!this.primed) this.dly[t] = target;
         this.dly[t] += c * (target - this.dly[t]);
@@ -425,24 +494,25 @@ class KuroPhaser {
     this.MAXST = 8;
     this.zL = new Float64Array(this.MAXST);
     this.zR = new Float64Array(this.MAXST);
-    this.fcL = new Float64Array(NV);   // smoothed corner freq per voice, L
-    this.fcR = new Float64Array(NV);
+    this.fcL = new Float64Array(MAXK); // smoothed corner freq per voice, L
+    this.fcR = new Float64Array(MAXK);
     this.fbL = 0; this.fbR = 0;
     this.primed = 0;
     this.smoothS = 0.003;              // seconds (ADR-009), not a raw coeff
   }
-  process(L, R, off, cnt, lfo, depthMod) {
+  process(L, R, off, cnt, lfo, nv, depthMod) {
     const p = this.p, sr = this.sr;
     if (p.mix <= 0.0001) { this.primed = 0; return; }
+    const NX = Math.max(1, Math.min(MAXK, nv | 0));   // voices steering the chain
     const c = 1 - Math.exp(-1 / (this.smoothS * sr));
     const dep = Math.max(0, Math.min(3, p.depth + (depthMod || 0) * 2));
     const nyq = sr * 0.45, st = Math.max(1, Math.min(this.MAXST, p.stages | 0));
     const rot = p.stereoRot | 0, end = off + cnt;
     for (let i = off; i < end; i++) {
       // per-voice corner frequencies, smoothed (exponential in octaves)
-      for (let v = 0; v < NV; v++) {
+      for (let v = 0; v < NX; v++) {
         const tL = Math.max(40, Math.min(nyq, p.base * Math.pow(2, dep * lfo[v])));
-        const tR = Math.max(40, Math.min(nyq, p.base * Math.pow(2, dep * lfo[(v + rot) % NV])));
+        const tR = Math.max(40, Math.min(nyq, p.base * Math.pow(2, dep * lfo[(v + rot) % NX])));
         if (!this.primed) { this.fcL[v] = tL; this.fcR[v] = tR; }
         this.fcL[v] += c * (tL - this.fcL[v]);
         this.fcR[v] += c * (tR - this.fcR[v]);
@@ -450,7 +520,7 @@ class KuroPhaser {
       this.primed = 1;
       let xL = L[i] + this.fbL * p.fb, xR = R[i] + this.fbR * p.fb;
       for (let j = 0; j < st; j++) {
-        const v = j % NV;
+        const v = j % NX;
         // first-order all-pass, TPT coefficient form
         const gL = Math.tan(Math.PI * this.fcL[v] / sr), aL = (gL - 1) / (gL + 1);
         const yL = aL * xL + this.zL[j]; this.zL[j] = xL - aL * yL; xL = yL;
@@ -465,12 +535,23 @@ class KuroPhaser {
 }
 
 /* ---- the lab host: rotor + LFOs + env + matrix + mini swarm ---- */
-const SOURCES = ['K1', 'K2', 'K3', 'K4', 'R', 'LFOA', 'LFOB', 'ENV'];
+// FIXED index space (rows for inactive K voices hide, never reindex):
+// 0..7 = K1..K8 · 8 = R · 9 = LFO A · 10 = LFO B · 11 = ENV. Fixed because a
+// route must survive changing the voice count — reindexing would silently
+// re-point every existing route when you add a voice.
+const SOURCES = ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8', 'R', 'LFOA', 'LFOB', 'ENV'];
+const SRC_R = 8, SRC_LFOA = 9, SRC_LFOB = 10, SRC_ENV = 11;
 const DESTS = ['K', 'Kboost', 'detune', 'cutoff', 'level', 'choDep', 'phDep'];
 class ModLab {
   constructor(sr) {
     this.sr = sr;
-    this.rotor = new KuroRotor(sr);
+    this.rotor = new KuroSwarm(sr, 4);                 // the main/master swarm
+    // Ask 4: chorus and phaser get their OWN swarms, each with a `link` slider
+    // — 0 independent, 1 entrained by the main swarm. Their K, detune,
+    // topology and voice count are theirs alone.
+    this.choSwarm = new KuroSwarm(sr, 4); this.choSwarm.master = this.rotor;
+    this.phSwarm = new KuroSwarm(sr, 4); this.phSwarm.master = this.rotor;
+    this.choSwarm.setParam('gRate', 0.6); this.phSwarm.setParam('gRate', 0.35);
     this.lfoA = new ClassicLFO(sr, 101);
     this.lfoB = new ClassicLFO(sr, 202);
     this.envP = { a: 0.01, d: 1.2, s: 0.0, r: 0.3 };   // shared ADSR settings
@@ -501,14 +582,14 @@ class ModLab {
     // srcVal reads its latest published lfo/R)
     const a = this.lfoA.tick(dt), b = this.lfoB.tick(dt), e = this.env.tick(dt);
     const s = this.srcVal;
-    s[0] = this.rotor.lfo[0]; s[1] = this.rotor.lfo[1]; s[2] = this.rotor.lfo[2]; s[3] = this.rotor.lfo[3];
+    for (let i = 0; i < MAXK; i++) s[i] = i < this.rotor.p.n ? this.rotor.lfo[i] : 0;
     // POLARITY MARKER (human note 2026-07-24, ROADMAP mod-matrix polarity):
     // R is inherently UNIPOLAR [0,1]; forcing it bipolar here changes what a
     // given depth means and injects a DC offset at R=0. Left as-is deliberately
     // — it is the concrete instance of the uni-vs-bipolar question the real
     // matrix must answer with a per-route setting, not a hard-coded map.
-    s[4] = this.rotor.R * 2 - 1;
-    s[5] = a; s[6] = b; s[7] = e;
+    s[SRC_R] = this.rotor.R * 2 - 1;
+    s[SRC_LFOA] = a; s[SRC_LFOB] = b; s[SRC_ENV] = e;
     // matrix: dest scales chosen so depth 1 spans the musically-full range
     // Kboost is COUPLING-DOMAIN (units of the onset-lock Kenv, x8 applied in
     // the swarm): the generic K destination saturates at km(K=1)=4 while
@@ -526,7 +607,7 @@ class ModLab {
       // not here — the global path would re-surge every sounding note on
       // each new key. ENV's other routes stay global (cutoff/level are
       // per-block quantities in this mini-synth; scope recorded).
-      const perNoteDiverted = (si === 7 && this.envPerNote);
+      const perNoteDiverted = (si === SRC_ENV && this.envPerNote);
       if (d[0]) out.k += d[0] * s[si] * SCALE.K;
       if (d[1] && !perNoteDiverted) out.kb += d[1] * s[si] * SCALE.Kboost;
       if (d[2]) out.det += d[2] * s[si] * SCALE.detune;
@@ -535,7 +616,7 @@ class ModLab {
       if (d[5]) out.cho += d[5] * s[si] * SCALE.choDep;
       if (d[6]) out.ph += d[6] * s[si] * SCALE.phDep;
     }
-    this.synth.perNoteKb = this.envPerNote ? this.depth[7][1] * SCALE.Kboost : 0;
+    this.synth.perNoteKb = this.envPerNote ? this.depth[SRC_ENV][1] * SCALE.Kboost : 0;
     this.mods = out;
   }
   render(outL, outR) {
@@ -548,9 +629,11 @@ class ModLab {
       const cnt = Math.min(TICK, nSmp - off);
       this.controlTick();
       this.rotor.advance(cnt);
+      this.choSwarm.advance(cnt);
+      this.phSwarm.advance(cnt);
       this.synth.render(outL, outR, this.mods, off, cnt);
-      this.chorus.process(outL, outR, off, cnt, this.rotor.lfo, this.mods.cho);
-      this.phaser.process(outL, outR, off, cnt, this.rotor.lfo, this.mods.ph);
+      this.chorus.process(outL, outR, off, cnt, this.choSwarm.lfo, this.choSwarm.p.n, this.mods.cho);
+      this.phaser.process(outL, outR, off, cnt, this.phSwarm.lfo, this.phSwarm.p.n, this.mods.ph);
     }
   }
 }
@@ -563,16 +646,30 @@ class ModLab {
     <canvas id="rotorViz" width="230" height="150"></canvas>
     <div class="row"><label>K (pull)</label><input type="range" id="rK" min="-1" max="1" step="0.01" value="0.35"><output id="rK_o"></output></div>
     <div class="row"><label>global rate</label><input type="range" id="rG" min="0.1" max="4" step="0.05" value="1"><output id="rG_o"></output></div>
+    <div class="row"><label>voices</label><input type="range" id="rN" min="1" max="8" step="1" value="4"><output id="rN_o"></output></div>
+    <div class="row"><label>rate detune</label><input type="range" id="rDet" min="0" max="1" step="0.01" value="0.3"><output id="rDet_o"></output></div>
+    <div class="row"><label>anchor</label><select id="rAnc"><option value="0">mean on rate</option><option value="1">slowest on rate</option><option value="2">fastest on rate</option></select></div>
+    <div class="row"><label>topology</label><select id="rTopo"><option value="0">mean-field</option><option value="1">ring</option><option value="2">two-cluster</option></select></div>
+    <div class="row"><label>ring reach</label><input type="range" id="rReach" min="1" max="4" step="1" value="1"><output id="rReach_o"></output></div>
+    <div class="row"><label>cluster link μ</label><input type="range" id="rMu" min="0" max="1" step="0.01" value="0.6"><output id="rMu_o"></output></div>
+    <div class="row"><label>A/B balance</label><input type="range" id="rBal" min="0" max="1" step="0.01" value="0"><output id="rBal_o"></output></div>
     <div style="margin:6px 0 2px;font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase">shapes</div>
-    <div class="shaperow"><span class="dot" id="kDot0"></span><span class="nm" id="kNm0">K1</span>
+    <div class="shaperow" id="kRow0"><span class="dot" id="kDot0"></span><span class="nm" id="kNm0">K1</span>
       <select id="rShape0"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape0" width="88" height="24"></canvas></div>
-    <div class="shaperow"><span class="dot" id="kDot1"></span><span class="nm" id="kNm1">K2</span>
+    <div class="shaperow" id="kRow1"><span class="dot" id="kDot1"></span><span class="nm" id="kNm1">K2</span>
       <select id="rShape1"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape1" width="88" height="24"></canvas></div>
-    <div class="shaperow"><span class="dot" id="kDot2"></span><span class="nm" id="kNm2">K3</span>
+    <div class="shaperow" id="kRow2"><span class="dot" id="kDot2"></span><span class="nm" id="kNm2">K3</span>
       <select id="rShape2"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape2" width="88" height="24"></canvas></div>
-    <div class="shaperow"><span class="dot" id="kDot3"></span><span class="nm" id="kNm3">K4</span>
+    <div class="shaperow" id="kRow3"><span class="dot" id="kDot3"></span><span class="nm" id="kNm3">K4</span>
       <select id="rShape3"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape3" width="88" height="24"></canvas></div>
-
+    <div class="shaperow" id="kRow4"><span class="dot" id="kDot4"></span><span class="nm" id="kNm4">K5</span>
+      <select id="rShape4"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape4" width="88" height="24"></canvas></div>
+    <div class="shaperow" id="kRow5"><span class="dot" id="kDot5"></span><span class="nm" id="kNm5">K6</span>
+      <select id="rShape5"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape5" width="88" height="24"></canvas></div>
+    <div class="shaperow" id="kRow6"><span class="dot" id="kDot6"></span><span class="nm" id="kNm6">K7</span>
+      <select id="rShape6"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape6" width="88" height="24"></canvas></div>
+    <div class="shaperow" id="kRow7"><span class="dot" id="kDot7"></span><span class="nm" id="kNm7">K8</span>
+      <select id="rShape7"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape7" width="88" height="24"></canvas></div>
     <div class="row"><label>splay law</label><select id="rSplay"><option value="1" selected>rank-based (A5 fix)</option><option value="0">legacy (defective)</option></select></div>
     <div class="hint">K&lt;0 splays. Rank-based law + rate entrainment: at K=−1 all voices run the GLOBAL rate in a rigid even lattice (gap 0.250 exact, R sd 0) — the mirror of K=+1's tight cluster. Legacy law kept for A/B (anti-phase pairs + jumpy). Watch the circle at K=−1.</div>
   </div>
@@ -620,6 +717,12 @@ class ModLab {
     <div class="row"><label>depth</label><input type="range" id="cDep" min="0" max="0.012" step="0.0002" value="0.005"><output id="cDep_o"></output></div>
     <div class="row"><label>feedback</label><input type="range" id="cFb" min="0" max="0.75" step="0.01" value="0"><output id="cFb_o"></output></div>
     <div class="row"><label>tap spread</label><input type="range" id="cSpr" min="0" max="1" step="0.01" value="0.85"><output id="cSpr_o"></output></div>
+    <div style="margin:6px 0 2px;font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase">own swarm</div>
+    <div class="row"><label>taps (voices)</label><input type="range" id="cN" min="1" max="8" step="1" value="4"><output id="cN_o"></output></div>
+    <div class="row"><label>K</label><input type="range" id="cK" min="-1" max="1" step="0.01" value="0.35"><output id="cK_o"></output></div>
+    <div class="row"><label>rate</label><input type="range" id="cRate" min="0.05" max="4" step="0.05" value="0.6"><output id="cRate_o"></output></div>
+    <div class="row"><label>rate detune</label><input type="range" id="cDet" min="0" max="1" step="0.01" value="0.3"><output id="cDet_o"></output></div>
+    <div class="row"><label>link → main</label><input type="range" id="cLink" min="0" max="1" step="0.01" value="0"><output id="cLink_o"></output></div>
     <canvas id="choViz" width="250" height="80" style="margin-top:6px"></canvas>
     <div class="hint">Tap <i>i</i> is modulated by rotor voice <i>i</i> — so <b>K is the chorus character knob</b>: +1 taps move as one (unison vibrato) · 0 free ensemble drift · −1 even lattice, maximally decorrelated (the "past free" state a unipolar macro cannot reach). Sweep K with mix up. Feedback → flanger territory.</div>
   </div>
@@ -632,6 +735,12 @@ class ModLab {
     <div class="row"><label>feedback</label><input type="range" id="pFb" min="0" max="0.9" step="0.01" value="0.3"><output id="pFb_o"></output></div>
     <div class="row"><label>stages</label><input type="range" id="pSt" min="1" max="8" step="1" value="6"><output id="pSt_o"></output></div>
     <div class="row"><label>stereo rot</label><input type="range" id="pRot" min="0" max="3" step="1" value="2"><output id="pRot_o"></output></div>
+    <div style="margin:6px 0 2px;font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase">own swarm</div>
+    <div class="row"><label>voices</label><input type="range" id="phN" min="1" max="8" step="1" value="4"><output id="phN_o"></output></div>
+    <div class="row"><label>K</label><input type="range" id="phK" min="-1" max="1" step="0.01" value="0.35"><output id="phK_o"></output></div>
+    <div class="row"><label>rate</label><input type="range" id="phRate" min="0.05" max="4" step="0.05" value="0.35"><output id="phRate_o"></output></div>
+    <div class="row"><label>rate detune</label><input type="range" id="phDet" min="0" max="1" step="0.01" value="0.3"><output id="phDet_o"></output></div>
+    <div class="row"><label>link → main</label><input type="range" id="phLink" min="0" max="1" step="0.01" value="0"><output id="phLink_o"></output></div>
     <canvas id="phViz" width="250" height="80" style="margin-top:6px"></canvas>
     <div class="hint">Stage <i>j</i> is steered by rotor voice <i>j</i> mod 4, so K sets how the notches move <b>relative to each other</b>: +1 sweeps them as one (classic phaser) · 0 independent churn · −1 evenly distributed lattice. Stereo comes from the swarm — the right channel reads a rotated voice assignment. Mix 0.5 = deepest notches (dry+wet cancellation).</div>
   </div>
@@ -659,6 +768,7 @@ const $ = id => document.getElementById(id);
 // colour can never drift between views. NOTE this fixes a real collision: the
 // old scope palette gave ENV the same green as K4.
 const SRC_COL = ['#5ff2e0', '#ffc24b', '#b48cff', '#5fd08a',   // K1..K4
+                 '#ff8fd0', '#9ee86b', '#c7a8ff', '#ffe066',    // K5..K8
                  '#e8ecf2',                                     // R
                  '#ff6b8a', '#6ba8ff', '#ff9f5f'];              // LFO A, LFO B, ENV
 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -676,8 +786,25 @@ function ensureAudio() {
 const wire = (id, fn, fmt) => { const el = $(id); const out = $(id + '_o'); const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); }; el.addEventListener('input', f); f(); };
 wire('rK', v => lab.rotor.setParam('K', v));
 wire('rG', v => lab.rotor.setParam('gRate', v), v => v.toFixed(2) + 'x');
-for (let i = 0; i < 4; i++) { const el = $('rShape' + i); el.addEventListener('change', () => lab.rotor.setParam('shape' + i, +el.value)); }
+for (let i = 0; i < MAXK; i++) { const el = $('rShape' + i); el.addEventListener('change', () => lab.rotor.setShape(i, +el.value)); }
 $('rSplay').addEventListener('change', () => lab.rotor.setParam('splayLaw', +$('rSplay').value));
+wire('rN', v => { lab.rotor.setParam('n', v | 0); rebuildMatrixRows(); }, v => '' + v);
+wire('rDet', v => lab.rotor.setParam('detune', v), v => v < 0.005 ? 'unison' : '±' + (v * 2).toFixed(2) + ' oct');
+$('rAnc').addEventListener('change', () => lab.rotor.setParam('anchor', +$('rAnc').value));
+$('rTopo').addEventListener('change', () => lab.rotor.setParam('topo', +$('rTopo').value));
+wire('rReach', v => lab.rotor.setParam('reach', v | 0), v => '' + v);
+wire('rMu', v => lab.rotor.setParam('mu', v));
+wire('rBal', v => lab.rotor.setParam('balance', v));
+wire('cN', v => lab.choSwarm.setParam('n', v | 0), v => '' + v);
+wire('cK', v => lab.choSwarm.setParam('K', v));
+wire('cRate', v => lab.choSwarm.setParam('gRate', v), v => v.toFixed(2) + ' Hz');
+wire('cDet', v => lab.choSwarm.setParam('detune', v), v => v < 0.005 ? 'unison' : '±' + (v * 2).toFixed(2) + ' oct');
+wire('cLink', v => lab.choSwarm.setParam('link', v), v => v < 0.005 ? 'independent' : v.toFixed(2));
+wire('phN', v => lab.phSwarm.setParam('n', v | 0), v => '' + v);
+wire('phK', v => lab.phSwarm.setParam('K', v));
+wire('phRate', v => lab.phSwarm.setParam('gRate', v), v => v.toFixed(2) + ' Hz');
+wire('phDet', v => lab.phSwarm.setParam('detune', v), v => v < 0.005 ? 'unison' : '±' + (v * 2).toFixed(2) + ' oct');
+wire('phLink', v => lab.phSwarm.setParam('link', v), v => v < 0.005 ? 'independent' : v.toFixed(2));
 wire('aRate', v => lab.lfoA.p.rate = v, v => v.toFixed(2) + ' Hz');
 $('aShape').addEventListener('change', () => lab.lfoA.p.shape = +$('aShape').value);
 $('aRetrig').addEventListener('change', () => lab.lfoA.p.retrig = $('aRetrig').checked ? 1 : 0);
@@ -709,7 +836,7 @@ wire('pSt', v => lab.phaser.p.stages = v, v => '' + v);
 wire('pRot', v => lab.phaser.p.stereoRot = v, v => v ? '+' + v : 'mono-linked');
 
 /* colour every source reference from the one table */
-for (let i = 0; i < 4; i++) {
+for (let i = 0; i < MAXK; i++) {
   $('kDot' + i).style.background = SRC_COL[i];
   $('kNm' + i).style.color = SRC_COL[i];
 }
@@ -722,18 +849,55 @@ const mtx = $('mtx');
 {
   let html = '<tr><th></th>' + DESTS.map(d => `<th>${d}</th>`).join('') + '</tr>';
   SOURCES.forEach((s, si) => {
-    html += `<tr><th class="src" style="color:${SRC_COL[si]}"><span class="dot" style="background:${SRC_COL[si]}"></span>${s}</th>` + DESTS.map((d, di) =>
+    html += `<tr data-src="${si}"><th class="src" style="color:${SRC_COL[si]}"><span class="dot" style="background:${SRC_COL[si]}"></span>${s}</th>` + DESTS.map((d, di) =>
       `<td><input data-s="${si}" data-d="${di}" value="0"></td>`).join('') + '</tr>';
   });
   mtx.innerHTML = html;
+  const commit = inp => {
+    const v = Math.max(-1, Math.min(1, parseFloat(inp.value) || 0));
+    inp.value = v ? v.toFixed(2) : '0';
+    inp.classList.toggle('hot', v !== 0);
+    lab.depth[+inp.dataset.s][+inp.dataset.d] = v;
+  };
   mtx.querySelectorAll('input').forEach(inp => {
-    inp.addEventListener('change', () => {
-      const v = Math.max(-1, Math.min(1, parseFloat(inp.value) || 0));
-      inp.value = v ? v.toFixed(2) : '0';
-      inp.classList.toggle('hot', v !== 0);
-      lab.depth[+inp.dataset.s][+inp.dataset.d] = v;
+    inp.addEventListener('change', () => commit(inp));
+    // Ask 5: click-and-drag. Vertical drag is the coarse gesture (full range
+    // over ~200 px); shift drags fine. Pointer capture so the drag survives
+    // leaving the cell, and preventDefault so it doesn't turn into a text
+    // selection — the two things that make hand-rolled drags feel broken.
+    inp.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const y0 = e.clientY, v0 = parseFloat(inp.value) || 0;
+      let moved = false;
+      inp.setPointerCapture(e.pointerId);
+      const move = ev => {
+        const dy = y0 - ev.clientY;
+        if (!moved && Math.abs(dy) < 3) return;
+        moved = true; ev.preventDefault();
+        const scale = ev.shiftKey ? 0.0015 : 0.01;
+        inp.value = Math.max(-1, Math.min(1, v0 + dy * scale)).toFixed(2);
+        commit(inp);
+      };
+      const up = ev => {
+        inp.removeEventListener('pointermove', move);
+        inp.removeEventListener('pointerup', up);
+        try { inp.releasePointerCapture(ev.pointerId); } catch (_) {}
+        if (!moved) inp.select();      // a plain click still types
+      };
+      inp.addEventListener('pointermove', move);
+      inp.addEventListener('pointerup', up);
     });
   });
+}
+// Rows for inactive K voices hide (their routes are kept — the index space is
+// fixed, so re-adding a voice restores whatever it was routed to).
+function rebuildMatrixRows() {
+  const n = lab.rotor.p.n;
+  mtx.querySelectorAll('tr[data-src]').forEach(tr => {
+    const si = +tr.dataset.src;
+    tr.style.display = (si < MAXK && si >= n) ? 'none' : '';
+  });
+  for (let i = 0; i < MAXK; i++) $('kRow' + i).style.display = i < n ? '' : 'none';
 }
 function setDepth(si, di, v) {
   lab.depth[si][di] = v;
@@ -745,9 +909,10 @@ function setDepth(si, di, v) {
 $('abOnset').addEventListener('click', () => {
   $('sOn').value = 0.8; $('sOn').dispatchEvent(new Event('input'));
   $('sDis').value = 1.2; $('sDis').dispatchEvent(new Event('input'));
-  setDepth(7, 0, 0); setDepth(7, 1, 0);
+  setDepth(SRC_ENV, 0, 0); setDepth(SRC_ENV, 1, 0);
   $('abOnset').classList.add('on'); $('abEnv').classList.remove('on');
 });
+rebuildMatrixRows();
 $('ePerNote').addEventListener('change', () => { lab.envPerNote = $('ePerNote').checked ? 1 : 0; });
 $('abEnv').addEventListener('click', () => {
   $('ePerNote').checked = true; lab.envPerNote = 1;   // finding #2: the fair poly A/B
@@ -755,15 +920,15 @@ $('abEnv').addEventListener('click', () => {
   $('eA').value = 0.001; $('eA').dispatchEvent(new Event('input'));
   $('eD').value = 1.2; $('eD').dispatchEvent(new Event('input'));
   $('eS').value = 0; $('eS').dispatchEvent(new Event('input'));
-  setDepth(7, 0, 0);
+  setDepth(SRC_ENV, 0, 0);
   // Kboost 0.64 = onset*|onset| at onset 0.8 — SAME coupling units as Kenv,
   // so A and B now inject identical peak coupling (the fair A/B).
-  setDepth(7, 1, 0.64);
+  setDepth(SRC_ENV, 1, 0.64);
   $('abEnv').classList.add('on'); $('abOnset').classList.remove('on');
 });
 $('abClear').addEventListener('click', () => {
   $('sOn').value = 0; $('sOn').dispatchEvent(new Event('input'));
-  setDepth(7, 0, 0); setDepth(7, 1, 0);
+  setDepth(SRC_ENV, 0, 0); setDepth(SRC_ENV, 1, 0);
   $('abOnset').classList.remove('on'); $('abEnv').classList.remove('on');
 });
 
@@ -791,7 +956,7 @@ $('drone').addEventListener('click', () => {
 /* viz */
 const rv = $('rotorViz').getContext('2d'), sc = $('scope').getContext('2d'), kt = $('kTrace').getContext('2d');
 const cv = $('choViz').getContext('2d'), pv = $('phViz').getContext('2d');
-const kShapeCx = [0,1,2,3].map(i => $('kShape' + i).getContext('2d'));
+const kShapeCx = Array.from({length: MAXK}, (_, i) => $('kShape' + i).getContext('2d'));
 const aShapeCx = $('aShapeViz').getContext('2d'), bShapeCx = $('bShapeViz').getContext('2d');
 const eShapeCx = $('eShapeViz').getContext('2d');
 
@@ -844,7 +1009,7 @@ function drawEnv(cx, w, h, p, v, colour) {
   cx.fillStyle = '#8b94a6'; cx.font = '8px monospace';
   cx.fillText(v.toFixed(2), 3, 9);
 }
-const scopeHist = [[], [], [], [], [], [], [], []];
+const scopeHist = Array.from({length: SOURCES.length}, () => []);
 const kHist = [];
 function draw() {
   requestAnimationFrame(draw);
@@ -853,7 +1018,7 @@ function draw() {
   const cx = 75, cy = 75, rad = 58;
   rv.strokeStyle = '#2a3040'; rv.beginPath(); rv.arc(cx, cy, rad, 0, TAU); rv.stroke();
   const cols = SRC_COL;   // K1..K4 are the first four
-  for (let i = 0; i < NV; i++) {
+  for (let i = 0; i < lab.rotor.p.n; i++) {
     const a = TAU * lab.rotor.phase[i] - Math.PI / 2;
     rv.fillStyle = cols[i];
     rv.beginPath(); rv.arc(cx + rad * Math.cos(a), cy + rad * Math.sin(a), 5, 0, TAU); rv.fill();
@@ -864,17 +1029,19 @@ function draw() {
   rv.fillStyle = '#8b94a6'; rv.font = '10px monospace';
   rv.fillText('R ' + lab.rotor.R.toFixed(3), 158, 20);
   // min circular gap (the A5 readout, live)
-  const ph = [...lab.rotor.phase].sort((a, b) => a - b);
+  const nAct = lab.rotor.p.n;
+  const ph = [...lab.rotor.phase].slice(0, nAct).sort((a, b) => a - b);
   let gap = 1;
-  for (let i = 0; i < NV; i++) { const g = (i === NV - 1 ? ph[0] + 1 - ph[i] : ph[i + 1] - ph[i]); if (g < gap) gap = g; }
+  for (let i = 0; i < nAct; i++) { const g = (i === nAct - 1 ? ph[0] + 1 - ph[i] : ph[i + 1] - ph[i]); if (g < gap) gap = g; }
   rv.fillText('min gap ' + gap.toFixed(3), 158, 34);
   rv.fillText(gap > 0.2 ? 'interleave ✓' : (lab.rotor.p.K < 0 ? 'clustered' : ''), 158, 48);
   /* scope: sources */
   const srcs = lab.srcVal;
-  for (let i = 0; i < 8; i++) { scopeHist[i].push(srcs[i]); if (scopeHist[i].length > 250) scopeHist[i].shift(); }
+  for (let i = 0; i < SOURCES.length; i++) { scopeHist[i].push(srcs[i]); if (scopeHist[i].length > 250) scopeHist[i].shift(); }
   sc.fillStyle = '#0b0e13'; sc.fillRect(0, 0, 250, 90);
-  for (let i = 0; i < 8; i++) {
-    sc.strokeStyle = SRC_COL[i]; sc.globalAlpha = i < 4 ? 0.9 : 0.7; sc.beginPath();
+  for (let i = 0; i < SOURCES.length; i++) {
+    if (i < MAXK && i >= lab.rotor.p.n) continue;
+    sc.strokeStyle = SRC_COL[i]; sc.globalAlpha = i < MAXK ? 0.9 : 0.7; sc.beginPath();
     scopeHist[i].forEach((v, x) => { const y = 45 - v * 40; x ? sc.lineTo(x, y) : sc.moveTo(x, y); });
     sc.stroke();
   }
@@ -891,19 +1058,20 @@ function draw() {
   kt.stroke();
   /* chorus: live tap delays (ms) — the spread between bars IS the decorrelation */
   cv.fillStyle = '#0b0e13'; cv.fillRect(0, 0, 250, 80);
+  const nTap = lab.choSwarm.p.n;
   const ms = t => lab.chorus.dly[t] / lab.chorus.sr * 1000;
   const maxMs = (lab.chorus.p.base + lab.chorus.p.depth) * 1000 * 1.15;
   cv.strokeStyle = '#2a3040'; cv.beginPath();
   const baseY = 76 - (lab.chorus.p.base * 1000 / maxMs) * 70;
   cv.moveTo(0, baseY); cv.lineTo(250, baseY); cv.stroke();
-  for (let t = 0; t < NV; t++) {
+  for (let t = 0; t < nTap; t++) {
     const h = (ms(t) / maxMs) * 70;
-    cv.fillStyle = cols[t];
-    cv.fillRect(24 + t * 58, 76 - h, 34, h);
+    cv.fillStyle = SRC_COL[t];
+    cv.fillRect(6 + t * (238 / nTap), 76 - h, Math.max(6, 238 / nTap - 6), h);
   }
   /* per-source shape previews, each in its own colour with a live playhead */
-  for (let i = 0; i < 4; i++)
-    drawShape(kShapeCx[i], 88, 24, lab.rotor.p['shape' + i], SRC_COL[i], lab.rotor.phase[i]);
+  for (let i = 0; i < lab.rotor.p.n; i++)
+    drawShape(kShapeCx[i], 88, 24, lab.rotor.shape[i], SRC_COL[i], lab.rotor.phase[i]);
   drawShape(aShapeCx, 88, 24, lab.lfoA.p.shape, SRC_COL[5], lab.lfoA.ph, lab.lfoA.hold);
   drawShape(bShapeCx, 88, 24, lab.lfoB.p.shape, SRC_COL[6], lab.lfoB.ph, lab.lfoB.hold);
   {
@@ -913,7 +1081,7 @@ function draw() {
   }
   cv.fillStyle = '#8b94a6'; cv.font = '9px monospace';
   let mn = 1e9, mx = -1e9;
-  for (let t = 0; t < NV; t++) { const v = ms(t); if (v < mn) mn = v; if (v > mx) mx = v; }
+  for (let t = 0; t < nTap; t++) { const v = ms(t); if (v < mn) mn = v; if (v > mx) mx = v; }
   cv.fillText('tap spread ' + (mx - mn).toFixed(2) + ' ms', 6, 10);
   /* phaser: live notch frequencies on a log axis, one marker per rotor voice */
   pv.fillStyle = '#0b0e13'; pv.fillRect(0, 0, 250, 80);
@@ -922,7 +1090,7 @@ function draw() {
   for (const f of [100, 1000, 10000]) { const x = lg(f) * 250; pv.beginPath(); pv.moveTo(x, 0); pv.lineTo(x, 80); pv.stroke(); }
   const st = Math.max(1, Math.min(8, lab.phaser.p.stages | 0));
   for (let j = 0; j < st; j++) {
-    const v = j % NV, y = 8 + j * 8.5;
+    const v = j % lab.phSwarm.p.n, y = 8 + j * 8.5;
     pv.fillStyle = SRC_COL[v];
     pv.fillRect(lg(lab.phaser.fcL[v]) * 250 - 2, y, 4, 6);
     pv.globalAlpha = 0.45;
@@ -931,7 +1099,7 @@ function draw() {
   }
   pv.fillStyle = '#8b94a6'; pv.font = '8px monospace';
   let lo = 1e9, hi = 0;
-  for (let v = 0; v < NV; v++) { const f = lab.phaser.fcL[v]; if (f < lo) lo = f; if (f > hi) hi = f; }
+  for (let v = 0; v < lab.phSwarm.p.n; v++) { const f = lab.phaser.fcL[v]; if (f < lo) lo = f; if (f > hi) hi = f; }
   pv.fillText('notch spread ' + (Math.log2(hi / Math.max(1, lo))).toFixed(2) + ' oct   (dim = R chan)', 4, 76);
 }
 draw();
