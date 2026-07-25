@@ -335,7 +335,12 @@ class ModLab {
     const a = this.lfoA.tick(dt), b = this.lfoB.tick(dt), e = this.env.tick(dt);
     const s = this.srcVal;
     s[0] = this.rotor.lfo[0]; s[1] = this.rotor.lfo[1]; s[2] = this.rotor.lfo[2]; s[3] = this.rotor.lfo[3];
-    s[4] = this.rotor.R * 2 - 1;   // R mapped bipolar so depth semantics match
+    // POLARITY MARKER (human note 2026-07-24, ROADMAP mod-matrix polarity):
+    // R is inherently UNIPOLAR [0,1]; forcing it bipolar here changes what a
+    // given depth means and injects a DC offset at R=0. Left as-is deliberately
+    // — it is the concrete instance of the uni-vs-bipolar question the real
+    // matrix must answer with a per-route setting, not a hard-coded map.
+    s[4] = this.rotor.R * 2 - 1;
     s[5] = a; s[6] = b; s[7] = e;
     // matrix: dest scales chosen so depth 1 spans the musically-full range
     // Kboost is COUPLING-DOMAIN (units of the onset-lock Kenv, x8 applied in
