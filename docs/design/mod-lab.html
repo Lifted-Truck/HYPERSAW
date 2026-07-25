@@ -29,11 +29,18 @@
   .hint { color:var(--dim); font-size:10.5px; margin-top:6px; max-width:280px; }
   .ab { display:flex; gap:6px; margin-top:6px; }
   kbd { background:#0d1016; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+  .shaperow { display:flex; align-items:center; gap:5px; margin:3px 0; }
+  .shaperow .nm { width:36px; font-size:11px; font-weight:600; }
+  .shaperow select { flex:0 0 62px; }
+  .shaperow canvas { flex:0 0 auto; }
+  .dot { width:8px; height:8px; border-radius:2px; display:inline-block; flex:0 0 auto; }
+  table.mtx th.src { text-align:left; }
+  table.mtx th.src .dot { margin-right:4px; vertical-align:middle; }
 </style>
 </head>
 <body>
 <h1>SWARM<span class="star">✱</span> · mod lab</h1>
-<div class="tagline">Lab campaign 2.2 — Kuro rotor (ADR-053) toward golden (incl. the A5 splay fix, rank-based law) · classic LFOs + ADSR as first-class sources · mod matrix · env→K vs onset-lock consolidation A/B. Audition lab, spec-in-code — NOT a reference. Keys: <kbd>a</kbd>..<kbd>k</kbd> play, <kbd>space</kbd> drone.</div>
+<div class="tagline">Lab campaign 2.2 — Kuro rotor (ADR-053) toward golden (incl. the A5 splay fix, rank-based law) · classic LFOs + ADSR as first-class sources · mod matrix · env→K vs onset-lock consolidation A/B · <b>Kuro chorus</b> (rotor → delay taps) · <b>Kuro phaser</b> (rotor → notches). Audition lab, spec-in-code — NOT a reference. Keys: <kbd>a</kbd>..<kbd>k</kbd> play, <kbd>space</kbd> drone.</div>
 
 <script>
 /* ================= DSP ================= */
@@ -383,9 +390,83 @@ class KuroChorus {
   }
 }
 
+/* ---- Kuro phaser: the rotor as NOTCH modulator (human audition request
+   2026-07-24). A serial all-pass chain; stage j's corner frequency is steered
+   by rotor voice j % NV, so K controls how the notches move RELATIVE to each
+   other — the same signature as the chorus, in the frequency domain:
+     K = +1  all stages sweep together -> classic one-notch-comb phaser
+     K =  0  stages drift independently -> churning, many-notch motion
+     K = -1  even lattice -> notches evenly distributed and staying that way
+   Stereo comes from the rotor itself: the right channel reads voice
+   (j + stereoRot) % NV, so the two channels are decorrelated by the SWARM
+   rather than by an arbitrary phase offset. Sum of dry + all-pass output is
+   what creates the notches, so mix 0.5 is the deepest classic setting.
+   MEASURED (10 s drone, steady window 4-10 s, base 500 Hz, depth +-1.6 oct,
+   6 stages, fb 0.3, wet-only correlation):
+     K      notch spread (oct)   L/R corr
+     +1.0        0.186             0.866   <- swept as one
+     +0.7        0.382             0.855
+     +0.35       2.073             0.763
+      0.0        2.391             0.608
+     -0.35       2.585             0.217
+     -0.7        2.869             0.276
+     -1.0        2.879             0.287   <- even notch lattice
+   NOTE vs the chorus: the phaser's stereo sweep is SMOOTHER (0.87 -> 0.22-0.29
+   across the range) because its width comes from the voice-ROTATION assignment,
+   not from whether the rotor is locked; the chorus collapses to near-mono only
+   in the locked regime. Notch spread still shows the same lock cliff between
+   K +0.7 and +0.35. Stability: at max feedback 0.9 with mix 0.5 the output
+   peaks 1.076 and is NaN-clean — bounded, but hot enough to want the rack's
+   limiter downstream in a shipping version. ---- */
+class KuroPhaser {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { mix: 0, base: 500, depth: 1.6, fb: 0.3, stages: 6, stereoRot: 2 };
+    this.MAXST = 8;
+    this.zL = new Float64Array(this.MAXST);
+    this.zR = new Float64Array(this.MAXST);
+    this.fcL = new Float64Array(NV);   // smoothed corner freq per voice, L
+    this.fcR = new Float64Array(NV);
+    this.fbL = 0; this.fbR = 0;
+    this.primed = 0;
+    this.smoothS = 0.003;              // seconds (ADR-009), not a raw coeff
+  }
+  process(L, R, off, cnt, lfo, depthMod) {
+    const p = this.p, sr = this.sr;
+    if (p.mix <= 0.0001) { this.primed = 0; return; }
+    const c = 1 - Math.exp(-1 / (this.smoothS * sr));
+    const dep = Math.max(0, Math.min(3, p.depth + (depthMod || 0) * 2));
+    const nyq = sr * 0.45, st = Math.max(1, Math.min(this.MAXST, p.stages | 0));
+    const rot = p.stereoRot | 0, end = off + cnt;
+    for (let i = off; i < end; i++) {
+      // per-voice corner frequencies, smoothed (exponential in octaves)
+      for (let v = 0; v < NV; v++) {
+        const tL = Math.max(40, Math.min(nyq, p.base * Math.pow(2, dep * lfo[v])));
+        const tR = Math.max(40, Math.min(nyq, p.base * Math.pow(2, dep * lfo[(v + rot) % NV])));
+        if (!this.primed) { this.fcL[v] = tL; this.fcR[v] = tR; }
+        this.fcL[v] += c * (tL - this.fcL[v]);
+        this.fcR[v] += c * (tR - this.fcR[v]);
+      }
+      this.primed = 1;
+      let xL = L[i] + this.fbL * p.fb, xR = R[i] + this.fbR * p.fb;
+      for (let j = 0; j < st; j++) {
+        const v = j % NV;
+        // first-order all-pass, TPT coefficient form
+        const gL = Math.tan(Math.PI * this.fcL[v] / sr), aL = (gL - 1) / (gL + 1);
+        const yL = aL * xL + this.zL[j]; this.zL[j] = xL - aL * yL; xL = yL;
+        const gR = Math.tan(Math.PI * this.fcR[v] / sr), aR = (gR - 1) / (gR + 1);
+        const yR = aR * xR + this.zR[j]; this.zR[j] = xR - aR * yR; xR = yR;
+      }
+      this.fbL = xL; this.fbR = xR;
+      L[i] = L[i] * (1 - p.mix) + xL * p.mix;
+      R[i] = R[i] * (1 - p.mix) + xR * p.mix;
+    }
+  }
+}
+
 /* ---- the lab host: rotor + LFOs + env + matrix + mini swarm ---- */
 const SOURCES = ['K1', 'K2', 'K3', 'K4', 'R', 'LFOA', 'LFOB', 'ENV'];
-const DESTS = ['K', 'Kboost', 'detune', 'cutoff', 'level', 'choDep'];
+const DESTS = ['K', 'Kboost', 'detune', 'cutoff', 'level', 'choDep', 'phDep'];
 class ModLab {
   constructor(sr) {
     this.sr = sr;
@@ -398,9 +479,10 @@ class ModLab {
     this.synth = new MiniSwarm(sr);
     for (const sw of this.synth.sw) sw.modEnv = new ModEnv(sr, this.envP);
     this.chorus = new KuroChorus(sr);
+    this.phaser = new KuroPhaser(sr);
     // depth[src][dst] in -1..1
     this.depth = SOURCES.map(() => DESTS.map(() => 0));
-    this.mods = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0 };
+    this.mods = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0, ph: 0 };
     this.tick = 0;
     this.srcVal = new Float64Array(SOURCES.length);
   }
@@ -435,8 +517,8 @@ class ModLab {
     // coupling-domain destination. That asymmetry is a consolidation-review
     // FINDING, not a lab quirk: retiring onset lock via the matrix requires
     // the bus to reach the coupling target, not the clamped K knob.
-    const SCALE = { K: 1.0, Kboost: 1.0, detune: 0.5, cutoff: 1.0, level: 0.6, choDep: 1.0 };
-    const out = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0 };
+    const SCALE = { K: 1.0, Kboost: 1.0, detune: 0.5, cutoff: 1.0, level: 0.6, choDep: 1.0, phDep: 1.0 };
+    const out = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0, ph: 0 };
     for (let si = 0; si < SOURCES.length; si++) {
       const d = this.depth[si];
       // finding #2: with per-note ON, the ENV source's Kboost route is
@@ -451,6 +533,7 @@ class ModLab {
       if (d[3]) out.cut += d[3] * s[si] * SCALE.cutoff;
       if (d[4]) out.amp += d[4] * s[si] * SCALE.level;
       if (d[5]) out.cho += d[5] * s[si] * SCALE.choDep;
+      if (d[6]) out.ph += d[6] * s[si] * SCALE.phDep;
     }
     this.synth.perNoteKb = this.envPerNote ? this.depth[7][1] * SCALE.Kboost : 0;
     this.mods = out;
@@ -467,6 +550,7 @@ class ModLab {
       this.rotor.advance(cnt);
       this.synth.render(outL, outR, this.mods, off, cnt);
       this.chorus.process(outL, outR, off, cnt, this.rotor.lfo, this.mods.cho);
+      this.phaser.process(outL, outR, off, cnt, this.rotor.lfo, this.mods.ph);
     }
   }
 }
@@ -479,9 +563,16 @@ class ModLab {
     <canvas id="rotorViz" width="230" height="150"></canvas>
     <div class="row"><label>K (pull)</label><input type="range" id="rK" min="-1" max="1" step="0.01" value="0.35"><output id="rK_o"></output></div>
     <div class="row"><label>global rate</label><input type="range" id="rG" min="0.1" max="4" step="0.05" value="1"><output id="rG_o"></output></div>
-    <div class="row"><label>shapes K1–K4</label>
-      <select id="rShape0"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><select id="rShape1"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select>
-      <select id="rShape2"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><select id="rShape3"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select></div>
+    <div style="margin:6px 0 2px;font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase">shapes</div>
+    <div class="shaperow"><span class="dot" id="kDot0"></span><span class="nm" id="kNm0">K1</span>
+      <select id="rShape0"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape0" width="88" height="24"></canvas></div>
+    <div class="shaperow"><span class="dot" id="kDot1"></span><span class="nm" id="kNm1">K2</span>
+      <select id="rShape1"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape1" width="88" height="24"></canvas></div>
+    <div class="shaperow"><span class="dot" id="kDot2"></span><span class="nm" id="kNm2">K3</span>
+      <select id="rShape2"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape2" width="88" height="24"></canvas></div>
+    <div class="shaperow"><span class="dot" id="kDot3"></span><span class="nm" id="kNm3">K4</span>
+      <select id="rShape3"><option value="0">sin</option><option value="1">tri</option><option value="2">saw</option><option value="3">sq</option></select><canvas id="kShape3" width="88" height="24"></canvas></div>
+
     <div class="row"><label>splay law</label><select id="rSplay"><option value="1" selected>rank-based (A5 fix)</option><option value="0">legacy (defective)</option></select></div>
     <div class="hint">K&lt;0 splays. Rank-based law + rate entrainment: at K=−1 all voices run the GLOBAL rate in a rigid even lattice (gap 0.250 exact, R sd 0) — the mirror of K=+1's tight cluster. Legacy law kept for A/B (anti-phase pairs + jumpy). Watch the circle at K=−1.</div>
   </div>
@@ -489,15 +580,21 @@ class ModLab {
   <div class="cluster">
     <h2>Classic sources</h2>
     <div class="row"><label>LFO A rate</label><input type="range" id="aRate" min="0.05" max="12" step="0.05" value="1"><output id="aRate_o"></output></div>
-    <div class="row"><label>LFO A shape</label><select id="aShape"><option value="0">sine</option><option value="1">tri</option><option value="2">saw</option><option value="3">square</option><option value="4">S&amp;H</option></select>
-      <label style="width:auto">sync</label><input type="checkbox" id="aRetrig"></div>
+    <div class="shaperow"><span class="dot" id="aDot"></span><span class="nm" id="aNm">LFO A</span>
+      <select id="aShape"><option value="0">sine</option><option value="1">tri</option><option value="2">saw</option><option value="3">square</option><option value="4">S&amp;H</option></select>
+      <canvas id="aShapeViz" width="88" height="24"></canvas>
+      <label style="width:auto;font-size:10px">sync</label><input type="checkbox" id="aRetrig"></div>
     <div class="row"><label>LFO B rate</label><input type="range" id="bRate" min="0.05" max="12" step="0.05" value="0.25"><output id="bRate_o"></output></div>
-    <div class="row"><label>LFO B shape</label><select id="bShape"><option value="0">sine</option><option value="1">tri</option><option value="2" selected>saw</option><option value="3">square</option><option value="4">S&amp;H</option></select>
-      <label style="width:auto">sync</label><input type="checkbox" id="bRetrig"></div>
+    <div class="shaperow"><span class="dot" id="bDot"></span><span class="nm" id="bNm">LFO B</span>
+      <select id="bShape"><option value="0">sine</option><option value="1">tri</option><option value="2" selected>saw</option><option value="3">square</option><option value="4">S&amp;H</option></select>
+      <canvas id="bShapeViz" width="88" height="24"></canvas>
+      <label style="width:auto;font-size:10px">sync</label><input type="checkbox" id="bRetrig"></div>
     <div class="row"><label>env A</label><input type="range" id="eA" min="0.001" max="2" step="0.001" value="0.01"><output id="eA_o"></output></div>
     <div class="row"><label>env D</label><input type="range" id="eD" min="0.02" max="4" step="0.01" value="1.2"><output id="eD_o"></output></div>
     <div class="row"><label>env S</label><input type="range" id="eS" min="0" max="1" step="0.01" value="0"><output id="eS_o"></output></div>
     <div class="row"><label>env R</label><input type="range" id="eR" min="0.02" max="4" step="0.01" value="0.3"><output id="eR_o"></output></div>
+    <div class="shaperow"><span class="dot" id="eDot"></span><span class="nm" id="eNm">ENV</span>
+      <canvas id="eShapeViz" width="150" height="34"></canvas></div>
     <div class="row"><label>env per-note</label><input type="checkbox" id="ePerNote">
       <span class="hint" style="margin:0">each note gets its own env instance (poly-mod; Kboost route only)</span></div>
     <canvas id="scope" width="250" height="90" style="margin-top:6px"></canvas>
@@ -528,6 +625,18 @@ class ModLab {
   </div>
 
   <div class="cluster">
+    <h2>Kuro phaser (rotor → notches)</h2>
+    <div class="row"><label>mix</label><input type="range" id="pMix" min="0" max="1" step="0.01" value="0"><output id="pMix_o"></output></div>
+    <div class="row"><label>base freq</label><input type="range" id="pBase" min="80" max="3000" step="10" value="500"><output id="pBase_o"></output></div>
+    <div class="row"><label>depth</label><input type="range" id="pDep" min="0" max="3" step="0.02" value="1.6"><output id="pDep_o"></output></div>
+    <div class="row"><label>feedback</label><input type="range" id="pFb" min="0" max="0.9" step="0.01" value="0.3"><output id="pFb_o"></output></div>
+    <div class="row"><label>stages</label><input type="range" id="pSt" min="1" max="8" step="1" value="6"><output id="pSt_o"></output></div>
+    <div class="row"><label>stereo rot</label><input type="range" id="pRot" min="0" max="3" step="1" value="2"><output id="pRot_o"></output></div>
+    <canvas id="phViz" width="250" height="80" style="margin-top:6px"></canvas>
+    <div class="hint">Stage <i>j</i> is steered by rotor voice <i>j</i> mod 4, so K sets how the notches move <b>relative to each other</b>: +1 sweeps them as one (classic phaser) · 0 independent churn · −1 evenly distributed lattice. Stereo comes from the swarm — the right channel reads a rotated voice assignment. Mix 0.5 = deepest notches (dry+wet cancellation).</div>
+  </div>
+
+  <div class="cluster">
     <h2>Mini swarm (audition target)</h2>
     <div class="row"><label>voices</label><input type="range" id="sN" min="1" max="16" step="1" value="7"><output id="sN_o"></output></div>
     <div class="row"><label>detune</label><input type="range" id="sDet" min="0" max="1" step="0.005" value="0.3"><output id="sDet_o"></output></div>
@@ -545,6 +654,13 @@ class ModLab {
 
 <script>
 const $ = id => document.getElementById(id);
+// ONE colour per source, indexed like SOURCES — every reference to a source
+// (rotor dot, scope trace, shape preview, matrix row) reads from here, so a
+// colour can never drift between views. NOTE this fixes a real collision: the
+// old scope palette gave ENV the same green as K4.
+const SRC_COL = ['#5ff2e0', '#ffc24b', '#b48cff', '#5fd08a',   // K1..K4
+                 '#e8ecf2',                                     // R
+                 '#ff6b8a', '#6ba8ff', '#ff9f5f'];              // LFO A, LFO B, ENV
 const ctx = new (window.AudioContext || window.webkitAudioContext)();
 const lab = new ModLab(ctx.sampleRate);
 let spn = null;
@@ -585,13 +701,28 @@ wire('cBase', v => lab.chorus.p.base = v, v => (v * 1000).toFixed(1) + ' ms');
 wire('cDep', v => lab.chorus.p.depth = v, v => '±' + (v * 1000).toFixed(1) + ' ms');
 wire('cFb', v => lab.chorus.p.fb = v, v => v < 0.005 ? 'off' : v.toFixed(2));
 wire('cSpr', v => lab.chorus.p.spread = v);
+wire('pMix', v => lab.phaser.p.mix = v, v => v < 0.005 ? 'off' : v.toFixed(2));
+wire('pBase', v => lab.phaser.p.base = v, v => v.toFixed(0) + ' Hz');
+wire('pDep', v => lab.phaser.p.depth = v, v => '±' + v.toFixed(2) + ' oct');
+wire('pFb', v => lab.phaser.p.fb = v, v => v < 0.005 ? 'off' : v.toFixed(2));
+wire('pSt', v => lab.phaser.p.stages = v, v => '' + v);
+wire('pRot', v => lab.phaser.p.stereoRot = v, v => v ? '+' + v : 'mono-linked');
+
+/* colour every source reference from the one table */
+for (let i = 0; i < 4; i++) {
+  $('kDot' + i).style.background = SRC_COL[i];
+  $('kNm' + i).style.color = SRC_COL[i];
+}
+$('aDot').style.background = SRC_COL[5]; $('aNm').style.color = SRC_COL[5];
+$('bDot').style.background = SRC_COL[6]; $('bNm').style.color = SRC_COL[6];
+$('eDot').style.background = SRC_COL[7]; $('eNm').style.color = SRC_COL[7];
 
 /* matrix grid */
 const mtx = $('mtx');
 {
   let html = '<tr><th></th>' + DESTS.map(d => `<th>${d}</th>`).join('') + '</tr>';
   SOURCES.forEach((s, si) => {
-    html += `<tr><th>${s}</th>` + DESTS.map((d, di) =>
+    html += `<tr><th class="src" style="color:${SRC_COL[si]}"><span class="dot" style="background:${SRC_COL[si]}"></span>${s}</th>` + DESTS.map((d, di) =>
       `<td><input data-s="${si}" data-d="${di}" value="0"></td>`).join('') + '</tr>';
   });
   mtx.innerHTML = html;
@@ -659,7 +790,60 @@ $('drone').addEventListener('click', () => {
 
 /* viz */
 const rv = $('rotorViz').getContext('2d'), sc = $('scope').getContext('2d'), kt = $('kTrace').getContext('2d');
-const cv = $('choViz').getContext('2d');
+const cv = $('choViz').getContext('2d'), pv = $('phViz').getContext('2d');
+const kShapeCx = [0,1,2,3].map(i => $('kShape' + i).getContext('2d'));
+const aShapeCx = $('aShapeViz').getContext('2d'), bShapeCx = $('bShapeViz').getContext('2d');
+const eShapeCx = $('eShapeViz').getContext('2d');
+
+// One cycle of an LFO shape, in the source's colour, with a live phase head.
+// shape ids match the DSP: 0 sine 1 tri 2 saw 3 square 4 S&H (LFO only).
+function drawShape(cx, w, h, shape, colour, phase, held) {
+  cx.fillStyle = '#0b0e13'; cx.fillRect(0, 0, w, h);
+  cx.strokeStyle = '#2a3040'; cx.beginPath(); cx.moveTo(0, h / 2); cx.lineTo(w, h / 2); cx.stroke();
+  const pad = 3, amp = (h - 2 * pad) / 2, mid = h / 2;
+  const val = ph => {
+    switch (shape) {
+      case 1: return ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph;
+      case 2: return 2 * ph - 1;
+      case 3: return ph < 0.5 ? 1 : -1;
+      case 4: return held;                     // S&H: the held value, flat
+      default: return Math.sin(TAU * ph);
+    }
+  };
+  cx.strokeStyle = colour; cx.lineWidth = 1.5; cx.beginPath();
+  for (let x = 0; x <= w; x++) {
+    const y = mid - val(x / w) * amp;
+    x ? cx.lineTo(x, y) : cx.moveTo(x, y);
+  }
+  cx.stroke(); cx.lineWidth = 1;
+  if (phase !== undefined) {                   // live playhead
+    const px = phase * w, py = mid - val(phase) * amp;
+    cx.fillStyle = colour; cx.beginPath(); cx.arc(px, py, 2.5, 0, TAU); cx.fill();
+  }
+}
+
+// ADSR as drawn time — segment widths proportional to real seconds (with the
+// sustain given a fixed slab), so A/D/S/R sliders reshape the picture the way
+// they reshape the sound. Playhead marks the live envelope value.
+function drawEnv(cx, w, h, p, v, colour) {
+  cx.fillStyle = '#0b0e13'; cx.fillRect(0, 0, w, h);
+  const pad = 3, top = pad, bot = h - pad, span = bot - top;
+  const tA = p.a, tD = p.d, tS = Math.max(0.25, (p.a + p.d + p.r) * 0.4), tR = p.r;
+  const tot = tA + tD + tS + tR, sx = (w - 2) / tot;
+  const y = lv => bot - lv * span;
+  let x = 1;
+  cx.strokeStyle = colour; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(x, y(0));
+  x += tA * sx; cx.lineTo(x, y(1));
+  x += tD * sx; cx.lineTo(x, y(p.s));
+  x += tS * sx; cx.lineTo(x, y(p.s));
+  x += tR * sx; cx.lineTo(x, y(0));
+  cx.stroke(); cx.lineWidth = 1;
+  cx.fillStyle = colour; cx.globalAlpha = 0.5;
+  cx.beginPath(); cx.arc(w - 4, y(v), 2.5, 0, TAU); cx.fill();
+  cx.globalAlpha = 1;
+  cx.fillStyle = '#8b94a6'; cx.font = '8px monospace';
+  cx.fillText(v.toFixed(2), 3, 9);
+}
 const scopeHist = [[], [], [], [], [], [], [], []];
 const kHist = [];
 function draw() {
@@ -668,7 +852,7 @@ function draw() {
   rv.fillStyle = '#0b0e13'; rv.fillRect(0, 0, 230, 150);
   const cx = 75, cy = 75, rad = 58;
   rv.strokeStyle = '#2a3040'; rv.beginPath(); rv.arc(cx, cy, rad, 0, TAU); rv.stroke();
-  const cols = ['#5ff2e0', '#ffc24b', '#b48cff', '#5fd08a'];
+  const cols = SRC_COL;   // K1..K4 are the first four
   for (let i = 0; i < NV; i++) {
     const a = TAU * lab.rotor.phase[i] - Math.PI / 2;
     rv.fillStyle = cols[i];
@@ -689,9 +873,8 @@ function draw() {
   const srcs = lab.srcVal;
   for (let i = 0; i < 8; i++) { scopeHist[i].push(srcs[i]); if (scopeHist[i].length > 250) scopeHist[i].shift(); }
   sc.fillStyle = '#0b0e13'; sc.fillRect(0, 0, 250, 90);
-  const scCols = [...cols, '#e8ecf2', '#ff6b8a', '#8b94a6', '#5fd08a'];
   for (let i = 0; i < 8; i++) {
-    sc.strokeStyle = scCols[i]; sc.globalAlpha = i < 4 ? 0.9 : 0.7; sc.beginPath();
+    sc.strokeStyle = SRC_COL[i]; sc.globalAlpha = i < 4 ? 0.9 : 0.7; sc.beginPath();
     scopeHist[i].forEach((v, x) => { const y = 45 - v * 40; x ? sc.lineTo(x, y) : sc.moveTo(x, y); });
     sc.stroke();
   }
@@ -718,10 +901,38 @@ function draw() {
     cv.fillStyle = cols[t];
     cv.fillRect(24 + t * 58, 76 - h, 34, h);
   }
+  /* per-source shape previews, each in its own colour with a live playhead */
+  for (let i = 0; i < 4; i++)
+    drawShape(kShapeCx[i], 88, 24, lab.rotor.p['shape' + i], SRC_COL[i], lab.rotor.phase[i]);
+  drawShape(aShapeCx, 88, 24, lab.lfoA.p.shape, SRC_COL[5], lab.lfoA.ph, lab.lfoA.hold);
+  drawShape(bShapeCx, 88, 24, lab.lfoB.p.shape, SRC_COL[6], lab.lfoB.ph, lab.lfoB.hold);
+  {
+    let ev = lab.env.v;
+    if (lab.envPerNote) { let f = null; for (const sw of lab.synth.sw) if (sw.gate || sw.env > 1e-3) { if (!f || sw.age > f.age) f = sw; } if (f && f.modEnv) ev = f.modEnv.v; }
+    drawEnv(eShapeCx, 150, 34, lab.envP, ev, SRC_COL[7]);
+  }
   cv.fillStyle = '#8b94a6'; cv.font = '9px monospace';
   let mn = 1e9, mx = -1e9;
   for (let t = 0; t < NV; t++) { const v = ms(t); if (v < mn) mn = v; if (v > mx) mx = v; }
   cv.fillText('tap spread ' + (mx - mn).toFixed(2) + ' ms', 6, 10);
+  /* phaser: live notch frequencies on a log axis, one marker per rotor voice */
+  pv.fillStyle = '#0b0e13'; pv.fillRect(0, 0, 250, 80);
+  const fmin = 40, fmax = 16000, lg = f => Math.log(f / fmin) / Math.log(fmax / fmin);
+  pv.strokeStyle = '#2a3040';
+  for (const f of [100, 1000, 10000]) { const x = lg(f) * 250; pv.beginPath(); pv.moveTo(x, 0); pv.lineTo(x, 80); pv.stroke(); }
+  const st = Math.max(1, Math.min(8, lab.phaser.p.stages | 0));
+  for (let j = 0; j < st; j++) {
+    const v = j % NV, y = 8 + j * 8.5;
+    pv.fillStyle = SRC_COL[v];
+    pv.fillRect(lg(lab.phaser.fcL[v]) * 250 - 2, y, 4, 6);
+    pv.globalAlpha = 0.45;
+    pv.fillRect(lg(lab.phaser.fcR[v]) * 250 - 2, y + 2, 4, 4);
+    pv.globalAlpha = 1;
+  }
+  pv.fillStyle = '#8b94a6'; pv.font = '8px monospace';
+  let lo = 1e9, hi = 0;
+  for (let v = 0; v < NV; v++) { const f = lab.phaser.fcL[v]; if (f < lo) lo = f; if (f > hi) hi = f; }
+  pv.fillText('notch spread ' + (Math.log2(hi / Math.max(1, lo))).toFixed(2) + ' oct   (dim = R chan)', 4, 76);
 }
 draw();
 </script>
