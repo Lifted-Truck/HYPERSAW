@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supersaw timbre research — widening the saw design space</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#2a3040; --text:#e8ecf2; --dim:#8b94a6;
+          --green:#5fd08a; --amber:#ffc24b; --red:#ff6b8a; --gray:#7c8698; --cyan:#5ff2e0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.6 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:24px; max-width:1080px; margin:0 auto; }
+  h1 { font-size:22px; font-weight:600; margin-bottom:4px; } h1 .star { color:var(--cyan); }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:22px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.12em; color:var(--cyan); margin:28px 0 10px; padding-bottom:4px; border-bottom:1px solid var(--line); }
+  h3 { font-size:13.5px; margin:16px 0 4px; }
+  p { margin:8px 0; }
+  .lead { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:6px; padding:14px 18px; margin:14px 0; }
+  .lead b { color:var(--amber); }
+  table { width:100%; border-collapse:collapse; margin:10px 0; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); padding:6px 8px; border-bottom:1px solid var(--line); font-weight:500; }
+  td { padding:8px; border-bottom:1px solid var(--line); vertical-align:top; font-size:13px; }
+  .badge { font-size:10.5px; padding:2px 7px; border-radius:3px; white-space:nowrap; font-weight:500; }
+  .b-green { background:rgba(95,208,138,.16); color:var(--green); }
+  .b-amber { background:rgba(255,194,75,.16); color:var(--amber); }
+  .b-red { background:rgba(255,107,138,.16); color:var(--red); }
+  .b-gray { background:rgba(124,134,152,.16); color:var(--gray); }
+  .b-cyan { background:rgba(95,242,224,.16); color:var(--cyan); }
+  code { background:#0b0e13; border:1px solid var(--line); border-radius:3px; padding:1px 5px; font-size:12.5px; color:var(--cyan); }
+  .src { color:var(--dim); font-size:11px; word-break:break-all; }
+  ul { margin:6px 0 6px 20px; } li { margin:4px 0; }
+  .warn { border-left-color:var(--red); } .warn b { color:var(--red); }
+  .win { border-left-color:var(--green); } .win b { color:var(--green); }
+</style>
+</head>
+<body>
+<h1>SWARM<span class="star">✱</span> · supersaw timbre research</h1>
+<div class="sub">2026-07-25 · 103-agent research swarm: 5 search angles → source fetch → 3-vote adversarial verification → synthesis. 9 findings survived. Brief: widen the reachable timbre space toward (A) metallic/glassy hyperpop and (B) organic low growls, without breaking the saw mandate.</div>
+
+<div class="lead warn">
+<b>Read this first — half the brief came back empty.</b> Direction (A) metallic and the mechanism research are well served. <b>Direction (B) — organic low growls — produced NO surviving claims.</b> Reese phase cancellation, growl/talking bass, unison beating rates, filter self-oscillation, wavefolding and low-end FM/PM were all either unsourced or refuted under verification. Their feasibility is <b>UNDETERMINED, not assessed</b>. The competitive-landscape angle (Serum, Vital, Phase Plant, Massive, Falcon, Pigments, Hive) also produced nothing that survived, so this report has <b>no prior-art column</b>. Both gaps are honest holes, not omissions — a second, narrower pass is the fix.
+</div>
+
+<h2>1 · The origin story just changed</h2>
+
+<p><b>The JP-8000 SuperSaw has been read off the silicon</b> (39C3, Dec 2025 — automated silicon RE of the four custom Roland/Toshiba TC170C140 DSPs, plus a bit-accurate JIT emulator, <code>JE-8086</code>). The result is <b>deflationary</b>: seven <em>naive</em> (non-bandlimited) sawtooths, summed, through a high-pass filter, with aliasing dodged by running at an 88.2 kHz internal rate. No phase tricks. No chorus. No hidden modulation.</p>
+
+<p><b>Why this matters to us:</b> it removes a temptation. There is no lost Roland secret to recover — so every metallic/glassy reach has to come from HYPERSAW's own additions. It also retires a myth we could otherwise have chased.</p>
+
+<p class="src">Caveats recorded: the emulator ships without firmware (needs a user ROM dump — weak as a CI oracle, legally grey); bit-accuracy is developer-asserted with no published third-party hardware null test; one popular retelling (CDM) misidentifies the chip as a Motorola 56300, which is the Virus chip, not this one.<br>
+media.ccc.de/v/39c3-from-silicon-to-darude-sand-storm-breaking-famous-synthesizer-dsps · hackaday.com/2025/12/29/39c3-recreating-sandstorm/</p>
+
+<p><b>Szabo's 2010 thesis survives as the detune-law reference</b>, even though superseded as an architecture oracle: the detune curve is measurably <em>non-linear and non-proportional</em>, fitted with an 11th-degree polynomial, with an asymmetric, unequally-spaced set of side-oscillator ratios and a centre oscillator that detune does not move at all. Most of the knob's travel produces very small offsets. <span class="badge b-green">we already implement this — the JP-8000 distribution</span></p>
+
+<div class="lead win">
+<b>The single most useful finding for this project.</b> Peer-reviewed synthesis research states outright that <b>static spectral richness is not sufficient</b> for a convincing supersaw — the missing ingredient is <b>time-varying timbral variation</b> from the detuned bank. That is independent academic support for HYPERSAW's entire premise: the instrument's identity is the <em>animation</em>, not the stacked spectrum. Worth citing in SPEC.
+</div>
+
+<h2>2 · Two mechanisms that land inside the saw mandate</h2>
+
+<h3>Hard sync, as a pure phase operation <span class="badge b-cyan">category (ii) — add a parameter</span></h3>
+<p>The classic route to aggressive/metallic timbre <b>does not require a second oscillator</b>. It reduces to a phaseshaping composition on a single modulo-1 phase counter:</p>
+<p><code>y(n) = 2·[a₁·x(n) mod 1] − 1</code>, with <code>a₁ = f_slave / f_master</code></p>
+<p>Our swarm already maintains exactly that per-voice normalised modulo-1 phase, and <code>g_b</code> in the source yields a hard-synced <b>sawtooth</b> slave specifically — the wanted case under the saw mandate. Applying it to a coupling-perturbed phase is well defined, which means <b>sync ratio becomes a per-voice swarm parameter</b>, and the Kuramoto coupling can modulate it.</p>
+<p><b>Cost:</b> the trivial form is alias-prone (the modulo makes discontinuities); the source's own remedy is polyBLEP — which we already have in the saw oscillator, so budget a 2-sample correction per modulo transition.</p>
+<p class="src">SMC 2010 §3.3 (Kleimola/Lazzarini/Välimäki/Timoney), verified verbatim from PDF · extended by DAFx-11 VPS and Lazzarini/Timoney DAFx-12 · zenodo.org/records/849811</p>
+
+<h3>Formants without a filter <span class="badge b-cyan">category (ii) — add a parameter</span></h3>
+<p>Vowel-like and "talking" character — the spectral signature behind both the glassy hyperpop palette <em>and</em> the growl direction — is obtainable <b>inside the oscillator, with no filter in the signal path</b>. Three independently published mechanisms:</p>
+<ul>
+<li><b>Variable-slope phaseshaping</b> — a sinusoidal shaper on a variable-slope triangular phase produces a prominent formant region positioned by <code>a₁</code>; outside that region every fourth harmonic is missing.</li>
+<li><b>Vector Phaseshaping (VPS)</b> — formant centre at <code>f_f/f₀ = 2v − 1</code>, so formants land on exact harmonics at v = 1.5, 2, 2.5…</li>
+<li><b>Phase-synchronous ModFM</b> — formant placed at an arbitrary <code>f_f</code> by cross-fading two carriers on adjacent harmonics of <code>f_m</code>, crossfade coefficient = the fractional part of the ratio.</li>
+</ul>
+<p><b>Two caveats that shape the design</b>, both from the papers themselves: (1) aliasing appears where <code>2v−1</code> is non-integral, and the published fix crossfades <em>two</em> VPS oscillators — so "single oscillator" holds for a static formant, not for an alias-free glide; (2) <b>bandwidth is coupled to position</b> — offsetting the shaper spreads the formant and raises brightness and aliasing together, unlike a resonant filter's independent fc/Q. A formant knob here will not behave like a filter, and shouldn't be labelled as though it does.</p>
+<p class="src">SMC 2010 §3.7 · Kleimola et al. DAFx-11 Paris §3.1 (VPS) · Lazzarini &amp; Timoney, JAES 58(6) 2010 pp.459-471 (ModFM) — all verified verbatim from PDFs</p>
+
+<h2>3 · Feasibility map</h2>
+<table>
+<tr><th>technique</th><th>verdict</th><th>note</th></tr>
+<tr><td>Inharmonic partial placement · extreme detune into the series</td><td><span class="badge b-green">(i) already reachable</span></td><td>HARMONIC + STRETCH laws (ADR-065/066), SPECTRA</td></tr>
+<tr><td>Comb / Karplus-Strong resonance · notch colouring</td><td><span class="badge b-green">(i) already reachable</span></td><td>FX rack (ADR-071 comb, resonator bank, notch swarm)</td></tr>
+<tr><td><b>Hard sync → metallic</b></td><td><span class="badge b-cyan">(ii) add a swarm parameter</span></td><td>per-voice <code>a₁</code> on existing phase + polyBLEP</td></tr>
+<tr><td><b>Formant / vowel motion → glassy AND growl</b></td><td><span class="badge b-cyan">(ii) add a swarm parameter</span></td><td>oscillator-internal, no filter; bandwidth couples to position</td></tr>
+<tr><td>Time-varying timbral animation</td><td><span class="badge b-cyan">(ii) — and it's our thesis</span></td><td>the Kuramoto coupling term <em>is</em> the modulator the literature says is missing</td></tr>
+<tr><td>Filter-side metallic resonance</td><td><span class="badge b-gray">(iii) FX rack</span></td><td>nothing new needed</td></tr>
+<tr><td>Third engine</td><td><span class="badge b-red">(iv) NOT ESTABLISHED</span></td><td>see below — recommend exhausting (ii) first</td></tr>
+<tr><td>Reese · growl · wavefolding · unison beat rates · filter self-osc · low FM/PM</td><td><span class="badge b-amber">UNDETERMINED</span></td><td>no claim survived verification — needs its own pass</td></tr>
+</table>
+
+<h2>4 · On a third engine</h2>
+<p><b>The case is not made.</b> The best-attested candidate premise is the <b>Janus oscillator network</b>: a ring where each <em>node</em> holds two internally coupled phase oscillators with natural frequencies of equal magnitude and <b>opposite sign</b> (internal coupling β, external nearest-neighbour σ). It satisfies the mandate structurally — Kuramoto is a <em>reduction</em> of it, so it is a minimal extension rather than a new bag of effects.</p>
+<p><b>But its timbral payoff is unevidenced</b> — the specific claim that it yields a wider set of dynamical regimes was <em>refuted</em> under verification. So it is an interesting physical premise with no demonstrated sonic reason to build it yet.</p>
+<p><b>Recommendation: exhaust category (ii) first.</b> Hard sync and oscillator-internal formants both land in the existing saw swarm, and between them they target the metallic direction directly. If those are built and the glassy/growl space is still out of reach, that failure becomes the actual evidence for a third engine — which is a much better basis than starting one now.</p>
+
+<h2>5 · Prior art — the territory is emptier than expected</h2>
+<p>The nearest published coupled-oscillator audio synthesis work, the <b>Kuroscillator</b>, is a bank of phase-coupled <b>sine</b> waves with network frequencies capped at 0.25–30 Hz. It contains <b>no sawtooth, no supersaw, and no metallic or growl mechanism</b>. It is prior art for coupled-oscillator additive/rhythmic synthesis — <em>not</em> for a coupled detuned-saw swarm. Its one transferable contribution is the mean-field O(N) reduction, which carries a documented equation typo (already known to us).</p>
+<p>No competitive-landscape claim about the commercial synths survived verification, so treat that space as unsurveyed rather than clear.</p>
+
+<h2>6 · The one verified artist-process datum</h2>
+<p>For the hyperpop direction, exactly one first-person statement survived: <b>SOPHIE's</b> — everything except vocals was synthesized from raw waveforms, samples explicitly rejected, with <b>"metal" named as a synthesized target</b> on an Elektron Monomachine. So the metallic palette is documented as <b>reachable from synthesis primitives</b>, not derived from sampled metal recordings. Everything else in the AG Cook / PC Music / Danny L Harle discourse that the swarm surfaced was folklore and did not survive verification — which is itself worth knowing before anyone chases a technique on the strength of a forum post.</p>
+
+<h2>7 · What this changes</h2>
+<ul>
+<li><b>Two concrete lab candidates</b>, both category (ii), both saw-mandate-safe: per-voice <b>sync ratio</b>, and an oscillator-internal <b>formant axis</b>. Prototype-first in a lab, per ADR-003.</li>
+<li><b>The saw-shape retarget (task #17) gets a principled target.</b> A ripple / phase-shape axis <em>is</em> a family of subtle sawtooth variants — which is exactly what was asked for when ADR-058's saw↔square morph was rejected. It no longer needs measured synth-saw captures to proceed.</li>
+<li><b>A citation for SPEC:</b> the literature's "static richness is not sufficient; time-varying variation is the missing ingredient" is direct support for the project thesis.</li>
+<li><b>A second research pass is owed</b> on direction (B) and the competitive landscape — narrower brief, since the broad one returned nothing verifiable there.</li>
+</ul>
+
+<p class="src" style="margin-top:22px">Method: 103 agents · 5 search angles · URL-deduped fetch · 3-vote adversarial verification (2/3 refutes kills a claim) · 6.15M subagent tokens · 43 min. Claims that could not be sourced were dropped rather than softened, which is why direction (B) is empty rather than speculative.</p>
+</body>
+</html>
