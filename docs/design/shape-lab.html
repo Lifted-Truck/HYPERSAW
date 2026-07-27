@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SWARM✱ shape lab — sync · phase-warp formants · ripple</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#2a3040; --text:#e8ecf2; --dim:#8b94a6;
+          --green:#5fd08a; --amber:#ffc24b; --red:#ff6b8a; --cyan:#5ff2e0; --vio:#b48cff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:13px/1.5 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:14px; }
+  h1 { font-size:17px; margin-bottom:2px; } h1 .star { color:var(--cyan); }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:10px; max-width:1000px; }
+  .cols { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .cluster { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:262px; }
+  .cluster h2 { font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--cyan); margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:6px; margin:4px 0; }
+  .row label { width:92px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:60px; text-align:right; font-size:11px; }
+  .row select { background:#0d1016; color:var(--text); border:1px solid var(--line); font:inherit; font-size:11px; }
+  canvas { background:#0b0e13; border:1px solid var(--line); border-radius:4px; display:block; }
+  button { background:#0d1016; color:var(--text); border:1px solid var(--line); border-radius:4px; font:inherit; font-size:11px; padding:3px 9px; cursor:pointer; }
+  button.on { border-color:var(--cyan); color:var(--cyan); }
+  .hint { color:var(--dim); font-size:10.5px; margin-top:6px; max-width:270px; }
+  .warn { color:var(--amber); }
+  kbd { background:#0d1016; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+</style>
+</head>
+<body>
+<h1>SWARM<span class="star">✱</span> · shape lab</h1>
+<div class="tagline">Campaign-2 item 6 — the three phase-domain axes from the 2026-07-25 timbre research, prototyped together because they share one aliasing budget. <b>Every axis keeps the waveform a rising ramp per cycle</b>, so the saw mandate holds: sync resets the ramp early, warp changes its <i>rate</i>, ripple perturbs it. Nothing here replaces the sawtooth with another waveform. Audition lab, spec-in-code — NOT a reference. Keys <kbd>a</kbd>..<kbd>k</kbd>, <kbd>space</kbd> drone.</div>
+
+<script>
+/* ================= DSP ================= */
+/* Extractable section (extract_core.mjs pattern): no DOM references above the
+   UI banner. */
+const TICK = 16, TAU = 6.283185307, MAXV = 32;
+
+function mulberry(seed) {
+  let s = seed | 0;
+  return () => {
+    s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ---- the three axes, as one phase pipeline ----------------------------
+   THE MANDATE ARGUMENT, stated once here because it is the whole design:
+   a sawtooth is "phase, read as a rising ramp, reset once per cycle". Each
+   axis touches a DIFFERENT term of that sentence and none replaces the ramp:
+
+     SYNC   — resets the ramp EARLY (a1 resets per master cycle). Still a ramp.
+     WARP   — changes the ramp's RATE within the cycle (two-slope, CZ-style
+              phase distortion through the control point (d, v)). Still a
+              monotone rising ramp, so still a saw — but the slope break puts
+              a formant peak in the spectrum, which is the paper's
+              variable-slope mechanism (SMC 2010 §3.7) expressed in a way that
+              preserves the waveform family.
+     RIPPLE — adds a bounded sinusoidal perturbation to the phase. Monotonicity
+              is guaranteed by capping depth at the slope limit, so it stays a
+              ramp rather than folding back.
+
+   This is why the formant axis is NOT a filter and must never be drawn as
+   one: its bandwidth is set by the same control that sets its position (the
+   papers flag this explicitly — position and bandwidth are coupled, unlike
+   fc/Q). The lab shows the phase MAP so that coupling is visible, not hidden
+   behind a knob labelled "resonance".
+
+   ALIASING, MEASURED (f0 = 1760 Hz, 1 voice, no detune; inter-harmonic
+   midpoint sampling — the obvious metric lies, see the harness note):
+     plain saw        BLEP -149.5 dB   NAIVE  -48.6 dB
+     sync 2.00x       BLEP -136.0 dB   NAIVE  -45.3 dB
+     sync 2.37x       BLEP  -62.4 dB   NAIVE  -45.1 dB   <- the hot spot
+     warp d.20 v.60   BLEP -108.8 dB   NAIVE  -46.8 dB
+     warp d.08 v.80   BLEP  -60.0 dB                     <- steep slope costs
+     ripple .5 H3     BLEP -142.3 dB
+     ripple .5 H8     BLEP -129.0 dB
+     sync 2.37 + warp BLEP  -51.6 dB                     <- they COMPOUND
+   FINDINGS: (1) integer sync ratios are essentially free — the master wrap
+   lands on a slave reset, so the jump is full and the BLEP is exact.
+   (2) FRACTIONAL ratios are the alias hot spot: the master truncates the ramp
+   mid-cycle and the partial-height correction is only approximate (~-62 dB).
+   (3) Steep warp slopes cost ~50 dB. (4) Fractional sync AND steep warp
+   COMPOUND to -51.6 dB, only ~7 dB better than naive — the two axes share one
+   budget, which is exactly why the roadmap put them in one bench.
+   MITIGATIONS for the port, in preference order: snap ratios to integers
+   (toggle here, measured -136 dB); a proper BLAMP/multi-BLEP treatment of the
+   truncated wrap; or oversample only while fractional sync is engaged.     */
+
+// Two-slope phase warp through (d, v). d = v is the identity (plain saw).
+// Returns the warped phase AND the local slope, which the BLEP needs: the
+// discontinuity at the cycle edge is still -2, but its WIDTH in phase units
+// scales with the slope there.
+function warpPhase(ph, d, v) {
+  if (ph < d) return ph * (v / d);
+  return v + (ph - d) * ((1 - v) / (1 - d));
+}
+function warpSlope(ph, d, v) { return ph < d ? v / d : (1 - v) / (1 - d); }
+
+// Bounded phase ripple of integer order k. The k-th harmonic ripple has slope
+// derivative depth*cos(...), so |depth| < 1/(1) keeps d(warp)/d(ph) > 0 —
+// capped at 0.9 for margin, which is what keeps this a RAMP and not a fold.
+function rippleAdd(ph, depth, k) {
+  if (depth <= 0) return 0;
+  return depth * Math.sin(TAU * k * ph) / (TAU * k);
+}
+function rippleSlope(ph, depth, k) { return depth * Math.cos(TAU * k * ph); }
+
+class ShapeSwarm {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = {
+      n: 7, detune: 0.28, K: 0, seed: 1234, vol: 0.4, width: 0.8, digital: 1,
+      // axis 1 — hard sync
+      sync: 1.0, syncSpread: 0, syncCouple: 0, syncSnap: 0,
+      // axis 2 — phase warp (formant); d = v => identity
+      warpD: 0.5, warpV: 0.5,
+      // axis 3 — ripple
+      ripple: 0, rippleK: 3
+    };
+    this.sw = [];
+    for (let v = 0; v < 4; v++) this.sw.push(this.mkVoice());
+    this.noteCounter = 0;
+    this.rebuild();
+  }
+  mkVoice() {
+    return { midi: -1, f0: 220, gate: 0, env: 0, age: -1, tick: 0, R: 0,
+             phase: new Float64Array(MAXV), eff: new Float64Array(MAXV),
+             vf: new Float64Array(MAXV), lpL: 0, lpR: 0 };
+  }
+  rebuild() {
+    const n = this.p.n;
+    this.x = new Float64Array(n);
+    this.panL = new Float64Array(n); this.panR = new Float64Array(n);
+    for (let i = 0; i < n; i++) this.x[i] = n === 1 ? 0 : 2 * (i / (n - 1)) - 1;
+    for (let r = 0; r < n; r++) {           // ADR-070 pitch-ranked fan
+      const dd = n === 1 ? 0 : r / (n - 1);
+      const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * dd * this.p.width));
+      const th = (pan + 1) * 0.25 * 3.14159265;
+      this.panL[r] = Math.cos(th); this.panR[r] = Math.sin(th);
+    }
+  }
+  setParam(k, v) { this.p[k] = v; if (k === 'n' || k === 'width') this.rebuild(); }
+  alloc() {
+    let best = null;
+    for (const s of this.sw) if (!s.gate && s.env < 1e-3) { if (!best || s.age < best.age) best = s; }
+    if (best) return best;
+    for (const s of this.sw) if (!best || s.age < best.age) best = s;
+    return best;
+  }
+  noteOn(midi, f) {
+    const s = this.alloc();
+    s.midi = midi; s.f0 = f; s.gate = 1; s.age = this.noteCounter++;
+    const rng = mulberry((this.p.seed | 0) + s.age * 7919 + 1);
+    for (let i = 0; i < this.p.n; i++) s.phase[i] = rng();
+  }
+  noteOff(midi) { for (const s of this.sw) if (s.midi === midi && s.gate) s.gate = 0; }
+  control(s) {
+    const p = this.p, n = p.n;
+    let mean = 0;
+    for (let i = 0; i < n; i++) { s.vf[i] = s.f0 * Math.pow(2, (this.x[i] * p.detune * 100) / 1200); mean += s.vf[i]; }
+    mean /= n;
+    let m2 = 0;
+    for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; m2 += d * d; }
+    const sigma = Math.max(0.3, Math.sqrt(m2 / n));
+    let cx = 0, cy = 0;
+    for (let i = 0; i < n; i++) { const a = TAU * s.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    s.R = Math.sqrt(cx * cx + cy * cy) / n;
+    const psi = Math.atan2(cy, cx);
+    const km = 4 * p.K * Math.abs(p.K) * sigma;
+    for (let i = 0; i < n; i++) {
+      let c = 0;
+      if (km > 0) c = km * s.R * Math.sin(psi - TAU * s.phase[i]);
+      else if (km < 0) c = -km * 3 * Math.sin(TAU * (s.phase[0] + i / n - s.phase[i]));
+      s.eff[i] = s.vf[i] + c;
+    }
+  }
+  render(outL, outR) {
+    const p = this.p, sr = this.sr, n = p.n;
+    const atk = 1 - Math.exp(-1 / (0.003 * sr)), rel = 1 - Math.exp(-1 / (0.16 * sr));
+    const gain = p.vol / Math.sqrt(n);
+    const d = Math.min(0.98, Math.max(0.02, p.warpD)), v = Math.min(0.98, Math.max(0.02, p.warpV));
+    const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
+    for (let smp = 0; smp < outL.length; smp++) { outL[smp] = 0; outR[smp] = 0; }
+    for (const s of this.sw) {
+      if (!s.gate && s.env < 1e-4) continue;
+      for (let smp = 0; smp < outL.length; smp++) {
+        if (s.tick === 0) this.control(s);
+        s.tick = (s.tick + 1) & (TICK - 1);
+        let l = 0, r = 0;
+        for (let i = 0; i < n; i++) {
+          const f = Math.max(0, s.eff[i]);
+          const dph = f / sr;
+          let ph = s.phase[i] + dph; ph -= Math.floor(ph); s.phase[i] = ph;
+
+          // --- axis 1: hard sync. a1 per voice; the COUPLING may modulate it,
+          // which is the differentiated case — our phase is already a coupled
+          // state, so sync ratio can track swarm coherence. syncCouple scales
+          // a1 by R (order parameter), so the stack sharpens as it locks.
+          let a1 = p.sync + p.syncSpread * (n === 1 ? 0 : (i / (n - 1)));
+          if (p.syncCouple !== 0) a1 *= 1 + p.syncCouple * (s.R - 0.5) * 2;
+          a1 = Math.max(1, Math.min(16, a1));
+          // Integer ratios put the master wrap exactly on a slave reset, so
+          // the jump is full and the BLEP is exact — measured -136 dB vs
+          // -62 dB at a fractional ratio. Opt-in, because the fractional
+          // ratios are the musically interesting ones.
+          if (p.syncSnap) a1 = Math.round(a1);
+
+          // --- axis 2+3: warp and ripple act on the SLAVE phase, so the
+          // ramp that sync resets is itself shaped. Order matters and is
+          // recorded: sync first (it defines the cycle), then warp, then
+          // ripple (a perturbation of the warped ramp).
+          const u = a1 * ph;
+          let uf = u - Math.floor(u);
+          let w = warpPhase(uf, d, v);
+          let slope = warpSlope(uf, d, v);
+          if (rip > 0) { w += rippleAdd(uf, rip, rk); slope += rippleSlope(uf, rip, rk); }
+          w -= Math.floor(w);
+
+          let val = 2 * w - 1;
+
+          // --- polyBLEP. Two discontinuity classes, and the SECOND is the one
+          // naive implementations miss: (a) slave resets, a full -2 jump;
+          // (b) the MASTER wrap, where the slave is cut mid-ramp and the jump
+          // is only -2*frac(a1). Scaling the BLEP by the actual jump height is
+          // what makes sync anti-aliasing correct rather than approximate.
+          if (p.digital > 0) {
+            // BLEP width is measured in the WARPED phase, because that is
+            // where the discontinuity lives: w advances at a1*dph*slope, not
+            // at dph. Using the unwarped increment mis-sizes the correction
+            // exactly where warp is steepest — i.e. where aliasing is worst.
+            const dw = Math.max(a1 * dph * Math.max(0.05, slope), 1e-6);
+            let bl = 0;
+            if (w < dw) { const t = w / dw; bl = t + t - t * t - 1; }
+            else if (w > 1 - dw) { const t = (w - 1) / dw; bl = t * t + t + t + 1; }
+            // Jump height. A slave reset is a full -2 step, but the MASTER wrap
+            // truncates the ramp at frac(a1), so that step is only -2*frac(a1).
+            // Scaling by the real height is what separates correct sync
+            // anti-aliasing from the approximation that leaves grass behind.
+            let jump = 1;
+            if (ph < dph && a1 > 1) {
+              const fr = a1 - Math.floor(a1);
+              jump = fr > 1e-6 ? fr : 1;
+            }
+            val -= p.digital * bl * jump;
+          }
+
+          l += val * this.panL[i]; r += val * this.panR[i];
+        }
+        s.lpL = l; s.lpR = r;
+        const coef = s.gate ? atk : rel;
+        s.env += ((s.gate ? 1 : 0) - s.env) * coef;
+        const g = gain * s.env;
+        outL[smp] += Math.tanh(s.lpL * g); outR[smp] += Math.tanh(s.lpR * g);
+      }
+    }
+  }
+  // One cycle of the current shape, for the visualiser and for offline checks.
+  shapeCycle(N) {
+    const p = this.p, out = new Float64Array(N);
+    const d = Math.min(0.98, Math.max(0.02, p.warpD)), v = Math.min(0.98, Math.max(0.02, p.warpV));
+    const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
+    for (let i = 0; i < N; i++) {
+      const ph = i / N;
+      const u = p.sync * ph;
+      let uf = u - Math.floor(u);
+      let w = warpPhase(uf, d, v);
+      if (rip > 0) w += rippleAdd(uf, rip, rk);
+      w -= Math.floor(w);
+      out[i] = 2 * w - 1;
+    }
+    return out;
+  }
+}
+/* ================= UI ================= */
+</script>
+
+<div class="cols">
+  <div class="cluster">
+    <h2>Axis 1 — hard sync</h2>
+    <div class="row"><label>sync ratio</label><input type="range" id="sync" min="1" max="8" step="0.01" value="1"><output id="sync_o"></output></div>
+    <div class="row"><label>spread</label><input type="range" id="syncSpread" min="0" max="4" step="0.01" value="0"><output id="syncSpread_o"></output></div>
+    <div class="row"><label>← coupling</label><input type="range" id="syncCouple" min="-1" max="1" step="0.01" value="0"><output id="syncCouple_o"></output></div>
+    <div class="row"><label>snap to int</label><input type="checkbox" id="syncSnap"><span class="hint" style="margin:0">−136 dB vs −62 dB alias</span></div>
+    <div class="hint">Ratio 1 = inert (plain saw). <b>← coupling</b> is the differentiated control: a₁ tracks the swarm's order parameter R, so the stack gets harder as it locks and softens as it splays — sync driven by the physics, not by an LFO. Spread gives each voice its own ratio.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Axis 2 — phase warp (formant)</h2>
+    <div class="row"><label>break point d</label><input type="range" id="warpD" min="0.02" max="0.98" step="0.005" value="0.5"><output id="warpD_o"></output></div>
+    <div class="row"><label>break level v</label><input type="range" id="warpV" min="0.02" max="0.98" step="0.005" value="0.5"><output id="warpV_o"></output></div>
+    <div class="row"><button id="warpReset">d = v (identity)</button></div>
+    <div class="hint"><b>d = v is a plain saw.</b> Moving them apart makes the ramp run fast then slow (or the reverse) — still a monotone rising ramp, so still a sawtooth, but the slope break puts a formant peak in the spectrum. <span class="warn">Not a filter:</span> position and bandwidth are set by the same two numbers, so they cannot be dialled independently — which is why this is drawn as a phase map, not a resonance knob.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Axis 3 — ripple</h2>
+    <div class="row"><label>depth</label><input type="range" id="ripple" min="0" max="0.9" step="0.005" value="0"><output id="ripple_o"></output></div>
+    <div class="row"><label>order k</label><input type="range" id="rippleK" min="1" max="12" step="1" value="3"><output id="rippleK_o"></output></div>
+    <div class="hint">A bounded sinusoidal perturbation of the phase — the continuum of <b>subtle sawtooth variants</b> that retargets ADR-058's saw↔square morph. Depth is capped so the ramp stays monotone (a fold would stop it being a saw).</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Swarm</h2>
+    <div class="row"><label>voices</label><input type="range" id="n" min="1" max="16" step="1" value="7"><output id="n_o"></output></div>
+    <div class="row"><label>detune</label><input type="range" id="detune" min="0" max="1" step="0.005" value="0.28"><output id="detune_o"></output></div>
+    <div class="row"><label>K (pull)</label><input type="range" id="K" min="-1" max="1" step="0.01" value="0"><output id="K_o"></output></div>
+    <div class="row"><label>width</label><input type="range" id="width" min="0" max="1" step="0.01" value="0.8"><output id="width_o"></output></div>
+    <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o"></output></div>
+    <div class="row"><label>anti-alias</label><input type="range" id="digital" min="0" max="1" step="0.01" value="1"><output id="digital_o"></output></div>
+    <div class="row"><button id="drone">drone (space)</button></div>
+    <div class="hint">anti-alias 1 = polyBLEP on, 0 = naive. Flip it while a high note sounds — the difference is the whole reason the sync axis needs a BLEP budget.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Shape &amp; spectrum</h2>
+    <canvas id="shapeViz" width="270" height="110"></canvas>
+    <canvas id="specViz" width="270" height="130" style="margin-top:6px"></canvas>
+    <div class="hint">Top: one cycle of the current shape (the phase map made audible-visible). Bottom: live spectrum — watch the formant peak move as d and v separate, and watch the alias grass appear when anti-alias goes to 0.</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const synth = new ShapeSwarm(ctx.sampleRate);
+let spn = null, analyser = null;
+function ensureAudio() {
+  if (spn) return;
+  spn = ctx.createScriptProcessor(1024, 0, 2);
+  spn.onaudioprocess = e => synth.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+  analyser = ctx.createAnalyser(); analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.5;
+  spn.connect(analyser); analyser.connect(ctx.destination);
+  ctx.resume();
+}
+const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
+  const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); };
+  el.addEventListener('input', f); f(); };
+wire('sync', v => synth.setParam('sync', v), v => v < 1.005 ? 'off (1.00)' : v.toFixed(2) + '×');
+wire('syncSpread', v => synth.setParam('syncSpread', v), v => v < 0.005 ? 'none' : '+' + v.toFixed(2));
+wire('syncCouple', v => synth.setParam('syncCouple', v), v => Math.abs(v) < 0.005 ? 'off' : v.toFixed(2));
+wire('warpD', v => synth.setParam('warpD', v), v => v.toFixed(3));
+wire('warpV', v => synth.setParam('warpV', v), v => v.toFixed(3));
+wire('ripple', v => synth.setParam('ripple', v), v => v < 0.005 ? 'off' : v.toFixed(3));
+wire('rippleK', v => synth.setParam('rippleK', v | 0), v => 'H' + v);
+wire('n', v => synth.setParam('n', v | 0), v => '' + v);
+wire('detune', v => synth.setParam('detune', v));
+wire('K', v => synth.setParam('K', v));
+wire('width', v => synth.setParam('width', v));
+wire('vol', v => synth.setParam('vol', v));
+wire('digital', v => synth.setParam('digital', v), v => v > 0.98 ? 'BLEP' : v < 0.02 ? 'NAIVE' : v.toFixed(2));
+$('syncSnap').addEventListener('change', () => synth.setParam('syncSnap', $('syncSnap').checked ? 1 : 0));
+$('warpReset').addEventListener('click', () => {
+  $('warpV').value = $('warpD').value;
+  $('warpV').dispatchEvent(new Event('input'));
+});
+
+const KEYS = { a: 57, s: 59, d: 61, f: 62, g: 64, h: 66, j: 68, k: 69 };
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const down = new Set();
+addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'Space') { e.preventDefault(); $('drone').click(); return; }
+  const m = KEYS[e.key]; if (m === undefined || down.has(m)) return;
+  ensureAudio(); down.add(m); synth.noteOn(m, mtof(m));
+});
+addEventListener('keyup', e => { const m = KEYS[e.key]; if (m === undefined) return; down.delete(m); synth.noteOff(m); });
+let droneOn = false;
+$('drone').addEventListener('click', () => {
+  ensureAudio(); droneOn = !droneOn; $('drone').classList.toggle('on', droneOn);
+  if (droneOn) synth.noteOn(45, mtof(45)); else synth.noteOff(45);
+});
+
+const sv = $('shapeViz').getContext('2d'), pv = $('specViz').getContext('2d');
+const specBuf = new Uint8Array(2048);
+function draw() {
+  requestAnimationFrame(draw);
+  sv.fillStyle = '#0b0e13'; sv.fillRect(0, 0, 270, 110);
+  sv.strokeStyle = '#2a3040'; sv.beginPath(); sv.moveTo(0, 55); sv.lineTo(270, 55); sv.stroke();
+  const cyc = synth.shapeCycle(270);
+  sv.strokeStyle = '#5ff2e0'; sv.lineWidth = 1.5; sv.beginPath();
+  for (let x = 0; x < 270; x++) { const y = 55 - cyc[x] * 48; x ? sv.lineTo(x, y) : sv.moveTo(x, y); }
+  sv.stroke(); sv.lineWidth = 1;
+  sv.fillStyle = '#8b94a6'; sv.font = '9px monospace';
+  sv.fillText('one cycle · sync ' + synth.p.sync.toFixed(2) + '× · d ' + synth.p.warpD.toFixed(2) + ' v ' + synth.p.warpV.toFixed(2), 5, 11);
+  pv.fillStyle = '#0b0e13'; pv.fillRect(0, 0, 270, 130);
+  if (analyser) {
+    analyser.getByteFrequencyData(specBuf);
+    pv.fillStyle = '#5fd08a';
+    const bins = 270;
+    for (let x = 0; x < bins; x++) {
+      const idx = Math.floor(Math.pow(x / bins, 2) * 1024);
+      const h = (specBuf[idx] / 255) * 126;
+      pv.fillRect(x, 130 - h, 1, h);
+    }
+  }
+  pv.fillStyle = '#8b94a6'; pv.font = '9px monospace';
+  pv.fillText('spectrum (log-ish)', 5, 11);
+}
+draw();
+</script>
+</body>
+</html>
