@@ -28,7 +28,7 @@
 </head>
 <body>
 <h1>SWARM<span class="star">✱</span> · shape lab</h1>
-<div class="tagline">Campaign-2 item 6 — the three phase-domain axes from the 2026-07-25 timbre research, prototyped together because they share one aliasing budget. <b>Every axis keeps the waveform a rising ramp per cycle</b>, so the saw mandate holds: sync resets the ramp early, warp changes its <i>rate</i>, ripple perturbs it. Nothing here replaces the sawtooth with another waveform. Audition lab, spec-in-code — NOT a reference. Keys <kbd>a</kbd>..<kbd>k</kbd>, <kbd>space</kbd> drone.</div>
+<div class="tagline">Campaign-2 item 6 — the three phase-domain axes from the 2026-07-25 timbre research, prototyped together because they share one aliasing budget. <b>Every axis keeps the waveform a rising ramp per cycle</b>, so the saw mandate holds: sync resets the ramp early, warp changes its <i>rate</i>, ripple perturbs it. Nothing here replaces the sawtooth with another waveform. Audition lab, spec-in-code — NOT a reference. Live-style keys: <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd><kbd>G</kbd><kbd>H</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> whites · <kbd>W</kbd><kbd>E</kbd> · <kbd>T</kbd><kbd>Y</kbd><kbd>U</kbd> · <kbd>O</kbd><kbd>P</kbd> blacks · <kbd>Z</kbd>/<kbd>X</kbd> octave · <kbd>space</kbd> drone.</div>
 
 <script>
 /* ================= DSP ================= */
@@ -310,7 +310,7 @@ class ShapeSwarm {
     <div class="row"><label>width</label><input type="range" id="width" min="0" max="1" step="0.01" value="0.8"><output id="width_o"></output></div>
     <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o"></output></div>
     <div class="row"><label>anti-alias</label><input type="range" id="digital" min="0" max="1" step="0.01" value="1"><output id="digital_o"></output></div>
-    <div class="row"><button id="drone">drone (space)</button></div>
+    <div class="row"><button id="drone">drone (space)</button><span class="hint" style="margin:0" id="octlbl"></span></div>
     <div class="hint">anti-alias 1 = polyBLEP on, 0 = naive. Flip it while a high note sounds — the difference is the whole reason the sync axis needs a BLEP budget.</div>
   </div>
 
@@ -357,22 +357,59 @@ $('warpReset').addEventListener('click', () => {
   $('warpV').dispatchEvent(new Event('input'));
 });
 
-const KEYS = { a: 57, s: 59, d: 61, f: 62, g: 64, h: 66, j: 68, k: 69 };
+// Live-style computer keyboard — the SAME map as swarmsaw.html (the reference
+// lab), deliberately copied rather than re-invented so muscle memory carries
+// between labs. A S D F G H J K L ; = whites from C · W E · T Y U · O P =
+// blacks · Z / X = octave down / up.
+const KMAP = {
+  'a': 0, 'w': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5, 't': 6,
+  'g': 7, 'y': 8, 'h': 9, 'u': 10, 'j': 11,
+  'k': 12, 'o': 13, 'l': 14, 'p': 15, ';': 16
+};
+const OCT_MIN = 12, OCT_MAX = 96;
+let octaveBase = 36;   // C2 — a low default, since the formant axis is most
+                       // legible on low notes (the whole point of testing it there)
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 const down = new Set();
+function octLabel() {
+  const lo = Math.floor(octaveBase / 12) - 1;
+  $('octlbl').textContent = 'octave C' + lo + '–C' + (lo + 2) + '  (Z − / X +)';
+}
+function shiftOctave(dir) {
+  const next = octaveBase + dir * 12;
+  if (next < OCT_MIN || next > OCT_MAX) return;
+  // release everything held BEFORE moving, or the keyup lands on the new
+  // octave's midi number and the old note never gets its note-off.
+  [...down].forEach(m => synth.noteOff(m));
+  down.clear();
+  octaveBase = next;
+  octLabel();
+}
 addEventListener('keydown', e => {
-  if (e.repeat) return;
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   if (e.code === 'Space') { e.preventDefault(); $('drone').click(); return; }
-  const m = KEYS[e.key]; if (m === undefined || down.has(m)) return;
+  const key = e.key.toLowerCase();
+  if (key === 'z') { shiftOctave(-1); return; }
+  if (key === 'x') { shiftOctave(1); return; }
+  const off = KMAP[key];
+  if (off === undefined) return;
+  const m = octaveBase + off;
+  if (down.has(m)) return;
   ensureAudio(); down.add(m); synth.noteOn(m, mtof(m));
 });
-addEventListener('keyup', e => { const m = KEYS[e.key]; if (m === undefined) return; down.delete(m); synth.noteOff(m); });
+addEventListener('keyup', e => {
+  const off = KMAP[e.key.toLowerCase()];
+  if (off === undefined) return;
+  const m = octaveBase + off;
+  down.delete(m); synth.noteOff(m);
+});
 let droneOn = false;
 $('drone').addEventListener('click', () => {
   ensureAudio(); droneOn = !droneOn; $('drone').classList.toggle('on', droneOn);
   if (droneOn) synth.noteOn(45, mtof(45)); else synth.noteOff(45);
 });
 
+octLabel();
 const sv = $('shapeViz').getContext('2d'), pv = $('specViz').getContext('2d');
 const specBuf = new Uint8Array(2048);
 function draw() {
