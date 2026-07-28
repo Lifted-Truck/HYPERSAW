@@ -108,13 +108,108 @@ function rippleAdd(ph, depth, k) {
 }
 function rippleSlope(ph, depth, k) { return depth * Math.cos(TAU * k * ph); }
 
+/* ---- CHAIN ORDER (human question 2026-07-28) -------------------------------
+   Each axis is a map [0,1) -> [0,1) plus a RATE MULTIPLIER, so they compose in
+   any order and the anti-aliasing falls out generically: whatever the order,
+   the output is a ramp in some final phase y advancing at dy = dph * (product
+   of the multipliers), and the polyBLEP just needs (y, dy). That is why this
+   refactor is a simplification, not an extra feature — the previous code
+   special-cased ONE order and derived the BLEP width by hand.
+
+   WHY ORDER CHANGES THE SOUND (the human's observation, which is correct):
+   warp/ripple place a spectral peak at a fixed multiple of WHATEVER phase they
+   are handed.
+     · SYNC FIRST  — warp sees the SLAVE phase, which restarts a1 times per
+       master cycle, so the formant peak is stamped out once per slave cycle:
+       comb x formant, and the formant reads as "less formanty" because it is
+       replicated up and down the spectrum. (This was the only order before.)
+     · WARP FIRST  — warp shapes the MASTER phase, so the sync resets land at
+       NON-UNIFORM intervals inside one master cycle. The peak stays anchored
+       near the master's scale instead of being replicated, which is closer to
+       what "formant" means musically: a fixed spectral region that does not
+       move with the harmonics.
+   MEASURED (1 voice, f0 110 Hz, sync 2.5x, warp d.15/v.65; harmonic envelope
+   DETRENDED by the saw's own -6 dB/oct so only the shaping shows):
+     sync -> warp   max bump 23.7 dB @ H10, pattern visibly PERIODIC
+     warp -> sync   max bump  8.0 dB @ H33, pattern flat
+   HONEST READING — this REFUTES the tidy version of the hypothesis. Warp-first
+   does remove the replication, but it also removes most of the formant: the
+   subsequent sync re-reads the warped phase and its own resets dominate, so
+   you get a flatter, weaker spectrum rather than "one formant that survives
+   sync". Neither order gives a strong SINGLE formant under sync.
+   WHAT ACTUALLY WOULD: a windowed-carrier construction (the VOSIM / FOF / PAF
+   family, and the ModFM the timbre research surfaced) — the sync'd ramp is the
+   CARRIER and a separate master-rate WINDOW sets the formant, so the formant
+   position is fixed by the window while sync sets the brightness. That is a
+   fourth mechanism, not a reordering, and it is AMPLITUDE-domain rather than
+   phase-domain — which is a mandate question for the human, not a free choice:
+   a windowed saw is arguably still saw-based, but it is a different class from
+   the three axes here. Recorded, not built. ------------------------------- */
+const CHAINS = [
+  { id: 'SWR', label: 'sync → warp → ripple', order: ['S', 'W', 'R'] },
+  { id: 'WRS', label: 'warp → ripple → sync', order: ['W', 'R', 'S'] },
+  { id: 'WSR', label: 'warp → sync → ripple', order: ['W', 'S', 'R'] },
+  { id: 'SRW', label: 'sync → ripple → warp', order: ['S', 'R', 'W'] }
+];
+/* RIPPLE INDEX — how the pulse/notch character is kept (human, 2026-07-28).
+   The pre-refactor code indexed the ripple by the phase entering the WARP
+   stage while ADDING it to the warped phase. That mismatch is why it sounded
+   the way it did: where warp compresses the phase, the ripple's excursion
+   exceeds the local slope and the map FOLDS BACKWARD — the ramp reverses
+   mid-cycle, which adds edges and reads as a notchy pulse wave. Measured: 465
+   fold-backs per cycle at ripple .9 H3 + warp d.2/v.6, versus 0 once the
+   composition was "corrected".
+
+   That was, strictly, a composition bug. It is also a musically valuable
+   waveform class, and the human has explicitly accepted that it leaves saw
+   territory. So it becomes a MODE rather than an accident:
+     rippleIdx 0 SHAPED — ripple reads its own input phase. Monotone by
+       construction, so the output stays a rising ramp: still a sawtooth.
+     rippleIdx 1 FOLD  — ripple reads the phase entering the PREVIOUS stage
+       (reproducing the old behaviour exactly). Non-monotone: the map can fold,
+       the waveform leaves saw territory, and the notches come back.
+   The slope combines ADDITIVELY in fold mode (d/dph of y+ripple(prev) picks up
+   the previous stage's multiplier), which is also what the old BLEP width used.
+
+   ALIASING COST OF FOLD: none, measured — ripple .9 H3 + warp reads -108.4 dB
+   in fold vs -104.1 dB shaped (both far below the fractional-sync hot spot).
+   The reason is worth stating because it is counter-intuitive: a fold makes
+   the phase map NON-MONOTONE but it stays CONTINUOUS, so the waveform gains
+   slope reversals, not new discontinuities. Only the cycle boundary is a step.
+   Slope reversals produce spectral NULLS (the notches) without broadband
+   fold-down — which is exactly why this sounds notchy rather than dirty. */
+function runChain(ph, order, a1, d, v, rip, rk, rippleIdx) {
+  let y = ph, mult = 1;
+  let prevIn = ph, prevMult = 1;   // state entering the PREVIOUS stage
+  for (const st of order) {
+    const inY = y, inMult = mult;
+    if (st === 'S') {
+      if (a1 !== 1) { y = a1 * y; y -= Math.floor(y); mult *= a1; }
+    } else if (st === 'W') {
+      if (d !== v) { mult *= warpSlope(y, d, v); y = warpPhase(y, d, v); y -= Math.floor(y); }
+    } else if (rip > 0) {
+      if (rippleIdx) {
+        // cross-indexed: read the previous stage's INPUT phase — can fold
+        mult = mult + prevMult * rippleSlope(prevIn, rip, rk);
+        y += rippleAdd(prevIn, rip, rk);
+      } else {
+        mult *= 1 + rippleSlope(y, rip, rk);
+        y += rippleAdd(y, rip, rk);
+      }
+      y -= Math.floor(y);
+    }
+    prevIn = inY; prevMult = inMult;
+  }
+  return { y, mult };
+}
+
 class ShapeSwarm {
   constructor(sr) {
     this.sr = sr;
     this.p = {
       n: 7, detune: 0.28, K: 0, seed: 1234, vol: 0.4, width: 0.8, digital: 1,
       // axis 1 — hard sync
-      sync: 1.0, syncSpread: 0, syncCouple: 0, syncSnap: 0,
+      sync: 1.0, syncSpread: 0, syncCouple: 0, syncSnap: 0, chain: 0, rippleIdx: 0,
       // axis 2 — phase warp (formant); d = v => identity
       warpD: 0.5, warpV: 0.5,
       // axis 3 — ripple
@@ -183,6 +278,7 @@ class ShapeSwarm {
     const gain = p.vol / Math.sqrt(n);
     const d = Math.min(0.98, Math.max(0.02, p.warpD)), v = Math.min(0.98, Math.max(0.02, p.warpV));
     const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
+    const chainOrder = CHAINS[Math.max(0, Math.min(CHAINS.length - 1, p.chain | 0))].order;
     for (let smp = 0; smp < outL.length; smp++) { outL[smp] = 0; outR[smp] = 0; }
     for (const s of this.sw) {
       if (!s.gate && s.env < 1e-4) continue;
@@ -208,17 +304,8 @@ class ShapeSwarm {
           // ratios are the musically interesting ones.
           if (p.syncSnap) a1 = Math.round(a1);
 
-          // --- axis 2+3: warp and ripple act on the SLAVE phase, so the
-          // ramp that sync resets is itself shaped. Order matters and is
-          // recorded: sync first (it defines the cycle), then warp, then
-          // ripple (a perturbation of the warped ramp).
-          const u = a1 * ph;
-          let uf = u - Math.floor(u);
-          let w = warpPhase(uf, d, v);
-          let slope = warpSlope(uf, d, v);
-          if (rip > 0) { w += rippleAdd(uf, rip, rk); slope += rippleSlope(uf, rip, rk); }
-          w -= Math.floor(w);
-
+          const ch = runChain(ph, chainOrder, a1, d, v, rip, rk, p.rippleIdx | 0);
+          const w = ch.y, slope = ch.mult;
           let val = 2 * w - 1;
 
           // --- polyBLEP. Two discontinuity classes, and the SECOND is the one
@@ -231,7 +318,8 @@ class ShapeSwarm {
             // where the discontinuity lives: w advances at a1*dph*slope, not
             // at dph. Using the unwarped increment mis-sizes the correction
             // exactly where warp is steepest — i.e. where aliasing is worst.
-            const dw = Math.max(a1 * dph * Math.max(0.05, slope), 1e-6);
+            // dy = dph * (product of stage rate multipliers) — order-agnostic.
+            const dw = Math.max(dph * Math.max(0.05, Math.abs(slope)), 1e-6);
             let bl = 0;
             if (w < dw) { const t = w / dw; bl = t + t - t * t - 1; }
             else if (w > 1 - dw) { const t = (w - 1) / dw; bl = t * t + t + t + 1; }
@@ -262,14 +350,9 @@ class ShapeSwarm {
     const p = this.p, out = new Float64Array(N);
     const d = Math.min(0.98, Math.max(0.02, p.warpD)), v = Math.min(0.98, Math.max(0.02, p.warpV));
     const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
+    const order = CHAINS[Math.max(0, Math.min(CHAINS.length - 1, p.chain | 0))].order;
     for (let i = 0; i < N; i++) {
-      const ph = i / N;
-      const u = p.sync * ph;
-      let uf = u - Math.floor(u);
-      let w = warpPhase(uf, d, v);
-      if (rip > 0) w += rippleAdd(uf, rip, rk);
-      w -= Math.floor(w);
-      out[i] = 2 * w - 1;
+      out[i] = 2 * runChain(i / N, order, p.sync, d, v, rip, rk, p.rippleIdx | 0).y - 1;
     }
     return out;
   }
@@ -284,6 +367,7 @@ class ShapeSwarm {
     <div class="row"><label>spread</label><input type="range" id="syncSpread" min="0" max="4" step="0.01" value="0"><output id="syncSpread_o"></output></div>
     <div class="row"><label>← coupling</label><input type="range" id="syncCouple" min="-1" max="1" step="0.01" value="0"><output id="syncCouple_o"></output></div>
     <div class="row"><label>snap to int</label><input type="checkbox" id="syncSnap"><span class="hint" style="margin:0">−136 dB vs −62 dB alias</span></div>
+    <div class="row"><label>chain order</label><select id="chain"></select></div>
     <div class="hint">Ratio 1 = inert (plain saw). <b>← coupling</b> is the differentiated control: a₁ tracks the swarm's order parameter R, so the stack gets harder as it locks and softens as it splays — sync driven by the physics, not by an LFO. Spread gives each voice its own ratio.</div>
   </div>
 
@@ -299,7 +383,10 @@ class ShapeSwarm {
     <h2>Axis 3 — ripple</h2>
     <div class="row"><label>depth</label><input type="range" id="ripple" min="0" max="0.9" step="0.005" value="0"><output id="ripple_o"></output></div>
     <div class="row"><label>order k</label><input type="range" id="rippleK" min="1" max="12" step="1" value="3"><output id="rippleK_o"></output></div>
-    <div class="hint">A bounded sinusoidal perturbation of the phase — the continuum of <b>subtle sawtooth variants</b> that retargets ADR-058's saw↔square morph. Depth is capped so the ramp stays monotone (a fold would stop it being a saw).</div>
+    <div class="row"><label>index</label><select id="rippleIdx">
+      <option value="0">shaped — stays a saw</option>
+      <option value="1">fold — notches / pulse</option></select></div>
+    <div class="hint">A bounded sinusoidal perturbation of the phase — the continuum of <b>subtle sawtooth variants</b> that retargets ADR-058's saw↔square morph. <b>index</b> chooses the character: <i>shaped</i> keeps the map monotone (still a saw); <i>fold</i> restores the pre-refactor behaviour — the ripple reads the previous stage's phase, so with <b>warp engaged</b> the map folds backward and you get the notchy pulse wave. Fold needs warp to do anything.</div>
   </div>
 
   <div class="cluster">
@@ -316,6 +403,8 @@ class ShapeSwarm {
 
   <div class="cluster">
     <h2>Shape &amp; spectrum</h2>
+    <canvas id="couplingViz" width="270" height="120"></canvas>
+    <div class="hint" style="margin-bottom:6px">Coupling: each dot is a voice's phase on the circle; the white arm is the order parameter <b>R</b> (length = how locked the swarm is, angle = mean phase). K&gt;0 clumps them, K&lt;0 splays to an even polygon, K=0 drifts. When <b>← coupling</b> is up, the a₁ readout moves with R — that is the swarm driving the sync.</div>
     <canvas id="shapeViz" width="270" height="110"></canvas>
     <canvas id="specViz" width="270" height="130" style="margin-top:6px"></canvas>
     <div class="hint">Top: one cycle of the current shape (the phase map made audible-visible). Bottom: live spectrum — watch the formant peak move as d and v separate, and watch the alias grass appear when anti-alias goes to 0.</div>
@@ -345,6 +434,7 @@ wire('warpD', v => synth.setParam('warpD', v), v => v.toFixed(3));
 wire('warpV', v => synth.setParam('warpV', v), v => v.toFixed(3));
 wire('ripple', v => synth.setParam('ripple', v), v => v < 0.005 ? 'off' : v.toFixed(3));
 wire('rippleK', v => synth.setParam('rippleK', v | 0), v => 'H' + v);
+$('rippleIdx').addEventListener('change', () => synth.setParam('rippleIdx', +$('rippleIdx').value));
 wire('n', v => synth.setParam('n', v | 0), v => '' + v);
 wire('detune', v => synth.setParam('detune', v));
 wire('K', v => synth.setParam('K', v));
@@ -352,6 +442,11 @@ wire('width', v => synth.setParam('width', v));
 wire('vol', v => synth.setParam('vol', v));
 wire('digital', v => synth.setParam('digital', v), v => v > 0.98 ? 'BLEP' : v < 0.02 ? 'NAIVE' : v.toFixed(2));
 $('syncSnap').addEventListener('change', () => synth.setParam('syncSnap', $('syncSnap').checked ? 1 : 0));
+{
+  const sel = $('chain');
+  CHAINS.forEach((c, i) => { const o = document.createElement('option'); o.value = i; o.textContent = c.label; sel.appendChild(o); });
+  sel.addEventListener('change', () => synth.setParam('chain', +sel.value));
+}
 $('warpReset').addEventListener('click', () => {
   $('warpV').value = $('warpD').value;
   $('warpV').dispatchEvent(new Event('input'));
@@ -411,9 +506,43 @@ $('drone').addEventListener('click', () => {
 
 octLabel();
 const sv = $('shapeViz').getContext('2d'), pv = $('specViz').getContext('2d');
+const kv = $('couplingViz').getContext('2d');
+const rHist = [];
 const specBuf = new Uint8Array(2048);
 function draw() {
   requestAnimationFrame(draw);
+  /* --- coupling: phase circle + R arm + R history + live a1 --- */
+  kv.fillStyle = '#0b0e13'; kv.fillRect(0, 0, 270, 120);
+  const foc = synth.sw.find(s => s.gate) || synth.sw.find(s => s.env > 1e-3);
+  const cx = 60, cy = 60, rad = 46;
+  kv.strokeStyle = '#2a3040'; kv.beginPath(); kv.arc(cx, cy, rad, 0, TAU); kv.stroke();
+  if (foc) {
+    const n = synth.p.n;
+    for (let i = 0; i < n; i++) {
+      const a = TAU * foc.phase[i] - Math.PI / 2;
+      const t = n === 1 ? 0 : i / (n - 1);
+      kv.fillStyle = `hsl(${170 + t * 90}, 70%, 62%)`;
+      kv.beginPath(); kv.arc(cx + rad * Math.cos(a), cy + rad * Math.sin(a), 3.5, 0, TAU); kv.fill();
+    }
+    const psiA = TAU * 0; // arm drawn from R and the swarm's mean angle
+    let sx = 0, sy = 0;
+    for (let i = 0; i < n; i++) { const a = TAU * foc.phase[i]; sx += Math.cos(a); sy += Math.sin(a); }
+    const ang = Math.atan2(sy, sx) - Math.PI / 2;
+    kv.strokeStyle = '#e8ecf2'; kv.lineWidth = 2; kv.beginPath(); kv.moveTo(cx, cy);
+    kv.lineTo(cx + rad * foc.R * Math.cos(ang), cy + rad * foc.R * Math.sin(ang)); kv.stroke(); kv.lineWidth = 1;
+    rHist.push(foc.R); if (rHist.length > 140) rHist.shift();
+    kv.strokeStyle = '#5ff2e0'; kv.beginPath();
+    rHist.forEach((v, x) => { const y = 112 - v * 96; const px = 126 + x; x ? kv.lineTo(px, y) : kv.moveTo(px, y); });
+    kv.stroke();
+    kv.fillStyle = '#8b94a6'; kv.font = '9px monospace';
+    kv.fillText('R ' + foc.R.toFixed(3), 126, 14);
+    const a1 = Math.max(1, Math.min(16, synth.p.sync * (synth.p.syncCouple !== 0 ? 1 + synth.p.syncCouple * (foc.R - 0.5) * 2 : 1)));
+    kv.fillStyle = synth.p.syncCouple !== 0 ? '#ffc24b' : '#8b94a6';
+    kv.fillText('a1 ' + a1.toFixed(2) + (synth.p.syncCouple !== 0 ? '  (driven)' : ''), 126, 26);
+    kv.fillStyle = '#8b94a6'; kv.fillText('R history', 126, 112);
+  } else {
+    kv.fillStyle = '#8b94a6'; kv.font = '9px monospace'; kv.fillText('play a note', 110, 62);
+  }
   sv.fillStyle = '#0b0e13'; sv.fillRect(0, 0, 270, 110);
   sv.strokeStyle = '#2a3040'; sv.beginPath(); sv.moveTo(0, 55); sv.lineTo(270, 55); sv.stroke();
   const cyc = synth.shapeCycle(270);
