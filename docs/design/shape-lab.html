@@ -203,6 +203,41 @@ function runChain(ph, order, a1, d, v, rip, rk, rippleIdx) {
   return { y, mult };
 }
 
+/* A polyBLEP'd saw at an arbitrary phase, factored out so the saw<->square
+   morph can call it twice (the morph subtracts a half-cycle-offset saw, and
+   BOTH copies need the correction or the "square" re-aliases — ADR-058's
+   original point). `jump` scales the step height for the partial master-wrap
+   case; `dy` is the local phase increment from the chain's rate multiplier. */
+function blepSaw(y, dy, jump, amount) {
+  let val = 2 * y - 1;
+  if (amount > 0) {
+    let bl = 0;
+    if (y < dy) { const t = y / dy; bl = t + t - t * t - 1; }
+    else if (y > 1 - dy) { const t = (y - 1) / dy; bl = t * t + t + t + 1; }
+    val -= amount * bl * jump;
+  }
+  return val;
+}
+
+/* WINDOWED CARRIER (human greenlight 2026-07-28) — the VOSIM / FOF / PAF
+   construction the timbre research surfaced, and the thing chain-reordering
+   could NOT deliver. Two independent frequencies:
+     · the WINDOW repeats at the MASTER rate (the pitch you play), and its
+       width sets the formant BANDWIDTH — narrow grain = wide, buzzy formant;
+       wide grain = narrow, resonant one;
+     · the CARRIER is the sync'd ramp, and ITS frequency sets the formant
+       CENTRE.
+   With `formant lock` on, the carrier is tuned to an ABSOLUTE frequency
+   (a1 = fHz / f0, recomputed per voice) instead of a fixed ratio — which is
+   what makes it a formant in the musical sense: a fixed spectral region that
+   STAYS PUT while the pitch moves under it. That is the vowel mechanism.
+   NOTE this is AMPLITUDE-domain, unlike the three phase axes — the human
+   ruled it acceptable alongside the fold mode. */
+function grainWindow(phm, width) {
+  if (phm >= width) return 0;
+  return 0.5 * (1 - Math.cos(TAU * phm / width));   // Hann grain
+}
+
 class ShapeSwarm {
   constructor(sr) {
     this.sr = sr;
@@ -210,6 +245,12 @@ class ShapeSwarm {
       n: 7, detune: 0.28, K: 0, seed: 1234, vol: 0.4, width: 0.8, digital: 1,
       // axis 1 — hard sync
       sync: 1.0, syncSpread: 0, syncCouple: 0, syncSnap: 0, chain: 0, rippleIdx: 0,
+      // ADR-058 morph, RE-ADMITTED and capped (human, 2026-07-28): "I like the
+      // saw-square slider but it should max out at about 50% — enough saw
+      // integrity to still count, while giving the pleasing hollow sound."
+      shape: 0,
+      // windowed carrier
+      winDepth: 0, winWidth: 0.35, formantLock: 0, formantHz: 800, carrierPure: 0,
       // axis 2 — phase warp (formant); d = v => identity
       warpD: 0.5, warpV: 0.5,
       // axis 3 — ripple
@@ -279,6 +320,7 @@ class ShapeSwarm {
     const d = Math.min(0.98, Math.max(0.02, p.warpD)), v = Math.min(0.98, Math.max(0.02, p.warpV));
     const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
     const chainOrder = CHAINS[Math.max(0, Math.min(CHAINS.length - 1, p.chain | 0))].order;
+    const shp = Math.max(0, Math.min(0.5, p.shape));   // hard cap: 0.5 (human ruling)
     for (let smp = 0; smp < outL.length; smp++) { outL[smp] = 0; outR[smp] = 0; }
     for (const s of this.sw) {
       if (!s.gate && s.env < 1e-4) continue;
@@ -303,36 +345,37 @@ class ShapeSwarm {
           // -62 dB at a fractional ratio. Opt-in, because the fractional
           // ratios are the musically interesting ones.
           if (p.syncSnap) a1 = Math.round(a1);
+          // FORMANT LOCK: tune the carrier to an absolute Hz instead of a ratio,
+          // so the formant stays put while pitch moves under it.
+          if (p.formantLock) a1 = Math.max(1, Math.min(64, p.formantHz / Math.max(20, f)));
 
           const ch = runChain(ph, chainOrder, a1, d, v, rip, rk, p.rippleIdx | 0);
           const w = ch.y, slope = ch.mult;
-          let val = 2 * w - 1;
-
-          // --- polyBLEP. Two discontinuity classes, and the SECOND is the one
-          // naive implementations miss: (a) slave resets, a full -2 jump;
-          // (b) the MASTER wrap, where the slave is cut mid-ramp and the jump
-          // is only -2*frac(a1). Scaling the BLEP by the actual jump height is
-          // what makes sync anti-aliasing correct rather than approximate.
-          if (p.digital > 0) {
-            // BLEP width is measured in the WARPED phase, because that is
-            // where the discontinuity lives: w advances at a1*dph*slope, not
-            // at dph. Using the unwarped increment mis-sizes the correction
-            // exactly where warp is steepest — i.e. where aliasing is worst.
-            // dy = dph * (product of stage rate multipliers) — order-agnostic.
-            const dw = Math.max(dph * Math.max(0.05, Math.abs(slope)), 1e-6);
-            let bl = 0;
-            if (w < dw) { const t = w / dw; bl = t + t - t * t - 1; }
-            else if (w > 1 - dw) { const t = (w - 1) / dw; bl = t * t + t + t + 1; }
-            // Jump height. A slave reset is a full -2 step, but the MASTER wrap
-            // truncates the ramp at frac(a1), so that step is only -2*frac(a1).
-            // Scaling by the real height is what separates correct sync
-            // anti-aliasing from the approximation that leaves grass behind.
-            let jump = 1;
-            if (ph < dph && a1 > 1) {
-              const fr = a1 - Math.floor(a1);
-              jump = fr > 1e-6 ? fr : 1;
-            }
-            val -= p.digital * bl * jump;
+          const dy = Math.max(dph * Math.max(0.05, Math.abs(slope)), 1e-6);
+          let jump = 1;
+          if (ph < dph && a1 > 1) { const fr = a1 - Math.floor(a1); jump = fr > 1e-6 ? fr : 1; }
+          let val = blepSaw(w, dy, jump, p.digital);
+          // saw <-> square morph: subtract a half-cycle-offset saw. Capped at
+          // 0.5 by the human's ruling, so it never reaches a full square.
+          if (shp > 0) {
+            let w2 = w + 0.5; w2 -= Math.floor(w2);
+            val -= shp * blepSaw(w2, dy, 1, p.digital);
+          }
+          // CARRIER PURITY. Measured necessity, not a preference: with a SAW
+          // carrier the windowed construction only holds its formant at high
+          // carrier ratios (1600 Hz stayed put at 1.29x spread; 800 Hz was
+          // erratic) because a saw spreads energy over its OWN harmonic series,
+          // so "the formant" is not one region. FOF/VOSIM use a near-sine
+          // carrier for exactly this reason. Blend toward sine so the carrier's
+          // energy concentrates at its fundamental = the formant centre.
+          if (p.carrierPure > 0) {
+            const sine = Math.sin(TAU * w);
+            val += (sine - val) * p.carrierPure;
+          }
+          // windowed carrier: amplitude grain at the MASTER rate
+          if (p.winDepth > 0) {
+            const g = grainWindow(ph, Math.max(0.02, Math.min(1, p.winWidth)));
+            val *= (1 - p.winDepth) + p.winDepth * g;
           }
 
           l += val * this.panL[i]; r += val * this.panR[i];
@@ -390,6 +433,20 @@ class ShapeSwarm {
   </div>
 
   <div class="cluster">
+    <h2>Axis 4 — windowed carrier (formant)</h2>
+    <div class="row"><label>window depth</label><input type="range" id="winDepth" min="0" max="1" step="0.01" value="0"><output id="winDepth_o"></output></div>
+    <div class="row"><label>window width</label><input type="range" id="winWidth" min="0.05" max="1" step="0.01" value="0.35"><output id="winWidth_o"></output></div>
+    <div class="row"><label>carrier purity</label><input type="range" id="carrierPure" min="0" max="1" step="0.01" value="0"><output id="carrierPure_o"></output></div>
+    <div class="row"><label>formant lock</label><input type="checkbox" id="formantLock"></div>
+    <div class="row"><label>formant Hz</label><input type="range" id="formantHz" min="200" max="3000" step="10" value="800"><output id="formantHz_o"></output></div>
+    <div class="hint">The VOSIM/FOF construction: the <b>window</b> repeats at the pitch you play (its width sets formant <i>bandwidth</i>), while the <b>carrier</b> — the sync'd ramp — sets formant <i>centre</i>. With <b>formant lock</b> the carrier is tuned to an absolute Hz, so the formant STAYS PUT while pitch moves under it. <b>Carrier purity</b> blends the carrier toward sine: measured necessity, since a saw carrier spreads energy over its own harmonics and smears the formant. Amplitude-domain — this axis leaves saw territory by design.</div>
+
+    <h2 style="margin-top:12px">Saw ↔ square (capped)</h2>
+    <div class="row"><label>square</label><input type="range" id="shape" min="0" max="0.5" step="0.005" value="0"><output id="shape_o"></output></div>
+    <div class="hint">ADR-058's morph, re-admitted and <b>hard-capped at 0.5</b> — enough saw integrity to still count as a saw, while reaching the hollow character. Both saws carry polyBLEP, so the morph stays anti-aliased.</div>
+  </div>
+
+  <div class="cluster">
     <h2>Swarm</h2>
     <div class="row"><label>voices</label><input type="range" id="n" min="1" max="16" step="1" value="7"><output id="n_o"></output></div>
     <div class="row"><label>detune</label><input type="range" id="detune" min="0" max="1" step="0.005" value="0.28"><output id="detune_o"></output></div>
@@ -435,6 +492,12 @@ wire('warpV', v => synth.setParam('warpV', v), v => v.toFixed(3));
 wire('ripple', v => synth.setParam('ripple', v), v => v < 0.005 ? 'off' : v.toFixed(3));
 wire('rippleK', v => synth.setParam('rippleK', v | 0), v => 'H' + v);
 $('rippleIdx').addEventListener('change', () => synth.setParam('rippleIdx', +$('rippleIdx').value));
+wire('winDepth', v => synth.setParam('winDepth', v), v => v < 0.005 ? 'off' : v.toFixed(2));
+wire('winWidth', v => synth.setParam('winWidth', v), v => (v * 100).toFixed(0) + '% of cycle');
+wire('carrierPure', v => synth.setParam('carrierPure', v), v => v < 0.005 ? 'saw' : (v > 0.995 ? 'sine' : v.toFixed(2)));
+wire('formantHz', v => synth.setParam('formantHz', v), v => v.toFixed(0) + ' Hz');
+wire('shape', v => synth.setParam('shape', v), v => v < 0.005 ? 'off' : v.toFixed(2) + ' (max .5)');
+$('formantLock').addEventListener('change', () => synth.setParam('formantLock', $('formantLock').checked ? 1 : 0));
 wire('n', v => synth.setParam('n', v | 0), v => '' + v);
 wire('detune', v => synth.setParam('detune', v));
 wire('K', v => synth.setParam('K', v));
