@@ -151,17 +151,54 @@ const CHAINS = [
   { id: 'WSR', label: 'warp → sync → ripple', order: ['W', 'S', 'R'] },
   { id: 'SRW', label: 'sync → ripple → warp', order: ['S', 'R', 'W'] }
 ];
-// Returns the final phase and the cumulative rate multiplier.
-function runChain(ph, order, a1, d, v, rip, rk) {
+/* RIPPLE INDEX — how the pulse/notch character is kept (human, 2026-07-28).
+   The pre-refactor code indexed the ripple by the phase entering the WARP
+   stage while ADDING it to the warped phase. That mismatch is why it sounded
+   the way it did: where warp compresses the phase, the ripple's excursion
+   exceeds the local slope and the map FOLDS BACKWARD — the ramp reverses
+   mid-cycle, which adds edges and reads as a notchy pulse wave. Measured: 465
+   fold-backs per cycle at ripple .9 H3 + warp d.2/v.6, versus 0 once the
+   composition was "corrected".
+
+   That was, strictly, a composition bug. It is also a musically valuable
+   waveform class, and the human has explicitly accepted that it leaves saw
+   territory. So it becomes a MODE rather than an accident:
+     rippleIdx 0 SHAPED — ripple reads its own input phase. Monotone by
+       construction, so the output stays a rising ramp: still a sawtooth.
+     rippleIdx 1 FOLD  — ripple reads the phase entering the PREVIOUS stage
+       (reproducing the old behaviour exactly). Non-monotone: the map can fold,
+       the waveform leaves saw territory, and the notches come back.
+   The slope combines ADDITIVELY in fold mode (d/dph of y+ripple(prev) picks up
+   the previous stage's multiplier), which is also what the old BLEP width used.
+
+   ALIASING COST OF FOLD: none, measured — ripple .9 H3 + warp reads -108.4 dB
+   in fold vs -104.1 dB shaped (both far below the fractional-sync hot spot).
+   The reason is worth stating because it is counter-intuitive: a fold makes
+   the phase map NON-MONOTONE but it stays CONTINUOUS, so the waveform gains
+   slope reversals, not new discontinuities. Only the cycle boundary is a step.
+   Slope reversals produce spectral NULLS (the notches) without broadband
+   fold-down — which is exactly why this sounds notchy rather than dirty. */
+function runChain(ph, order, a1, d, v, rip, rk, rippleIdx) {
   let y = ph, mult = 1;
+  let prevIn = ph, prevMult = 1;   // state entering the PREVIOUS stage
   for (const st of order) {
+    const inY = y, inMult = mult;
     if (st === 'S') {
       if (a1 !== 1) { y = a1 * y; y -= Math.floor(y); mult *= a1; }
     } else if (st === 'W') {
       if (d !== v) { mult *= warpSlope(y, d, v); y = warpPhase(y, d, v); y -= Math.floor(y); }
-    } else {
-      if (rip > 0) { mult *= 1 + rippleSlope(y, rip, rk); y += rippleAdd(y, rip, rk); y -= Math.floor(y); }
+    } else if (rip > 0) {
+      if (rippleIdx) {
+        // cross-indexed: read the previous stage's INPUT phase — can fold
+        mult = mult + prevMult * rippleSlope(prevIn, rip, rk);
+        y += rippleAdd(prevIn, rip, rk);
+      } else {
+        mult *= 1 + rippleSlope(y, rip, rk);
+        y += rippleAdd(y, rip, rk);
+      }
+      y -= Math.floor(y);
     }
+    prevIn = inY; prevMult = inMult;
   }
   return { y, mult };
 }
@@ -172,7 +209,7 @@ class ShapeSwarm {
     this.p = {
       n: 7, detune: 0.28, K: 0, seed: 1234, vol: 0.4, width: 0.8, digital: 1,
       // axis 1 — hard sync
-      sync: 1.0, syncSpread: 0, syncCouple: 0, syncSnap: 0, chain: 0,
+      sync: 1.0, syncSpread: 0, syncCouple: 0, syncSnap: 0, chain: 0, rippleIdx: 0,
       // axis 2 — phase warp (formant); d = v => identity
       warpD: 0.5, warpV: 0.5,
       // axis 3 — ripple
@@ -267,7 +304,7 @@ class ShapeSwarm {
           // ratios are the musically interesting ones.
           if (p.syncSnap) a1 = Math.round(a1);
 
-          const ch = runChain(ph, chainOrder, a1, d, v, rip, rk);
+          const ch = runChain(ph, chainOrder, a1, d, v, rip, rk, p.rippleIdx | 0);
           const w = ch.y, slope = ch.mult;
           let val = 2 * w - 1;
 
@@ -315,7 +352,7 @@ class ShapeSwarm {
     const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
     const order = CHAINS[Math.max(0, Math.min(CHAINS.length - 1, p.chain | 0))].order;
     for (let i = 0; i < N; i++) {
-      out[i] = 2 * runChain(i / N, order, p.sync, d, v, rip, rk).y - 1;
+      out[i] = 2 * runChain(i / N, order, p.sync, d, v, rip, rk, p.rippleIdx | 0).y - 1;
     }
     return out;
   }
@@ -346,7 +383,10 @@ class ShapeSwarm {
     <h2>Axis 3 — ripple</h2>
     <div class="row"><label>depth</label><input type="range" id="ripple" min="0" max="0.9" step="0.005" value="0"><output id="ripple_o"></output></div>
     <div class="row"><label>order k</label><input type="range" id="rippleK" min="1" max="12" step="1" value="3"><output id="rippleK_o"></output></div>
-    <div class="hint">A bounded sinusoidal perturbation of the phase — the continuum of <b>subtle sawtooth variants</b> that retargets ADR-058's saw↔square morph. Depth is capped so the ramp stays monotone (a fold would stop it being a saw).</div>
+    <div class="row"><label>index</label><select id="rippleIdx">
+      <option value="0">shaped — stays a saw</option>
+      <option value="1">fold — notches / pulse</option></select></div>
+    <div class="hint">A bounded sinusoidal perturbation of the phase — the continuum of <b>subtle sawtooth variants</b> that retargets ADR-058's saw↔square morph. <b>index</b> chooses the character: <i>shaped</i> keeps the map monotone (still a saw); <i>fold</i> restores the pre-refactor behaviour — the ripple reads the previous stage's phase, so with <b>warp engaged</b> the map folds backward and you get the notchy pulse wave. Fold needs warp to do anything.</div>
   </div>
 
   <div class="cluster">
@@ -394,6 +434,7 @@ wire('warpD', v => synth.setParam('warpD', v), v => v.toFixed(3));
 wire('warpV', v => synth.setParam('warpV', v), v => v.toFixed(3));
 wire('ripple', v => synth.setParam('ripple', v), v => v < 0.005 ? 'off' : v.toFixed(3));
 wire('rippleK', v => synth.setParam('rippleK', v | 0), v => 'H' + v);
+$('rippleIdx').addEventListener('change', () => synth.setParam('rippleIdx', +$('rippleIdx').value));
 wire('n', v => synth.setParam('n', v | 0), v => '' + v);
 wire('detune', v => synth.setParam('detune', v));
 wire('K', v => synth.setParam('K', v));
