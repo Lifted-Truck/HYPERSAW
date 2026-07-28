@@ -268,6 +268,7 @@ class ShapeSwarm {
   mkVoice() {
     return { midi: -1, f0: 220, gate: 0, env: 0, age: -1, tick: 0, R: 0,
              a1cur: 1, carrierHz: 0, fmtClamped: false,
+             a1sm: new Float64Array(MAXV), a1init: 0,
              phase: new Float64Array(MAXV), eff: new Float64Array(MAXV),
              vf: new Float64Array(MAXV), lpL: 0, lpR: 0 };
   }
@@ -326,6 +327,7 @@ class ShapeSwarm {
     const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
     const chainOrder = CHAINS[Math.max(0, Math.min(CHAINS.length - 1, p.chain | 0))].order;
     const shp = Math.max(0, Math.min(0.5, p.shape));   // hard cap: 0.5 (human ruling)
+    const a1cf = 1 - Math.exp(-1 / (0.004 * sr));      // 4 ms, seconds-in per ADR-009
     for (let smp = 0; smp < outL.length; smp++) { outL[smp] = 0; outR[smp] = 0; }
     for (const s of this.sw) {
       if (!s.gate && s.env < 1e-4) continue;
@@ -349,7 +351,17 @@ class ShapeSwarm {
           // the jump is full and the BLEP is exact — measured -136 dB vs
           // -62 dB at a fractional ratio. Opt-in, because the fractional
           // ratios are the musically interesting ones.
-          if (p.syncSnap) a1 = Math.round(a1);
+          // DE-CLICK (human report 2026-07-28). The sync form y = frac(a1*ph)
+          // DERIVES the slave phase from the master, so a change in a1 does not
+          // change the slave's RATE — it teleports its POSITION mid-cycle. Any
+          // moving a1 (syncCouple tracking R, formant lock tracking the note)
+          // therefore steps the phase every control tick. A saw's own edge
+          // masks it; a sine carrier exposes it, which is exactly where the
+          // human heard it. Smoothing a1 per sample converts the teleport into
+          // a glide. Time constant in SECONDS per ADR-009.
+          if (!s.a1init) { s.a1sm[i] = a1; }
+          s.a1sm[i] += a1cf * (a1 - s.a1sm[i]);
+          a1 = s.a1sm[i];
           // FORMANT LOCK: tune the carrier to an absolute Hz instead of a ratio,
           // so the formant stays put while pitch moves under it.
           // TWO BUGS FIXED 2026-07-28 after the human reported it feeling wrong:
@@ -371,31 +383,58 @@ class ShapeSwarm {
             s.fmtClamped = want < 1;
             a1 = Math.max(1, Math.min(64, want));
           } else s.fmtClamped = false;
+          // SNAP RUNS LAST. It used to run BEFORE the formant lock, so with
+          // lock engaged it was silently a no-op — the lock then produced an
+          // arbitrary fractional ratio, which is precisely the case that
+          // truncates the carrier mid-cycle and clicks (measured: integer
+          // ratio + sine = 0 discontinuities/s, ratio 4.37 = 300/s). Snapping
+          // after the lock costs formant precision (the formant quantises to
+          // whole ratios of the note) and buys a click-free carrier.
+          if (p.syncSnap) a1 = Math.max(1, Math.round(a1));
           if (i === 0) { s.a1cur = a1; s.carrierHz = a1 * Math.max(20, s.vf[0]); }
 
+          if (i === n - 1) s.a1init = 1;
           const ch = runChain(ph, chainOrder, a1, d, v, rip, rk, p.rippleIdx | 0);
           const w = ch.y, slope = ch.mult;
           const dy = Math.max(dph * Math.max(0.05, Math.abs(slope)), 1e-6);
           let jump = 1;
           if (ph < dph && a1 > 1) { const fr = a1 - Math.floor(a1); jump = fr > 1e-6 ? fr : 1; }
-          let val = blepSaw(w, dy, jump, p.digital);
+          let sawVal = blepSaw(w, dy, jump, p.digital);
           // saw <-> square morph: subtract a half-cycle-offset saw. Capped at
           // 0.5 by the human's ruling, so it never reaches a full square.
           if (shp > 0) {
             let w2 = w + 0.5; w2 -= Math.floor(w2);
-            val -= shp * blepSaw(w2, dy, 1, p.digital);
+            sawVal -= shp * blepSaw(w2, dy, 1, p.digital);
           }
-          // CARRIER PURITY. Measured necessity, not a preference: with a SAW
-          // carrier the windowed construction only holds its formant at high
-          // carrier ratios (1600 Hz stayed put at 1.29x spread; 800 Hz was
-          // erratic) because a saw spreads energy over its OWN harmonic series,
-          // so "the formant" is not one region. FOF/VOSIM use a near-sine
-          // carrier for exactly this reason. Blend toward sine so the carrier's
-          // energy concentrates at its fundamental = the formant centre.
+          let val = sawVal;
+          // SECOND CLICK SOURCE, separate from the a1 teleport: at a MASTER
+          // wrap with a non-integer ratio the carrier is truncated mid-cycle.
+          // For the saw that step is already BLEP'd (jump = frac(a1)); for a
+          // SINE it is a step of sin(2*pi*frac(a1)) that no saw BLEP touches —
+          // which is why turning the carrier toward sine made it audible. The
+          // window hides it at full depth (that is what FOF windows are for),
+          // so it only shows at partial depth. Correct it explicitly.
           if (p.carrierPure > 0) {
-            const sine = Math.sin(TAU * w);
-            val += (sine - val) * p.carrierPure;
+            let sineVal = Math.sin(TAU * w);
+            if (p.digital > 0 && ph < dph && a1 > 1) {
+              const fr = a1 - Math.floor(a1);
+              if (fr > 1e-6) {
+                let bl = 0;
+                if (w < dy) { const t = w / dy; bl = t + t - t * t - 1; }
+                else if (w > 1 - dy) { const t = (w - 1) / dy; bl = t * t + t + t + 1; }
+                sineVal -= p.digital * bl * (Math.sin(TAU * fr) * 0.5);
+              }
+            }
+            val += (sineVal - val) * p.carrierPure;
           }
+          // (carrier purity applied above; note below kept for context)
+          // NOTE on carrier purity, applied just above: it is a measured
+          // necessity, not a preference. A SAW carrier spreads energy over
+          // its OWN harmonic series, so the windowed construction only held
+          // its formant at high carrier ratios (1600 Hz stayed put at 1.29x
+          // spread; 800 Hz was erratic until purity was added). FOF/VOSIM
+          // use a near-sine carrier for exactly this reason: it concentrates
+          // the carrier's energy at its fundamental = the formant centre.
           // windowed carrier: amplitude grain at the MASTER rate
           if (p.winDepth > 0) {
             const g = grainWindow(ph, Math.max(0.02, Math.min(1, p.winWidth)));
@@ -510,7 +549,8 @@ class ShapeSwarm {
     <div class="row"><label>width</label><input type="range" id="width" min="0" max="1" step="0.01" value="0.8"><output id="width_o"></output></div>
     <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o"></output></div>
     <div class="row"><label>anti-alias</label><input type="range" id="digital" min="0" max="1" step="0.01" value="1"><output id="digital_o"></output></div>
-    <div class="row"><button id="drone">drone (space)</button><span class="hint" style="margin:0" id="octlbl"></span></div>
+    <div class="row"><button id="drone">drone (space)</button><button id="panic" style="border-color:var(--red);color:var(--red)">PANIC</button></div>
+    <div class="row"><span class="hint" style="margin:0" id="octlbl"></span></div>
     <div class="hint">anti-alias 1 = polyBLEP on, 0 = naive. Flip it while a high note sounds — the difference is the whole reason the sync axis needs a BLEP budget.</div>
   </div>
 
@@ -530,6 +570,7 @@ const ctx = new (window.AudioContext || window.webkitAudioContext)();
 const synth = new ShapeSwarm(ctx.sampleRate);
 let spn = null, analyser = null;
 function ensureAudio() {
+  if (ctx.state === 'suspended') { ctx.resume(); $('panic').textContent = 'PANIC'; }
   if (spn) return;
   spn = ctx.createScriptProcessor(1024, 0, 2);
   spn.onaudioprocess = e => synth.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
@@ -616,6 +657,20 @@ addEventListener('keyup', e => {
   if (off === undefined) return;
   const m = octaveBase + off;
   down.delete(m); synth.noteOff(m);
+});
+// PANIC — every synth ships one; the labs should too. Releases every voice,
+// clears the held-key set (so a dropped keyup cannot leave a note gated),
+// cancels the drone, and suspends the audio graph. Without this the only way
+// out of a stuck note is closing the tab.
+$('panic').addEventListener('click', async () => {
+  for (const s of synth.sw) { s.gate = 0; s.env = 0; }
+  down.clear();
+  droneOn = false; $('drone').classList.remove('on');
+  if (ctx.state === 'running') { await ctx.suspend(); }
+  $('panic').textContent = 'SILENCED — click to resume';
+});
+$('panic').addEventListener('dblclick', async () => {
+  await ctx.resume(); $('panic').textContent = 'PANIC';
 });
 let droneOn = false;
 $('drone').addEventListener('click', () => {
