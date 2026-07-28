@@ -10,8 +10,12 @@
   body { background:var(--bg); color:var(--text); font:13px/1.5 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:14px; }
   h1 { font-size:17px; margin-bottom:2px; } h1 .star { color:var(--cyan); }
   .tagline { color:var(--dim); font-size:11px; margin-bottom:10px; max-width:1000px; }
-  .cols { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
-  .cluster { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:262px; }
+  /* Columns, not wrapped rows: clusters fill top-to-bottom then move to the
+     next column, so everything is visible at once instead of leaving ragged
+     vertical gaps under short clusters. Same pattern the plugin GUI uses. */
+  .cols { columns:300px 4; column-gap:10px; }
+  .cluster { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+             break-inside:avoid; -webkit-column-break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
   .cluster h2 { font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--cyan); margin-bottom:8px; }
   .row { display:flex; align-items:center; gap:6px; margin:4px 0; }
   .row label { width:92px; color:var(--dim); font-size:11px; }
@@ -263,6 +267,7 @@ class ShapeSwarm {
   }
   mkVoice() {
     return { midi: -1, f0: 220, gate: 0, env: 0, age: -1, tick: 0, R: 0,
+             a1cur: 1, carrierHz: 0, fmtClamped: false,
              phase: new Float64Array(MAXV), eff: new Float64Array(MAXV),
              vf: new Float64Array(MAXV), lpL: 0, lpR: 0 };
   }
@@ -347,7 +352,26 @@ class ShapeSwarm {
           if (p.syncSnap) a1 = Math.round(a1);
           // FORMANT LOCK: tune the carrier to an absolute Hz instead of a ratio,
           // so the formant stays put while pitch moves under it.
-          if (p.formantLock) a1 = Math.max(1, Math.min(64, p.formantHz / Math.max(20, f)));
+          // TWO BUGS FIXED 2026-07-28 after the human reported it feeling wrong:
+          //  (1) a1 was derived from `f` = eff[i], the COUPLING-PERTURBED
+          //      frequency, so the formant jittered with the swarm's motion
+          //      instead of sitting still. Derive from the voice's BASE
+          //      frequency (vf[i], pre-coupling) — the formant should be a
+          //      property of the note, not of the swarm's instantaneous state.
+          //  (2) a1 clamps at 1, so whenever formantHz < the voice frequency
+          //      the sync disengaged ENTIRELY and the formant silently
+          //      vanished — at 800 Hz that is every note above ~G5, with the
+          //      effect fading out as you approach it. A formant below the
+          //      fundamental cannot be expressed by any harmonic, so clamping
+          //      is correct physics; silently doing it is the bug. It is now
+          //      reported (s.fmtClamped) and shown in the UI.
+          if (p.formantLock) {
+            const base = Math.max(20, s.vf[i]);
+            const want = p.formantHz / base;
+            s.fmtClamped = want < 1;
+            a1 = Math.max(1, Math.min(64, want));
+          } else s.fmtClamped = false;
+          if (i === 0) { s.a1cur = a1; s.carrierHz = a1 * Math.max(20, s.vf[0]); }
 
           const ch = runChain(ph, chainOrder, a1, d, v, rip, rk, p.rippleIdx | 0);
           const w = ch.y, slope = ch.mult;
@@ -388,6 +412,36 @@ class ShapeSwarm {
       }
     }
   }
+  // One MASTER cycle of the windowed-carrier construction, decomposed so the
+  // mechanism is visible: the grain envelope, the carrier inside it, and their
+  // product. Uses the focus voice's actual a1 so the picture matches the sound.
+  grainCycle(N) {
+    const p = this.p;
+    // NEWEST sounding voice, not the first slot — with a chord or a drone held,
+    // "the first gated voice" is whatever you played earliest, which is not the
+    // note you are currently listening to.
+    let foc = null;
+    for (const sw of this.sw) if (sw.gate || sw.env > 1e-3) { if (!foc || sw.age > foc.age) foc = sw; }
+    const a1 = foc ? foc.a1cur : p.sync;
+    const d = Math.min(0.98, Math.max(0.02, p.warpD)), v = Math.min(0.98, Math.max(0.02, p.warpV));
+    const rip = Math.min(0.9, Math.max(0, p.ripple)), rk = Math.max(1, p.rippleK | 0);
+    const order = CHAINS[Math.max(0, Math.min(CHAINS.length - 1, p.chain | 0))].order;
+    const win = new Float64Array(N), car = new Float64Array(N), out = new Float64Array(N);
+    const wid = Math.max(0.02, Math.min(1, p.winWidth));
+    for (let i = 0; i < N; i++) {
+      const ph = i / N;
+      const y = runChain(ph, order, a1, d, v, rip, rk, p.rippleIdx | 0).y;
+      let c = 2 * y - 1;
+      if (p.shape > 0) { let y2 = y + 0.5; y2 -= Math.floor(y2); c -= Math.min(0.5, p.shape) * (2 * y2 - 1); }
+      if (p.carrierPure > 0) c += (Math.sin(TAU * y) - c) * p.carrierPure;
+      const g = grainWindow(ph, wid);
+      win[i] = g; car[i] = c;
+      out[i] = c * ((1 - p.winDepth) + p.winDepth * g);
+    }
+    return { win, car, out, a1, carrierHz: foc ? foc.carrierHz : 0,
+             clamped: foc ? foc.fmtClamped : false, f0: foc ? foc.f0 : 0 };
+  }
+
   // One cycle of the current shape, for the visualiser and for offline checks.
   shapeCycle(N) {
     const p = this.p, out = new Float64Array(N);
@@ -439,6 +493,8 @@ class ShapeSwarm {
     <div class="row"><label>carrier purity</label><input type="range" id="carrierPure" min="0" max="1" step="0.01" value="0"><output id="carrierPure_o"></output></div>
     <div class="row"><label>formant lock</label><input type="checkbox" id="formantLock"></div>
     <div class="row"><label>formant Hz</label><input type="range" id="formantHz" min="200" max="3000" step="10" value="800"><output id="formantHz_o"></output></div>
+    <canvas id="grainViz" width="270" height="128"></canvas>
+    <div class="hint" style="margin-bottom:6px">Top trace = the <b>grain window</b> at the pitch you play; middle = the <b>carrier</b> running inside it; bottom = their <b>product</b>, one master cycle. The readout gives the carrier's actual Hz — if it turns red, the formant is <b>below the fundamental</b> and cannot be expressed, so the lock has clamped and the effect is gone. That silent clamp was the bug you were hearing.</div>
     <div class="hint">The VOSIM/FOF construction: the <b>window</b> repeats at the pitch you play (its width sets formant <i>bandwidth</i>), while the <b>carrier</b> — the sync'd ramp — sets formant <i>centre</i>. With <b>formant lock</b> the carrier is tuned to an absolute Hz, so the formant STAYS PUT while pitch moves under it. <b>Carrier purity</b> blends the carrier toward sine: measured necessity, since a saw carrier spreads energy over its own harmonics and smears the formant. Amplitude-domain — this axis leaves saw territory by design.</div>
 
     <h2 style="margin-top:12px">Saw ↔ square (capped)</h2>
@@ -570,13 +626,43 @@ $('drone').addEventListener('click', () => {
 octLabel();
 const sv = $('shapeViz').getContext('2d'), pv = $('specViz').getContext('2d');
 const kv = $('couplingViz').getContext('2d');
+const gv = $('grainViz').getContext('2d');
 const rHist = [];
 const specBuf = new Uint8Array(2048);
 function draw() {
   requestAnimationFrame(draw);
+  /* --- windowed carrier: window / carrier / product over one master cycle --- */
+  {
+    gv.fillStyle = '#0b0e13'; gv.fillRect(0, 0, 270, 128);
+    const G = synth.grainCycle(270);
+    const lane = (yTop, h) => { gv.strokeStyle = '#2a3040'; gv.beginPath();
+      gv.moveTo(0, yTop + h / 2); gv.lineTo(270, yTop + h / 2); gv.stroke(); };
+    lane(14, 30); lane(50, 30); lane(88, 34);
+    const plot = (arr, yTop, h, col, bipolar) => {
+      gv.strokeStyle = col; gv.beginPath();
+      for (let x = 0; x < 270; x++) {
+        const val = bipolar ? arr[x] : arr[x] * 2 - 1;
+        const y = yTop + h / 2 - val * (h / 2 - 1);
+        x ? gv.lineTo(x, y) : gv.moveTo(x, y);
+      }
+      gv.stroke();
+    };
+    plot(G.win, 14, 30, '#ffc24b', false);
+    plot(G.car, 50, 30, '#8b94a6', true);
+    plot(G.out, 88, 34, '#5ff2e0', true);
+    gv.font = '8px monospace';
+    gv.fillStyle = '#ffc24b'; gv.fillText('window', 3, 11);
+    gv.fillStyle = '#8b94a6'; gv.fillText('carrier  a1 ' + G.a1.toFixed(2), 3, 47);
+    gv.fillStyle = '#5ff2e0'; gv.fillText('product', 3, 85);
+    if (synth.p.formantLock && G.f0) {
+      gv.fillStyle = G.clamped ? '#ff6b8a' : '#5fd08a';
+      gv.fillText((G.clamped ? 'CLAMPED — formant < f0 ' : 'carrier ') + G.carrierHz.toFixed(0) + ' Hz', 150, 11);
+    }
+  }
   /* --- coupling: phase circle + R arm + R history + live a1 --- */
   kv.fillStyle = '#0b0e13'; kv.fillRect(0, 0, 270, 120);
-  const foc = synth.sw.find(s => s.gate) || synth.sw.find(s => s.env > 1e-3);
+  let foc = null;
+  for (const sw of synth.sw) if (sw.gate || sw.env > 1e-3) { if (!foc || sw.age > foc.age) foc = sw; }
   const cx = 60, cy = 60, rad = 46;
   kv.strokeStyle = '#2a3040'; kv.beginPath(); kv.arc(cx, cy, rad, 0, TAU); kv.stroke();
   if (foc) {
