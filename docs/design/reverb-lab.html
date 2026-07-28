@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SWARM✱ reverb lab — pre-delay · ER · diffusion · FDN · swarm modulation</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#2a3040; --text:#e8ecf2; --dim:#8b94a6;
+          --green:#5fd08a; --amber:#ffc24b; --red:#ff6b8a; --cyan:#5ff2e0; --vio:#b48cff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:13px/1.5 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:14px; }
+  h1 { font-size:17px; margin-bottom:2px; } h1 .star { color:var(--cyan); }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:10px; max-width:1050px; }
+  .cols { columns:300px 4; column-gap:10px; }
+  .cluster { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+             break-inside:avoid; -webkit-column-break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
+  .cluster h2 { font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--cyan); margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:6px; margin:4px 0; }
+  .row label { width:96px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:62px; text-align:right; font-size:11px; }
+  .row select { background:#0d1016; color:var(--text); border:1px solid var(--line); font:inherit; font-size:11px; }
+  canvas { background:#0b0e13; border:1px solid var(--line); border-radius:4px; display:block; }
+  button { background:#0d1016; color:var(--text); border:1px solid var(--line); border-radius:4px; font:inherit; font-size:11px; padding:3px 9px; cursor:pointer; }
+  button.on { border-color:var(--cyan); color:var(--cyan); }
+  .hint { color:var(--dim); font-size:10.5px; margin-top:6px; }
+  kbd { background:#0d1016; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+</style>
+</head>
+<body>
+<h1>SWARM<span class="star">✱</span> · reverb lab</h1>
+<div class="tagline">Task #23 — the integrated reverb. Built as a full signal chain rather than a bare FDN, because the "acoustic strings section" quality the human heard from an external reverb most likely lives in the <b>early reflections</b> and <b>diffusion</b>, not in the tail length. Also tests the roadmap's open question: does the reverb get its OWN SWARM (coherent modulation, in the instrument's own idiom) or stay a static space? Audition lab, spec-in-code — NOT a reference. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone.</div>
+
+<script>
+/* ================= DSP ================= */
+const TICK = 16, TAU = 6.283185307, MAXV = 16, NLINE = 8;
+
+function mulberry(seed) {
+  let s = seed | 0;
+  return () => { s |= 0; s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+/* ---- a compact swarm voice, so the reverb is auditioned on the instrument it
+   is for rather than on a click. Not the reference core — just enough. ---- */
+class MiniSwarm {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { n: 7, detune: 0.3, K: 0.2, vol: 0.35, width: 0.85, seed: 1234 };
+    this.sw = []; for (let i = 0; i < 6; i++) this.sw.push(this.mk());
+    this.noteCounter = 0; this.rebuild();
+  }
+  mk() { return { midi: -1, f0: 220, gate: 0, env: 0, age: -1, tick: 0,
+                  phase: new Float64Array(MAXV), eff: new Float64Array(MAXV), vf: new Float64Array(MAXV) }; }
+  rebuild() {
+    const n = this.p.n; this.x = new Float64Array(n);
+    this.pL = new Float64Array(n); this.pR = new Float64Array(n);
+    for (let i = 0; i < n; i++) this.x[i] = n === 1 ? 0 : 2 * (i / (n - 1)) - 1;
+    for (let r = 0; r < n; r++) {
+      const d = n === 1 ? 0 : r / (n - 1);
+      const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * d * this.p.width));
+      const th = (pan + 1) * 0.25 * 3.14159265;
+      this.pL[r] = Math.cos(th); this.pR[r] = Math.sin(th);
+    }
+  }
+  setParam(k, v) { this.p[k] = v; if (k === 'n' || k === 'width') this.rebuild(); }
+  alloc() { let b = null;
+    for (const s of this.sw) if (!s.gate && s.env < 1e-3) { if (!b || s.age < b.age) b = s; }
+    if (b) return b;
+    for (const s of this.sw) if (!b || s.age < b.age) b = s; return b; }
+  noteOn(midi, f) { const s = this.alloc();
+    s.midi = midi; s.f0 = f; s.gate = 1; s.age = this.noteCounter++;
+    const rng = mulberry((this.p.seed | 0) + s.age * 7919 + 1);
+    for (let i = 0; i < this.p.n; i++) s.phase[i] = rng(); }
+  noteOff(midi) { for (const s of this.sw) if (s.midi === midi && s.gate) s.gate = 0; }
+  allOff() { for (const s of this.sw) { s.gate = 0; s.env = 0; } }
+  control(s) {
+    const p = this.p, n = p.n; let mean = 0;
+    for (let i = 0; i < n; i++) { s.vf[i] = s.f0 * Math.pow(2, (this.x[i] * p.detune * 100) / 1200); mean += s.vf[i]; }
+    mean /= n; let m2 = 0;
+    for (let i = 0; i < n; i++) { const d = s.vf[i] - mean; m2 += d * d; }
+    const sigma = Math.max(0.3, Math.sqrt(m2 / n));
+    let cx = 0, cy = 0;
+    for (let i = 0; i < n; i++) { const a = TAU * s.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    const R = Math.sqrt(cx * cx + cy * cy) / n, psi = Math.atan2(cy, cx);
+    const km = 4 * p.K * Math.abs(p.K) * sigma;
+    for (let i = 0; i < n; i++)
+      s.eff[i] = s.vf[i] + (km > 0 ? km * R * Math.sin(psi - TAU * s.phase[i]) : 0);
+  }
+  render(outL, outR) {
+    const p = this.p, sr = this.sr, n = p.n;
+    const atk = 1 - Math.exp(-1 / (0.004 * sr)), rel = 1 - Math.exp(-1 / (0.35 * sr));
+    const g = p.vol / Math.sqrt(n);
+    for (let i = 0; i < outL.length; i++) { outL[i] = 0; outR[i] = 0; }
+    for (const s of this.sw) {
+      if (!s.gate && s.env < 1e-4) continue;
+      for (let smp = 0; smp < outL.length; smp++) {
+        if (s.tick === 0) this.control(s);
+        s.tick = (s.tick + 1) & (TICK - 1);
+        let l = 0, r = 0;
+        for (let i = 0; i < n; i++) {
+          const dph = Math.max(0, s.eff[i]) / sr;
+          let ph = s.phase[i] + dph; ph -= Math.floor(ph); s.phase[i] = ph;
+          let v = 2 * ph - 1;
+          const d = Math.max(dph, 1e-6);
+          if (ph < d) { const t = ph / d; v -= t + t - t * t - 1; }
+          else if (ph > 1 - d) { const t = (ph - 1) / d; v -= t * t + t + t + 1; }
+          l += v * this.pL[i]; r += v * this.pR[i];
+        }
+        const c = s.gate ? atk : rel;
+        s.env += ((s.gate ? 1 : 0) - s.env) * c;
+        outL[smp] += l * g * s.env; outR[smp] += r * g * s.env;
+      }
+    }
+  }
+}
+
+/* ---- SwarmVerb ------------------------------------------------------------
+   A full chain, not a bare FDN, because each stage answers a different part of
+   "sounds like a real room":
+     PRE-DELAY  — the gap before any reflection; sets apparent room distance.
+     EARLY REFL — a sparse tapped pattern. This is where a space's IDENTITY
+                  lives: the ear reads the first ~80 ms as "what shape of room".
+                  The roadmap's hypothesis is that the strings-section quality
+                  the human got from an external reverb comes from HERE, not
+                  from tail length — so ER is a first-class stage with its own
+                  send, not an afterthought.
+     DIFFUSION  — allpass chain that smears transients before the tail, so the
+                  FDN is fed something already dense (Schroeder/Dattorro idea).
+                  Without it a big FDN "flutters" on percussive input.
+     FDN TAIL   — 8 delay lines, Householder feedback, per-line damping. Decay
+                  is set by TIME (RT60) and converted per line, not by a raw
+                  feedback number, so changing size does not change decay.
+     MODULATION — line lengths wander slightly. Static FDN lines ring
+                  metallically; a few samples of movement breaks it up. The
+                  roadmap question is WHICH movement: independent LFOs, or one
+                  KURAMOTO SWARM whose coupling K sets how correlated the lines
+                  are. Both are here (`mod source`), which is the experiment.
+   -------------------------------------------------------------------------- */
+class SwarmVerb {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { mix: 0.35, preDelay: 0.02, erSend: 0.7, erSize: 0.55, erDecay: 0.6,
+               diffuse: 0.7, size: 0.5, decay: 2.2, damp: 0.45, lowCut: 120,
+               modDepth: 0.35, modRate: 0.35, modK: 0, modSource: 1, width: 1.0 };
+    // pre-delay ring
+    this.pd = new Float64Array(1 << 15); this.pdW = 0;
+    // early reflections: prime-ish tap pattern, deterministic
+    this.erBufL = new Float64Array(1 << 14); this.erBufR = new Float64Array(1 << 14);
+    this.erW = 0;
+    this.NTAP = 12;
+    this.tapT = new Float64Array(this.NTAP); this.tapG = new Float64Array(this.NTAP);
+    this.tapP = new Float64Array(this.NTAP);
+    const rng = mulberry(9173);
+    for (let i = 0; i < this.NTAP; i++) {
+      this.tapT[i] = 0.006 + Math.pow(i / (this.NTAP - 1), 1.35) * 0.075;   // 6..81 ms
+      this.tapG[i] = 1 / (1 + i * 0.55);
+      this.tapP[i] = rng() * 2 - 1;
+    }
+    // diffusion allpasses (lengths in samples at 44.1k, scaled at run time)
+    this.apLen = [142, 107, 379, 277];
+    this.ap = this.apLen.map(L => ({ buf: new Float64Array(2048), w: 0, len: L }));
+    this.apR = this.apLen.map(L => ({ buf: new Float64Array(2048), w: 0, len: (L * 1.17) | 0 }));
+    // FDN
+    this.LBUF = 1 << 13;
+    this.line = []; for (let i = 0; i < NLINE; i++) this.line.push(new Float64Array(this.LBUF));
+    this.lw = 0;
+    this.baseLen = [1237, 1451, 1733, 1979, 2287, 2593, 2861, 3187];  // coprime-ish
+    this.lp = new Float64Array(NLINE);
+    this.hp = new Float64Array(NLINE);
+    this.modPh = new Float64Array(NLINE);
+    for (let i = 0; i < NLINE; i++) this.modPh[i] = i / NLINE;
+    this.dcx = 0; this.dcy = 0;
+  }
+  setParam(k, v) { this.p[k] = v; }
+  reset() {
+    this.pd.fill(0); this.erBufL.fill(0); this.erBufR.fill(0);
+    for (const a of this.ap) a.buf.fill(0);
+    for (const a of this.apR) a.buf.fill(0);
+    for (const l of this.line) l.fill(0);
+    this.lp.fill(0); this.hp.fill(0);
+  }
+  // Kuramoto modulation: NLINE phase oscillators. modK 0 = independent drift
+  // (classic chorused FDN); modK 1 = locked, so every line breathes together.
+  // That difference is the roadmap's "own swarm?" question made audible.
+  stepMod(dt) {
+    const p = this.p, K = p.modK * 3.0;
+    if (K !== 0) {
+      let cx = 0, cy = 0;
+      for (let i = 0; i < NLINE; i++) { const a = TAU * this.modPh[i]; cx += Math.cos(a); cy += Math.sin(a); }
+      const R = Math.sqrt(cx * cx + cy * cy) / NLINE, psi = Math.atan2(cy, cx);
+      for (let i = 0; i < NLINE; i++) {
+        const rate = p.modRate * (0.7 + 0.6 * (i / NLINE));
+        this.modPh[i] += (rate + K * R * Math.sin(psi - TAU * this.modPh[i])) * dt;
+        this.modPh[i] -= Math.floor(this.modPh[i]);
+      }
+    } else {
+      for (let i = 0; i < NLINE; i++) {
+        const rate = p.modRate * (0.7 + 0.6 * (i / NLINE));
+        this.modPh[i] += rate * dt; this.modPh[i] -= Math.floor(this.modPh[i]);
+      }
+    }
+  }
+  process(inL, inR, outL, outR) {
+    const p = this.p, sr = this.sr, N = outL.length;
+    const dt = 1 / sr;
+    // damping: one-pole LP corner, and a low cut on the tail so the room does
+    // not accumulate mud (the reason the lab's old master HPF existed).
+    const dampHz = 12000 * Math.pow(0.06, p.damp);
+    const dampC = 1 - Math.exp(-TAU * dampHz / sr);
+    const hpC = 1 - Math.exp(-TAU * Math.max(20, p.lowCut) / sr);
+    // LOOP-GAIN COMPENSATION. The damping LP and the low-cut HP sit INSIDE the
+    // feedback path, so each pass loses a little even in the passband. Two
+    // consequences, both measured before this was added: the decay knob
+    // undershot badly (6.0 s set -> 3.48 s at 1 kHz), and — less obviously —
+    // SIZE changed the decay (1.47 / 1.69 / 1.94 s at 250 Hz for size
+    // 0.1/0.5/1.0), because longer lines mean fewer passes per second and so
+    // less accumulated filter loss. Dividing the feedback gain by the filters'
+    // magnitude at a reference frequency restores both: the knob means what it
+    // says at fRef, size stops affecting decay, and HF still decays faster than
+    // LF, which is what a real room does.
+    // For y += c*(x-y): H_lp = c / (1 - a*z^-1) with a = 1-c, so
+    //   |H_lp| = c / sqrt(1 - 2a*cos w + a^2)
+    // and the complementary highpass is 1 - H_lp, whose magnitude must be taken
+    // on the COMPLEX difference:
+    //   |1 - H_lp| = a*sqrt(2 - 2cos w) / sqrt(1 - 2a*cos w + a^2)
+    // Using |1 - |H_lp|| instead over-estimated the loss (0.881 vs 0.982 at
+    // 1 kHz), which inflated the compensation until it hit the safety clamp and
+    // the decay ran 2.4x LONG. Complex arithmetic is not optional here.
+    const fRef = 1000, wRef = TAU * fRef / sr, cosR = Math.cos(wRef);
+    const denom = c => { const a = 1 - c; return Math.sqrt(1 - 2 * a * cosR + a * a); };
+    const lpMag = dampC / denom(dampC);
+    const aHp = 1 - hpC;
+    const hpMag = aHp * Math.sqrt(2 - 2 * cosR) / denom(hpC);
+    const loopComp = 1 / Math.max(1e-3, lpMag * hpMag);
+    const sizeScale = 0.55 + p.size * 1.0;
+    const pdSamp = Math.max(1, Math.min(this.pd.length - 4, p.preDelay * sr));
+    const modSamp = p.modDepth * 26;   // up to ~26 samples of wander
+    for (let smp = 0; smp < N; smp++) {
+      if ((smp & (TICK - 1)) === 0) this.stepMod(dt * TICK);
+      const dryL = inL[smp], dryR = inR[smp];
+      const mono = 0.5 * (dryL + dryR);
+      // --- pre-delay
+      this.pd[this.pdW] = mono;
+      let rp = this.pdW - pdSamp; if (rp < 0) rp += this.pd.length;
+      const i0 = rp | 0, fr = rp - i0, i1 = (i0 + 1) % this.pd.length;
+      const pre = this.pd[i0] * (1 - fr) + this.pd[i1] * fr;
+      this.pdW = (this.pdW + 1) % this.pd.length;
+      // --- early reflections (own tapped buffer, stereo by tap pan)
+      this.erBufL[this.erW] = pre;
+      let erL = 0, erR = 0;
+      for (let t = 0; t < this.NTAP; t++) {
+        const d = Math.max(1, this.tapT[t] * p.erSize * 2 * sr);
+        let r2 = this.erW - d; if (r2 < 0) r2 += this.erBufL.length;
+        const j0 = r2 | 0, f2 = r2 - j0, j1 = (j0 + 1) % this.erBufL.length;
+        const v = (this.erBufL[j0] * (1 - f2) + this.erBufL[j1] * f2) * this.tapG[t] * Math.pow(p.erDecay, t * 0.4);
+        const pan = this.tapP[t] * p.width;
+        erL += v * Math.sqrt(0.5 * (1 - pan)); erR += v * Math.sqrt(0.5 * (1 + pan));
+      }
+      this.erW = (this.erW + 1) % this.erBufL.length;
+      const erNorm = 0.5;
+      erL *= erNorm; erR *= erNorm;
+      // --- diffusion (allpass chain) feeding the tail
+      let dif = pre + (erL + erR) * 0.25 * p.erSend;
+      const g = 0.5 + 0.25 * p.diffuse;
+      for (const a of this.ap) {
+        const L = Math.max(1, (a.len * sizeScale) | 0) % a.buf.length;
+        let r3 = a.w - L; if (r3 < 0) r3 += a.buf.length;
+        const bufv = a.buf[r3 | 0];
+        const v = dif + bufv * g;
+        a.buf[a.w] = v;
+        dif = bufv - v * g;
+        a.w = (a.w + 1) % a.buf.length;
+      }
+      // --- FDN tail
+      const outs = new Array(NLINE);
+      let sum = 0;
+      for (let i = 0; i < NLINE; i++) {
+        const wobble = Math.sin(TAU * this.modPh[i]) * modSamp;
+        const d = Math.max(2, Math.min(this.LBUF - 4, this.baseLen[i] * sizeScale + wobble));
+        let r4 = this.lw - d; if (r4 < 0) r4 += this.LBUF;
+        const k0 = r4 | 0, f4 = r4 - k0, k1 = (k0 + 1) % this.LBUF;
+        let o = this.line[i][k0] * (1 - f4) + this.line[i][k1] * f4;
+        this.lp[i] += dampC * (o - this.lp[i]); o = this.lp[i];      // HF damping
+        this.hp[i] += hpC * (o - this.hp[i]); o -= this.hp[i];        // low cut
+        outs[i] = o; sum += o;
+      }
+      // per-line feedback for the requested RT60: g = 10^(-3 * len / (rt60*sr))
+      const rt = Math.max(0.15, p.decay);
+      // Householder mixing (negated: the all-ones eigenchannel must carry +1)
+      const hh = 2 * sum / NLINE;
+      for (let i = 0; i < NLINE; i++) {
+        const len = this.baseLen[i] * sizeScale;
+        // clamp below 1: compensation must never make the loop regenerative
+        const gi = Math.min(0.9995, Math.pow(10, -3 * len / (rt * sr)) * loopComp);
+        this.line[i][this.lw] = dif * 0.35 + (outs[i] - hh) * gi;
+      }
+      this.lw = (this.lw + 1) % this.LBUF;
+      // stereo tap of the tail: split lines L/R
+      let tL = 0, tR = 0;
+      for (let i = 0; i < NLINE; i++) { if (i % 2) tR += outs[i]; else tL += outs[i]; }
+      const tn = 2 / NLINE;
+      tL *= tn; tR *= tn;
+      // width on the tail only (dry keeps its own image)
+      const mid = 0.5 * (tL + tR), sid = 0.5 * (tL - tR) * p.width;
+      tL = mid + sid; tR = mid - sid;
+      const wetL = tL + erL * p.erSend, wetR = tR + erR * p.erSend;
+      outL[smp] = dryL * (1 - p.mix) + wetL * p.mix;
+      outR[smp] = dryR * (1 - p.mix) + wetR * p.mix;
+    }
+  }
+}
+/* ================= UI ================= */
+</script>
+
+<div class="cols">
+  <div class="cluster">
+    <h2>Space</h2>
+    <div class="row"><label>mix</label><input type="range" id="mix" min="0" max="1" step="0.01" value="0.35"><output id="mix_o"></output></div>
+    <div class="row"><label>pre-delay</label><input type="range" id="preDelay" min="0" max="0.2" step="0.001" value="0.02"><output id="preDelay_o"></output></div>
+    <div class="row"><label>size</label><input type="range" id="size" min="0" max="1" step="0.01" value="0.5"><output id="size_o"></output></div>
+    <div class="row"><label>decay (RT60)</label><input type="range" id="decay" min="0.2" max="12" step="0.05" value="2.2"><output id="decay_o"></output></div>
+    <div class="row"><label>damping</label><input type="range" id="damp" min="0" max="1" step="0.01" value="0.45"><output id="damp_o"></output></div>
+    <div class="row"><label>low cut</label><input type="range" id="lowCut" min="20" max="600" step="5" value="120"><output id="lowCut_o"></output></div>
+    <div class="row"><label>width</label><input type="range" id="width" min="0" max="1.5" step="0.01" value="1"><output id="width_o"></output></div>
+    <div class="hint">Decay is set as a <b>time</b> and converted to per-line feedback, so changing <b>size</b> reshapes the room without changing how long it rings.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Early reflections</h2>
+    <div class="row"><label>ER send</label><input type="range" id="erSend" min="0" max="1.5" step="0.01" value="0.7"><output id="erSend_o"></output></div>
+    <div class="row"><label>ER size</label><input type="range" id="erSize" min="0.15" max="1.5" step="0.01" value="0.55"><output id="erSize_o"></output></div>
+    <div class="row"><label>ER decay</label><input type="range" id="erDecay" min="0.2" max="1" step="0.01" value="0.6"><output id="erDecay_o"></output></div>
+    <div class="row"><label>diffusion</label><input type="range" id="diffuse" min="0" max="1" step="0.01" value="0.7"><output id="diffuse_o"></output></div>
+    <canvas id="erViz" width="270" height="86"></canvas>
+    <div class="hint">12 panned taps over the first ~80 ms. <b>This is the hypothesis under test</b>: that the "acoustic strings section" quality comes from the early pattern, not the tail. Pull <b>ER send</b> to 0 and the room should stop sounding like a place.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Modulation — the swarm question</h2>
+    <div class="row"><label>depth</label><input type="range" id="modDepth" min="0" max="1" step="0.01" value="0.35"><output id="modDepth_o"></output></div>
+    <div class="row"><label>rate</label><input type="range" id="modRate" min="0.02" max="3" step="0.01" value="0.35"><output id="modRate_o"></output></div>
+    <div class="row"><label>coupling K</label><input type="range" id="modK" min="0" max="1" step="0.01" value="0"><output id="modK_o"></output></div>
+    <canvas id="modViz" width="270" height="70"></canvas>
+    <div class="hint">Static FDN lines ring metallically; movement breaks it up. <b>K = 0</b> is the conventional answer — eight independent drifts. As <b>K → 1</b> they lock into ONE coherent breath: the instrument's own idiom applied to its room. The roadmap asks which is right; this is where you decide.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Source</h2>
+    <div class="row"><label>voices</label><input type="range" id="n" min="1" max="12" step="1" value="7"><output id="n_o"></output></div>
+    <div class="row"><label>detune</label><input type="range" id="detune" min="0" max="1" step="0.005" value="0.3"><output id="detune_o"></output></div>
+    <div class="row"><label>K (pull)</label><input type="range" id="K" min="-1" max="1" step="0.01" value="0.2"><output id="K_o"></output></div>
+    <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.35"><output id="vol_o"></output></div>
+    <div class="row"><button id="drone">drone (space)</button><button id="panic" style="border-color:var(--red);color:var(--red)">PANIC</button></div>
+    <div class="row"><button id="imp">impulse</button><span class="hint" style="margin:0" id="octlbl"></span></div>
+    <canvas id="tailViz" width="270" height="86" style="margin-top:6px"></canvas>
+    <div class="hint">Hit <b>impulse</b> to see the decay envelope — early taps, then the diffuse tail.</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const synth = new MiniSwarm(ctx.sampleRate);
+const verb = new SwarmVerb(ctx.sampleRate);
+let spn = null, impulse = 0;
+const bufL = new Float32Array(1024), bufR = new Float32Array(1024);
+const tail = []; let tailArm = 0;
+function ensureAudio() {
+  if (ctx.state === 'suspended') { ctx.resume(); $('panic').textContent = 'PANIC'; }
+  if (spn) return;
+  spn = ctx.createScriptProcessor(1024, 0, 2);
+  spn.onaudioprocess = e => {
+    const oL = e.outputBuffer.getChannelData(0), oR = e.outputBuffer.getChannelData(1);
+    synth.render(bufL, bufR);
+    if (impulse > 0) { bufL[0] += 0.9; bufR[0] += 0.9; impulse = 0; tailArm = 1; tail.length = 0; }
+    verb.process(bufL, bufR, oL, oR);
+    if (tailArm) { let pk = 0;
+      for (let i = 0; i < oL.length; i++) pk = Math.max(pk, Math.abs(oL[i]));
+      tail.push(pk); if (tail.length > 260) tailArm = 0; }
+  };
+  spn.connect(ctx.destination); ctx.resume();
+}
+const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
+  const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); };
+  el.addEventListener('input', f); f(); };
+for (const k of ['mix','preDelay','size','decay','damp','lowCut','width','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
+  wire(k, v => verb.setParam(k, v),
+    k === 'preDelay' ? (v => (v*1000).toFixed(0)+' ms')
+    : k === 'decay' ? (v => v.toFixed(2)+' s')
+    : k === 'lowCut' ? (v => v.toFixed(0)+' Hz')
+    : k === 'modRate' ? (v => v.toFixed(2)+' Hz')
+    : k === 'modK' ? (v => v < 0.005 ? 'independent' : v.toFixed(2))
+    : undefined);
+for (const k of ['n','detune','K','vol'])
+  wire(k, v => synth.setParam(k, k === 'n' ? (v|0) : v), k === 'n' ? (v => ''+v) : undefined);
+$('imp').addEventListener('click', () => { ensureAudio(); impulse = 1; });
+$('panic').addEventListener('click', async () => {
+  synth.allOff(); verb.reset(); down.clear();
+  droneOn = false; $('drone').classList.remove('on');
+  if (ctx.state === 'running') await ctx.suspend();
+  $('panic').textContent = 'SILENCED — click to resume';
+});
+$('panic').addEventListener('dblclick', async () => { await ctx.resume(); $('panic').textContent = 'PANIC'; });
+
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12,'o':13,'l':14,'p':15,';':16 };
+let octaveBase = 48; const down = new Set();
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function octLabel() { const lo = Math.floor(octaveBase/12)-1; $('octlbl').textContent = 'octave C'+lo+'–C'+(lo+2)+' (Z/X)'; }
+addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); $('drone').click(); return; }
+  const k = e.key.toLowerCase();
+  if (k === 'z') { [...down].forEach(m => synth.noteOff(m)); down.clear(); octaveBase = Math.max(12, octaveBase-12); octLabel(); return; }
+  if (k === 'x') { [...down].forEach(m => synth.noteOff(m)); down.clear(); octaveBase = Math.min(96, octaveBase+12); octLabel(); return; }
+  const off = KMAP[k]; if (off === undefined) return;
+  const m = octaveBase + off; if (down.has(m)) return;
+  ensureAudio(); down.add(m); synth.noteOn(m, mtof(m));
+});
+addEventListener('keyup', e => { const off = KMAP[e.key.toLowerCase()]; if (off === undefined) return;
+  const m = octaveBase + off; down.delete(m); synth.noteOff(m); });
+let droneOn = false;
+$('drone').addEventListener('click', () => { ensureAudio(); droneOn = !droneOn;
+  $('drone').classList.toggle('on', droneOn);
+  if (droneOn) synth.noteOn(45, mtof(45)); else synth.noteOff(45); });
+octLabel();
+
+const ev = $('erViz').getContext('2d'), mv = $('modViz').getContext('2d'), tv = $('tailViz').getContext('2d');
+function draw() {
+  requestAnimationFrame(draw);
+  // ER pattern: stems at tap times, height = gain, x = time, colour = pan
+  ev.fillStyle = '#0b0e13'; ev.fillRect(0,0,270,86);
+  ev.strokeStyle = '#2a3040'; ev.beginPath(); ev.moveTo(0,80); ev.lineTo(270,80); ev.stroke();
+  const maxMs = 200;
+  for (let t = 0; t < verb.NTAP; t++) {
+    const ms = verb.tapT[t] * verb.p.erSize * 2 * 1000;
+    const x = Math.min(268, (ms / maxMs) * 270);
+    const g = verb.tapG[t] * Math.pow(verb.p.erDecay, t * 0.4);
+    const h = g * 66;
+    const pan = verb.tapP[t] * verb.p.width;
+    ev.strokeStyle = `hsl(${175 + pan * 55}, 70%, ${55 + pan * 8}%)`;
+    ev.beginPath(); ev.moveTo(x, 80); ev.lineTo(x, 80 - h); ev.stroke();
+  }
+  ev.fillStyle = '#8b94a6'; ev.font = '8px monospace';
+  ev.fillText('early reflections · 0–200 ms · colour = pan', 4, 10);
+  // modulation: the eight line phases on a circle + R
+  mv.fillStyle = '#0b0e13'; mv.fillRect(0,0,270,70);
+  const cx = 35, cy = 35, rad = 26;
+  mv.strokeStyle = '#2a3040'; mv.beginPath(); mv.arc(cx,cy,rad,0,TAU); mv.stroke();
+  let sx = 0, sy = 0;
+  for (let i = 0; i < NLINE; i++) {
+    const a = TAU * verb.modPh[i] - Math.PI/2;
+    sx += Math.cos(TAU*verb.modPh[i]); sy += Math.sin(TAU*verb.modPh[i]);
+    mv.fillStyle = `hsl(${170 + i*12}, 70%, 62%)`;
+    mv.beginPath(); mv.arc(cx+rad*Math.cos(a), cy+rad*Math.sin(a), 2.6, 0, TAU); mv.fill();
+  }
+  const R = Math.sqrt(sx*sx+sy*sy)/NLINE;
+  mv.strokeStyle = '#e8ecf2';
+  const ang = Math.atan2(sy,sx) - Math.PI/2;
+  mv.beginPath(); mv.moveTo(cx,cy); mv.lineTo(cx+rad*R*Math.cos(ang), cy+rad*R*Math.sin(ang)); mv.stroke();
+  mv.fillStyle = '#8b94a6'; mv.font = '8px monospace';
+  mv.fillText('line coherence R ' + R.toFixed(2), 76, 20);
+  mv.fillText(verb.p.modK < 0.005 ? 'independent drift' : 'coupled breath', 76, 32);
+  // impulse tail
+  tv.fillStyle = '#0b0e13'; tv.fillRect(0,0,270,86);
+  tv.strokeStyle = '#5ff2e0'; tv.beginPath();
+  tail.forEach((v, i) => { const x = (i/260)*270, y = 84 - Math.min(1, v*3)*80; i?tv.lineTo(x,y):tv.moveTo(x,y); });
+  tv.stroke();
+  tv.fillStyle = '#8b94a6'; tv.font = '8px monospace';
+  tv.fillText('impulse decay · ~6 s', 4, 10);
+}
+draw();
+</script>
+</body>
+</html>
