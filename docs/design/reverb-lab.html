@@ -24,10 +24,14 @@
   button.on { border-color:var(--cyan); color:var(--cyan); }
   .hint { color:var(--dim); font-size:10.5px; margin-top:6px; }
   kbd { background:#0d1016; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:#7f8899;
+         background:#0b0e13; border:1px solid #2a3040; border-radius:3px; padding:2px 6px;
+         font-family:ui-monospace,Menlo,monospace; opacity:0.75; }
 </style>
 </head>
 <body>
 <h1>SWARM<span class="star">✱</span> · reverb lab</h1>
+<div class="rev" title="last change to this file, from git — if this date looks older than the change you expect, you are seeing a cached copy; hard-reload with Cmd+Shift+R">rev 2026-07-29</div>
 <div class="tagline">Task #23 — the integrated reverb. Built as a full signal chain rather than a bare FDN, because the "acoustic strings section" quality the human heard from an external reverb most likely lives in the <b>early reflections</b> and <b>diffusion</b>, not in the tail length. Also tests the roadmap's open question: does the reverb get its OWN SWARM (coherent modulation, in the instrument's own idiom) or stay a static space? Audition lab, spec-in-code — NOT a reference. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone.</div>
 
 <script>
