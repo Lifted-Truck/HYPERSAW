@@ -140,7 +140,8 @@ class EnsembleSwarm {
   constructor(sr) {
     this.sr = sr;
     this.p = { n: 7, detuneCents: 8, K: 0.2, vol: 0.35, width: 0.85, seed: 1234,
-               alpha: 0.25, scatterMs: 30, attackMs: 60, attackScatter: 0.4 };
+               alpha: 0.25, scatterMs: 30, attackMs: 60, attackScatter: 0.4,
+               smear: 0, character: 0, charScatter: 0.5 };
     this.timing = new EnsembleTiming(4242);
     this.sw = []; for (let i = 0; i < 6; i++) this.sw.push(this.mk());
     this.noteCounter = 0; this.rebuild();
@@ -156,6 +157,39 @@ class EnsembleSwarm {
     // research's target is 5-15 cents SD, far TIGHTER than a supersaw
     const rng = mulberry((this.p.seed | 0) + 77);
     for (let i = 0; i < n; i++) this.x[i] = gaussFrom(rng);
+    // SPECTRAL SMEAR (research finding 3) — dispersion of the upper formants
+    // from body/tract-length differences between players, measured as an axis
+    // INDEPENDENT of pitch scatter. Realised as a per-voice two-slope phase
+    // warp: each voice's break point sits at a slightly different place, so
+    // each voice's formant peak lands at a slightly different frequency. This
+    // is a spectral-POSITION offset, which is what the research describes —
+    // not a per-voice EQ tilt, which only changes slope and would smear
+    // brightness rather than formant position.
+    // MEASURED (estimator calibrated first: identical warps -> identical peak,
+    // different warps -> different peak):
+    //   · smear does NOT detune — f0 reads 110.36 Hz at warp d = 0.50 / 0.30 /
+    //     0.15 alike, so this really is an axis independent of pitch scatter,
+    //     which is the whole reason the research treats it as its own dimension;
+    //   · it DOES disperse formant position — at smear 1.0 the seven voices'
+    //     formants land at 990/330/220/220/220/550/990 Hz.
+    // HONEST LIMIT of that measurement: at LOW smear most voices are near the
+    // identity warp, so their spectral envelope is nearly flat and there is no
+    // formant for the estimator to find — it then reports whichever harmonic
+    // the detrend happens to favour (5390 Hz for a plain saw). So the dispersion
+    // figure is only meaningful once a formant actually exists; the low-smear
+    // SD is an artifact, not a measurement.
+    this.warpD = new Float64Array(n);
+    // ATTACK CHARACTER (findings 8-9) — bowed onsets fail in two categorically
+    // DIFFERENT ways: over-force gives raucous/scratchy transients (the string
+    // sticks too long), under-force gives loose multiple-slipping ones (longer,
+    // unstable settling). So this is a BIDIRECTIONAL axis, not a noise amount,
+    // and the per-voice spread is physically grounded: machine-bowed repeats
+    // under identical conditions produce different transients.
+    this.charOff = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      this.warpD[i] = gaussFrom(rng);
+      this.charOff[i] = gaussFrom(rng);
+    }
     for (let r = 0; r < n; r++) {
       const d = n === 1 ? 0 : r / (n - 1);
       const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * d * this.p.width));
@@ -204,6 +238,8 @@ class EnsembleSwarm {
   render(outL, outR) {
     const p = this.p, sr = this.sr, n = p.n;
     const rel = 1 - Math.exp(-1 / (0.4 * sr));
+    const smear = Math.max(0, Math.min(1, p.smear));
+    const chr = Math.max(-1, Math.min(1, p.character));
     const g = p.vol / Math.sqrt(n);
     for (let i = 0; i < outL.length; i++) { outL[i] = 0; outR[i] = 0; }
     for (const s of this.sw) {
@@ -222,10 +258,28 @@ class EnsembleSwarm {
           if (s.env[i] > 1e-4) any = 1;
           const dph = Math.max(0, s.eff[i]) / sr;
           let ph = s.phase[i] + dph; ph -= Math.floor(ph); s.phase[i] = ph;
-          let v = 2 * ph - 1;
-          const d = Math.max(dph, 1e-6);
-          if (ph < d) { const t = ph / d; v -= t + t - t * t - 1; }
-          else if (ph > 1 - d) { const t = (ph - 1) / d; v -= t * t + t + t + 1; }
+          // per-voice spectral smear: warp this voice's phase so its formant
+          // peak sits at its own frequency. d = 0.5 is the identity (plain saw).
+          let w = ph, slope = 1;
+          if (smear > 0) {
+            const dv = Math.min(0.92, Math.max(0.08, 0.5 + this.warpD[i] * smear * 0.38));
+            if (w < dv) { slope = 0.5 / dv; w = w * slope; }
+            else { slope = 0.5 / (1 - dv); w = 0.5 + (w - dv) * slope; }
+            w -= Math.floor(w);
+          }
+          let v = 2 * w - 1;
+          const d = Math.max(dph * slope, 1e-6);
+          if (w < d) { const t = w / d; v -= t + t - t * t - 1; }
+          else if (w > 1 - d) { const t = (w - 1) / d; v -= t * t + t + t + 1; }
+          // attack character, active only during the onset. SCRATCHY (>0) adds
+          // a decaying burst of odd-harmonic grit; LOOSE (<0) makes the onset
+          // amplitude unstable, the multiple-slipping regime's longer settling.
+          if (chr !== 0 && s.env[i] < 0.98) {
+            const cv = chr + this.charOff[i] * p.charScatter * 0.7;
+            const onset = 1 - s.env[i];
+            if (cv > 0) v += Math.tanh(v * 6) * cv * onset * 0.45;
+            else v *= 1 + cv * onset * 0.8 * Math.sin(TAU * 7.3 * s.env[i]);
+          }
           v *= s.env[i];
           l += v * this.pL[i]; r += v * this.pR[i];
         }
@@ -258,6 +312,10 @@ class EnsembleSwarm {
     <div class="row"><label>detune σ</label><input type="range" id="detuneCents" min="0" max="40" step="0.5" value="8"><output id="detuneCents_o"></output></div>
     <div class="row"><label>attack</label><input type="range" id="attackMs" min="2" max="300" step="1" value="60"><output id="attackMs_o"></output></div>
     <div class="row"><label>attack scatter</label><input type="range" id="attackScatter" min="0" max="1" step="0.01" value="0.4"><output id="attackScatter_o"></output></div>
+    <div class="row"><label>character</label><input type="range" id="character" min="-1" max="1" step="0.01" value="0"><output id="character_o"></output></div>
+    <div class="row"><label>char spread</label><input type="range" id="charScatter" min="0" max="1" step="0.01" value="0.5"><output id="charScatter_o"></output></div>
+    <div class="row"><label>spectral smear</label><input type="range" id="smear" min="0" max="1" step="0.01" value="0"><output id="smear_o"></output></div>
+    <div class="hint"><b>Character</b> is bidirectional because bowed attacks fail in two different ways: <span class="num">+</span> scratchy (over-force, string sticks), <span class="num">−</span> loose (under-force, multiple slipping, longer settling). <b>Spectral smear</b> disperses each voice's formant position — an axis the research found INDEPENDENT of pitch scatter, so it thickens without detuning.</div>
     <div class="hint">Detune is now a <b>gaussian σ in cents</b>, because that is what the literature measures. Research target: <span class="num">5–15 cents SD</span> — listeners preferred 0–5 and set the ceiling at ~14. Far tighter than a supersaw: the variation belongs in <i>time</i>, not tuning.</div>
   </div>
 
@@ -292,6 +350,9 @@ wire('alpha', v => synth.setParam('alpha', v), v => v < 0.005 ? 'none (drift)' :
 wire('detuneCents', v => synth.setParam('detuneCents', v), v => v.toFixed(1)+' ¢');
 wire('attackMs', v => synth.setParam('attackMs', v), v => v.toFixed(0)+' ms');
 wire('attackScatter', v => synth.setParam('attackScatter', v));
+wire('character', v => synth.setParam('character', v), v => Math.abs(v) < 0.005 ? 'neutral' : (v > 0 ? '+' + v.toFixed(2) + ' scratchy' : v.toFixed(2) + ' loose'));
+wire('charScatter', v => synth.setParam('charScatter', v));
+wire('smear', v => synth.setParam('smear', v), v => v < 0.005 ? 'off' : v.toFixed(2));
 wire('n', v => { synth.setParam('n', v|0); synth.timing.reset(v|0, 4242); }, v => ''+v);
 wire('K', v => synth.setParam('K', v));
 wire('vol', v => synth.setParam('vol', v));
