@@ -112,7 +112,7 @@
 <body>
 <header>
   <h1>SWARM<span class="star">✱</span>SAW · <span style="color:var(--dim);font-weight:400">detune lab</span></h1>
-  <div class="rev" title="last change to this file, from git — if this date looks old you are seeing a cached copy; hard-reload with Cmd+Shift+R">rev 2026-07-22</div>
+  <div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-07-29 18:58 &middot; fp <span id="revfp">…</span></div>
 <div class="tagline">audition lab · new detune laws (stretch → metallic) + golden distribution · octave spread + root-anchor (NI-style) · harmonic law (unison → series) · sweep detune with law=stretch, B, and K</div>
   <span id="status"></span>
   <button id="power">POWER ON</button>
@@ -1212,6 +1212,25 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
+</script>
+<script>
+// CONTENT FINGERPRINT. Computed at load from this page's own inline script source,
+// so it needs no maintenance and CANNOT go stale: it describes the bytes the
+// browser actually has, not what someone remembered to type. The `rev` timestamp
+// beside it is hand-maintained and answers WHEN; this answers exactly WHICH. If it
+// does not change after a reload, the reload served a cached copy.
+// Script TEXT is hashed rather than the DOM, because the DOM mutates at runtime
+// (wire() writes output values, draw() paints canvases), which would give a
+// reading that drifts with UI state instead of with the code.
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  const el = document.getElementById('revfp');
+  if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+})();
 </script>
 </body>
 </html>
