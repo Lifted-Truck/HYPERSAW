@@ -154,7 +154,8 @@ class EnsembleSwarm {
   mk() { return { midi: -1, f0: 220, gate: 0, age: -1, tick: 0,
                   phase: new Float64Array(MAXV), eff: new Float64Array(MAXV), vf: new Float64Array(MAXV),
                   env: new Float64Array(MAXV), delay: new Float64Array(MAXV),
-                  atk: new Float64Array(MAXV), live: 0, scratch: 12345 }; }
+                  atk: new Float64Array(MAXV), live: 0, scratch: 12345,
+             onsetT: new Float64Array(MAXV) }; }
   rebuild() {
     const n = this.p.n; this.x = new Float64Array(n);
     this.pL = new Float64Array(n); this.pR = new Float64Array(n);
@@ -223,6 +224,7 @@ class EnsembleSwarm {
       // spread is physical rather than cosmetic (research finding 9)
       const jitter = 1 + gaussFrom(rng) * p.attackScatter * 0.6;
       s.atk[i] = Math.max(0.002, p.attackMs / 1000 * Math.max(0.15, jitter));
+      s.onsetT[i] = 1;   // dedicated attack-phase ramp; see the character block
     }
   }
   noteOff(midi) { for (const s of this.sw) if (s.midi === midi && s.gate) s.gate = 0; }
@@ -282,9 +284,20 @@ class EnsembleSwarm {
           // attack character, active only during the onset. SCRATCHY (>0) adds
           // a decaying burst of odd-harmonic grit; LOOSE (<0) makes the onset
           // amplitude unstable, the multiple-slipping regime's longer settling.
-          if (chr !== 0 && s.env[i] < 0.995) {
+          // ONSET RAMP, not (1 - env). Gating on the envelope LEVEL was a real
+          // bug (human, 2026-07-29: "scratchy appears to just be noise that
+          // starts when the release kicks in"): env < 0.995 is true during the
+          // release as well as the attack, and 1-env GROWS as the note decays,
+          // so the character fired backwards — hardest at the note's end. This
+          // ramp is set to 1 at note-on and falls to 0 over that voice's attack
+          // time, so the character exists only where a bow transient exists and
+          // cannot re-trigger on release.
+          if (s.onsetT[i] > 0) {
+            s.onsetT[i] = Math.max(0, s.onsetT[i] - 1 / (s.atk[i] * sr));
+          }
+          if (chr !== 0 && s.onsetT[i] > 0) {
             const cv = chr + this.charOff[i] * p.charScatter * 0.7;
-            const onset = 1 - s.env[i];
+            const onset = s.onsetT[i];
             // SCRATCHY WAS MODELLED WRONG (human: "I don't exactly hear the
             // scratchy setting", 2026-07-29). I had it as tanh waveshaping,
             // which adds HARMONICS — that is "distorted", not "scratchy". The
@@ -302,7 +315,11 @@ class EnsembleSwarm {
               // rather than sitting under it as a separate hiss.
               v += nz * cv * onset * 2.2 * (0.25 + 0.75 * Math.abs(v));
             }
-            else v *= 1 + cv * onset * 0.8 * Math.sin(TAU * 7.3 * s.env[i]);
+            // LOOSE: the multiple-slipping regime — an unstable, wobbling
+            // onset. The human likes this one; keep its character, but drive
+            // the wobble from the onset ramp so it also stops at the attack's
+            // end rather than living on into the release.
+            else v *= 1 + cv * onset * 0.8 * Math.sin(TAU * 34 * (1 - onset) * s.atk[i] * 12);
           }
           v *= s.env[i];
           l += v * this.pL[i]; r += v * this.pR[i];
