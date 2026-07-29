@@ -115,6 +115,18 @@ Two coupled directions the human is developing on separate threads (2026-07-19).
 
 **HONEST GAPS — two of five questions returned NOTHING.** The mechanism question (which of incoherent summation / roughness / spectral smearing / spatial decorrelation dominates) had its leading candidate voted down 0–3. The entire **space & seating** angle produced **zero** surviving claims: no orchestral impulse-response, seating-spread, per-section-placement or stage-vs-hall result. So the report says nothing about what an orchestral IR has that an FDN lacks — precisely where the human's convolution instinct sits. **Owed: a narrow third pass on orchestral space.**
 
+**ENSEMBLE LAB BUILT 2026-07-29 — `docs/design/ensemble-lab.html` (task #25).** Implements the Vorberg/Wing linear phase-correction model per voice: `off_i ← off_i − α·(off_i − mean_off) + motorNoise_i` — every voice hears the ensemble and corrects toward it by gain α. **VALIDATED, with the estimator calibrated first per L0016** (i.i.d. → lag-1 −0.010, random walk → 0.999, AR(1) φ=0.5 → 0.513, φ=0.8 → 0.811 — so the measurement is trustworthy before it is used):
+
+| α | onset SD | lag-1 | reading |
+|---|---|---|---|
+| 0 | 427 ms | 0.983 | no correction — drifts without bound |
+| 0.25 | **39.8 ms** | **0.701** | the near-optimal quartet gain — lands INSIDE the measured 24–73 ms band with strong serial structure |
+| 0.50 | 30.3 ms | 0.456 | correlated, ensemble-like |
+| 1.00 | 26.2 ms | 0.010 | i.i.d. — **this is what a humanize control gives you** |
+| 1.50 | 30.3 ms | −0.437 | over-corrected, alternating early/late |
+
+**THE DEMONSTRATION THAT MATTERS:** α 0.5 and α 1.0 produce *comparable variance* (30.3 vs 26.2 ms) but *opposite serial structure* (0.456 vs 0.010). That is precisely the distinction the research says listeners respond to — and it is unreachable by any per-note random draw, however well tuned. At the literature's own optimal gain the model lands in the measured ensemble band without that being fitted. Also in the lab: detune restated as a **gaussian σ in cents** (research target 5–15) rather than a supersaw-style spread, and per-voice attack-time scatter (chaotic-attack finding). REMAINING: ear-check; then whether the timing layer folds into the core as its own coupled system (it is NOT the existing audio-rate K — that distinction is recorded in the lab, and claiming otherwise would overclaim).
+
 **FEASIBILITY:** nothing verified is structurally out of reach for a coupled-oscillator design — the gaps are evidentiary, not architectural. Already reachable: static scatter (retarget to 5–15 cents gaussian), slow drift, **serially-correlated timing via K**, note-on phase scatter, spatial fan. Add a swarm parameter: **per-voice onset-time scatter** (the big one, tempo-scaled, drawn from a coupled process), per-voice attack character, per-voice formant offset. FX rack: a resonance field to convert per-voice FM into AM+timbre — but ONE shared body correlates AM across all voices unlike N real instruments, so per-voice resonance offsets are likely preferable.
 
 ## Timbre-space research — supersaw discourse & mechanisms (2026-07-25)
