@@ -47,7 +47,13 @@ function mulberry(seed) {
 class MiniSwarm {
   constructor(sr) {
     this.sr = sr;
-    this.p = { n: 7, detune: 0.3, K: 0.2, vol: 0.35, width: 0.85, seed: 1234 };
+    // Envelope exposed (human request 2026-07-29): without a short release you
+    // cannot tell the oscillator's own decay from the reverb's tail, which
+    // makes every judgement about EDT/T30, envelop and decorrelation unreliable.
+    // A short release turns the source into something close to an impulse, so
+    // what you hear afterwards is unambiguously the room.
+    this.p = { n: 7, detune: 0.3, K: 0.2, vol: 0.35, width: 0.85, seed: 1234,
+               attack: 0.004, release: 0.08 };
     this.sw = []; for (let i = 0; i < 6; i++) this.sw.push(this.mk());
     this.noteCounter = 0; this.rebuild();
   }
@@ -90,7 +96,8 @@ class MiniSwarm {
   }
   render(outL, outR) {
     const p = this.p, sr = this.sr, n = p.n;
-    const atk = 1 - Math.exp(-1 / (0.004 * sr)), rel = 1 - Math.exp(-1 / (0.35 * sr));
+    const atk = 1 - Math.exp(-1 / (Math.max(0.0005, p.attack) * sr));
+    const rel = 1 - Math.exp(-1 / (Math.max(0.005, p.release) * sr));
     const g = p.vol / Math.sqrt(n);
     for (let i = 0; i < outL.length; i++) { outL[i] = 0; outR[i] = 0; }
     for (const s of this.sw) {
@@ -425,6 +432,9 @@ class SwarmVerb {
     <div class="row"><label>detune</label><input type="range" id="detune" min="0" max="1" step="0.005" value="0.3"><output id="detune_o"></output></div>
     <div class="row"><label>K (pull)</label><input type="range" id="K" min="-1" max="1" step="0.01" value="0.2"><output id="K_o"></output></div>
     <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.35"><output id="vol_o"></output></div>
+    <div class="row"><label>osc attack</label><input type="range" id="attack" min="0.0005" max="0.5" step="0.0005" value="0.004"><output id="attack_o"></output></div>
+    <div class="row"><label>osc release</label><input type="range" id="release" min="0.005" max="2" step="0.005" value="0.08"><output id="release_o"></output></div>
+    <div class="hint">Short release (default 80 ms) so the source stops quickly and everything after it is unambiguously the <b>room</b>. Lengthen it for pads once you have judged the space.</div>
     <div class="row"><button id="drone">drone (space)</button><button id="panic" style="border-color:var(--red);color:var(--red)">PANIC</button></div>
     <div class="row"><button id="imp">impulse</button><span class="hint" style="margin:0" id="octlbl"></span></div>
     <canvas id="tailViz" width="270" height="86" style="margin-top:6px"></canvas>
@@ -468,8 +478,11 @@ for (const k of ['mix','preDelay','size','decay','damp','lowCut','width','envelo
     : k === 'tailDecorr' ? (v => v < 0.005 ? 'mono tail' : v.toFixed(2))
     : k === 'mixTimeMs' ? (v => v < 1 ? 'stock (90 ms)' : v.toFixed(0) + ' ms')
     : undefined);
-for (const k of ['n','detune','K','vol'])
-  wire(k, v => synth.setParam(k, k === 'n' ? (v|0) : v), k === 'n' ? (v => ''+v) : undefined);
+for (const k of ['n','detune','K','vol','attack','release'])
+  wire(k, v => synth.setParam(k, k === 'n' ? (v|0) : v),
+    k === 'n' ? (v => ''+v)
+    : (k === 'attack' || k === 'release') ? (v => (v*1000).toFixed(0) + ' ms')
+    : undefined);
 $('imp').addEventListener('click', () => { ensureAudio(); impulse = 1; });
 $('panic').addEventListener('click', async () => {
   synth.allOff(); verb.reset(); down.clear();
