@@ -128,6 +128,12 @@ endif()
 # Note-lifecycle oracle (ADR-038): seeded random note streams through the
 # CLAP process path (poly/mono/legato + MIDI vel-0 note-off convention);
 # output must decay to silence after all keys are up.
+add_executable(paramleak_probe tools/paramleak_probe.cpp)
+target_link_libraries(paramleak_probe PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(paramleak_probe PRIVATE -O2)
+endif()
+
 add_executable(notefuzz_check tools/notefuzz_check.cpp)
 target_link_libraries(notefuzz_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)

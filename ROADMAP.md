@@ -53,6 +53,70 @@ the exact five-event repro `on(61) on(61) on(60) off(61) off(60)`. Random fuzzin
 *that* a hang existed; this found *what it was*. Retained in the oracle for the next
 note-handling regression.
 
+## PROPOSAL — task #18 batched CLAP param pass (public-interface gate, awaiting human ruling)
+
+Survey done 2026-07-29. Param ids are append-only, so this is one-way: **69 params exist
+today (ids 1..69); next free id is 70.** Everything below is proposed, nothing built.
+
+### Verified gap — 16 core keys with no CLAP param
+
+Established by comparing SwarmCore's `setParam` key table against the shell's param table
+and then checking each candidate individually, because name-substring greps produced false
+results in BOTH directions three separate times during this survey:
+
+`anchor · driftMode · freqGlide · harmReach · hiTame · keepPhase · lpOut · motionCenter ·
+panCurve · panInvert · panLayout · panMode · panMotion · pivotMode · spread · stretchB`
+
+Two candidates that LOOK like gaps and are not: `tune` is derived in the shell from
+octave/semi/fineCents, and `bpm` is written directly from the host transport
+(`core.p.bpm = tr->tempo`) rather than through `setParam` — I nearly reported the
+tempo-grid law as broken on that basis and it is fine.
+
+### Enum widenings (the compatibility-sensitive part)
+
+- `law` (id 5) 0..3 → **0..5**, adding *harmonic* (law 4, ADR-065) and *stretch* (law 5,
+  ADR-066) to `kLawLabels`.
+- `dist` (id 2) 0..3 → **0..4**, adding *golden* (ADR-067) to `kDistLabels`. Note golden is
+  implemented as the trailing `else`, not a `dist == 4` branch — grepping for the latter
+  finds nothing and looks alarming.
+
+Widening a stepped param's max is the one genuinely risky edit here: a host that stored a
+normalised value re-reads it against the NEW range, so existing sessions can shift law/dist
+under the user. **Needs a ruling** — accept the shift, or add the new values as a separate
+param, or version the state chunk and remap on load. My recommendation is remap-on-load:
+the state chunk is already versioned, and it is the only option that is silent for the user.
+
+### A LATENT TRAP the survey found — the `tilt` key collides across cores
+
+`applyParam` mirrors most ids into BOTH cores by key name ("unknown keys no-op"), and
+ADR-060 added a `tilt` key to SwarmCore while id 45 "Amp Tilt" already used `tilt` for
+SPECTRA. That is safe **today only because of a positional guard** —
+`if ((id >= 44 && id <= 55) || (id >= 65 && id <= 68)) { spectra…; return; }` — so id 45
+never reaches the SAW core. Safety is by ID RANGE, not by name.
+
+PROVEN, not assumed: a black-box probe (`tools/paramleak_probe.cpp`, diagnostic only, NOT
+wired into `./verify`) drives each SPECTRA-only id at non-default extremes and measures the
+SAW engine's rms. With a positive control confirming the probe is sensitive at all
+(detune 0.28 → 0.6 moves rms 0.086957 → 0.090925), id 45 at both 0.5 and 2.0 leaves the SAW
+output bit-identical. A direct-core parity oracle could not have shown this either way —
+L0011 is exactly that lesson.
+
+CONSEQUENCE for this pass: SwarmCore's tone tilt **cannot** be exposed under the key
+`tilt`. Any new id ≥ 70 falls through to the mirror path, so a `tilt` param would write
+SPECTRA's amp tilt as well. Expose it as a distinct key (`toneTilt`) and add that alias to
+SwarmCore's `setParam`. Retiring the collision beats perpetuating it behind a guard whose
+correctness depends on nobody renumbering.
+
+### Open questions for the human
+
+1. **State compatibility** on the law/dist widening — remap on load (recommended), accept
+   the shift, or separate params?
+2. **Scope**: all 16 at once, or only the ones the fold ADRs need reachable
+   (harmReach, stretchB, spread, anchor, pivotMode, panLayout) and defer the rest?
+3. `lpOut`, `panCurve`, `panInvert`, `panMode`, `motionCenter`, `keepPhase` — expose as
+   user params, or leave core-only as implementation detail?
+4. Confirm the `toneTilt` rename approach for the colliding key.
+
 ## Phase 0 — Platform gate & renderer decision
 
 - CLAP-native skeleton; VST3 via clap-wrapper. Empty plugin builds on macOS + Windows, loads in target hosts (Live, Reaper, Bitwig), passes pluginval at strictness ≥ 5.
