@@ -740,13 +740,20 @@ struct Plugin
     }
     if (voiceMono != 0)
     {
-      for (int i = 0; i < heldCount; i++)
-        if (heldStack[i].key == n->key)
-        {
-          for (int j = i; j < heldCount - 1; j++) heldStack[j] = heldStack[j + 1];
-          heldCount--;
-          break;
-        }
+      // Remove EVERY entry for this key, not just the first. The old loop
+      // `break`s on the first match, so a duplicated entry survived a note-off
+      // and became a PHANTOM held key — see the note-on guard for how one got
+      // in and why that hung the voice. With that guard in place duplicates
+      // cannot occur, so this is an invariant restore rather than a second fix:
+      // if one ever slips in (a 16-entry overflow drop, or a host sending an
+      // off for a key we never saw an on for), a leftover entry is exactly what
+      // hangs the voice. Order is preserved, so last-note priority is unchanged.
+      {
+        int w = 0;
+        for (int i = 0; i < heldCount; i++)
+          if (heldStack[i].key != n->key) heldStack[w++] = heldStack[i];
+        heldCount = w;
+      }
       if (monoSlot >= 0 && core.swarmAt(monoSlot).midi == n->key)
       {
         if (heldCount > 0)
@@ -804,6 +811,29 @@ struct Plugin
           // Glide/legato engage only when another key is still HELD (human
           // clarification 2026-07-18) — a ringing release tail alone gets a
           // fresh strike on a new slot, overlapping the tail naturally.
+          // A mono held-stack is the set of keys currently DOWN, so a key
+          // cannot appear in it twice. This used to push unconditionally, so a
+          // duplicate NOTE_ON for an already-held key — which a computer
+          // keyboard played fast produces and a piano roll never does — pushed a
+          // second entry. The note-off path then removed only one of them and
+          // saw heldCount > 0, so it RETARGETED the voice to the phantom key
+          // instead of releasing it, and the note hung forever. That is the
+          // human's 2026-07-26 report ("notes get stuck for longer than they
+          // ought to when I play quickly ... hasn't happened with preprogrammed
+          // MIDI in the piano roll") — it read as finite only because a later
+          // press-and-release of the same key cleared the phantom.
+          // Measured: mono+restrike went 0/25 seeds silent -> 25/25.
+          // A re-press is therefore "move to the top" (last-note priority), and
+          // `anotherHeld` is evaluated AFTER that removal, so re-pressing the
+          // ONLY held key is a fresh strike rather than a retarget to itself.
+          int dupAt = -1;
+          for (int i = 0; i < heldCount; i++)
+            if (heldStack[i].key == n->key) { dupAt = i; break; }
+          if (dupAt >= 0)
+          {
+            for (int j = dupAt; j < heldCount - 1; j++) heldStack[j] = heldStack[j + 1];
+            heldCount--;
+          }
           const bool anotherHeld = heldCount > 0;
           if (heldCount < 16) heldStack[heldCount++] = {n->key, freq};
           const bool voiceGated = monoSlot >= 0 && core.swarmAt(monoSlot).gate;
@@ -814,6 +844,20 @@ struct Plugin
           }
           else
           {
+            // MONO INVARIANT: at most ONE gated voice. Taking the fresh-strike
+            // path while the previous mono voice is still GATED orphans it —
+            // every release path keys off monoSlot's current midi, so once
+            // monoSlot moves on, nothing can ever release the orphan.
+            // Minimal repro found by notefuzz_check --minimal:
+            //   on(61) on(61) on(60) off(61) off(60)  -> voice on 61 hangs.
+            // The re-press sends the second on down this path, the on(60)
+            // retargets monoSlot away, and the off(61) then finds
+            // monoSlot.midi != 61 and does nothing at all.
+            // Only a GATED voice is force-released here: a ringing RELEASE tail
+            // has gate == 0, so the intended tail-overlap behaviour above is
+            // untouched.
+            if (monoSlot >= 0 && core.swarmAt(monoSlot).gate)
+              core.noteOff(core.swarmAt(monoSlot).midi);
             monoSlot = core.noteOn(n->key, freq);
           }
           tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};

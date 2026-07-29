@@ -8,6 +8,51 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## Mono note-hang FIXED (2026-07-29, tasks #24 + #28 closed)
+
+The human's 2026-07-26 report — "notes get stuck for longer than they ought to when I
+play quickly ... hasn't happened with preprogrammed MIDI in the piano roll" — was **two
+real bugs in the mono held-stack**, both reproduced and both fixed. `./verify full` green
+(all nine oracle chains).
+
+**Why the piano roll never triggered it.** A piano roll emits a clean NOTE_OFF before the
+next NOTE_ON for a key, and stamps events sample-accurately. A computer keyboard played
+fast does neither. `notefuzz_check` modelled only the piano-roll shape: it explicitly
+`continue`d past a duplicate key and gave every event a distinct sorted time. Those two
+skips **were** the blind spot — the oracle could not have caught this.
+
+**Bug 1 — phantom held key.** The mono note-on pushed to `heldStack` with no duplicate
+check, and note-off removed only the *first* match (it `break`s). So `on(C) on(C) off(C)`
+left a phantom C on the stack; the off path saw `heldCount > 0` and **retargeted the voice
+to the phantom** instead of releasing it. Fixed: a re-press moves the key to the top
+(last-note priority), and note-off removes every entry for the key as an invariant restore.
+
+**Bug 2 — orphaned gated voice (introduced by the fix for bug 1, then caught).** Evaluating
+`anotherHeld` *after* the duplicate removal sent a re-press down the fresh-strike path while
+the previous mono voice was still gated, orphaning it — and every release path keys off
+`monoSlot`'s current midi, so nothing could ever release it. Fixed by enforcing the actual
+mono invariant: **at most one gated voice**, force-releasing a still-gated `monoSlot` before
+a fresh strike. Only a *gated* voice is touched, so the intended release-tail overlap
+(gate == 0) is unaffected.
+
+**Behaviour change worth a human eye:** re-pressing an already-held key in mono now
+re-articulates the note (fresh strike) rather than doing nothing. That is the standard mono
+reading of a re-press and it is what removes the hang, but it is a decision, not a
+mechanical fix — flag if you want it silent instead.
+
+**Oracle strengthened, never weakened.** The five original modes are unchanged and still
+run; six new modes cover `restrike` (duplicate note-on) and `live` (every event stamped at
+frame 0) across poly/mono/legato. A second metric was added — the tail length after the last
+note-off, because the original gate only caught *permanent* hangs and the reported symptom
+was a *finite* over-hold (41 ms normal vs 1498 ms hung). Result: 75 hangs before, **0 after**
+at 12 modes x 40 seeds.
+
+**`--minimal` added and kept.** A delta-debugging search over all balanced event sequences
+up to length 6 on two keys, which turned "a hang exists somewhere in 400 random blocks" into
+the exact five-event repro `on(61) on(61) on(60) off(61) off(60)`. Random fuzzing found
+*that* a hang existed; this found *what it was*. Retained in the oracle for the next
+note-handling regression.
+
 ## Phase 0 — Platform gate & renderer decision
 
 - CLAP-native skeleton; VST3 via clap-wrapper. Empty plugin builds on macOS + Windows, loads in target hosts (Live, Reaper, Bitwig), passes pluginval at strictness ≥ 5.

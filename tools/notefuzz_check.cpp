@@ -110,7 +110,18 @@ constexpr double kSR = 44100.0;
 // Peak |output| in [allOff + 0.5 s, allOff + 1.5 s]. With release at the
 // 5 ms knob minimum the audible tail is ~46 ms, so anything above the floor
 // in that window is a hung voice.
-double runScenario(uint32_t seed, bool mono, bool legato, bool vel0off)
+// `restrike` allows a NOTE_ON for a key already held, and `liveTiming` stamps
+// every event in a block at frame 0. Both model a COMPUTER KEYBOARD played
+// fast, which is where the human saw notes hang (2026-07-26: "notes get stuck
+// for longer than they ought to when I play quickly ... hasn't happened with
+// preprogrammed MIDI in the piano roll"). A piano roll emits a clean off before
+// the next on for a key and stamps events sample-accurately; live input does
+// neither, and the original fuzz modelled only the piano-roll shape — it
+// explicitly `continue`d past duplicate keys and gave every event a distinct
+// sorted time. Those two skips were the whole blind spot.
+struct Result { double hangPeak; double releaseMs; };
+Result runScenario(uint32_t seed, bool mono, bool legato, bool vel0off,
+                   bool restrike, bool liveTiming)
 {
   auto *factory =
       (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
@@ -162,7 +173,7 @@ double runScenario(uint32_t seed, bool mono, bool legato, bool vel0off)
     EvList evs;
     const int nEv = (int)(mrand(rng) % 4);  // 0..3 events per block
     uint32_t times[4];
-    for (int e = 0; e < nEv; e++) times[e] = mrand(rng) % kBlock;
+    for (int e = 0; e < nEv; e++) times[e] = liveTiming ? 0 : (mrand(rng) % kBlock);
     std::sort(times, times + nEv);  // causal delivery — see header comment
     for (int e = 0; e < nEv; e++)
     {
@@ -178,8 +189,12 @@ double runScenario(uint32_t seed, bool mono, bool legato, bool vel0off)
       else
       {
         const int16_t key = (int16_t)(48 + (mrand(rng) % 25));
-        if (std::find(held.begin(), held.end(), key) != held.end()) continue;
-        held.push_back(key);
+        const bool dup = std::find(held.begin(), held.end(), key) != held.end();
+        // In restrike mode a duplicate ON is DELIVERED but not re-pushed, so the
+        // scenario still sends exactly one OFF per key — the on,on,off shape a
+        // fast re-press produces when the host coalesces or drops the middle off.
+        if (dup && !restrike) continue;
+        if (!dup) held.push_back(key);
         evs.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON, t, key, nextId++));
       }
     }
@@ -194,57 +209,166 @@ double runScenario(uint32_t seed, bool mono, bool legato, bool vel0off)
     process(evs);
   }
 
+  // TWO measurements now. `hangPeak` is the original permanent-hang gate.
+  // `releaseMs` is how long after the last note-off the output stays above the
+  // floor — a note held 300 ms too long is inaudible to the hang gate but is
+  // exactly what the human reported, so a finite over-hold needs its own number.
   const int skipBlocks = (int)(0.5 * kSR) / kBlock;
   const int measureBlocks = (int)(1.0 * kSR) / kBlock;
   double peak = 0;
+  int lastLoudBlock = -1;
   EvList empty;
   for (int b = 0; b < skipBlocks + measureBlocks; b++)
   {
     process(empty);
-    if (b < skipBlocks) continue;
     for (int i = 0; i < kBlock; i++)
     {
       const double a = std::fabs((double)L[i]) + std::fabs((double)R[i]);
-      if (a > peak) peak = a;
+      if (a > 1e-5) lastLoudBlock = b;
+      if (b >= skipBlocks && a > peak) peak = a;
     }
   }
+  const double releaseMs = (lastLoudBlock + 1) * (double)kBlock / kSR * 1000.0;
 
   p->stop_processing(p);
   p->deactivate(p);
   p->destroy(p);
+  return {peak, releaseMs};
+}
+}  // namespace
+
+namespace {
+// MINIMAL REPRO SEARCH. Brute-forces every short event sequence over two keys
+// and reports the SHORTEST that leaves the voice sounding. Random fuzzing finds
+// that a hang exists; this finds what the hang IS, which is the part you can
+// reason about. Kept in the oracle rather than thrown away because the next
+// note-handling regression will want it too.
+double runSeq(const std::vector<int> &seq, bool mono, bool legato)
+{
+  auto *factory =
+      (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
+  const clap_plugin_t *p =
+      factory->create_plugin(factory, &kHost, "com.lifted-truck.hypersaw");
+  p->init(p);
+  p->activate(p, kSR, 32, kBlock);
+  p->start_processing(p);
+  std::vector<float> L(kBlock), R(kBlock);
+  float *chans[2] = {L.data(), R.data()};
+  clap_audio_buffer_t out{};
+  out.data32 = chans; out.channel_count = 2;
+  clap_process_t proc{};
+  proc.frames_count = kBlock; proc.audio_outputs = &out;
+  proc.audio_outputs_count = 1; proc.out_events = &kOut;
+  auto process = [&](EvList &evs) { evs.finalize(); proc.in_events = &evs.list; p->process(p, &proc); };
+  { EvList e;
+    e.params.push_back(mkParam(22, 0.005)); e.params.push_back(mkParam(21, 1.0));
+    if (mono) e.params.push_back(mkParam(32, 1.0));
+    e.params.push_back(mkParam(34, legato ? 1.0 : 0.0));
+    process(e); }
+  int id = 1;
+  for (int code : seq)
+  {
+    EvList e;
+    const int16_t key = (int16_t)(60 + (code & 1));
+    if (code < 2) e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON, 0, key, id++));
+    else          e.notes.push_back(mkNote(CLAP_EVENT_NOTE_OFF, 0, key, -1));
+    process(e);
+  }
+  double peak = 0; EvList empty;
+  const int nb = (int)(1.0 * kSR) / kBlock;
+  for (int b = 0; b < nb; b++)
+  {
+    process(empty);
+    if (b < nb / 2) continue;
+    for (int i = 0; i < kBlock; i++)
+      peak = std::max(peak, std::fabs((double)L[i]) + std::fabs((double)R[i]));
+  }
+  p->stop_processing(p); p->deactivate(p); p->destroy(p);
   return peak;
+}
+const char *codeName(int c)
+{ return c == 0 ? "on(60)" : c == 1 ? "on(61)" : c == 2 ? "off(60)" : "off(61)"; }
+
+// A sequence is only a bug if every key that went down came back up.
+bool balanced(const std::vector<int> &seq)
+{
+  int d[2] = {0, 0};
+  for (int c : seq) { if (c < 2) d[c] = 1; else d[c - 2] = 0; }
+  return d[0] == 0 && d[1] == 0;
+}
+void minimalSearch(bool mono, bool legato)
+{
+  std::vector<int> seq;
+  for (int len = 2; len <= 6; len++)
+  {
+    seq.assign(len, 0);
+    const long total = 1L << (2 * len);
+    for (long n = 0; n < total; n++)
+    {
+      for (int i = 0; i < len; i++) seq[i] = (int)((n >> (2 * i)) & 3);
+      if (!balanced(seq)) continue;
+      if (runSeq(seq, mono, legato) > 1e-5)
+      {
+        std::printf("  MINIMAL HANG (mono=%d legato=%d, len %d): ", (int)mono, (int)legato, len);
+        for (int c : seq) std::printf("%s ", codeName(c));
+        std::printf("\n");
+        return;
+      }
+    }
+  }
+  std::printf("  no hang up to length 6 (mono=%d legato=%d)\n", (int)mono, (int)legato);
 }
 }  // namespace
 
 int main(int argc, char **argv)
 {
   hypersaw_entry_init("");
+  if (argc > 1 && std::string(argv[1]) == "--minimal")
+  {
+    std::printf("minimal-repro search over 2 keys, sequences up to length 6\n");
+    minimalSearch(true, false);
+    minimalSearch(true, true);
+    minimalSearch(false, false);
+    return 0;
+  }
   const int nSeeds = argc > 1 ? std::atoi(argv[1]) : 15;
   int failures = 0;
-  struct Mode { const char *name; bool mono, legato, vel0off; };
+  struct Mode { const char *name; bool mono, legato, vel0off, restrike, liveTiming; };
   const Mode modes[] = {
-      {"poly", false, false, false},
-      {"mono", true, false, false},
-      {"mono+legato", true, true, false},
-      {"poly+vel0off", false, false, true},
-      {"mono+vel0off", true, false, true},
+      // existing coverage — unchanged, so the gate cannot weaken
+      {"poly", false, false, false, false, false},
+      {"mono", true, false, false, false, false},
+      {"mono+legato", true, true, false, false, false},
+      {"poly+vel0off", false, false, true, false, false},
+      {"mono+vel0off", true, false, true, false, false},
+      // new: the computer-keyboard shapes
+      {"poly+restrike", false, false, false, true, false},
+      {"mono+restrike", true, false, false, true, false},
+      {"mono+legato+restrike", true, true, false, true, false},
+      {"poly+live", false, false, false, false, true},
+      {"mono+live", true, false, false, false, true},
+      {"poly+restrike+live", false, false, false, true, true},
+      {"mono+legato+restrike+live", true, true, false, true, true},
   };
   for (const auto &m : modes)
   {
     int modeFail = 0;
+    double worstRelease = 0;
     for (int s = 0; s < nSeeds; s++)
     {
-      const double peak = runScenario(1000 + (uint32_t)s, m.mono, m.legato, m.vel0off);
-      if (peak > 1e-5)
+      const Result r = runScenario(1000 + (uint32_t)s, m.mono, m.legato, m.vel0off,
+                                   m.restrike, m.liveTiming);
+      if (r.releaseMs > worstRelease) worstRelease = r.releaseMs;
+      if (r.hangPeak > 1e-5)
       {
         failures++;
         modeFail++;
         if (modeFail <= 3)
-          std::printf("FAIL hang mode=%s seed=%d peak=%.6g\n", m.name, 1000 + s, peak);
+          std::printf("FAIL hang mode=%s seed=%d peak=%.6g\n", m.name, 1000 + s, r.hangPeak);
       }
     }
-    std::printf("%s %s: %d/%d silent after all-keys-up\n", modeFail ? "FAIL" : "OK  ",
-                m.name, nSeeds - modeFail, nSeeds);
+    std::printf("%s %s: %d/%d silent after all-keys-up, worst tail %.0f ms\n",
+                modeFail ? "FAIL" : "OK  ", m.name, nSeeds - modeFail, nSeeds, worstRelease);
   }
   std::printf(failures ? "notefuzz_check: RED (%d hangs)\n" : "notefuzz_check: GREEN (0 hangs)\n",
               failures);
