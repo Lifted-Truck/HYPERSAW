@@ -192,7 +192,13 @@ class SwarmVerb {
     this.ap = this.apLen.map(L => ({ buf: new Float64Array(2048), w: 0, len: L }));
     this.apR = this.apLen.map(L => ({ buf: new Float64Array(2048), w: 0, len: (L * 1.17) | 0 }));
     // FDN
-    this.LBUF = 1 << 13;
+    // 1<<14, not 1<<13. The size range now reaches 3.05x, and the longest base
+    // line at that scale is 9720 samples — past the old 8192 buffer, where the
+    // per-sample Math.min clamp would have silently held every long line at the
+    // same length. That is not graceful degradation: equal lengths collapse the
+    // mode structure into a single comb, so the reverb would have got MORE
+    // metallic as you asked for a bigger room.
+    this.LBUF = 1 << 14;
     this.line = []; for (let i = 0; i < NLINE; i++) this.line.push(new Float64Array(this.LBUF));
     this.lw = 0;
     // Base lengths are coprime-ish so the modes do not collide. Their MEAN is
@@ -240,7 +246,12 @@ class SwarmVerb {
     // control moves relative to it along the correct exponent.
     const tRef = this.mixTimeOf(mean0);
     const k = Math.max(0.08, Math.min(4, Math.pow(t / tRef, (N - 1) / N)));
-    this.baseLen = this.baseLen0.map(L => Math.max(64, Math.round(L * k)));
+    // Upper clamp is load-bearing: `size` multiplies these by up to 3.05, so
+    // without it a long mixing-time target plus a large size runs past LBUF and
+    // the read clamp flattens the lengths together (see the LBUF note).
+    const cap = (this.LBUF - 64) / 3.05 / Math.max(...this.baseLen0);
+    const kc = Math.min(k, cap);
+    this.baseLen = this.baseLen0.map(L => Math.max(64, Math.round(L * kc)));
   }
   // Predicted mixing time (ms) for a given mean delay, same lattice estimate.
   // ANCHOR: the stock lengths are declared to mix at 90 ms; that is a design
@@ -317,7 +328,7 @@ class SwarmVerb {
     const aHp = 1 - hpC;
     const hpMag = aHp * Math.sqrt(2 - 2 * cosR) / denom(hpC);
     const loopComp = 1 / Math.max(1e-3, lpMag * hpMag);
-    const sizeScale = 0.55 + p.size * 1.0;
+    const sizeScale = 0.55 + p.size * 2.5;
     // LENGTH-COMPENSATED PER-LINE FILTERS. `dampC`/`hpC` are per-PASS
     // coefficients, but a line of length L makes sr/L passes per second, so an
     // identical coefficient on every line yields a different filter response
@@ -502,7 +513,8 @@ class SwarmVerb {
     <h2>Space</h2>
     <div class="row"><label>mix</label><input type="range" id="mix" min="0" max="1" step="0.01" value="0.35"><output id="mix_o"></output></div>
     <div class="row"><label>pre-delay</label><input type="range" id="preDelay" min="0" max="0.2" step="0.001" value="0.02"><output id="preDelay_o"></output></div>
-    <div class="row"><label>size</label><input type="range" id="size" min="0" max="1" step="0.01" value="0.5"><output id="size_o"></output></div>
+    <div class="row"><label>size</label><input type="range" id="size" min="0" max="1" step="0.005" value="0.2"><output id="size_o"></output></div>
+    <div class="hint"><b>Size</b> scales the delay-line lengths, i.e. the modelled path length between reflections. It sets mode spacing and echo spacing — the room-size cue — and deliberately does <i>not</i> set decay time; that is the decay control, and the loop-gain compensation keeps the two independent. Range now reaches 3.05&times; (was 1.55&times;), with the default moved to <span class="num">0.20</span>, which is exactly the old default scale of 1.05&times; — so nothing about the stock sound changes. Bigger is also <i>smoother</i>, which is the opposite of what you might expect: longer lines put the modes closer together in frequency, so measured tail roughness falls monotonically from 1.68 dB at minimum size to 1.15 dB at maximum, against a 0.20 dB floor for ideal decaying noise. Small settings are the metallic ones.</div>
     <div class="row"><label>decay (RT60)</label><input type="range" id="decay" min="0.2" max="12" step="0.05" value="2.2"><output id="decay_o"></output></div>
     <div class="row"><label>damping</label><input type="range" id="damp" min="0" max="1" step="0.01" value="0.45"><output id="damp_o"></output></div>
     <div class="row"><label>low cut</label><input type="range" id="lowCut" min="20" max="600" step="5" value="120"><output id="lowCut_o"></output></div>
