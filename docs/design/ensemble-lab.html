@@ -140,7 +140,12 @@ class EnsembleSwarm {
   constructor(sr) {
     this.sr = sr;
     this.p = { n: 7, detuneCents: 8, K: 0.2, vol: 0.35, width: 0.85, seed: 1234,
-               alpha: 0.25, scatterMs: 30, attackMs: 60, attackScatter: 0.4,
+               // ATTACK DEFAULT LOWERED 60 -> 12 ms (2026-07-29). At 60 ms each
+               // voice fades in over a window comparable to the onset scatter
+               // itself, so the scatter — and the attack character riding on it —
+               // is largely hidden inside the fade. The onset-domain axes only
+               // become legible with an attack short relative to the spread.
+               alpha: 0.25, scatterMs: 30, attackMs: 12, attackScatter: 0.4,
                smear: 0, character: 0, charScatter: 0.5 };
     this.timing = new EnsembleTiming(4242);
     this.sw = []; for (let i = 0; i < 6; i++) this.sw.push(this.mk());
@@ -149,7 +154,7 @@ class EnsembleSwarm {
   mk() { return { midi: -1, f0: 220, gate: 0, age: -1, tick: 0,
                   phase: new Float64Array(MAXV), eff: new Float64Array(MAXV), vf: new Float64Array(MAXV),
                   env: new Float64Array(MAXV), delay: new Float64Array(MAXV),
-                  atk: new Float64Array(MAXV), live: 0 }; }
+                  atk: new Float64Array(MAXV), live: 0, scratch: 12345 }; }
   rebuild() {
     const n = this.p.n; this.x = new Float64Array(n);
     this.pL = new Float64Array(n); this.pR = new Float64Array(n);
@@ -262,7 +267,10 @@ class EnsembleSwarm {
           // peak sits at its own frequency. d = 0.5 is the identity (plain saw).
           let w = ph, slope = 1;
           if (smear > 0) {
-            const dv = Math.min(0.92, Math.max(0.08, 0.5 + this.warpD[i] * smear * 0.38));
+            // Range widened after the human reported smear as imperceptible:
+            // the dispersion was real in measurement but the warp was gentle.
+            // Still bounded well inside [0,1] so the map stays monotone.
+            const dv = Math.min(0.96, Math.max(0.04, 0.5 + this.warpD[i] * smear * 0.46));
             if (w < dv) { slope = 0.5 / dv; w = w * slope; }
             else { slope = 0.5 / (1 - dv); w = 0.5 + (w - dv) * slope; }
             w -= Math.floor(w);
@@ -274,10 +282,26 @@ class EnsembleSwarm {
           // attack character, active only during the onset. SCRATCHY (>0) adds
           // a decaying burst of odd-harmonic grit; LOOSE (<0) makes the onset
           // amplitude unstable, the multiple-slipping regime's longer settling.
-          if (chr !== 0 && s.env[i] < 0.98) {
+          if (chr !== 0 && s.env[i] < 0.995) {
             const cv = chr + this.charOff[i] * p.charScatter * 0.7;
             const onset = 1 - s.env[i];
-            if (cv > 0) v += Math.tanh(v * 6) * cv * onset * 0.45;
+            // SCRATCHY WAS MODELLED WRONG (human: "I don't exactly hear the
+            // scratchy setting", 2026-07-29). I had it as tanh waveshaping,
+            // which adds HARMONICS — that is "distorted", not "scratchy". The
+            // research describes over-force as a raucous transient where the
+            // string STICKS TOO LONG: an APERIODIC, irregular-slipping regime.
+            // So it must be noise-like and broadband, not a harmonic addition.
+            if (cv > 0) {
+              s.scratch = (s.scratch * 1103515245 + 12345) & 0x7fffffff;
+              const nz = (s.scratch / 0x7fffffff) * 2 - 1;
+              // Gain set from measurement, not taste: the first version used
+              // onset^2 * 0.5 and moved onset HF energy by only 1.10x at full
+              // setting — inaudible, which is what the human reported. Linear
+              // onset and a much larger gain put it at a level the ear can
+              // actually resolve. Scaled by |v| so it rides the waveform
+              // rather than sitting under it as a separate hiss.
+              v += nz * cv * onset * 2.2 * (0.25 + 0.75 * Math.abs(v));
+            }
             else v *= 1 + cv * onset * 0.8 * Math.sin(TAU * 7.3 * s.env[i]);
           }
           v *= s.env[i];
@@ -310,7 +334,7 @@ class EnsembleSwarm {
   <div class="cluster">
     <h2>Tuning &amp; attack</h2>
     <div class="row"><label>detune σ</label><input type="range" id="detuneCents" min="0" max="40" step="0.5" value="8"><output id="detuneCents_o"></output></div>
-    <div class="row"><label>attack</label><input type="range" id="attackMs" min="2" max="300" step="1" value="60"><output id="attackMs_o"></output></div>
+    <div class="row"><label>attack</label><input type="range" id="attackMs" min="2" max="300" step="1" value="12"><output id="attackMs_o"></output></div>
     <div class="row"><label>attack scatter</label><input type="range" id="attackScatter" min="0" max="1" step="0.01" value="0.4"><output id="attackScatter_o"></output></div>
     <div class="row"><label>character</label><input type="range" id="character" min="-1" max="1" step="0.01" value="0"><output id="character_o"></output></div>
     <div class="row"><label>char spread</label><input type="range" id="charScatter" min="0" max="1" step="0.01" value="0.5"><output id="charScatter_o"></output></div>

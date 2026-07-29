@@ -305,7 +305,11 @@ class SwarmVerb {
         let r2 = this.erW - d; if (r2 < 0) r2 += this.erBufL.length;
         const j0 = r2 | 0, f2 = r2 - j0, j1 = (j0 + 1) % this.erBufL.length;
         const v = (this.erBufL[j0] * (1 - f2) + this.erBufL[j1] * f2) * this.tapG[t] * Math.pow(p.erDecay, t * 0.4);
-        const pan = this.tapP[t] * p.width;
+        // CLAMP IS LOAD-BEARING: tapP is already +-1, so any width > 1 pushes
+        // pan past 1, and sqrt(0.5*(1-pan)) then returns NaN. That NaN lands in
+        // the delay line and the FDN feedback state, where it is PERMANENT —
+        // which is exactly the "audio dies and never comes back" report.
+        const pan = Math.max(-1, Math.min(1, this.tapP[t] * p.width));
         erL += v * Math.sqrt(0.5 * (1 - pan)); erR += v * Math.sqrt(0.5 * (1 + pan));
       }
       this.erW = (this.erW + 1) % this.erBufL.length;
@@ -364,8 +368,13 @@ class SwarmVerb {
       // width on the tail only (dry keeps its own image)
       const mid = 0.5 * (tL + tR), sid = 0.5 * (tL - tR) * p.width;
       tL = mid + sid; tR = mid - sid;
-      const wetL = tL * p.envelop + erL * p.erSend;
-      const wetR = tR * p.envelop + erR * p.erSend;
+      let wetL = tL * p.envelop + erL * p.erSend;
+      let wetR = tR * p.envelop + erR * p.erSend;
+      // NaN WATCHDOG. A feedback network cannot recover from a single NaN on
+      // its own — it recirculates forever. Any non-finite sample means the
+      // state is poisoned, so flush it rather than pass silence to the output
+      // and leave the user with a dead reverb and no way back.
+      if (!Number.isFinite(wetL) || !Number.isFinite(wetR)) { this.reset(); wetL = 0; wetR = 0; }
       outL[smp] = dryL * (1 - p.mix) + wetL * p.mix;
       outR[smp] = dryR * (1 - p.mix) + wetR * p.mix;
     }
