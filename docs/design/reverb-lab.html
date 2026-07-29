@@ -161,7 +161,10 @@ class SwarmVerb {
     this.p = { mix: 0.35, preDelay: 0.02, erSend: 0.7, erSize: 0.55, erDecay: 0.6,
                envelop: 1.0, tailDecorr: 0.6, mixTimeMs: 0,
                diffuse: 0.7, size: 0.5, decay: 2.2, damp: 0.45, lowCut: 120,
-               modDepth: 0.35, modRate: 0.35, modK: 0, modSource: 1, width: 1.0 };
+               modDepth: 0.35, modRate: 0.35, modK: 0, modSource: 1, width: 1.0,
+               bassMono: 260 };
+    // BASS-MONO STATE. See the crossover in process() for why this exists.
+    this.bmL = 0; this.bmL2 = 0;
     // pre-delay ring
     this.pd = new Float64Array(1 << 15); this.pdW = 0;
     // early reflections: prime-ish tap pattern, deterministic
@@ -197,6 +200,14 @@ class SwarmVerb {
     this.baseLen = this.baseLen0.slice();
     this.lp = new Float64Array(NLINE);
     this.hp = new Float64Array(NLINE);
+    this.dampCi = new Float64Array(NLINE);
+    this.hpCi = new Float64Array(NLINE);
+    // L/R line sets, chosen so the two halves have MATCHED length
+    // distributions. The obvious i%2 split does not: baseLen is ascending, so
+    // it hands every odd-indexed (longer) line to R, making R's mean 13.5%
+    // longer than L's — a built-in spectral and density asymmetry between the
+    // channels. {0,3,4,7} vs {1,2,5,6} balances the means to 0.6%.
+    this.lineSide = [0, 1, 1, 0, 0, 1, 1, 0];
     this.modPh = new Float64Array(NLINE);
     for (let i = 0; i < NLINE; i++) this.modPh[i] = i / NLINE;
     this.dcx = 0; this.dcy = 0;
@@ -236,7 +247,7 @@ class SwarmVerb {
     for (const a of this.ap) a.buf.fill(0);
     for (const a of this.apR) a.buf.fill(0);
     for (const l of this.line) l.fill(0);
-    this.lp.fill(0); this.hp.fill(0);
+    this.lp.fill(0); this.hp.fill(0); this.bmL = 0; this.bmL2 = 0;
   }
   // Kuramoto modulation: NLINE phase oscillators. modK 0 = independent drift
   // (classic chorused FDN); modK 1 = locked, so every line breathes together.
@@ -292,6 +303,32 @@ class SwarmVerb {
     const hpMag = aHp * Math.sqrt(2 - 2 * cosR) / denom(hpC);
     const loopComp = 1 / Math.max(1e-3, lpMag * hpMag);
     const sizeScale = 0.55 + p.size * 1.0;
+    // LENGTH-COMPENSATED PER-LINE FILTERS. `dampC`/`hpC` are per-PASS
+    // coefficients, but a line of length L makes sr/L passes per second, so an
+    // identical coefficient on every line yields a different filter response
+    // per SECOND on each — short lines get filtered far harder than long ones.
+    // That is invisible in mono and audible the moment the lines are split
+    // L/R: the channel holding the shorter lines drifts spectrally away from
+    // the other, and `width` amplifies exactly that difference (measured
+    // 3.17 dB of HF tilt at width 1, human 2026-07-29: "width seems to send
+    // the higher frequencies right and the lower frequencies left").
+    // Fix: give each line the coefficient that reproduces the REFERENCE line's
+    // per-second response. For y += c(x-y) the Nyquist gain is c/(2-c), so
+    // matching per-second HF loss needs k_i = k0^(L_i/Lbar), c_i = 2k_i/(1+k_i)
+    // — an identity at L_i = Lbar, so the damp control keeps its current feel.
+    // The low cut is matched the same way at low frequency, where a one-pole
+    // HP loses ~fc^2/2f^2 per pass, giving fc_i = fc0*sqrt(L_i/Lbar).
+    let lbar = 0;
+    for (let i = 0; i < NLINE; i++) lbar += this.baseLen[i] * sizeScale;
+    lbar /= NLINE;
+    const k0 = dampC / (2 - dampC);
+    const fc0 = Math.max(20, p.lowCut);
+    for (let i = 0; i < NLINE; i++) {
+      const rl = (this.baseLen[i] * sizeScale) / lbar;
+      const ki = Math.pow(k0, rl);
+      this.dampCi[i] = 2 * ki / (1 + ki);
+      this.hpCi[i] = 1 - Math.exp(-TAU * (fc0 * Math.sqrt(rl)) / sr);
+    }
     const pdSamp = Math.max(1, Math.min(this.pd.length - 4, p.preDelay * sr));
     const modSamp = p.modDepth * 26;   // up to ~26 samples of wander
     for (let smp = 0; smp < N; smp++) {
@@ -343,8 +380,8 @@ class SwarmVerb {
         let r4 = this.lw - d; if (r4 < 0) r4 += this.LBUF;
         const k0 = r4 | 0, f4 = r4 - k0, k1 = (k0 + 1) % this.LBUF;
         let o = this.line[i][k0] * (1 - f4) + this.line[i][k1] * f4;
-        this.lp[i] += dampC * (o - this.lp[i]); o = this.lp[i];      // HF damping
-        this.hp[i] += hpC * (o - this.hp[i]); o -= this.hp[i];        // low cut
+        this.lp[i] += this.dampCi[i] * (o - this.lp[i]); o = this.lp[i];   // HF damping
+        this.hp[i] += this.hpCi[i] * (o - this.hp[i]); o -= this.hp[i];    // low cut
         outs[i] = o; sum += o;
       }
       // per-line feedback for the requested RT60: g = 10^(-3 * len / (rt60*sr))
@@ -366,7 +403,7 @@ class SwarmVerb {
       let tL = 0, tR = 0, tM = 0;
       for (let i = 0; i < NLINE; i++) {
         tM += outs[i];
-        if (i % 2) tR += outs[i]; else tL += outs[i];
+        if (this.lineSide[i]) tR += outs[i]; else tL += outs[i];
       }
       const tn = 2 / NLINE, mn = 1 / NLINE;
       const dc = Math.max(0, Math.min(1, p.tailDecorr));
@@ -377,6 +414,35 @@ class SwarmVerb {
       tL = mid + sid; tR = mid - sid;
       let wetL = tL * p.envelop + erL * p.erSend;
       let wetR = tR * p.envelop + erR * p.erSend;
+      // BASS-MONO CROSSOVER ON THE WET SIGNAL. The ER bank is 12 discrete taps,
+      // each hard-panned. At low frequency a delayed copy on one side does not
+      // average out against the others, so whole low bands end up lopsided:
+      // measured 7.9 dB of 1/3-octave L/R imbalance at 100 Hz at width 1, and
+      // 11.4 dB at width 1.5 — which is what "width sends the higher
+      // frequencies right and the lower frequencies left ... unpleasant in
+      // headphones" (human, 2026-07-29) actually is. It is not a broadband
+      // tilt (that measured only 0.25 dB); it is per-band imbalance, invisible
+      // to an HF/LF ratio.
+      // A real room does not lateralise bass either: below a few hundred Hz the
+      // head is small against the wavelength, so interaural level differences
+      // are physically tiny. Collapsing the wet SIDE component below the
+      // crossover restores that — and it is the same mechanism the main engine
+      // already carries as its bass-mono crossover (ROADMAP #10).
+      if (p.bassMono > 0) {
+        // TWO CASCADED HIGHPASSES, not one 2-pole lowpass subtracted. A single
+        // 6 dB/oct pole at 260 Hz still passes 200 Hz at -4.3 dB, leaving 4.2 dB
+        // of imbalance there. But steepening it as `side -= lp(lp(side))` makes
+        // things WORSE, not better: 1 - H^2 factors as (1-H)(1+H), and (1+H)
+        // approaches 2 at low frequency, so that form DOUBLES the low side
+        // rather than removing it (measured 4.73 dB vs the one-pole's 2.84).
+        // The complement has to be applied twice, each to the previous stage's
+        // output — a cascaded highpass, not a subtracted cascaded lowpass.
+        const bc = 1 - Math.exp(-TAU * p.bassMono / sr);
+        const mid = 0.5 * (wetL + wetR); let side = 0.5 * (wetL - wetR);
+        this.bmL += bc * (side - this.bmL); side -= this.bmL;
+        this.bmL2 += bc * (side - this.bmL2); side -= this.bmL2;
+        wetL = mid + side; wetR = mid - side;
+      }
       // NaN WATCHDOG. A feedback network cannot recover from a single NaN on
       // its own — it recirculates forever. Any non-finite sample means the
       // state is poisoned, so flush it rather than pass silence to the output
@@ -400,6 +466,8 @@ class SwarmVerb {
     <div class="row"><label>damping</label><input type="range" id="damp" min="0" max="1" step="0.01" value="0.45"><output id="damp_o"></output></div>
     <div class="row"><label>low cut</label><input type="range" id="lowCut" min="20" max="600" step="5" value="120"><output id="lowCut_o"></output></div>
     <div class="row"><label>width</label><input type="range" id="width" min="0" max="1.5" step="0.01" value="1"><output id="width_o"></output></div>
+    <div class="row"><label>bass mono</label><input type="range" id="bassMono" min="0" max="600" step="5" value="260"><output id="bassMono_o"></output></div>
+    <div class="hint">Wet signal collapses to mono below this. Real rooms don't lateralise bass — the head is small against the wavelength — and hard-panned early reflections do, which headphones expose as the low end sitting on one side. 0 = off.</div>
     <div class="row"><label>envelop</label><input type="range" id="envelop" min="0" max="1.6" step="0.01" value="1"><output id="envelop_o"></output></div>
     <div class="row"><label>tail decorr</label><input type="range" id="tailDecorr" min="0" max="1" step="0.01" value="0.6"><output id="tailDecorr_o"></output></div>
     <div class="row"><label>mixing time</label><input type="range" id="mixTimeMs" min="0" max="300" step="5" value="0"><output id="mixTimeMs_o"></output></div>
@@ -468,7 +536,7 @@ function ensureAudio() {
 const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
   const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); };
   el.addEventListener('input', f); f(); };
-for (const k of ['mix','preDelay','size','decay','damp','lowCut','width','envelop','tailDecorr','mixTimeMs','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
+for (const k of ['mix','preDelay','size','decay','damp','lowCut','width','bassMono','envelop','tailDecorr','mixTimeMs','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
   wire(k, v => verb.setParam(k, v),
     k === 'preDelay' ? (v => (v*1000).toFixed(0)+' ms')
     : k === 'decay' ? (v => v.toFixed(2)+' s')
