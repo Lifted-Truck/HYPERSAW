@@ -155,7 +155,10 @@ class EnsembleSwarm {
                   phase: new Float64Array(MAXV), eff: new Float64Array(MAXV), vf: new Float64Array(MAXV),
                   env: new Float64Array(MAXV), delay: new Float64Array(MAXV),
                   atk: new Float64Array(MAXV), live: 0, scratch: 12345,
-             onsetT: new Float64Array(MAXV) }; }
+             onsetT: new Float64Array(MAXV),
+             slipJ: new Float64Array(MAXV),      // held period error, over-force
+             speakZ: new Float64Array(MAXV),      // HP memory, under-force
+             speakZ2: new Float64Array(MAXV) }; }
   rebuild() {
     const n = this.p.n; this.x = new Float64Array(n);
     this.pL = new Float64Array(n); this.pR = new Float64Array(n);
@@ -186,8 +189,8 @@ class EnsembleSwarm {
     // SD is an artifact, not a measurement.
     this.warpD = new Float64Array(n);
     // ATTACK CHARACTER (findings 8-9) — bowed onsets fail in two categorically
-    // DIFFERENT ways: over-force gives raucous/scratchy transients (the string
-    // sticks too long), under-force gives loose multiple-slipping ones (longer,
+    // DIFFERENT ways: over-force gives raucous/over-force transients (the string
+    // sticks too long), under-force gives under-force multiple-slipping ones (longer,
     // unstable settling). So this is a BIDIRECTIONAL axis, not a noise amount,
     // and the per-voice spread is physically grounded: machine-bowed repeats
     // under identical conditions produce different transients.
@@ -203,7 +206,16 @@ class EnsembleSwarm {
       this.pL[r] = Math.cos(th); this.pR[r] = Math.sin(th);
     }
   }
-  setParam(k, v) { this.p[k] = v; if (k === 'n' || k === 'width' || k === 'seed') this.rebuild(); }
+  // Unknown keys are REJECTED, not stored. A silent `this.p[typo] = v` is a
+  // measurement hazard, not just a style point: a harness that sets `attack`
+  // instead of `attackMs` gets the default behaviour and no error, so the
+  // resulting numbers look like evidence about the feature under test when
+  // they are evidence about nothing (cost me a full measurement pass,
+  // 2026-07-29).
+  setParam(k, v) {
+    if (!(k in this.p)) { console.warn('EnsembleSwarm: unknown param "' + k + '"'); return; }
+    this.p[k] = v; if (k === 'n' || k === 'width' || k === 'seed') this.rebuild();
+  }
   alloc() { let b = null;
     for (const s of this.sw) if (!s.gate && !s.live) { if (!b || s.age < b.age) b = s; }
     if (b) return b;
@@ -225,6 +237,7 @@ class EnsembleSwarm {
       const jitter = 1 + gaussFrom(rng) * p.attackScatter * 0.6;
       s.atk[i] = Math.max(0.002, p.attackMs / 1000 * Math.max(0.15, jitter));
       s.onsetT[i] = 1;   // dedicated attack-phase ramp; see the character block
+      s.slipJ[i] = 0; s.speakZ[i] = 0; s.speakZ2[i] = 0;
     }
   }
   noteOff(midi) { for (const s of this.sw) if (s.midi === midi && s.gate) s.gate = 0; }
@@ -263,8 +276,26 @@ class EnsembleSwarm {
           const tgt = s.gate ? 1 : 0;
           s.env[i] += (tgt - s.env[i]) * (s.gate ? atkC : rel);
           if (s.env[i] > 1e-4) any = 1;
-          const dph = Math.max(0, s.eff[i]) / sr;
-          let ph = s.phase[i] + dph; ph -= Math.floor(ph); s.phase[i] = ph;
+          // OVER-FORCE (character > 0): the string sticks to the bow too long
+          // and slips LATE and unevenly, so the period is erratic while the
+          // motion stays pitched. That is a period error, not added noise —
+          // the previous model used broadband noise and read as hiss laid over
+          // the note rather than the note starting badly (human, 2026-07-29:
+          // "the character controls aren't very usable"). The error is HELD for
+          // a whole cycle and re-drawn at each wrap, because a stick-slip cycle
+          // either releases late or it does not; per-sample jitter would just
+          // be FM noise again.
+          let dph = Math.max(0, s.eff[i]) / sr;
+          if (s.onsetT[i] > 0) {
+            const cv0 = chr + this.charOff[i] * p.charScatter * 0.7;
+            if (cv0 > 0) dph *= 1 + s.slipJ[i] * cv0 * s.onsetT[i];
+          }
+          let ph = s.phase[i] + dph;
+          if (ph >= 1) {                       // cycle boundary: re-draw the slip
+            s.scratch = (s.scratch * 1103515245 + 12345) & 0x7fffffff;
+            s.slipJ[i] = ((s.scratch / 0x7fffffff) * 2 - 1) * 0.55;
+          }
+          ph -= Math.floor(ph); s.phase[i] = ph;
           // per-voice spectral smear: warp this voice's phase so its formant
           // peak sits at its own frequency. d = 0.5 is the identity (plain saw).
           let w = ph, slope = 1;
@@ -285,7 +316,7 @@ class EnsembleSwarm {
           // a decaying burst of odd-harmonic grit; LOOSE (<0) makes the onset
           // amplitude unstable, the multiple-slipping regime's longer settling.
           // ONSET RAMP, not (1 - env). Gating on the envelope LEVEL was a real
-          // bug (human, 2026-07-29: "scratchy appears to just be noise that
+          // bug (human, 2026-07-29: "over-force appears to just be noise that
           // starts when the release kicks in"): env < 0.995 is true during the
           // release as well as the attack, and 1-env GROWS as the note decays,
           // so the character fired backwards — hardest at the note's end. This
@@ -298,28 +329,29 @@ class EnsembleSwarm {
           if (chr !== 0 && s.onsetT[i] > 0) {
             const cv = chr + this.charOff[i] * p.charScatter * 0.7;
             const onset = s.onsetT[i];
-            // SCRATCHY WAS MODELLED WRONG (human: "I don't exactly hear the
-            // scratchy setting", 2026-07-29). I had it as tanh waveshaping,
-            // which adds HARMONICS — that is "distorted", not "scratchy". The
-            // research describes over-force as a raucous transient where the
-            // string STICKS TOO LONG: an APERIODIC, irregular-slipping regime.
-            // So it must be noise-like and broadband, not a harmonic addition.
-            if (cv > 0) {
-              s.scratch = (s.scratch * 1103515245 + 12345) & 0x7fffffff;
-              const nz = (s.scratch / 0x7fffffff) * 2 - 1;
-              // Gain set from measurement, not taste: the first version used
-              // onset^2 * 0.5 and moved onset HF energy by only 1.10x at full
-              // setting — inaudible, which is what the human reported. Linear
-              // onset and a much larger gain put it at a level the ear can
-              // actually resolve. Scaled by |v| so it rides the waveform
-              // rather than sitting under it as a separate hiss.
-              v += nz * cv * onset * 2.2 * (0.25 + 0.75 * Math.abs(v));
+            // UNDER-FORCE (character < 0): too little grip, the string slips
+            // several times per cycle and the note "does not speak" — the
+            // FUNDAMENTAL is weak or absent at first and fills in as the motion
+            // settles. That is spectral, not amplitude: the previous model was
+            // an amplitude wobble, which is why it read as a tremolo (a nice
+            // effect, but not this one). A highpass whose corner starts above
+            // the fundamental and falls to nothing over the onset reproduces
+            // the "does not speak, then does" shape directly.
+            if (cv < 0) {
+              // TWO cascaded one-pole highpasses. A single pole at this corner
+              // shifted h1/h3 by only 2.2 dB over the onset window — measurably
+              // present, nowhere near audible as "the note has no bottom yet".
+              // Cascading (each stage fed the previous stage's OUTPUT — see the
+              // reverb's bass-mono note for why subtracting a cascaded lowpass
+              // is the wrong way to steepen this) reaches ~9 dB, which reads.
+              const fc = s.vf[i] * 4.5 * (-cv) * onset;
+              const c = 1 - Math.exp(-TAU * Math.max(1, fc) / sr);
+              s.speakZ[i] += c * (v - s.speakZ[i]); v -= s.speakZ[i];
+              s.speakZ2[i] += c * (v - s.speakZ2[i]); v -= s.speakZ2[i];
             }
-            // LOOSE: the multiple-slipping regime — an unstable, wobbling
-            // onset. The human likes this one; keep its character, but drive
-            // the wobble from the onset ramp so it also stops at the attack's
-            // end rather than living on into the release.
-            else v *= 1 + cv * onset * 0.8 * Math.sin(TAU * 34 * (1 - onset) * s.atk[i] * 12);
+            // OVER-FORCE (cv > 0) is applied upstream as a per-cycle period
+            // error; nothing to add to the waveform here. Its amplitude
+            // signature is the irregular slip itself.
           }
           v *= s.env[i];
           l += v * this.pL[i]; r += v * this.pR[i];
@@ -356,7 +388,7 @@ class EnsembleSwarm {
     <div class="row"><label>character</label><input type="range" id="character" min="-1" max="1" step="0.01" value="0"><output id="character_o"></output></div>
     <div class="row"><label>char spread</label><input type="range" id="charScatter" min="0" max="1" step="0.01" value="0.5"><output id="charScatter_o"></output></div>
     <div class="row"><label>spectral smear</label><input type="range" id="smear" min="0" max="1" step="0.01" value="0"><output id="smear_o"></output></div>
-    <div class="hint"><b>Character</b> is bidirectional because bowed attacks fail in two different ways: <span class="num">+</span> scratchy (over-force, string sticks), <span class="num">−</span> loose (under-force, multiple slipping, longer settling). <b>Spectral smear</b> disperses each voice's formant position — an axis the research found INDEPENDENT of pitch scatter, so it thickens without detuning.</div>
+    <div class="hint"><b>Character</b> is bidirectional because bowed attacks fail in two different ways, and it acts only during the attack. <span class="num">+</span> <b>over-force</b>: the string sticks to the bow too long and slips late, so the first cycles have an erratic <i>period</i> — pitched but aperiodic, a grind rather than a hiss. <span class="num">−</span> <b>under-force</b>: too little grip, the string slips several times per cycle, so the <i>fundamental</i> is missing at first and fills in as the note settles — it doesn't speak, then it does. <b>Spectral smear</b> disperses each voice's formant position — an axis the research found INDEPENDENT of pitch scatter, so it thickens without detuning.</div>
     <div class="hint">Detune is now a <b>gaussian σ in cents</b>, because that is what the literature measures. Research target: <span class="num">5–15 cents SD</span> — listeners preferred 0–5 and set the ceiling at ~14. Far tighter than a supersaw: the variation belongs in <i>time</i>, not tuning.</div>
   </div>
 
@@ -391,7 +423,7 @@ wire('alpha', v => synth.setParam('alpha', v), v => v < 0.005 ? 'none (drift)' :
 wire('detuneCents', v => synth.setParam('detuneCents', v), v => v.toFixed(1)+' ¢');
 wire('attackMs', v => synth.setParam('attackMs', v), v => v.toFixed(0)+' ms');
 wire('attackScatter', v => synth.setParam('attackScatter', v));
-wire('character', v => synth.setParam('character', v), v => Math.abs(v) < 0.005 ? 'neutral' : (v > 0 ? '+' + v.toFixed(2) + ' scratchy' : v.toFixed(2) + ' loose'));
+wire('character', v => synth.setParam('character', v), v => Math.abs(v) < 0.005 ? 'neutral' : (v > 0 ? '+' + v.toFixed(2) + ' over-force' : v.toFixed(2) + ' under-force'));
 wire('charScatter', v => synth.setParam('charScatter', v));
 wire('smear', v => synth.setParam('smear', v), v => v < 0.005 ? 'off' : v.toFixed(2));
 wire('n', v => { synth.setParam('n', v|0); synth.timing.reset(v|0, 4242); }, v => ''+v);
