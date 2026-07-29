@@ -147,6 +147,32 @@ Two coupled directions the human is developing on separate threads (2026-07-19).
 
 **FEASIBILITY:** nothing verified is structurally out of reach for a coupled-oscillator design — the gaps are evidentiary, not architectural. Already reachable: static scatter (retarget to 5–15 cents gaussian), slow drift, **serially-correlated timing via K**, note-on phase scatter, spatial fan. Add a swarm parameter: **per-voice onset-time scatter** (the big one, tempo-scaled, drawn from a coupled process), per-voice attack character, per-voice formant offset. FX rack: a resonance field to convert per-voice FM into AM+timbre — but ONE shared body correlates AM across all voices unlike N real instruments, so per-voice resonance offsets are likely preferable.
 
+### Spectral smear — RETIRED 2026-07-29 (queue item #29 replaces it)
+
+Finding 10's per-voice formant dispersion was built, widened once, and **removed** after
+three independent human reports of total inaudibility. The removal is evidenced, not a
+concession — two measured reasons it could never work as built:
+
+1. **The two-slope phase warp is spectrally sign-blind.** `warpD = +1` and `warpD = −1`
+   produce *identical* magnitude spectra, because the map at `+d` is the time reversal of
+   the map at `−d`, and a magnitude spectrum is invariant under time reversal (only the
+   phase flips). A dispersion symmetric about zero therefore folds onto `|warpD|`: half
+   the intended spread collapses onto the other half, so voices meant to differ are equal.
+2. **The warp produces a tilt, not a peak.** At full depth it moves harmonics by 2.73 dB
+   rms, monotonically (h1 −5.5 dB rising to h16 +0.9 dB). A gentle high-shelf, dispersed
+   across seven voices already beating against each other, is indistinguishable from
+   nothing.
+
+The finding itself is not refuted — only this realisation of it. **Queue #29:** re-introduce
+it as *scatter on the shape lab's formant control*, whose windowed-carrier axis is confirmed
+audible ("I am certainly hearing some formant qualities", 2026-07-26), once those axes fold
+into the engine — exactly as `charScatter` scatters `character`. Do not rebuild a standalone
+mechanism in the ensemble lab.
+
+**This is the consolidation principle in action** (human, 2026-07-23: certain dedicated
+mechanisms should be replaced by general ones as those land). A weak bespoke mechanism
+duplicating a strong general one is the case for retiring the bespoke one, not for tuning it.
+
 ## Timbre-space research — supersaw discourse & mechanisms (2026-07-25)
 
 103-agent research swarm (5 angles → source fetch → 3-vote adversarial verification); 9 findings survived. Full report: `docs/reports/2026-07-25-supersaw-timbre-research.html`. Brief was: widen the reachable space toward (A) metallic/glassy hyperpop and (B) organic low growls, without breaking the saw mandate.

@@ -20,3 +20,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0015] plugin-platform — a server started in the Bash sandbox is unreachable from the HUMAN's browser (the in-app pane is not evidence they can see it); for self-contained HTML just `open` the file. Also: never serve the repo root — it exposes .git.
 - [L0016] parity-oracle/realtime-perf (canonical) — CALIBRATE THE DETECTOR: run any new defect metric on a known-clean signal (must read ~zero) and a known-bad one (must read large) BEFORE trusting it. Three instances in one session measured the signal instead of the defect; plausible rankings are not validation. Generalises [L0014].
 - [L0017] Detector calibration is per signal class — revalidate when the signal changes character | measurement, oracle, dsp, epistemics
+- [L0018] A symmetric phase-warp axis is spectrally sign-blind — check before building dispersion on it | dsp, spectra, design, measurement
