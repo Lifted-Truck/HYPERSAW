@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchestral ensemble research — what a section has that a detuned bank doesn't</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#2a3040; --text:#e8ecf2; --dim:#8b94a6;
+          --green:#5fd08a; --amber:#ffc24b; --red:#ff6b8a; --cyan:#5ff2e0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.6 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:24px; max-width:1060px; margin:0 auto; }
+  h1 { font-size:21px; margin-bottom:4px; } h1 .star { color:var(--cyan); }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:22px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.12em; color:var(--cyan); margin:26px 0 10px; padding-bottom:4px; border-bottom:1px solid var(--line); }
+  p { margin:8px 0; }
+  .lead { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:6px; padding:14px 18px; margin:14px 0; }
+  .lead b { color:var(--amber); }
+  .win { border-left-color:var(--green); } .win b { color:var(--green); }
+  .warn { border-left-color:var(--red); } .warn b { color:var(--red); }
+  table { width:100%; border-collapse:collapse; margin:10px 0; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); padding:6px 8px; border-bottom:1px solid var(--line); font-weight:500; }
+  td { padding:8px; border-bottom:1px solid var(--line); vertical-align:top; font-size:13px; }
+  .badge { font-size:10.5px; padding:2px 7px; border-radius:3px; white-space:nowrap; }
+  .b-green { background:rgba(95,208,138,.16); color:var(--green); }
+  .b-cyan { background:rgba(95,242,224,.16); color:var(--cyan); }
+  .b-amber { background:rgba(255,194,75,.16); color:var(--amber); }
+  .b-red { background:rgba(255,107,138,.16); color:var(--red); }
+  code { background:#0b0e13; border:1px solid var(--line); border-radius:3px; padding:1px 5px; font-size:12.5px; color:var(--cyan); }
+  .src { color:var(--dim); font-size:11px; }
+  ul { margin:6px 0 6px 20px; } li { margin:5px 0; }
+</style>
+</head>
+<body>
+<h1>SWARM<span class="star">✱</span> · orchestral ensemble research</h1>
+<div class="sub">2026-07-28 · 104-agent swarm, 5 angles → source fetch → 3-vote adversarial verification. 11 findings survived. Question: what does a real section have that a detuned oscillator bank lacks — and which of it is reachable here?</div>
+
+<div class="lead win">
+<b>The headline validates the architecture, specifically and unexpectedly.</b> Listeners judge ensemble "togetherness" not from the <i>variance</i> of note-onset asynchrony but from its <b>serial micro-structure</b> — the lag-1 autocorrelation produced by players mutually correcting each other's timing errors. A <b>Kuramoto coupling K is formally that error-correction gain.</b> So the right way to generate ensemble timing is <b>the coupled dynamics we already have</b>, at low-to-moderate K — and independent per-note random jitter, which is what every conventional "humanize" control does, is the <i>wrong</i> mechanism.
+</div>
+
+<div class="lead warn">
+<b>Two of five questions came back empty.</b> The mechanism question (which of incoherent summation / roughness / spectral smearing / spatial decorrelation dominates) produced no surviving claim — the leading candidate was voted down 0–3. And the entire <b>space &amp; seating</b> angle produced <b>zero</b> verified claims: no orchestral impulse-response, seating-spread, per-section-placement or stage-vs-hall result survived. So this report has nothing to say about what an orchestral IR has that our FDN lacks — that gap is evidentiary, and it is exactly where the human's convolution instinct sits.
+</div>
+
+<h2>1 · Static detune should be far TIGHTER than a supersaw</h2>
+<p>Measured inter-source pitch scatter in real unison ensembles is <b>13–30 cents SD</b> — not the tens of cents a supersaw typically uses. Larger instantaneous figures (39–55 cents) are inflated by vibrato, flutter and note-transition spikes (~150–200 cents decaying over ~0.3 s), not by static per-voice offset.</p>
+<p>More pointed: in controlled tests on synthesized five-voice sections, expert listeners set the <b>maximum tolerable</b> static scatter at ~14 cents SD, but when asked for <b>preference</b> chose <b>0 or 5 cents</b>. Critically the stimuli already carried per-voice vibrato and flutter — so this bounds <i>static mean-F0 offset only</i>, and is <b>not</b> evidence that listeners want a phase-locked, variation-free unison. The variation should be in <i>time</i>, not in static tuning.</p>
+<p class="src">Lottermoser &amp; Meyer 1960 via Ternström; Jers &amp; Ternström 2005 (16-singer choir, per-singer nose mics, &lt;1 cent resolution); Ternström &amp; Sundberg 1988 (~13 cents, six basses); Cuesta &amp; Gómez 2019 (arXiv:1904.05086, 20–30 cents, methodologically independent).</p>
+
+<h2>2 · The biggest verified gap: onset scatter</h2>
+<p>Between-player onset asynchrony in professional ensembles has an SD in the <b>tens of milliseconds</b> — 49 ms (string trio, 79 bpm), 32 ms (wind trio, 88 bpm), 24–28 ms (two string quartets, 157 bpm); full range <b>24–73 ms</b>, strongly tempo-dependent. The threshold for discriminating a perfectly-synchronous rendering from a scattered one is <b>~8 ms</b> SD — roughly 3–5× below what real ensembles produce.</p>
+<p><b>Our swarm currently has exactly zero onset scatter.</b> Every voice of a note starts on the same sample. By this evidence that is reliably distinguishable from an ensemble.</p>
+
+<h2>3 · …but generate it with coupling, not jitter</h2>
+<p>Wing et al. 2014, verbatim: <i>"people are sensitive to both the degree of variance and the micro-structure of the time-series of the asynchronies caused by differences in correction gain when judging lack of togetherness."</i> Detection threshold in asynchrony-variance terms <b>fell from 64.3 ms² to 18.2 ms²</b> when serial structure differed; lag-1 autocorrelation 0.84 vs 0.39 (p&lt;0.0005). Less variance was needed for detection when the <i>structure</i> changed.</p>
+<p>Their stimuli were generated by a linear phase-correction model — i.e. mutual error correction, which is what Kuramoto coupling <i>is</i>. <b>This is the strongest architecture/evidence match in the report.</b></p>
+<p class="src">Held at medium confidence for methodological reasons, not dissent: gain and asynchrony variance are not orthogonal in the Vorberg/Wing model, n=9 untrained listeners. Note their caveat that a near-zero-variability reference "might be considered unrealistic for musical contexts" does NOT bite here — for a synth, zero variability is exactly what we have.</p>
+
+<h2>4 · Attack is chaotic, and that is physical</h2>
+<p>Bowed-string attacks occupy a narrow wedge in the bow-force/bow-acceleration plane (Guettler), with categorically <i>different</i> failure modes on each side: over-force gives raucous/scratchy transients, under-force gives loose multiple-slipping ones. And decisively: <b>machine-bowed repeats under nominally identical force and acceleration produce different transients</b> — framed in the source as sensitive dependence on initial conditions.</p>
+<p>So per-note attack-<b>character</b> randomization along a bidirectional <i>scratchy ↔ loose</i> axis is <b>physically grounded, not cosmetic</b> — and it is a different thing from attack-<i>time</i> jitter.</p>
+
+<h2>5 · Two dimensions orthogonal to pitch</h2>
+<p><b>Spectral smear.</b> Dispersion of formants 3–5 from vocal-tract-length differences was manipulated as an <i>independent</i> dimension from detune. That is a per-voice <b>spectral-position offset</b> — and our windowed-carrier VOSIM/FOF formant axis with absolute-Hz lock is its faithful analogue. Per-voice LP/HP tone tilt is a cruder proxy, not an equivalent.</p>
+<p><b>Vibrato is not reliably uncorrelated.</b> In a measured 16-singer choir most singers showed <i>partial vibrato synchronisation</i>, attributed to shared note onsets acting as a common phase-resetting event. This contradicts the standard "uncorrelated per-source modulation" assumption behind chorus models — and note our note-on phase scatter already <i>is</i> a phase-reset mechanism. (Preliminary; choir, not strings.)</p>
+
+<h2>6 · Feasibility map</h2>
+<p class="src">Engineering inference from the verified findings, not itself a verified claim.</p>
+<table>
+<tr><th>dimension</th><th>verdict</th><th>note</th></tr>
+<tr><td>Static pitch scatter</td><td><span class="badge b-green">(i) already have</span></td><td>but retarget to <b>5–15 cents SD</b>, gaussian — far tighter than current defaults</td></tr>
+<tr><td>Slow per-voice drift</td><td><span class="badge b-green">(i) already have</span></td><td>random-walk drift</td></tr>
+<tr><td><b>Serially-correlated timing decorrelation</b></td><td><span class="badge b-green">(i) already have — K</span></td><td><b>the strongest match in the report</b>: low-to-moderate K, not per-note jitter</td></tr>
+<tr><td>Note-on phase scatter</td><td><span class="badge b-green">(i) already have</span></td><td>doubles as the vibrato phase-reset of finding 5</td></tr>
+<tr><td><b>Per-voice ONSET-TIME scatter</b></td><td><span class="badge b-cyan">(ii) add a parameter</span></td><td><b>the largest verified gap</b> — tens of ms, tempo-scaled, drawn from a coupled process</td></tr>
+<tr><td>Per-voice attack CHARACTER</td><td><span class="badge b-cyan">(ii) add a parameter</span></td><td>bidirectional scratchy↔loose, regime-dependent, not uniform noise</td></tr>
+<tr><td>Per-voice formant offset</td><td><span class="badge b-cyan">(ii) add a parameter</span></td><td>the windowed-carrier axis, per-voice rather than global</td></tr>
+<tr><td>Resonant body (FM→AM+timbre)</td><td><span class="badge b-amber">(iii) FX rack</span></td><td>resonator bank — but ONE shared body correlates AM across voices unlike N real instruments; per-voice offsets likely better</td></tr>
+<tr><td>Orchestral space / seating</td><td><span class="badge b-red">UNVERIFIED</span></td><td>zero surviving evidence — needs its own narrow pass</td></tr>
+</table>
+<p><b>Nothing verified is structurally out of reach for a coupled-oscillator design.</b> The genuine gaps are evidentiary, not architectural.</p>
+
+<h2>7 · What I'd do next</h2>
+<ul>
+<li><b>Onset scatter, generated by the coupling.</b> The largest verified gap, and the one the architecture is uniquely suited to fill correctly rather than approximately.</li>
+<li><b>Tighten the detune defaults</b> toward 5–15 cents SD gaussian and let time-domain variation carry the ensemble character — the reverse of the usual supersaw instinct.</li>
+<li><b>Per-voice formant offset</b> — the windowed-carrier axis exists; making it per-voice is the "spectral smear" dimension.</li>
+<li><b>A narrow second pass on orchestral space</b>, since that angle returned nothing and it is where the convolution question lives.</li>
+</ul>
+
+<p class="src" style="margin-top:22px">Method: 104 agents · 5 angles · 3-vote adversarial verification (2/3 refutes kills a claim) · 6.07M subagent tokens · 56 min. One duplicate finding quoting 7%/12% figures was refuted 0–3 and its numbers excluded; the mechanism-dominance candidate was voted down. Unsourced claims were dropped rather than softened, which is why sections 2 and 4 of the brief are empty rather than speculative.</p>
+</body>
+</html>
