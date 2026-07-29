@@ -162,7 +162,18 @@ class SwarmVerb {
                envelop: 1.0, tailDecorr: 0.6, mixTimeMs: 0,
                diffuse: 0.7, size: 0.5, decay: 2.2, damp: 0.45, lowCut: 120,
                modDepth: 0.35, modRate: 0.35, modK: 0, modSource: 1, width: 1.0,
-               bassMono: 260, inHP: 20, inLP: 20000, spinDepth: 0, spinRate: 0.28 };
+               bassMono: 260, inHP: 20, inLP: 20000, spinDepth: 0, spinRate: 0.28,
+               preGain: 0, postGain: 0, outGain: 0 };
+    // Output peak + clip latch, read by the UI meter. MEASURED CAUSE of the
+    // reported crackle (human, 2026-07-29 "clipping and crackling when the OSC
+    // volume gets too high with the reverb on"): the DRY path overflows on its
+    // own — 1.461 peak at osc vol 0.35 with four notes held, 2.921 at vol 0.7 —
+    // and the reverb REDUCES the peak at every mix setting, because `mix`
+    // crossfades and the wet is quieter than the dry it replaces. So the
+    // pre/post reverb trims asked for cannot fix it; `outGain` is the control
+    // that can, and this meter is here so the condition is visible instead of
+    // inferred from the sound.
+    this.peak = 0; this.clip = 0;
     // BASS-MONO STATE. See the crossover in process() for why this exists.
     this.bmL = 0; this.bmL2 = 0;
     // input filter state (2 cascaded poles each way) — OUTSIDE the loop
@@ -328,6 +339,10 @@ class SwarmVerb {
     const aHp = 1 - hpC;
     const hpMag = aHp * Math.sqrt(2 - 2 * cosR) / denom(hpC);
     const loopComp = 1 / Math.max(1e-3, lpMag * hpMag);
+    // dB -> linear once per block; these are trims, not modulation targets.
+    const preG = Math.pow(10, p.preGain / 20);
+    const postG = Math.pow(10, p.postGain / 20);
+    const outG = Math.pow(10, p.outGain / 20);
     const sizeScale = 0.55 + p.size * 2.5;
     // LENGTH-COMPENSATED PER-LINE FILTERS. `dampC`/`hpC` are per-PASS
     // coefficients, but a line of length L makes sr/L passes per second, so an
@@ -360,7 +375,7 @@ class SwarmVerb {
     for (let smp = 0; smp < N; smp++) {
       if ((smp & (TICK - 1)) === 0) this.stepMod(dt * TICK);
       const dryL = inL[smp], dryR = inR[smp];
-      let mono = 0.5 * (dryL + dryR);
+      let mono = 0.5 * (dryL + dryR) * preG;
       // --- INPUT FILTER. Bandpass on what is SENT to the room, leaving the dry
       // untouched. Distinct from `damp`/`lowCut`, which sit INSIDE the feedback
       // loop and therefore shape how the tail decays over time; this shapes
@@ -464,8 +479,8 @@ class SwarmVerb {
       // width on the tail only (dry keeps its own image)
       const mid = 0.5 * (tL + tR), sid = 0.5 * (tL - tR) * p.width;
       tL = mid + sid; tR = mid - sid;
-      let wetL = tL * p.envelop + erL * p.erSend;
-      let wetR = tR * p.envelop + erR * p.erSend;
+      let wetL = (tL * p.envelop + erL * p.erSend) * postG;
+      let wetR = (tR * p.envelop + erR * p.erSend) * postG;
       // BASS-MONO CROSSOVER ON THE WET SIGNAL. The ER bank is 12 discrete taps,
       // each hard-panned. At low frequency a delayed copy on one side does not
       // average out against the others, so whole low bands end up lopsided:
@@ -500,8 +515,12 @@ class SwarmVerb {
       // state is poisoned, so flush it rather than pass silence to the output
       // and leave the user with a dead reverb and no way back.
       if (!Number.isFinite(wetL) || !Number.isFinite(wetR)) { this.reset(); wetL = 0; wetR = 0; }
-      outL[smp] = dryL * (1 - p.mix) + wetL * p.mix;
-      outR[smp] = dryR * (1 - p.mix) + wetR * p.mix;
+      outL[smp] = (dryL * (1 - p.mix) + wetL * p.mix) * outG;
+      outR[smp] = (dryR * (1 - p.mix) + wetR * p.mix) * outG;
+      const aL = Math.abs(outL[smp]), aR = Math.abs(outR[smp]);
+      const a = aL > aR ? aL : aR;
+      if (a > this.peak) this.peak = a;
+      if (a > 1) this.clip = 1;
     }
   }
 }
@@ -525,6 +544,11 @@ class SwarmVerb {
     <div class="row"><label>ER spin</label><input type="range" id="spinDepth" min="0" max="3" step="0.05" value="0"><output id="spinDepth_o"></output></div>
     <div class="row"><label>spin rate</label><input type="range" id="spinRate" min="0.02" max="2" step="0.01" value="0.28"><output id="spinRate_o"></output></div>
     <div class="hint">Walks each early-reflection tap slowly and independently, smearing their fixed comb pattern over time instead of leaving it as static coloration.</div>
+    <div class="row"><label>pre gain</label><input type="range" id="preGain" min="-24" max="12" step="0.5" value="0"><output id="preGain_o"></output></div>
+    <div class="row"><label>post gain</label><input type="range" id="postGain" min="-24" max="12" step="0.5" value="0"><output id="postGain_o"></output></div>
+    <div class="row"><label>out gain</label><input type="range" id="outGain" min="-24" max="12" step="0.5" value="0"><output id="outGain_o"></output></div>
+    <div class="row"><label>peak</label><output id="peakMeter" style="width:auto">—</output></div>
+    <div class="hint"><b>pre</b> trims what is sent into the room, <b>post</b> trims the wet return, <b>out</b> trims everything after the dry/wet mix. Only <b>out</b> can fix the crackle: measured, the <i>dry</i> path overflows on its own at osc volume 0.35 with four notes held, and the reverb actually <i>lowers</i> the peak because <b>mix</b> crossfades. Click the peak readout to reset the clip latch.<br><b>Note:</b> pre and post are currently <i>redundant</i> — the whole reverb path is linear, so −6 dB in either place gives bit-identical output (measured max sample difference 4e−17, i.e. float rounding). They only become distinct axes once something in the loop saturates; keeping both now so that change needs no re-wiring.</div>
     <div class="row"><label>bass mono</label><input type="range" id="bassMono" min="0" max="600" step="5" value="260"><output id="bassMono_o"></output></div>
     <div class="hint">Wet signal collapses to mono below this. Real rooms don't lateralise bass — the head is small against the wavelength — and hard-panned early reflections do, which headphones expose as the low end sitting on one side. 0 = off.</div>
     <div class="row"><label>envelop</label><input type="range" id="envelop" min="0" max="1.6" step="0.01" value="1"><output id="envelop_o"></output></div>
@@ -595,9 +619,11 @@ function ensureAudio() {
 const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
   const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); };
   el.addEventListener('input', f); f(); };
-for (const k of ['mix','preDelay','size','decay','damp','lowCut','inHP','inLP','spinDepth','spinRate','width','bassMono','envelop','tailDecorr','mixTimeMs','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
+for (const k of ['mix','preDelay','size','decay','damp','lowCut','inHP','inLP','spinDepth','spinRate','preGain','postGain','outGain','width','bassMono','envelop','tailDecorr','mixTimeMs','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
   wire(k, v => verb.setParam(k, v),
-    k === 'preDelay' ? (v => (v*1000).toFixed(0)+' ms')
+    (k === 'preGain' || k === 'postGain' || k === 'outGain')
+      ? (v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB')
+    : k === 'preDelay' ? (v => (v*1000).toFixed(0)+' ms')
     : k === 'decay' ? (v => v.toFixed(2)+' s')
     : k === 'lowCut' ? (v => v.toFixed(0)+' Hz')
     : k === 'modRate' ? (v => v.toFixed(2)+' Hz')
@@ -622,6 +648,9 @@ $('panic').addEventListener('dblclick', async () => { await ctx.resume(); $('pan
 const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12,'o':13,'l':14,'p':15,';':16 };
 let octaveBase = 48; const down = new Set();
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+{ const pm = $('peakMeter');
+  if (pm) { pm.style.cursor = 'pointer'; pm.title = 'click to reset the clip latch';
+            pm.onclick = () => { verb.clip = 0; peakShown = 0; }; } }
 function octLabel() { const lo = Math.floor(octaveBase/12)-1; $('octlbl').textContent = 'octave C'+lo+'–C'+(lo+2)+' (Z/X)'; }
 addEventListener('keydown', e => {
   if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -642,8 +671,22 @@ $('drone').addEventListener('click', () => { ensureAudio(); droneOn = !droneOn;
 octLabel();
 
 const ev = $('erViz').getContext('2d'), mv = $('modViz').getContext('2d'), tv = $('tailViz').getContext('2d');
+// Peak meter. Decays smoothly so a transient stays readable, but the CLIP latch
+// does not decay — a single sample over full scale is what makes the crackle, and
+// a meter that forgets it is no use for finding the setting that caused it.
+let peakShown = 0;
+function drawPeak() {
+  const el = $('peakMeter');
+  if (!el) return;
+  peakShown = Math.max(verb.peak, peakShown * 0.92);
+  verb.peak = 0;
+  const db = 20 * Math.log10(Math.max(1e-4, peakShown));
+  el.textContent = (db > 0 ? '+' : '') + db.toFixed(1) + ' dBFS' + (verb.clip ? '   CLIP' : '');
+  el.style.color = verb.clip ? '#ff5a5a' : db > -3 ? '#e8c45a' : '#7f8899';
+}
 function draw() {
   requestAnimationFrame(draw);
+  drawPeak();
   // ER pattern: stems at tap times, height = gain, x = time, colour = pan
   ev.fillStyle = '#0b0e13'; ev.fillRect(0,0,270,86);
   ev.strokeStyle = '#2a3040'; ev.beginPath(); ev.moveTo(0,80); ev.lineTo(270,80); ev.stroke();
