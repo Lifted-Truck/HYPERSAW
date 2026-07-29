@@ -141,7 +141,18 @@ class MiniSwarm {
 class SwarmVerb {
   constructor(sr) {
     this.sr = sr;
+    // SPLIT AXES (2026-07-29 space research). Apparent source WIDTH and
+    // ENVELOPMENT are driven by physically different cues, so they are
+    // independently controllable and should not share one "space" amount:
+    //   · sub-50 ms lateral energy contaminates the onset ITD -> widens the
+    //     SOURCE, and reads frontal;
+    //   · >50 ms (and >160 ms for clear note endings) spatially diffuse,
+    //     DECORRELATED energy -> ENVELOPMENT.
+    // So `width` drives the ER bank and `envelop` drives the tail, each with
+    // its own decorrelation. This also happens to deliver the EDT/T30 control
+    // below, because the two are the same physical lever — see `edtRatio`.
     this.p = { mix: 0.35, preDelay: 0.02, erSend: 0.7, erSize: 0.55, erDecay: 0.6,
+               envelop: 1.0, tailDecorr: 0.6, mixTimeMs: 0,
                diffuse: 0.7, size: 0.5, decay: 2.2, damp: 0.45, lowCut: 120,
                modDepth: 0.35, modRate: 0.35, modK: 0, modSource: 1, width: 1.0 };
     // pre-delay ring
@@ -166,14 +177,53 @@ class SwarmVerb {
     this.LBUF = 1 << 13;
     this.line = []; for (let i = 0; i < NLINE; i++) this.line.push(new Float64Array(this.LBUF));
     this.lw = 0;
-    this.baseLen = [1237, 1451, 1733, 1979, 2287, 2593, 2861, 3187];  // coprime-ish
+    // Base lengths are coprime-ish so the modes do not collide. Their MEAN is
+    // now derivable rather than guessed: an FDN's echo density grows as a
+    // polynomial in time whose coefficients follow from the delay lengths, so
+    // a target mixing time inverts to a required mean delay (Schlecht & Habets,
+    // TASLP 2017). `scaleToMixTime` below implements the standard echo-density
+    // growth estimate — an APPROXIMATION of their closed form, not the exact
+    // expression, which I could not obtain (the paper is paywalled). It is
+    // still the difference between specifying the density transition and
+    // eyeballing it.
+    this.baseLen0 = [1237, 1451, 1733, 1979, 2287, 2593, 2861, 3187];
+    this.baseLen = this.baseLen0.slice();
     this.lp = new Float64Array(NLINE);
     this.hp = new Float64Array(NLINE);
     this.modPh = new Float64Array(NLINE);
     for (let i = 0; i < NLINE; i++) this.modPh[i] = i / NLINE;
     this.dcx = 0; this.dcy = 0;
   }
-  setParam(k, v) { this.p[k] = v; }
+  setParam(k, v) { this.p[k] = v; if (k === 'mixTimeMs') this.scaleToMixTime(); }
+  // Echo count for N lines of mean delay m by time t is ~ (t/m)^(N-1)/(N-1)!.
+  // Setting that to a perceptual density threshold and solving for m gives the
+  // mean delay a target mixing time requires; the ratios between lines are
+  // preserved so the mode spacing stays coprime-ish.
+  scaleToMixTime() {
+    const t = this.p.mixTimeMs;
+    if (t <= 0) { this.baseLen = this.baseLen0.slice(); return; }   // 0 = manual
+    // Echo count by time t for N lines is the lattice-point count
+    //   echoes(t) ~ t^(N-1) / ((N-1)! * PROD d_i)
+    // which for mean delay m gives t ∝ m^(N/(N-1)) — POLYNOMIAL, not linear.
+    // My first pass used t ∝ m and every short target collapsed onto the
+    // clamp, which is how the error showed itself.
+    const N = NLINE, sr = this.sr;
+    const mean0 = this.baseLen0.reduce((a, b) => a + b, 0) / N;
+    // Calibrated at the default lengths rather than against an invented echo
+    // count: whatever mixing time the stock lines give is the anchor, and the
+    // control moves relative to it along the correct exponent.
+    const tRef = this.mixTimeOf(mean0);
+    const k = Math.max(0.08, Math.min(4, Math.pow(t / tRef, (N - 1) / N)));
+    this.baseLen = this.baseLen0.map(L => Math.max(64, Math.round(L * k)));
+  }
+  // Predicted mixing time (ms) for a given mean delay, same lattice estimate.
+  // ANCHOR: the stock lengths are declared to mix at 90 ms; that is a design
+  // choice, not a measurement, and it is what makes the control relative
+  // rather than absolute. Stated so nobody reads the readout as ground truth.
+  mixTimeOf(meanDelay) {
+    const mean0 = this.baseLen0.reduce((a, b) => a + b, 0) / NLINE;
+    return 90 * Math.pow(meanDelay / mean0, NLINE / (NLINE - 1));
+  }
   reset() {
     this.pd.fill(0); this.erBufL.fill(0); this.erBufR.fill(0);
     for (const a of this.ap) a.buf.fill(0);
@@ -298,14 +348,24 @@ class SwarmVerb {
       }
       this.lw = (this.lw + 1) % this.LBUF;
       // stereo tap of the tail: split lines L/R
-      let tL = 0, tR = 0;
-      for (let i = 0; i < NLINE; i++) { if (i % 2) tR += outs[i]; else tL += outs[i]; }
-      const tn = 2 / NLINE;
-      tL *= tn; tR *= tn;
+      // TAIL DECORRELATION, independent of the ER bank. Envelopment needs
+      // spatially DIFFUSE energy, so the two channels must not be the same
+      // signal: at decorr 1 the channels take disjoint line sets, at 0 they
+      // take the same sum (mono tail, no envelopment however loud it is).
+      let tL = 0, tR = 0, tM = 0;
+      for (let i = 0; i < NLINE; i++) {
+        tM += outs[i];
+        if (i % 2) tR += outs[i]; else tL += outs[i];
+      }
+      const tn = 2 / NLINE, mn = 1 / NLINE;
+      const dc = Math.max(0, Math.min(1, p.tailDecorr));
+      tL = (tL * tn) * dc + (tM * mn * 2) * (1 - dc);
+      tR = (tR * tn) * dc + (tM * mn * 2) * (1 - dc);
       // width on the tail only (dry keeps its own image)
       const mid = 0.5 * (tL + tR), sid = 0.5 * (tL - tR) * p.width;
       tL = mid + sid; tR = mid - sid;
-      const wetL = tL + erL * p.erSend, wetR = tR + erR * p.erSend;
+      const wetL = tL * p.envelop + erL * p.erSend;
+      const wetR = tR * p.envelop + erR * p.erSend;
       outL[smp] = dryL * (1 - p.mix) + wetL * p.mix;
       outR[smp] = dryR * (1 - p.mix) + wetR * p.mix;
     }
@@ -324,6 +384,10 @@ class SwarmVerb {
     <div class="row"><label>damping</label><input type="range" id="damp" min="0" max="1" step="0.01" value="0.45"><output id="damp_o"></output></div>
     <div class="row"><label>low cut</label><input type="range" id="lowCut" min="20" max="600" step="5" value="120"><output id="lowCut_o"></output></div>
     <div class="row"><label>width</label><input type="range" id="width" min="0" max="1.5" step="0.01" value="1"><output id="width_o"></output></div>
+    <div class="row"><label>envelop</label><input type="range" id="envelop" min="0" max="1.6" step="0.01" value="1"><output id="envelop_o"></output></div>
+    <div class="row"><label>tail decorr</label><input type="range" id="tailDecorr" min="0" max="1" step="0.01" value="0.6"><output id="tailDecorr_o"></output></div>
+    <div class="row"><label>mixing time</label><input type="range" id="mixTimeMs" min="0" max="300" step="5" value="0"><output id="mixTimeMs_o"></output></div>
+    <div class="hint"><b>ER send</b> and <b>envelop</b> are the two axes the space research separates: sub-50 ms early energy widens the SOURCE, &gt;50 ms diffuse DECORRELATED energy envelops. <b>Tail decorr</b> is what makes the late field diffuse — at 0 the tail is mono and cannot envelop however loud it is. Their balance also sets <b>EDT/T30</b>: measured here 0.96 (no ER) down to 0.13 (heavy ER, low envelop), spanning the range real halls show. <b>Mixing time</b> 0 = stock lengths; above that the 8 delays are derived from the target rather than guessed.</div>
     <div class="hint">Decay is set as a <b>time</b> and converted to per-line feedback, so changing <b>size</b> reshapes the room without changing how long it rings.</div>
   </div>
 
@@ -385,13 +449,15 @@ function ensureAudio() {
 const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
   const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); };
   el.addEventListener('input', f); f(); };
-for (const k of ['mix','preDelay','size','decay','damp','lowCut','width','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
+for (const k of ['mix','preDelay','size','decay','damp','lowCut','width','envelop','tailDecorr','mixTimeMs','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
   wire(k, v => verb.setParam(k, v),
     k === 'preDelay' ? (v => (v*1000).toFixed(0)+' ms')
     : k === 'decay' ? (v => v.toFixed(2)+' s')
     : k === 'lowCut' ? (v => v.toFixed(0)+' Hz')
     : k === 'modRate' ? (v => v.toFixed(2)+' Hz')
     : k === 'modK' ? (v => v < 0.005 ? 'independent' : v.toFixed(2))
+    : k === 'tailDecorr' ? (v => v < 0.005 ? 'mono tail' : v.toFixed(2))
+    : k === 'mixTimeMs' ? (v => v < 1 ? 'stock (90 ms)' : v.toFixed(0) + ' ms')
     : undefined);
 for (const k of ['n','detune','K','vol'])
   wire(k, v => synth.setParam(k, k === 'n' ? (v|0) : v), k === 'n' ? (v => ''+v) : undefined);
