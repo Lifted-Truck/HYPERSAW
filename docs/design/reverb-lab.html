@@ -162,9 +162,11 @@ class SwarmVerb {
                envelop: 1.0, tailDecorr: 0.6, mixTimeMs: 0,
                diffuse: 0.7, size: 0.5, decay: 2.2, damp: 0.45, lowCut: 120,
                modDepth: 0.35, modRate: 0.35, modK: 0, modSource: 1, width: 1.0,
-               bassMono: 260 };
+               bassMono: 260, inHP: 20, inLP: 20000, spinDepth: 0, spinRate: 0.28 };
     // BASS-MONO STATE. See the crossover in process() for why this exists.
     this.bmL = 0; this.bmL2 = 0;
+    // input filter state (2 cascaded poles each way) — OUTSIDE the loop
+    this.ihp1 = 0; this.ihp2 = 0; this.ilp1 = 0; this.ilp2 = 0;
     // pre-delay ring
     this.pd = new Float64Array(1 << 15); this.pdW = 0;
     // early reflections: prime-ish tap pattern, deterministic
@@ -179,6 +181,12 @@ class SwarmVerb {
       this.tapG[i] = 1 / (1 + i * 0.55);
       this.tapP[i] = rng() * 2 - 1;
     }
+    // ER spin: one slow phase per tap. Must be built AFTER NTAP is set —
+    // allocating it earlier silently yields a zero-length array, whose reads
+    // are undefined, which becomes NaN in the tap sum and trips the watchdog
+    // on every sample (symptom: silence the moment spin leaves zero).
+    this.spinPh = new Float64Array(this.NTAP);
+    for (let i = 0; i < this.NTAP; i++) this.spinPh[i] = (i * 0.6180339887498949) % 1;
     // diffusion allpasses (lengths in samples at 44.1k, scaled at run time)
     this.apLen = [142, 107, 379, 277];
     this.ap = this.apLen.map(L => ({ buf: new Float64Array(2048), w: 0, len: L }));
@@ -248,12 +256,19 @@ class SwarmVerb {
     for (const a of this.apR) a.buf.fill(0);
     for (const l of this.line) l.fill(0);
     this.lp.fill(0); this.hp.fill(0); this.bmL = 0; this.bmL2 = 0;
+    this.ihp1 = 0; this.ihp2 = 0; this.ilp1 = 0; this.ilp2 = 0;
   }
   // Kuramoto modulation: NLINE phase oscillators. modK 0 = independent drift
   // (classic chorused FDN); modK 1 = locked, so every line breathes together.
   // That difference is the roadmap's "own swarm?" question made audible.
   stepMod(dt) {
     const p = this.p, K = p.modK * 3.0;
+    // ER spin phases advance here too (same tick), rates slightly detuned per
+    // tap so the pattern never repeats over a musically relevant window.
+    for (let i = 0; i < this.NTAP; i++) {
+      this.spinPh[i] += dt * p.spinRate * (0.6 + 0.8 * (i / this.NTAP));
+      this.spinPh[i] -= Math.floor(this.spinPh[i]);
+    }
     if (K !== 0) {
       let cx = 0, cy = 0;
       for (let i = 0; i < NLINE; i++) { const a = TAU * this.modPh[i]; cx += Math.cos(a); cy += Math.sin(a); }
@@ -334,7 +349,24 @@ class SwarmVerb {
     for (let smp = 0; smp < N; smp++) {
       if ((smp & (TICK - 1)) === 0) this.stepMod(dt * TICK);
       const dryL = inL[smp], dryR = inR[smp];
-      const mono = 0.5 * (dryL + dryR);
+      let mono = 0.5 * (dryL + dryR);
+      // --- INPUT FILTER. Bandpass on what is SENT to the room, leaving the dry
+      // untouched. Distinct from `damp`/`lowCut`, which sit INSIDE the feedback
+      // loop and therefore shape how the tail decays over time; this shapes
+      // what excites the room at all, and does not touch decay. The orchestral
+      // use is the low cut: keeping the bass out of the room preserves a tight
+      // low end while the mids and highs still bloom — the standard fix for a
+      // string section that turns to mud when you add space.
+      if (p.inHP > 20) {
+        const c = 1 - Math.exp(-TAU * p.inHP / sr);
+        this.ihp1 += c * (mono - this.ihp1); mono -= this.ihp1;
+        this.ihp2 += c * (mono - this.ihp2); mono -= this.ihp2;
+      }
+      if (p.inLP < 20000) {
+        const c = 1 - Math.exp(-TAU * p.inLP / sr);
+        this.ilp1 += c * (mono - this.ilp1);
+        this.ilp2 += c * (this.ilp1 - this.ilp2); mono = this.ilp2;
+      }
       // --- pre-delay
       this.pd[this.pdW] = mono;
       let rp = this.pdW - pdSamp; if (rp < 0) rp += this.pd.length;
@@ -345,7 +377,16 @@ class SwarmVerb {
       this.erBufL[this.erW] = pre;
       let erL = 0, erR = 0;
       for (let t = 0; t < this.NTAP; t++) {
-        const d = Math.max(1, this.tapT[t] * p.erSize * 2 * sr);
+        // ER SPIN. The 12 taps are otherwise at fixed delays, so they comb the
+        // send with a STATIC notch pattern — which is what the measured
+        // per-band L/R imbalance largely is. Walking each tap slowly and
+        // independently smears those notches over time instead of removing
+        // them, which is both the movement Ableton's Spin provides and a
+        // genuine reduction in fixed coloration. Offsets are golden-ratio
+        // spread so no two taps move together (that would just be vibrato).
+        const spin = p.spinDepth > 0
+          ? Math.sin(TAU * this.spinPh[t]) * p.spinDepth * 0.001 * sr : 0;
+        const d = Math.max(1, this.tapT[t] * p.erSize * 2 * sr + spin);
         let r2 = this.erW - d; if (r2 < 0) r2 += this.erBufL.length;
         const j0 = r2 | 0, f2 = r2 - j0, j1 = (j0 + 1) % this.erBufL.length;
         const v = (this.erBufL[j0] * (1 - f2) + this.erBufL[j1] * f2) * this.tapG[t] * Math.pow(p.erDecay, t * 0.4);
@@ -466,6 +507,12 @@ class SwarmVerb {
     <div class="row"><label>damping</label><input type="range" id="damp" min="0" max="1" step="0.01" value="0.45"><output id="damp_o"></output></div>
     <div class="row"><label>low cut</label><input type="range" id="lowCut" min="20" max="600" step="5" value="120"><output id="lowCut_o"></output></div>
     <div class="row"><label>width</label><input type="range" id="width" min="0" max="1.5" step="0.01" value="1"><output id="width_o"></output></div>
+    <div class="row"><label>in low cut</label><input type="range" id="inHP" min="20" max="2000" step="5" value="20"><output id="inHP_o"></output></div>
+    <div class="row"><label>in high cut</label><input type="range" id="inLP" min="800" max="20000" step="50" value="20000"><output id="inLP_o"></output></div>
+    <div class="hint">Bandpass on what is <b>sent</b> to the room; the dry stays untouched, and decay is unaffected (these sit outside the feedback loop, unlike damp/low cut). Cutting the lows here is the classic fix for a section that muds up when you add space.</div>
+    <div class="row"><label>ER spin</label><input type="range" id="spinDepth" min="0" max="3" step="0.05" value="0"><output id="spinDepth_o"></output></div>
+    <div class="row"><label>spin rate</label><input type="range" id="spinRate" min="0.02" max="2" step="0.01" value="0.28"><output id="spinRate_o"></output></div>
+    <div class="hint">Walks each early-reflection tap slowly and independently, smearing their fixed comb pattern over time instead of leaving it as static coloration.</div>
     <div class="row"><label>bass mono</label><input type="range" id="bassMono" min="0" max="600" step="5" value="260"><output id="bassMono_o"></output></div>
     <div class="hint">Wet signal collapses to mono below this. Real rooms don't lateralise bass — the head is small against the wavelength — and hard-panned early reflections do, which headphones expose as the low end sitting on one side. 0 = off.</div>
     <div class="row"><label>envelop</label><input type="range" id="envelop" min="0" max="1.6" step="0.01" value="1"><output id="envelop_o"></output></div>
@@ -536,7 +583,7 @@ function ensureAudio() {
 const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
   const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); };
   el.addEventListener('input', f); f(); };
-for (const k of ['mix','preDelay','size','decay','damp','lowCut','width','bassMono','envelop','tailDecorr','mixTimeMs','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
+for (const k of ['mix','preDelay','size','decay','damp','lowCut','inHP','inLP','spinDepth','spinRate','width','bassMono','envelop','tailDecorr','mixTimeMs','erSend','erSize','erDecay','diffuse','modDepth','modRate','modK'])
   wire(k, v => verb.setParam(k, v),
     k === 'preDelay' ? (v => (v*1000).toFixed(0)+' ms')
     : k === 'decay' ? (v => v.toFixed(2)+' s')
