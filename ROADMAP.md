@@ -127,6 +127,42 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## GUI information architecture + full-product fold plan (human brief, 2026-07-30)
+
+The human wants ALL labs folded into the plugin, gated on visual-hierarchy decisions
+first: an uncluttered primary view, multiple pages, dropdown/right-click homes for the
+long tail. **`docs/design/layout-lab.html` is the audition instrument** — a clickable
+mock of the full product built from the REAL inventory (all 86 shipped params + every
+lab feature with a fold path), chips marking shipped-new vs lab-only. Its decisions
+table is the deliverable:
+
+1. **Page count/names** — mock proposes 5: MAIN (play) · OSC (per-osc deep edit) ·
+   SPACE (image+FX) · MOD · MORPH. Principle: MAIN is what you touch while playing;
+   nothing lives ONLY on MAIN. Right-click = mod-assign/reset/units; ⚙ = global prefs.
+2. **Multi-oscillator architecture** (2–3 full oscillators, each independently
+   SAW/SPECTRA/…, per-osc levels; maybe sub stays global). NOT a GUI change — N core
+   instances, per-osc param namespace (ids are append-only: design ONCE), per-osc
+   preset format, CPU budget. **ADR before any GUI work**; then a 2-osc walking
+   skeleton behind the existing balance param.
+3. **Lab-needs matrix** (full table in the lab): ready to fold now — SwarmVerb,
+   E2 delays, ensemble timing stack, Kuro chorus/phaser + LFO/matrix. Need a lab
+   first — saturation/drive (drive curves × placement), conventional filter topology
+   (how it meets the swarm filters), sequencer (or park it). Needs an ADR not a lab —
+   multi-osc. Presets: browser is GUI work; per-osc format lands with the multi-osc
+   ADR. Quantum-morph lab stays iterating (NOTE: that lab is gitignored — decide
+   whether that stays true as it matures).
+4. **Human-readable units pass** (human, 2026-07-30, "not a rush"): display-only —
+   cents σ / ms / Hz / semitones where physical (trigger example: core detune 0.20
+   ≙ gaussian σ 8¢, unknowable from a 0–1 knob), dev params hidden. CLAP ids and
+   stored values unchanged (only value_to_text + GUI outputs), so sessions and
+   automation survive. Pairs with the deferred naming pass.
+
+**Fold queue once IA is ratified** (each with ADR + parity discipline, sequenced by
+the human): ensemble timing stack (strongest evidence, inert at 0) → SwarmVerb +
+E2 delays as rack slots → Kuro LFO system + matrix → shape-lab axes (sync/warp/
+ripple/windowed-carrier, which also unlocks #29 formant scatter and the ADR-058 saw
+retarget) → morph. Slider-units pass can ride any of these.
+
 ## Phase 0 — Platform gate & renderer decision
 
 - CLAP-native skeleton; VST3 via clap-wrapper. Empty plugin builds on macOS + Windows, loads in target hosts (Live, Reaper, Bitwig), passes pluginval at strictness ≥ 5.
