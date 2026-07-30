@@ -469,6 +469,14 @@ struct Plugin
       v.KsmS = s->KsmS;
       v.KsmP = s->KsmP;
       for (int i = 0; i < v.n && i < 32; i++) v.phase[i] = s->phase[i];
+      // voice map: focus swarm's placement vs actual, plus its pan seats
+      v.vmF0 = s->f0cur;
+      for (int i = 0; i < v.n && i < 32; i++)
+      {
+        v.vmVf[i] = s->vf[i];
+        v.vmEff[i] = s->eff[i];
+        v.vmPan[i] = core.panBaseAt(i);
+      }
       // dynamics layer
       v.topo = (int)core.p.topo;
       v.poles = (int)core.p.poles;
@@ -481,6 +489,17 @@ struct Plugin
         v.gravRatio[i] = core.gravPairs[i][0];
         v.gravOct[i] = core.gravPairs[i][1];
         v.gravErr[i] = core.gravErr[i];
+      }
+      // note monitor: every slot, gated or ringing
+      v.nmCount = 0;
+      for (int i = 0; i < hypersaw::kPoly && v.nmCount < 16; i++)
+      {
+        const auto &sw = core.swarmAt(i);
+        if (!sw.gate && sw.env < 1e-4) continue;
+        v.nmMidi[v.nmCount] = sw.midi;
+        v.nmGate[v.nmCount] = sw.gate;
+        v.nmEnv[v.nmCount] = sw.env;
+        v.nmCount++;
       }
       // grid status (ADR-016/017): unit, occupied rungs, cause-AND-state lock
       v.gridActive = ((int)core.p.law == 3);

@@ -128,6 +128,9 @@ endif()
 # Note-lifecycle oracle (ADR-038): seeded random note streams through the
 # CLAP process path (poly/mono/legato + MIDI vel-0 note-off convention);
 # output must decay to silence after all keys are up.
+add_executable(tailprobe tools/tailprobe.cpp)
+target_link_libraries(tailprobe PRIVATE ${PROJECT_NAME}-impl)
+
 add_executable(paramfunc_smoke tools/paramfunc_smoke.cpp)
 target_link_libraries(paramfunc_smoke PRIVATE ${PROJECT_NAME}-impl)
 

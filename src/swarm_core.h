@@ -310,6 +310,7 @@ class SwarmCore
   // Not used by the DSP path; parity-neutral.
   int centerIndex() const { return centerIdx; }
   const Swarm &swarmAt(int i) const { return swarms[i]; }
+  double panBaseAt(int i) const { return panBase[i]; }  // viz feed (voice map)
 
   const Swarm *focus() const
   {
