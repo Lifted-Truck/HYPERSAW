@@ -60,9 +60,15 @@ struct ParamDef
 };
 
 static const char *const kDistLabels[] = {"even spread", "JP-8000 curve", "gaussian (seeded)",
-                                          "cauchy (seeded)"};
+                                          "cauchy (seeded)", "golden (irrational)"};
 static const char *const kLawLabels[] = {"cents-constant", "Hz-constant", "ERB-flat",
-                                         "tempo-grid"};
+                                         "tempo-grid", "harmonic (series)",
+                                         "stretch (inharmonic)"};
+static const char *const kDriftModeLabels[] = {"walk (1/f)", "sine (per-voice)",
+                                               "sample & hold"};
+static const char *const kPanModeLabels[] = {"drift (per-voice)", "sweep (whole image)"};
+static const char *const kPivotLabels[] = {"mean field", "root (fundamental)"};
+static const char *const kPanLayoutLabels[] = {"pitch fan", "legacy (x-position)"};
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
@@ -76,10 +82,10 @@ static const char *const kEngineLabels[] = {"SAW", "SPECTRA"};
 static const char *const kWlawLabels[] = {"cents", "Hz"};
 static const ParamDef kParams[] = {
     {1, "n", "Voices", 1, 32, 7, true, nullptr},
-    {2, "dist", "Distribution", 0, 3, 1, true, kDistLabels},
+    {2, "dist", "Distribution", 0, 4, 1, true, kDistLabels},
     {3, "seed", "Seed", 0, 999999, 1234, true, nullptr},
     {4, "detune", "Detune", 0, 1, 0.28, false, nullptr},
-    {5, "law", "Detune Law", 0, 3, 0, true, kLawLabels},
+    {5, "law", "Detune Law", 0, 5, 0, true, kLawLabels},
     {6, "K", "Pull K", -1, 1, 0, false, nullptr},
     {7, "onset", "Onset Lock", -1, 1, 0, false, nullptr},  // ADR-056: bipolar (<0 = splay onset)
     {8, "dissolve", "Dissolve (s)", 0.05, 7.94, 0.63, false, nullptr},
@@ -172,6 +178,34 @@ static const ParamDef kParams[] = {
     // SAW waveshape morph (ADR-058): 0 = saw, 1 = square. SAW-core key, routed
     // by the applyParam fallback; default 0 is bit-inert (spectra no-ops "shape").
     {69, "shape", "Saw Shape", 0, 1, 0, false, nullptr},
+    // ADR-072 batched param pass (task #18): the fold-campaign features.
+    // Ids START AT 71: id 70 is a GHOST — the ADR-059 dev inertia-taper
+    // exponent is intercepted by number in applyParam/readParam without a row
+    // in this table, so "max id in the table + 1" is NOT the next free id.
+    // (Found the hard way: toneTilt landed on 70 first and its writes were
+    // silently swallowed by the taper hook — the functional smoke caught it.)
+    // (ADR-060..070) made host-reachable. Ranges are the AUDITIONED lab ranges
+    // (detune-lab sliders / fold ADRs), not invented. All defaults are the
+    // core's bit-inert defaults, so an unautomated session sounds identical.
+    // "toneTilt", not "tilt": id 45 already uses the key "tilt" for SPECTRA's
+    // amp tilt, and applyParam mirrors unguarded ids into BOTH cores by key —
+    // a new id named "tilt" would write both. The core carries the alias.
+    {71, "toneTilt", "Tone Tilt", -1, 1, 0, false, nullptr},        // ADR-060
+    {72, "hiTame", "Hi Tame", 0, 1, 0, false, nullptr},             // ADR-061
+    {73, "driftMode", "Drift Mode", 0, 2, 0, true, kDriftModeLabels},  // ADR-062
+    {74, "keepPhase", "Keep Phase", 0, 1, 0, true, kOffOn},         // ADR-062
+    {75, "freqGlide", "Freq Glide (s)", 0, 0.1, 0, false, nullptr}, // ADR-063 seconds (ADR-009)
+    {76, "panMotion", "Pan Motion", 0, 1, 0, false, nullptr},       // ADR-064
+    {77, "panMode", "Pan Motion Mode", 0, 1, 0, true, kPanModeLabels},  // ADR-064
+    {78, "motionCenter", "Centre Pin", 0, 1, 0, false, nullptr},    // ADR-064
+    {79, "harmReach", "Harmonic Reach", 0.25, 4, 1, false, nullptr},  // ADR-065
+    {80, "stretchB", "Stretch B", 0, 6, 0, false, nullptr},         // ADR-066
+    {81, "spread", "Octave Spread", 1, 24, 1, false, nullptr},      // ADR-068
+    {82, "anchor", "Root Anchor", 0, 1, 0, false, nullptr},         // ADR-068
+    {83, "pivotMode", "Pivot", 0, 1, 0, true, kPivotLabels},        // ADR-069
+    {84, "panLayout", "Pan Image", 0, 1, 0, true, kPanLayoutLabels},  // ADR-070
+    {85, "panCurve", "Fan Curve", 0, 1, 0.5, false, nullptr},       // ADR-070
+    {86, "panInvert", "Fan Invert", 0, 1, 0, true, kOffOn},         // ADR-070
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.
