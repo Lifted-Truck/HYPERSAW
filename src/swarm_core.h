@@ -578,6 +578,11 @@ class SwarmCore
     if (k == "panScatter") return &p.panScatter;
     if (k == "shape") return &p.shape;  // ADR-058 waveshape morph
     if (k == "tilt") return &p.tilt;    // ADR-060 tone tilt
+    // "toneTilt" is the CLAP-facing alias for the same field (ADR-072): the
+    // shell mirrors unguarded param keys into BOTH cores, and SPECTRA already
+    // owns the key "tilt" (id 45 Amp Tilt) — a param named "tilt" would write
+    // both engines. The collision is retired at the interface, not guarded.
+    if (k == "toneTilt") return &p.tilt;
     if (k == "hiTame") return &p.hiTame;  // ADR-061 hi-tame equal-loudness
     if (k == "driftMode") return &p.driftMode;  // ADR-062 drift modes
     if (k == "keepPhase") return &p.keepPhase;  // ADR-062 keep-phase

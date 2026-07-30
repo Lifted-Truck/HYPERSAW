@@ -118,7 +118,7 @@ constexpr double kSR = 44100.0;
 // the SAW core now lands on ADR-060's tone tilt. The defaults disagree: SPECTRA
 // tilt = 1 (flat), SwarmCore tilt = 0 (inert), CLAP id 45 default = 1.
 // A direct-core parity oracle cannot see this by construction (LIBRARY L0011).
-double render(bool sendParam, clap_id id, double value)
+double renderEngine(bool sendParam, clap_id id, double value, bool spectraEngine)
 {
   auto *factory =
       (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
@@ -135,6 +135,7 @@ double render(bool sendParam, clap_id id, double value)
   proc.frames_count = kBlock; proc.audio_outputs = &out;
   proc.audio_outputs_count = 1; proc.out_events = &kOut;
   auto process = [&](EvList &evs) { evs.finalize(); proc.in_events = &evs.list; p->process(p, &proc); };
+  if (spectraEngine) { EvList e; e.params.push_back(mkParam(43, 1.0)); process(e); }
   if (sendParam) { EvList e; e.params.push_back(mkParam(id, value)); process(e); }
   { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON, 0, 57, 1)); process(e); }
   double acc = 0;
@@ -149,6 +150,7 @@ double render(bool sendParam, clap_id id, double value)
 int main()
 {
   hypersaw_entry_init("");
+  auto render = [](bool sp, clap_id id, double v) { return renderEngine(sp, id, v, false); };
   const double base = render(false, 0, 0);
   struct C { clap_id id; const char *key; double def; };
   // every documented SPECTRA-only id, sent at its OWN default
@@ -163,6 +165,23 @@ int main()
                      {49,"wtilt @1.0",1.0},
                      {51,"cascade @1.0",1.0},
                      {44,"partials @32",32}};
+  // ADR-072 reverse direction: the 16 NEW SAW-side ids fall through applyParam's
+  // unguarded tail, which mirrors into SPECTRA by key. No new key may move the
+  // SPECTRA engine. Same protocol: positive control first (a shared knob that
+  // SHOULD move it), then every new id at a non-default extreme.
+  // Control is `partials`, NOT detune: detune is not a shared knob (only
+  // K/onset/dissolve/seed/vol/retrig mirror into SPECTRA), so it cannot move
+  // this engine and would be a dead control — which the first run of this
+  // block demonstrated (L0016: a control that cannot fire validates nothing).
+  const C spectraCases[] = {{44,"partials (CONTROL, must change)",32},
+                            {71,"toneTilt @1",1},{72,"hiTame @1",1},{73,"driftMode @2",2},
+                            {74,"keepPhase @1",1},{75,"freqGlide @0.1",0.1},
+                            {76,"panMotion @1",1},{77,"panMode @1",1},
+                            {78,"motionCenter @1",1},{79,"harmReach @4",4},
+                            {80,"stretchB @6",6},{81,"spread @24",24},
+                            {82,"anchor @1",1},{83,"pivotMode @1",1},
+                            {84,"panLayout @1",1},{85,"panCurve @0",0},
+                            {86,"panInvert @1",1}};
   int bad = 0;
   std::printf("SAW engine rms with no param writes: %.9f\n\n", base);
   std::printf("id  what                            value   rms                verdict\n");
@@ -173,6 +192,16 @@ int main()
     if (leak) bad++;
     std::printf("%-3u %-30s %7.4g   %.9f   %s\n", c.id, c.key, c.def, r,
                 leak ? "CHANGES the SAW output" : "no effect on SAW");
+  }
+  std::printf("\n-- SPECTRA engine (engine=1), new SAW-side ids must be inert --\n");
+  const double sbase = renderEngine(false, 0, 0, true);
+  std::printf("SPECTRA rms with no extra writes: %.9f\n", sbase);
+  for (const auto &c : spectraCases)
+  {
+    const double r = renderEngine(true, c.id, c.def, true);
+    const bool moved = std::fabs(r - sbase) > 1e-12;
+    std::printf("%-3u %-30s %7.4g   %.9f   %s\n", c.id, c.key, c.def, r,
+                moved ? "CHANGES SPECTRA" : "no effect on SPECTRA");
   }
   std::printf("\n%s\n", "see per-row verdicts above");
   return 0;

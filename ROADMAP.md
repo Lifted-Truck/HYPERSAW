@@ -53,7 +53,17 @@ the exact five-event repro `on(61) on(61) on(60) off(61) off(60)`. Random fuzzin
 *that* a hang existed; this found *what it was*. Retained in the oracle for the next
 note-handling regression.
 
-## PROPOSAL — task #18 batched CLAP param pass (public-interface gate, awaiting human ruling)
+## Task #18 batched CLAP param pass — BUILT 2026-07-29 (ADR-072; proposal below ratified)
+
+Human rulings: remap delegated (resolved: state stores RAW values by key, so sessions are
+immune by construction; VST3 automation-lane rescale on law/dist accepted + recorded), full
+roster minus `lpOut`, `toneTilt` approved. Ids landed at **71..86** — NOT 70: id 70 is a
+ghost (ADR-059 dev taper hook intercepts it by number with no table row; found because
+toneTilt's writes were silently swallowed there — the new paramfunc_smoke caught it).
+All 16 params ACT at extremes (smoke), all 16 inert on SPECTRA (leak probe, both
+controls firing), `./verify full` green. Original proposal kept below for provenance.
+
+### (ratified proposal, 2026-07-29)
 
 Survey done 2026-07-29. Param ids are append-only, so this is one-way: **69 params exist
 today (ids 1..69); next free id is 70.** Everything below is proposed, nothing built.
