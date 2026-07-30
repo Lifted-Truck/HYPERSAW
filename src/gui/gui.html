@@ -150,12 +150,18 @@
       <div class="row"><label>distribution</label><select data-p="2">
         <option value="0">even spread</option><option value="1">JP-8000 curve</option>
         <option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option>
+        <option value="4">golden (irrational)</option>
       </select><output></output></div>
       <div class="row"><label>seed</label><input type="range" data-p="3" min="0" max="99999" step="1"><output>1234</output></div>
       <div class="row"><label>detune</label><input type="range" data-p="4" min="0" max="1" step="0.001"><output>0.28</output></div>
       <div class="row"><label>law</label><select data-p="5">
         <option value="0">cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option><option value="3">tempo-grid</option>
+        <option value="4">harmonic (series)</option><option value="5">stretch (inharmonic)</option>
       </select><output></output></div>
+      <div class="row"><label>harm reach</label><input type="range" data-p="79" min="0.25" max="4" step="0.01"><output>1.00</output></div>
+      <div class="row"><label>stretch B</label><input type="range" data-p="80" min="0" max="6" step="0.05"><output>0.00</output></div>
+      <div class="row"><label>oct spread</label><input type="range" data-p="81" min="1" max="24" step="0.1"><output>1.0</output></div>
+      <div class="row"><label>root anchor</label><input type="range" data-p="82" min="0" max="1" step="0.01"><output>0%</output></div>
       <div class="row"><label>saw shape</label><input type="range" data-p="69" min="0" max="1" step="0.01"><output>saw</output></div>
       <div class="row"><label>grid cyc/beat</label><select data-p="23">
         <option value="0.25">1/4 per beat</option><option value="0.3333333333333333">1/3 per beat</option>
@@ -202,6 +208,9 @@
 
     <div class="cluster pull">
       <h2>Dynamics</h2>
+      <div class="row"><label>pivot</label><select data-p="83">
+        <option value="0">mean field</option><option value="1">root (fundamental)</option>
+      </select><output></output></div>
       <div class="row"><label>topology</label><select data-p="24">
         <option value="0">mean-field</option><option value="1">nonlocal ring</option><option value="2">two-cluster</option>
       </select><output></output></div>
@@ -272,6 +281,12 @@
       <h2>Drift</h2>
       <div class="row"><label>depth</label><input type="range" data-p="9" min="0" max="100" step="0.1"><output>0.0c</output></div>
       <div class="row"><label>walk rate</label><input type="range" data-p="10" min="0" max="1" step="0.01"><output>3.4/s</output></div>
+      <div class="row"><label>drift mode</label><select data-p="73">
+        <option value="0">walk (1/f)</option><option value="1">sine (per-voice)</option><option value="2">sample &amp; hold</option>
+      </select><output></output></div>
+      <div class="row"><label>freq glide</label><input type="range" data-p="75" min="0" max="0.1" step="0.001"><output>off</output></div>
+      <div class="row"><label>centre pin</label><input type="range" data-p="78" min="0" max="1" step="0.01"><output>0%</output></div>
+      <div class="togs"><label><input type="checkbox" data-p="74"> keep phase (continue from last)</label></div>
     </div>
 
     <div class="cluster">
@@ -280,6 +295,17 @@
       <div class="row"><label>density comp</label><input type="range" data-p="13" min="0.5" max="1" step="0.01"><output>0.75</output></div>
       <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1.5" step="0.01"><output>0.80</output></div>
       <div class="row"><label>pan scatter</label><input type="range" data-p="42" min="0" max="1" step="0.01"><output>0%</output></div>
+      <div class="row"><label>pan image</label><select data-p="84">
+        <option value="0">pitch fan</option><option value="1">legacy (x-position)</option>
+      </select><output></output></div>
+      <div class="row"><label>fan curve</label><input type="range" data-p="85" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>pan motion</label><input type="range" data-p="76" min="0" max="1" step="0.01"><output>still</output></div>
+      <div class="row"><label>motion mode</label><select data-p="77">
+        <option value="0">drift (per-voice)</option><option value="1">sweep (whole image)</option>
+      </select><output></output></div>
+      <div class="row"><label>tone tilt</label><input type="range" data-p="71" min="-1" max="1" step="0.01"><output>0.00</output></div>
+      <div class="row"><label>hi tame</label><input type="range" data-p="72" min="0" max="1" step="0.01"><output>0%</output></div>
+      <div class="togs"><label><input type="checkbox" data-p="86"> invert fan (top voice &rarr; centre)</label></div>
       <div class="row"><label>bass xover</label><input type="range" data-p="41" min="60" max="500" step="1"><output>120Hz</output></div>
       <div class="row"><label>digital</label><input type="range" data-p="16" min="0" max="1" step="0.01"><output>1.00</output></div>
       <div class="row"><label>volume</label><input type="range" data-p="17" min="0" max="1" step="0.01"><output>0.40</output></div>
@@ -366,7 +392,11 @@ function displayValue(el, v) {
   else if (el.dataset.p === '38') out.textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + ' st';
   else if (el.dataset.p === '27') out.textContent = (v >= 0 ? '+' : '') + Math.round(v) + '°';
   else if (el.dataset.p === '30') out.textContent = Math.round(v) + 'c';
-  else if (el.dataset.p === '39' || el.dataset.p === '42') out.textContent = Math.round(v * 100) + '%';
+  else if (el.dataset.p === '39' || el.dataset.p === '42' || el.dataset.p === '72' ||
+           el.dataset.p === '78' || el.dataset.p === '82') out.textContent = Math.round(v * 100) + '%';
+  else if (el.dataset.p === '75') out.textContent = v < 0.0005 ? 'off' : (v * 1000).toFixed(0) + ' ms';
+  else if (el.dataset.p === '76') out.textContent = v < 0.005 ? 'still' : v.toFixed(2);
+  else if (el.dataset.p === '81') out.textContent = v.toFixed(1);
   else if (el.dataset.p === '41') out.textContent = Math.round(v) + 'Hz';
   else if (el.dataset.p === '53') out.textContent = Math.round(v * 100) + '%';
   else if (el.dataset.p === '55') out.textContent = Math.round(v) + ' oct';
@@ -522,6 +552,8 @@ const HARD_GATES = {   // id -> predicate over current params
   56: p => (p[24] | 0) === 2,   // A/B balance: two-cluster only
   28: p => (p[24] | 0) === 0,   // poles: mean-field only
   23: p => (p[5] | 0) === 3,    // grid cyc/beat: tempo-grid law only
+  79: p => (p[5] | 0) === 4,    // harm reach: harmonic law only (ADR-065)
+  80: p => (p[5] | 0) === 5,    // stretch B: stretch law only (ADR-066)
 };
 const SOFT_GATES = {
   18: p => !(p[39] > 0),        // retrigger: overridden by scatter > 0
@@ -530,6 +562,9 @@ const SOFT_GATES = {
   33: p => p[32] > 0.5,         // glide: mono only
   34: p => p[32] > 0.5,         // legato: mono only
   41: p => p[40] > 0.5,         // bass xover: inert without bass mono
+  77: p => p[76] > 0.005,       // motion mode: inert while pan motion is still
+  85: p => (p[84] | 0) === 0,   // fan curve: pitch-fan image only (ADR-070)
+  86: p => (p[84] | 0) === 0,   // fan invert: pitch-fan image only
   58: p => (p[57] | 0) !== 0,   // FX slot amount: inert when slot is Off
   60: p => (p[59] | 0) !== 0,
   62: p => (p[61] | 0) !== 0,
