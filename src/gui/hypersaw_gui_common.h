@@ -57,6 +57,31 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
   auto phase = choc::value::createEmptyArray();
   for (int i = 0; i < v.n && i < 32; i++) phase.addArrayElement(v.phase[i]);
   obj.addMember("phase", phase);
+  // voice map + note monitor (SAW mode; empty arrays in SPECTRA mode)
+  obj.addMember("vmF0", v.vmF0);
+  auto vmVf = choc::value::createEmptyArray();
+  auto vmEff = choc::value::createEmptyArray();
+  auto vmPan = choc::value::createEmptyArray();
+  if (!v.spectra)
+    for (int i = 0; i < v.n && i < 32; i++)
+    {
+      vmVf.addArrayElement(v.vmVf[i]);
+      vmEff.addArrayElement(v.vmEff[i]);
+      vmPan.addArrayElement(v.vmPan[i]);
+    }
+  obj.addMember("vmVf", vmVf);
+  obj.addMember("vmEff", vmEff);
+  obj.addMember("vmPan", vmPan);
+  auto notes = choc::value::createEmptyArray();
+  for (int i = 0; i < v.nmCount; i++)
+  {
+    auto row = choc::value::createEmptyArray();
+    row.addArrayElement((int32_t)v.nmMidi[i]);
+    row.addArrayElement((int32_t)v.nmGate[i]);
+    row.addArrayElement(v.nmEnv[i]);
+    notes.addArrayElement(row);
+  }
+  obj.addMember("notes", notes);
   // SPECTRA per-partial strip feed (empty in SAW mode — v.spectra gates it).
   obj.addMember("spectra", v.spectra);
   if (v.spectra)

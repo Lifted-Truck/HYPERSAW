@@ -128,9 +128,17 @@
     <h2>Partial strips · lock front</h2>
     <canvas id="stripCanvas" width="256" height="150"></canvas>
   </div>
+  <div class="scope" id="vmapScope">
+    <h2>Voice map · pan × pitch <span style="color:var(--dim)">(○ target · ● actual)</span></h2>
+    <canvas id="vmapCanvas" width="256" height="96"></canvas>
+  </div>
   <div class="scope">
     <h2>Log spectrum · 30 Hz – 16 kHz</h2>
     <canvas id="specCanvas" width="256" height="58"></canvas>
+  </div>
+  <div class="scope">
+    <h2>Notes <span style="color:var(--dim)">(● held · ○ releasing — a ● with no key down is a STUCK note)</span></h2>
+    <canvas id="notesCanvas" width="256" height="30"></canvas>
   </div>
 </div>
 
@@ -784,6 +792,66 @@ function drawPhase(s) {
 // trail-fade columns, cluster B in amber under two-cluster topology. This is
 // where ring waves and broken-symmetry states are legible (SPEC §5.6).
 const cc2 = $('#carpetCanvas'), cctx2 = cc2.getContext('2d');
+// Voice map — the detune lab's pan x pitch view (human request 2026-07-30).
+// x = signed pan seat, y = log2(f / f0) so equal musical intervals are equal
+// pixels. Hollow ring = TARGET placement (vf, the law's geometry); filled dot
+// = ACTUAL frequency (eff, coupling included) — the vertical gap between a
+// ring and its dot IS the coupling's pull, so K sweeps become visible motion.
+// Y span is fixed at +/-2.5 octaves: a stable frame beats auto-zoom, which
+// would make every detune change look like camera movement.
+const vmC = $('#vmapCanvas'), vmx = vmC.getContext('2d');
+function drawVmap(s) {
+  const w = vmC.width, h = vmC.height;
+  vmx.fillStyle = 'rgba(11,14,20,0.35)';
+  vmx.fillRect(0, 0, w, h);
+  if (!s || !s.active || s.spectra || !s.vmVf || !s.vmVf.length || !(s.vmF0 > 0)) return;
+  const oct = 2.5, mid = h / 2;
+  vmx.strokeStyle = '#2a3040';
+  vmx.beginPath(); vmx.moveTo(0, mid); vmx.lineTo(w, mid); vmx.stroke();          // f0 line
+  vmx.beginPath(); vmx.moveTo(w / 2, 0); vmx.lineTo(w / 2, h); vmx.stroke();      // centre pan
+  const X = p => (Math.max(-1, Math.min(1, p)) * 0.5 + 0.5) * (w - 10) + 5;
+  const Y = f => mid - (Math.log2(Math.max(1e-6, f) / s.vmF0) / oct) * (mid - 4);
+  for (let i = 0; i < s.vmVf.length; i++) {
+    const x = X(s.vmPan[i]);
+    const col = i === s.centerIdx ? '#ffc24b' : '#5ff2e0';
+    vmx.strokeStyle = col;
+    vmx.beginPath(); vmx.arc(x, Y(s.vmVf[i]), 3.4, 0, Math.PI * 2); vmx.stroke();
+    vmx.fillStyle = col;
+    vmx.beginPath(); vmx.arc(x, Y(s.vmEff[i]), 2.2, 0, Math.PI * 2); vmx.fill();
+  }
+}
+
+// Note monitor — every sounding slot as a cell: filled while GATED, hollow and
+// dimming through the release. Purpose is diagnostic as much as decorative: the
+// stuck-note reports (2026-07-26, 2026-07-30) could never say WHICH layer held
+// the note. A cell still FILLED with all keys up = the note-off never reached
+// the plugin (host/wrapper side); hollow-but-loud = DSP tail (our side). The
+// CLAP layer is probe-clean at realistic settings (tools/tailprobe, 60 runs),
+// so filled-with-keys-up would indict the layer above — this makes it a
+// screenshot instead of an anecdote.
+const ntC = $('#notesCanvas'), ntx = ntC.getContext('2d');
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function drawNotes(s) {
+  const w = ntC.width, h = ntC.height;
+  ntx.fillStyle = 'rgba(11,14,20,0.5)';
+  ntx.fillRect(0, 0, w, h);
+  if (!s || !s.active || !s.notes || !s.notes.length) return;
+  const cw = Math.min(34, w / s.notes.length);
+  ntx.font = '9px ui-monospace,Menlo,monospace';
+  ntx.textAlign = 'center';
+  for (let i = 0; i < s.notes.length; i++) {
+    const [midi, gate, env] = s.notes[i];
+    const x = i * cw + cw / 2, cy = h / 2 - 4;
+    const col = gate ? '#ff5a5a' : '#5ff2e0';
+    ntx.globalAlpha = gate ? 1 : Math.max(0.15, Math.min(1, env * 3));
+    ntx.strokeStyle = col; ntx.fillStyle = col;
+    ntx.beginPath(); ntx.arc(x, cy, 4, 0, Math.PI * 2);
+    if (gate) ntx.fill(); else ntx.stroke();
+    ntx.fillText(NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1), x, h - 3);
+  }
+  ntx.globalAlpha = 1;
+}
+
 function drawCarpet(s) {
   const w = cc2.width, h = cc2.height;
   cctx2.fillStyle = 'rgba(11,14,20,0.25)';
@@ -875,8 +943,10 @@ async function loop() {
       const spectraOn = !!(v && v.spectra);
       $('#carpetScope').style.display = spectraOn ? 'none' : '';
       $('#stripScope').style.display = spectraOn ? '' : 'none';
+      $('#vmapScope').style.display = spectraOn ? 'none' : '';
       drawPhase(v);
-      if (spectraOn) drawStrips(v); else drawCarpet(v);
+      if (spectraOn) drawStrips(v); else { drawCarpet(v); drawVmap(v); }
+      drawNotes(v);
     } catch (e) {}
     vizBusy = false;
   }

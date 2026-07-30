@@ -44,6 +44,23 @@ struct VizSnapshot
   double partR[32] = {0};
   double partAmp[32] = {0};
   double partPhase[32 * 7] = {0};
+  // Voice map (2026-07-30, human request): the detune lab's pan x pitch view.
+  // Per-voice data for the FOCUS swarm — target freq (vf, post-law placement),
+  // actual freq (eff, coupling included; the gap between them IS the pull),
+  // signed base pan. f0 anchors the pitch axis.
+  double vmF0 = 0;
+  double vmVf[32] = {0};
+  double vmEff[32] = {0};
+  double vmPan[32] = {0};
+  // Note monitor: {midi, gate, env} for EVERY swarm slot, so a stuck note is
+  // VISIBLE — a row still gated (or still loud) with all keys up names the
+  // layer at fault: gated = a note-off never arrived (host/wrapper side);
+  // ungated but loud = DSP tail (core side). Turns the human's stuck-note
+  // reports from anecdote into a screenshot.
+  int nmCount = 0;
+  int nmMidi[16] = {0};
+  int nmGate[16] = {0};
+  double nmEnv[16] = {0};
 };
 
 struct GuiHost
