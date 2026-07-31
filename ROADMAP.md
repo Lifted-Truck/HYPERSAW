@@ -127,6 +127,24 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## STUCK NOTES: FIRST HARD EVIDENCE (2026-07-31) — poly, computer keyboard, GATE STAYS ON
+
+The note monitor did its job on day one: the human reports "almost every note is
+getting stuck (in polyphonic mode, using the computer keyboard)" — cells staying
+FILLED with keys up. Filled = the core still sees gate=1, i.e. **the note-off never
+reaches the plugin.** Combined with the CLAP layer being probe-clean (tailprobe, 60
+runs; notefuzz 12 modes), the fault is between Live's computer keyboard and our
+process() input queue — the wrapper translation layer.
+
+PRIME SUSPECT for next session: **our CLAP_EVENT_NOTE_END emission.** clap-wrapper
+keeps a note bookkeeping table to translate VST3/AU note streams; if we emit
+NOTE_END for a voice that is still HELD (voice steal, re-press, tag aliasing), the
+wrapper may drop the note from its table and then SWALLOW the eventual note-off —
+which would produce exactly this: gate stuck on, poly, fast typing. Audit
+tags[]/NOTE_END emission against steal/re-press first; then instrument the wrapper
+if clean. (The monitor's own skip condition `!gate && env<1e-4` is worth a
+5-minute sanity check too, but filled-cell-persists implicates gate, not the viz.)
+
 ## Even-voice pan fan — symmetric image (human direction, 2026-07-30; needs ADR + fold)
 
 Human: "even numbers of voices should have no voice centered (right now 2 with any
