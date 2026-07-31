@@ -173,6 +173,15 @@ parity after):
    or an explicit armed corner?; (c) color+shape pairing RATIFIED (human,
    2026-07-30): every tinted field pairs a small corner glyph with the color —
    possibly revealed on hover rather than always-on (audition both in the lab); (d) keep the palette to 4 highly-separable hues.
+   FURTHER MORPH ROADMAP (human, 2026-07-31): (e) each corner gets a "copy from
+   <other corner>" action (all three sources, per corner); (f) design an elegant
+   blend for oscillators that are INACTIVE or a DIFFERENT ENGINE across corners —
+   options to discuss: cross-engine parameter mapping so shared axes (detune, K,
+   width…) morph continuously and only engine-specific residue jumps; level-fade
+   an osc whose engine flips; treat engine identity as a collapse-only (never
+   blended) property. (g) mod-matrix collisions across corners acknowledged as a
+   challenge — the human has ideas; capture them at the next morph session before
+   designing.
 
 ## GUI information architecture + full-product fold plan (human brief, 2026-07-30)
 
