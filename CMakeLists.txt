@@ -42,7 +42,24 @@ add_custom_command(
 # impl lib carrying the factory, wrapped per-format by make_clapfirst_plugins.
 # The webview GUI module (ADR-019) compiles on macOS only for now; elsewhere
 # the shell exposes no gui extension and hosts use their generic editor.
+# BUILD ID stamped into the GUI corner. "Is the plugin cached?" cost real
+# debugging time twice (2026-07-30), and a hand-typed version can lie; this is
+# read from git at CONFIGURE time and re-read whenever CMake reruns. Dirty tree
+# gets a "+" so a local edit is never mistaken for the committed hash.
+execute_process(COMMAND git -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --short HEAD
+                OUTPUT_VARIABLE HS_GIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET RESULT_VARIABLE HS_GIT_RC)
+if(NOT HS_GIT_RC EQUAL 0)
+  set(HS_GIT_HASH "nogit")
+endif()
+execute_process(COMMAND git -C ${CMAKE_CURRENT_SOURCE_DIR} status --porcelain
+                OUTPUT_VARIABLE HS_GIT_DIRTY ERROR_QUIET)
+if(NOT HS_GIT_DIRTY STREQUAL "")
+  set(HS_GIT_HASH "${HS_GIT_HASH}+")
+endif()
+
 add_library(${PROJECT_NAME}-impl STATIC src/hypersaw_clap.cpp)
+target_compile_definitions(${PROJECT_NAME}-impl PRIVATE HYPERSAW_BUILD_ID="${HS_GIT_HASH}")
 target_link_libraries(${PROJECT_NAME}-impl PUBLIC clap clap-wrapper-extensions)
 if(APPLE)
   target_sources(${PROJECT_NAME}-impl PRIVATE src/gui/hypersaw_gui.mm ${GUI_HTML_HEADER})
