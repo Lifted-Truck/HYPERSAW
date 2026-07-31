@@ -144,6 +144,11 @@ const SCENARIOS = [
   { name: 'stretch-flat',  p: { law: 5, detune: 0.3, n: 9 } },
   { name: 'stretch-mild',  p: { law: 5, stretchB: 2, detune: 0.3, n: 9 } },
   { name: 'stretch-bell',  p: { law: 5, stretchB: 6, detune: 0.5, n: 12 } },
+  // ADR-073 even-voice fan: n=2 is the degenerate case the old law broke
+  // (centre + hard side); n=4 covers the multi-pair path. Width is EXPLICIT —
+  // the fan is inert at width 0, so a golden without width proves nothing.
+  { name: 'even-fan-2',    p: { n: 2, width: 1.0, detune: 0.4 } },
+  { name: 'even-fan-4',    p: { n: 4, width: 1.0, detune: 0.4, K: 0.4 } },
 ];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);

@@ -720,7 +720,14 @@ class SwarmCore
       const double gamma = std::pow(6, 0.5 - p.panCurve);
       for (int r = 0; r < n; r++)
       {
-        double d = (n == 1) ? 0.0 : (double)r / (n - 1);
+        // PARITY FORK (ADR-073, parity with swarmsaw.html): odd n keeps rank 0
+        // at dead centre (ADR-070's image); EVEN n has no centre seat — pairs
+        // sit symmetrically at ±(k+0.5)/(n/2). The old law degenerated at n=2
+        // to centre + hard side, lopsided at any width.
+        double d;
+        if (n == 1) d = 0.0;
+        else if (n % 2 == 1) d = (double)r / (n - 1);
+        else d = ((double)(r / 2) + 0.5) / (n / 2.0);
         if (p.panInvert != 0) d = 1 - d;
         d = std::pow(d, gamma);
         pos[idx[r]] = std::max(-1.0, std::min(1.0, (r % 2 == 0 ? -1.0 : 1.0) * d * wCap));
