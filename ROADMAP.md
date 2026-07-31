@@ -142,6 +142,24 @@ Two new controls ratified for the ADR-064 pan-motion system:
 Reference-first (swarmsaw.html carries ADR-064) + core parity + 2 new CLAP ids +
 GUI; inert defaults (speed = current hardcoded feel, weighting = uniform).
 
+## Poly glide + glide-from-last (human direction, 2026-07-31; "as long as trivial")
+
+1. **Poly glide**: portamento in poly — each new voice glides INTO its pitch from the
+   most recently played note's frequency. Likely genuinely small: the core already
+   has per-swarm glide machinery (glideActive/glideTarget, ADR-026 mono retarget);
+   poly noteOn seeds f0cur from a shell-tracked lastNoteFreq and glides to target.
+   Core+shell only — glide never touched the JS reference, so NO reference edit and
+   no parity exposure (verify with inert-default goldens anyway). One new toggle
+   param (polyGlide); TIME reuses the existing Glide knob (id 33), which then stops
+   being mono-gated in the GUI.
+2. **Glide-from-last / always-bend mode**: a third glide state where every note —
+   including after all keys are up — begins at the remembered last-played pitch and
+   bends in. Design questions: single lastNoteFreq or per-voice nearest-prior-voice
+   mapping for chords; does the memory decay or persist indefinitely; interaction
+   with retrigger/keepPhase.
+Ship both behind inert defaults; abort the "trivial" claim honestly if the chord
+mapping (2) grows teeth — (1) alone is still worth it.
+
 ## Test round 1 results (2026-07-31) — NEXT SESSION'S BRIEF
 
 **1+5. NOTE_END timing is still wrong — now in the OTHER direction (top priority).**
