@@ -127,6 +127,21 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Pan-motion expansion (human direction, 2026-07-31; reference-first fold)
+
+Two new controls ratified for the ADR-064 pan-motion system:
+1. **Speed** — the rates are currently HARDCODED (sweep 0.1 Hz-ish; per-voice drift
+   0.08 + i·0.021). Expose a rate knob scaling both modes.
+2. **Position weighting (bipolar)** — one end: centre wiggles, sides still; other
+   end: sides wiggle, centre still. NOTE FOR THE ADR: the positive half DUPLICATES
+   `motionCenter` (centre pin) — per the consolidation principle the new bipolar
+   knob should SUBSUME motionCenter (map old values onto the new axis, retire id 78
+   from the GUI, keep the CLAP id as an alias) rather than ship as a third
+   overlapping control.
+
+Reference-first (swarmsaw.html carries ADR-064) + core parity + 2 new CLAP ids +
+GUI; inert defaults (speed = current hardcoded feel, weighting = uniform).
+
 ## Test round 1 results (2026-07-31) — NEXT SESSION'S BRIEF
 
 **1+5. NOTE_END timing is still wrong — now in the OTHER direction (top priority).**
