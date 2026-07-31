@@ -807,9 +807,9 @@ const vmC = $('#vmapCanvas'), vmx = vmC.getContext('2d');
 // zoom steps between fixed ranges rather than tracking continuously, so detune
 // sweeps read as dots moving, not the camera moving; grow is immediate (never
 // clip), shrink waits until the content is well inside the next step down.
-const VM_RANGES = [50/1200, 200/1200, 1, 2.5];   // octaves: ±50¢, ±200¢, ±1 oct, ±2.5 oct
-const VM_LABELS = ['±50 ¢', '±200 ¢', '±1 oct', '±2.5 oct'];
-let vmZoom = 3, vmShrink = 0;
+const VM_RANGES = [50/1200, 100/1200, 200/1200, 1, 2.5];  // ±50¢ ±100¢ ±200¢ ±1oct ±2.5oct
+const VM_LABELS = ['±50 ¢', '±100 ¢', '±200 ¢', '±1 oct', '±2.5 oct'];
+let vmZoom = 4, vmShrink = 0;
 function drawVmap(s) {
   const w = vmC.width, h = vmC.height;
   vmx.fillStyle = 'rgba(11,14,20,0.35)';
