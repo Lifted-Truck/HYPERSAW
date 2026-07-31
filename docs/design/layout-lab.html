@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SWARM✱ layout lab — information architecture audition</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
+          --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --mag:#e05fd0; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace; padding:12px 16px 60px; }
+  h1 { font-size:15px; margin-bottom:2px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:var(--dim);
+         background:#0b0e13; border:1px solid var(--line); border-radius:3px; padding:2px 6px; opacity:0.75; }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:12px; max-width:1050px; }
+  .tagline b { color:var(--fg); }
+  /* the mock plugin window */
+  .win { max-width:1080px; border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden; }
+  .header { display:flex; align-items:center; gap:10px; padding:7px 12px; background:var(--panel2);
+            border-bottom:1px solid var(--line); font-size:12px; }
+  .logo { color:var(--pull); font-weight:bold; letter-spacing:1px; }
+  .preset { flex:1; text-align:center; color:var(--amber); cursor:pointer; border:1px solid var(--line);
+            border-radius:4px; padding:3px 10px; background:var(--bg); }
+  .preset:hover { border-color:var(--amber); }
+  .hdrbtn { color:var(--dim); cursor:pointer; padding:2px 7px; border-radius:3px; }
+  .hdrbtn:hover { color:var(--fg); background:var(--bg); }
+  .tabs { display:flex; gap:2px; padding:6px 12px 0; background:var(--panel2); border-bottom:1px solid var(--line); }
+  .tab { padding:6px 16px; cursor:pointer; color:var(--dim); border:1px solid transparent; border-bottom:none;
+         border-radius:5px 5px 0 0; font-size:12px; }
+  .tab:hover { color:var(--fg); }
+  .tab.on { color:var(--pull); background:var(--panel); border-color:var(--line); }
+  .page { display:none; padding:12px; min-height:430px; }
+  .page.on { display:block; }
+  /* mock building blocks */
+  .cols { display:flex; gap:10px; align-items:flex-start; }
+  .col { flex:1; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .sec { border:1px solid var(--line); border-radius:5px; background:var(--panel2); padding:8px 10px; }
+  .sec h2 { font-size:11px; color:var(--pull); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .sec h2 .q { color:var(--mag); }
+  .mock { color:var(--dim); font-size:11px; }
+  .mock b { color:var(--fg); font-weight:normal; }
+  .knobrow { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11px; color:var(--dim); }
+  .knobrow span { border:1px solid var(--line); border-radius:3px; padding:2px 6px; background:var(--bg); }
+  .knobrow span.new { border-color:var(--amber); color:var(--amber); }
+  .knobrow span.lab { border-color:var(--mag); color:var(--mag); }
+  .viz { height:64px; border:1px dashed var(--line); border-radius:4px; display:flex; align-items:center;
+         justify-content:center; color:var(--dim); font-size:11px; background:var(--bg); }
+  .viz.tall { height:120px; }
+  .oscstrip { display:flex; gap:8px; }
+  .osc { flex:1; border:1px solid var(--line); border-radius:5px; padding:8px; background:var(--bg); }
+  .osc h3 { font-size:11px; color:var(--amber); margin-bottom:4px; display:flex; justify-content:space-between; }
+  .osc h3 select { background:var(--panel2); color:var(--fg); border:1px solid var(--line); font:inherit; font-size:10px; }
+  .lvl { height:5px; background:var(--panel2); border-radius:3px; margin:5px 0; position:relative; }
+  .lvl i { position:absolute; left:0; top:0; bottom:0; border-radius:3px; background:var(--pull); }
+  .note { border-left:3px solid var(--mag); padding:4px 8px; margin-top:6px; color:var(--dim); font-size:11px; }
+  .note b { color:var(--mag); }
+  /* decisions panel below the mock */
+  .decisions { max-width:1080px; margin-top:16px; }
+  .decisions h2 { font-size:13px; color:var(--amber); margin:14px 0 6px; }
+  .decisions table { border-collapse:collapse; width:100%; font-size:11.5px; }
+  .decisions td, .decisions th { border:1px solid var(--line); padding:4px 8px; text-align:left; vertical-align:top; }
+  .decisions th { color:var(--dim); background:var(--panel2); font-weight:normal; }
+  .yes { color:var(--pull); } .no { color:var(--dim); } .need { color:var(--mag); } .q { color:var(--amber); }
+  kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+</style>
+</head>
+<body>
+<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-07-30 18:20 &middot; fp <span id="revfp">…</span></div>
+<h1>SWARM✱ layout lab</h1>
+<div class="tagline">Information-architecture audition (human brief 2026-07-30): click through the proposed <b>pages</b> before any fold work begins. Nothing here makes sound — the controls are the REAL inventory (every shipped param, every lab feature with a fold path), placed where the proposal says they'd live. Chips: <span style="color:var(--amber)">amber = shipped but new (ADR-072)</span> · <span style="color:var(--mag)">magenta = lab-only, needs a fold</span> · plain = shipped &amp; settled. The decisions table below is the actual deliverable.</div>
+
+<div class="win">
+  <div class="header">
+    <span class="logo">SWARM✱</span>
+    <span class="hdrbtn" title="prev">◀</span>
+    <span class="preset" title="click = browser overlay (mock)">Init — Ensemble Strings*</span>
+    <span class="hdrbtn" title="next">▶</span>
+    <span class="hdrbtn" title="save">save</span>
+    <span class="hdrbtn" title="global settings live in a menu, not a page">⚙</span>
+  </div>
+  <div class="tabs" id="tabs"></div>
+
+  <!-- ============ PAGE: MAIN ============ -->
+  <div class="page" data-pg="MAIN">
+    <div class="cols">
+      <div class="col" style="flex:1.2">
+        <div class="sec"><h2>Hero viz</h2>
+          <div class="viz tall">phase circle + R meters (as today)</div>
+          <div class="viz" style="margin-top:8px">voice map · pan × pitch</div>
+        </div>
+        <div class="sec"><h2>Notes</h2><div class="viz" style="height:26px">note monitor strip</div></div>
+      </div>
+      <div class="col" style="flex:1.6">
+        <div class="sec"><h2>Oscillators <span class="q">(the big architecture question — see decisions)</span></h2>
+          <div class="oscstrip">
+            <div class="osc"><h3>OSC A <select><option>SAW</option><option>SPECTRA</option><option>SWARMALATOR?</option></select></h3>
+              <div class="lvl"><i style="width:72%"></i></div>
+              <div class="mock">voices · detune · K · shape → <b>OSC page</b></div></div>
+            <div class="osc"><h3>OSC B <select><option>SPECTRA</option><option>SAW</option></select></h3>
+              <div class="lvl"><i style="width:45%"></i></div>
+              <div class="mock">independent engine + params</div></div>
+            <div class="osc"><h3>SUB <select><option>sine</option><option>saw</option></select></h3>
+              <div class="lvl"><i style="width:30%"></i></div>
+              <div class="mock">level · wave · octave (shipped ids 52–55)</div></div>
+          </div>
+        </div>
+        <div class="sec"><h2>Macro / play</h2>
+          <div class="knobrow"><span>XY pad (x=detune y=K)</span><span>vol</span><span>width</span><span class="lab">macros 1–4</span></div>
+        </div>
+        <div class="sec"><h2>Env 1 · amp</h2>
+          <div class="knobrow"><span>A</span><span>D</span><span>S</span><span>R</span></div>
+          <div class="mock">Env 1 hard-wired to level (the human's default suggestion) — deeper envs on MOD</div>
+        </div>
+        <div class="sec"><h2>Quantum morph</h2>
+          <div class="viz" style="height:44px">morph pad (compact) — full editor on its own page?</div>
+        </div>
+      </div>
+    </div>
+    <div class="note"><b>Principle under test:</b> MAIN = what you touch while playing. Everything here also lives somewhere deeper; nothing lives ONLY here.</div>
+  </div>
+
+  <!-- ============ PAGE: OSC ============ -->
+  <div class="page" data-pg="OSC">
+    <div class="mock" style="margin-bottom:8px">Per-oscillator editor — tab or selector chooses <b>A / B / SUB</b>; page contents swap to that osc's engine.</div>
+    <div class="cols">
+      <div class="col">
+        <div class="sec"><h2>The swarm (SAW engine)</h2>
+          <div class="knobrow"><span>voices</span><span>distribution ▾</span><span>law ▾</span><span>detune</span><span>seed</span>
+            <span class="new">harm reach</span><span class="new">stretch B</span><span class="new">oct spread</span><span class="new">root anchor</span><span>density comp</span></div></div>
+        <div class="sec"><h2>Wave shape</h2>
+          <div class="knobrow"><span>saw shape (≤0.5 cap)</span><span>digital↔clean</span>
+            <span class="lab">saw base ▾</span><span class="lab">roundness→</span><span class="lab">sync</span><span class="lab">phase warp</span><span class="lab">ripple</span><span class="lab">formant / windowed carrier</span><span class="lab">chain order ▾</span></div>
+          <div class="viz" style="margin-top:6px">waveform preview (shape-lab's visualizer)</div></div>
+        <div class="sec"><h2>Tuning</h2>
+          <div class="knobrow"><span>octave</span><span>semi</span><span>fine</span><span>pitch bend</span><span class="lab">scale quantize ▾ (parked)</span></div></div>
+      </div>
+      <div class="col">
+        <div class="sec"><h2>The coupling</h2>
+          <div class="knobrow"><span>pull K</span><span>onset lock</span><span>dissolve</span><span>inertia</span><span>scatter</span><span>retrigger</span><span class="new">keep phase</span><span class="new">pivot ▾</span></div></div>
+        <div class="sec"><h2>Dynamics</h2>
+          <div class="knobrow"><span>topology ▾</span><span>reach</span><span>link μ</span><span>phase lag</span><span>poles</span><span>gravity</span><span>basin</span><span>A/B balance</span></div></div>
+        <div class="sec"><h2>Drift &amp; ensemble</h2>
+          <div class="knobrow"><span>depth</span><span>walk rate</span><span class="new">drift mode ▾</span><span class="new">freq glide</span><span class="new">centre pin</span>
+            <span class="lab">onset scatter (Vorberg α)</span><span class="lab">attack scatter</span><span class="lab">attack character ±</span></div>
+          <div class="mock">the ensemble-lab timing stack folds here — the strongest-evidence feature not yet in the core</div></div>
+        <div class="sec"><h2>SPECTRA engine <span class="q">(shown when this osc = SPECTRA)</span></h2>
+          <div class="knobrow"><span>partials</span><span>amp tilt</span><span>stretch</span><span>cloud</span><span>cloud width</span><span>width tilt</span><span>cascade</span><span>transpose</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAGE: SPACE ============ -->
+  <div class="page" data-pg="SPACE">
+    <div class="cols">
+      <div class="col">
+        <div class="sec"><h2>Stereo image</h2>
+          <div class="knobrow"><span>width</span><span>pan scatter</span><span class="new">pan image ▾</span><span class="new">fan curve</span><span class="new">fan invert</span><span class="new">pan motion</span><span class="new">motion mode ▾</span><span>bass mono + xover</span></div></div>
+        <div class="sec"><h2>Tone</h2>
+          <div class="knobrow"><span>R→tone</span><span class="new">tone tilt</span><span class="new">hi tame</span><span>mono fold</span></div></div>
+      </div>
+      <div class="col">
+        <div class="sec"><h2>FX rack <span class="q">(routing grid, not a fixed chain — ADR-054)</span></h2>
+          <div class="knobrow"><span>slot: Comp</span><span>slot: KS Comb</span><span class="lab">SwarmVerb</span><span class="lab">Kuro delay/echo/room (E2 cores exist)</span><span class="lab">filter bank (E1 cores exist)</span><span class="lab">Kuro chorus</span><span class="lab">Kuro phaser</span><span class="lab">saturation/drive</span></div>
+          <div class="viz" style="margin-top:6px;height:90px">routing grid mock — drag to reorder / parallel pairs</div>
+          <div class="mock">each slot opens its own editor panel below the grid (reverb alone has ~20 controls — they cannot live at top level)</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAGE: MOD ============ -->
+  <div class="page" data-pg="MOD">
+    <div class="cols">
+      <div class="col">
+        <div class="sec"><h2>Envelopes</h2>
+          <div class="knobrow"><span>Env 1 (amp) ADSR</span><span>Env 2 (SPECTRA) ADSR</span><span class="lab">Env 3+ assignable</span></div></div>
+        <div class="sec"><h2>LFOs</h2>
+          <div class="knobrow"><span class="lab">LFO 1–2 classic</span><span class="lab">Kuro LFO rotor (mod-lab, ADR-053)</span><span class="lab">per-effect swarms + link</span></div></div>
+        <div class="sec"><h2>Sequencer <span class="q">?</span></h2>
+          <div class="mock">no lab, no spec — needs its own audition before it earns a page slot</div></div>
+      </div>
+      <div class="col">
+        <div class="sec"><h2>Mod matrix</h2>
+          <div class="viz tall">source × destination grid (mod-lab's drag-editable matrix)</div>
+          <div class="mock">emergent sources (R, σ, slip) join as rows — the roadmap's "FX driven by the synth's own observables"</div></div>
+        <div class="sec"><h2>Macros</h2>
+          <div class="knobrow"><span class="lab">macro 1–4 → matrix rows</span><span>XY pad (= macros 1+2?)</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAGE: MORPH ============ -->
+  <div class="page" data-pg="MORPH">
+    <div class="sec"><h2>Quantum morph</h2>
+      <div class="viz tall">full morph editor (quantum-morph-lab) — state pad, targets, collapse behavior</div>
+      <div class="mock">open question: does this deserve a page, or is it a MAIN panel + this editor behind a click?</div></div>
+  </div>
+</div>
+
+<!-- ============ DECISIONS ============ -->
+<div class="decisions">
+  <h2>Decision 1 — page count &amp; names (this mock proposes 5)</h2>
+  <div class="mock">MAIN (play) · OSC (per-oscillator deep edit) · SPACE (image + FX) · MOD · MORPH. Alternatives: fold MORPH into MAIN (4 pages); split FX from SPACE (6). Fewer pages beats more — a page must earn its tab by being a place you <i>stay</i>, not a drawer you fetch from. Right-click any knob → mod-assign + reset + units; ⚙ menu holds global prefs (bass-mono default, MPE, tuning). </div>
+  <h2>Decision 2 — the multi-oscillator architecture (biggest item, needs an ADR before any GUI work)</h2>
+  <div class="mock">Today: ONE engine select + A/B balance + sub. The brief asks for 2–3 full oscillators, each independently SAW/SPECTRA/…. That is not a GUI change — it is N core instances with per-osc params, per-osc state, doubled CPU, and a param-id namespace design (per-osc id blocks? osc-index modifier?). Ids are append-only, so this must be designed ONCE, correctly. Recommendation: ADR first (id scheme + voice/CPU budget + per-osc preset format), then a thin 2-osc walking skeleton behind the existing balance param, then the GUI.</div>
+  <h2>Decision 3 — which features still need their own lab first</h2>
+  <table>
+    <tr><th>feature</th><th>engine/DSP state</th><th>lab state</th><th>verdict</th></tr>
+    <tr><td>Reverb (SwarmVerb)</td><td class="yes">lab DSP mature</td><td class="yes">reverb-lab (heavily iterated)</td><td class="yes">ready to fold → rack slot</td></tr>
+    <tr><td>Delay / echo / room</td><td class="yes">time_core.h shipped (E2)</td><td class="yes">swarmtime.html (protected)</td><td class="yes">ready to fold → rack slots</td></tr>
+    <tr><td>Karplus-Strong comb</td><td class="yes">shipped (rack slot, ADR-071)</td><td>—</td><td class="yes">done; needs only slot editor UI</td></tr>
+    <tr><td>Filter (robust)</td><td class="q">filter_core + notch_core (swarm character); NO conventional multimode yet</td><td class="yes">swarmfilter/swarmphaser (protected)</td><td class="need">small lab: pick the conventional filter topology + how it meets the swarm filters</td></tr>
+    <tr><td>Kuro chorus / phaser</td><td class="q">JS only (mod-lab)</td><td class="yes">mod-lab</td><td class="yes">fold path clear (port + parity)</td></tr>
+    <tr><td>Saturation / drive</td><td class="no">placeholder Drive slot only</td><td class="no">none (squareness experiment noted drive as THE lever)</td><td class="need">needs a lab (drive curves × pre/post placement)</td></tr>
+    <tr><td>Ensemble timing stack</td><td class="q">JS only (ensemble-lab)</td><td class="yes">ensemble-lab (iterated)</td><td class="yes">ready to fold → core (inert at 0)</td></tr>
+    <tr><td>Kuro LFO + matrix</td><td class="q">JS only (mod-lab)</td><td class="yes">mod-lab (KuroSwarm generalized)</td><td class="yes">fold path clear; rotor→golden pending (#19)</td></tr>
+    <tr><td>Sequencer</td><td class="no">nothing</td><td class="no">none</td><td class="need">needs concept lab (or park it)</td></tr>
+    <tr><td>Multi-oscillator</td><td class="no">single engine + balance</td><td class="no">n/a</td><td class="need">ADR, not a lab (Decision 2)</td></tr>
+    <tr><td>Presets (patch + per-osc)</td><td class="q">full-state save/load shipped; no browser, no per-osc split</td><td class="no">none</td><td class="q">browser = GUI work; per-osc format lands with the multi-osc ADR</td></tr>
+    <tr><td>Quantum morph</td><td class="no">JS only, experimental</td><td class="yes">quantum-morph-lab (untracked!)</td><td class="q">keep iterating in lab; note it is gitignored — decide if that stays</td></tr>
+  </table>
+  <h2>Decision 4 — human-readable units pass (roadmapped, not rushed)</h2>
+  <div class="mock">Trigger example: core detune 0.20 ≙ gaussian σ 8¢, which no one can know from a 0–1 knob. Display-only pass over all 86 params: cents/ms/Hz/semitones where physical, σ vs range named honestly, dev-only params hidden. CLAP ids and stored values do NOT change — only value_to_text and GUI outputs — so every session and automation lane survives. Pairs with the naming pass the human already flagged (2026-07-30).</div>
+</div>
+
+<script>
+const pages = ['MAIN','OSC','SPACE','MOD','MORPH'];
+const tabs = document.getElementById('tabs');
+pages.forEach((p,i) => {
+  const t = document.createElement('div');
+  t.className = 'tab' + (i===0?' on':''); t.textContent = p;
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.querySelector('.page[data-pg="'+p+'"]').classList.add('on');
+  };
+  tabs.appendChild(t);
+});
+document.querySelector('.page[data-pg="MAIN"]').classList.add('on');
+</script>
+<script>
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  const el = document.getElementById('revfp');
+  if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+})();
+</script>
+</body>
+</html>
