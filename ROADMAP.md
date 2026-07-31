@@ -127,6 +127,32 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Lab campaign 3 (human direction, 2026-07-30)
+
+Three labs ratified, extending the campaign-2 pattern (audition first, fold with ADR +
+parity after):
+
+1. **SPECTRA robustness + expansion lab.** Activates campaign-2 item 4 with a sharper
+   brief: make the engine *worthwhile* — find the features that give SPECTRA its own
+   identity rather than "the other engine". Candidates to audition: richer partial-amp
+   laws, per-partial coupling topologies, cascade behaviors, transposition interplay,
+   whatever the lab surfaces.
+2. **Swarm-filters lab.** Human verdict: the E1 filter/notch cores are "not quite
+   there yet". Audition bench over `filter_core.h` + `notch_core.h` character —
+   resonance behavior, key-tracking, how they'd sit in the rack next to a conventional
+   multimode (this pairs with, but is distinct from, the layout-lab's
+   conventional-filter-topology question).
+3. **Quantum-morph lab** (exists; STAYS gitignored for now — human ruling 2026-07-30,
+   revisit once the lab has settled). NEW INTERFACE CONCEPT to prototype there —
+   **corner colors**: each morph corner owns a color; every control tinted by the
+   corner it currently controls, so allegiance flips are visible as color flips, and
+   "which preset am I editing?" is always answered on sight. Design questions for the
+   lab: (a) mid-morph, tint by the *mixture* (proportional blend of corner colors —
+   the weights made visible) vs by dominant corner only; (b) the edit-routing rule the
+   color must make legible — does an edit write to the dominant corner, the nearest,
+   or an explicit armed corner?; (c) color+shape pairing (corner glyphs) so the
+   channel survives colorblindness; (d) keep the palette to 4 highly-separable hues.
+
 ## GUI information architecture + full-product fold plan (human brief, 2026-07-30)
 
 The human wants ALL labs folded into the plugin, gated on visual-hierarchy decisions
