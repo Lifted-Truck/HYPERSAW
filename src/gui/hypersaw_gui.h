@@ -70,6 +70,7 @@ struct GuiHost
   std::function<std::string()> getParamsJson;            // {"<id>":value,...}
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin
+  std::function<std::string()> getBuildId;               // git short hash, GUI corner
   std::function<std::string()> getStateJson;             // full provenance dump
   std::function<bool(const std::string &)> applyStateJson;
 };

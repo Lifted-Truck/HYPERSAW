@@ -369,6 +369,7 @@ if (!window.hzGetViz) {
 }
 
 const bridge = {
+  getBuild: () => window.hzGetBuild ? window.hzGetBuild() : Promise.resolve('dev'),
   getViz: () => window.hzGetViz(),
   getParams: () => window.hzGetParams(),
   setParam: (id, v) => window.hzSetParam(id, v),
@@ -1003,6 +1004,21 @@ async function loop() {
   requestAnimationFrame(loop);
 }
 
+// Build stamp in the corner: the answer to "am I running the build I just
+// installed?" — a question that cost two debugging sessions (2026-07-30/31).
+// Comes from git via CMake, so it cannot drift from the binary; a trailing "+"
+// means the tree was dirty at build time.
+window.addEventListener('load', async () => {
+  try {
+    const id = await bridge.getBuild();
+    const el = document.createElement('div');
+    el.textContent = 'build ' + id;
+    el.title = 'git hash this plugin was built from (+ = uncommitted changes)';
+    el.style.cssText = 'position:fixed;right:6px;bottom:4px;z-index:99;font-size:9px;' +
+      'color:#7f8899;opacity:.6;font-family:ui-monospace,Menlo,monospace;pointer-events:none';
+    document.body.appendChild(el);
+  } catch (e) {}
+});
 window.addEventListener('load', () => { syncFromEngine().catch(() => {}); loop(); });
 </script>
 </body>
