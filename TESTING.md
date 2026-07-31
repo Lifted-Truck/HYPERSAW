@@ -7,6 +7,11 @@ failures by item number. Ordered by importance; ~15 min total.
 
 *Build under test: `main` @ post-#135 (run `./install check` to confirm currency).*
 
+## Round-1 results (2026-07-31): 1 FAIL-partial (NOTE_END lag, see ROADMAP brief),
+## 2 FAIL (amber hops — marker bug), 3 pass-with-note, 4 PASS, 5 FAIL (same as 1).
+## Extras logged: hi-tame inaudible · double-click defaults wanted · retrigger
+## gray-out wrong · SPECTRA voice map wanted.
+
 ## Current — untested by human
 
 ### 1. Stuck-note fix (#135) — THE experiment

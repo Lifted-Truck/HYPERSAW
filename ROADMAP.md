@@ -127,6 +127,40 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Test round 1 results (2026-07-31) — NEXT SESSION'S BRIEF
+
+**1+5. NOTE_END timing is still wrong — now in the OTHER direction (top priority).**
+Stuck-forever is gone, but release lag is inconsistent ("minimum duration of played
+notes varies seemingly at random") and mono re-press doesn't fire until the prior
+key-up registers. DIAGNOSIS SKETCH: Live withholds retriggering a pitch until it
+receives NOTE_END for the prior note (the 2026-07-18 finding that motivated emission
+in the first place). We emit END at ENV DEATH (~1.1 s after release at default
+settings), and the #135 deferral pushes some ENDs later still — so retrigger waits on
+a tail the player can't see. REDESIGN QUESTION for next session: emit NOTE_END at
+NOTE-OFF/steal time (prompt host bookkeeping; the DSP tail still sounds — hosts don't
+gate our audio) vs at env death (today, laggy). Emitting promptly on release likely
+fixes 1 AND 5 and lets the #135 deferral be DELETED rather than patched. Check CLAP
+spec intent + what other CLAP instruments do before committing.
+
+**2. Voice-map amber jumps between voices; pivot pinning invisible.** The GUI marks
+lowest-vf PER FRAME, so drift/coupling makes the crown hop. Fix: publish the core's
+STABLE root index (ADR-068 rootIdx) in the viz snapshot and mark that. Re-test pivot
+after — pinning may already work and be unobservable under a hopping marker.
+
+**3. Ruling recorded:** harmonic/oct-spread extremes are sound-design terrain, kept
+as-is (per-law usable-range table remains the eventual answer, already roadmapped).
+
+**Quick fixes queued (all GUI-side):**
+- Double-click any slider → default (use kParams defV; trivial, do first).
+- Retrigger soft-gate is wrong: grayed in SPECTRA and whenever scatter==0 is FALSE…
+  human ruling: retrigger should effectively NEVER gray (only inert case is SAW with
+  scatter>0 — verify then simplify the gate).
+- Hi tame inaudible at defaults — audit: gain (f0/f)^hiTame only bites with WIDE
+  spreads; at ±28¢ the ratio ≈1 so it does ~nothing. Either rescale the curve for
+  small spreads or gate/label it as a spread-dependent control.
+- SPECTRA should feed the voice map too (partial-0 cloud, or per-partial seats —
+  design at fix time).
+
 ## Human-test protocol (ratified 2026-07-31)
 
 **TESTING.md at repo root is the living human test checklist.** Every PR that changes
