@@ -349,6 +349,28 @@ struct Plugin
                             ? (!spectra.swarmAt(i).gate && spectra.swarmAt(i).env < 1e-4)
                             : (!core.swarmAt(i).gate && core.swarmAt(i).env < 1e-4);
       if (!dead) continue;  // thresholds match each core's render skip test
+      // RE-PRESS GUARD (2026-07-31, the stuck-note bug): if this key+channel is
+      // still HELD in another slot, do NOT end it yet. Hosts without real note
+      // ids (Live via the VST3/AU wrappers sends note_id -1) match NOTE_END by
+      // key+channel, so ending the DYING old instance of a re-pressed key
+      // poisons the wrapper's bookkeeping for the NEW held instance — its
+      // eventual note-off is swallowed and the gate sticks on forever. Fast
+      // typing re-presses keys inside the previous release tail constantly
+      // ("almost every note is getting stuck", poly + computer keyboard); a
+      // piano roll never overlaps a key with its own tail, which is why it was
+      // immune. Deferring is safe for id-matching hosts too: the END still
+      // fires once the LAST instance of the key dies.
+      bool keyStillHeld = false;
+      for (int j = 0; j < hypersaw::kPoly; j++)
+      {
+        if (j == i || !tags[j].active) continue;
+        if (tags[j].key != tags[i].key || tags[j].channel != tags[i].channel) continue;
+        const bool jDead = spectraMode()
+                               ? (!spectra.swarmAt(j).gate && spectra.swarmAt(j).env < 1e-4)
+                               : (!core.swarmAt(j).gate && core.swarmAt(j).env < 1e-4);
+        if (!jDead) { keyStillHeld = true; break; }
+      }
+      if (keyStillHeld) continue;
       clap_event_note_t ev{};
       ev.header.size = sizeof(ev);
       ev.header.time = time;
