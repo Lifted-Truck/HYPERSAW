@@ -800,25 +800,54 @@ const cc2 = $('#carpetCanvas'), cctx2 = cc2.getContext('2d');
 // Y span is fixed at +/-2.5 octaves: a stable frame beats auto-zoom, which
 // would make every detune change look like camera movement.
 const vmC = $('#vmapCanvas'), vmx = vmC.getContext('2d');
+// STEPPED AUTO-ZOOM (2026-07-30, human report): a fixed +/-2.5 oct frame made
+// the common case invisible — a semitone-class spread is sub-pixel there, so
+// root anchor's pinned voice LOOKED unpinned (it is pinned: core probe shows
+// anchor 1 -> lowest voice exactly f0, pivot 1 -> root pull 0.0000 Hz). The
+// zoom steps between fixed ranges rather than tracking continuously, so detune
+// sweeps read as dots moving, not the camera moving; grow is immediate (never
+// clip), shrink waits until the content is well inside the next step down.
+const VM_RANGES = [50/1200, 200/1200, 1, 2.5];   // octaves: ±50¢, ±200¢, ±1 oct, ±2.5 oct
+const VM_LABELS = ['±50 ¢', '±200 ¢', '±1 oct', '±2.5 oct'];
+let vmZoom = 3, vmShrink = 0;
 function drawVmap(s) {
   const w = vmC.width, h = vmC.height;
   vmx.fillStyle = 'rgba(11,14,20,0.35)';
   vmx.fillRect(0, 0, w, h);
   if (!s || !s.active || s.spectra || !s.vmVf || !s.vmVf.length || !(s.vmF0 > 0)) return;
-  const oct = 2.5, mid = h / 2;
+  let dev = 1e-6;
+  for (let i = 0; i < s.vmVf.length; i++) {
+    dev = Math.max(dev, Math.abs(Math.log2(Math.max(1e-6, s.vmVf[i]) / s.vmF0)),
+                        Math.abs(Math.log2(Math.max(1e-6, s.vmEff[i]) / s.vmF0)));
+  }
+  let want = VM_RANGES.length - 1;
+  for (let z = 0; z < VM_RANGES.length; z++) if (dev * 1.12 <= VM_RANGES[z]) { want = z; break; }
+  if (want > vmZoom) { vmZoom = want; vmShrink = 0; }               // grow now
+  else if (want < vmZoom && dev * 1.6 <= VM_RANGES[want] && ++vmShrink > 30) { vmZoom = want; vmShrink = 0; }
+  else if (want >= vmZoom) vmShrink = 0;
+  const oct = VM_RANGES[vmZoom], mid = h / 2;
   vmx.strokeStyle = '#2a3040';
-  vmx.beginPath(); vmx.moveTo(0, mid); vmx.lineTo(w, mid); vmx.stroke();          // f0 line
-  vmx.beginPath(); vmx.moveTo(w / 2, 0); vmx.lineTo(w / 2, h); vmx.stroke();      // centre pan
+  vmx.beginPath(); vmx.moveTo(0, mid); vmx.lineTo(w, mid); vmx.stroke();
+  vmx.beginPath(); vmx.moveTo(w / 2, 0); vmx.lineTo(w / 2, h); vmx.stroke();
+  vmx.fillStyle = '#7f8899'; vmx.font = '9px ui-monospace,Menlo,monospace';
+  vmx.textAlign = 'left'; vmx.fillText(VM_LABELS[vmZoom], 4, 10);
   const X = p => (Math.max(-1, Math.min(1, p)) * 0.5 + 0.5) * (w - 10) + 5;
   const Y = f => mid - (Math.log2(Math.max(1e-6, f) / s.vmF0) / oct) * (mid - 4);
+  // Amber marks the ROOT (lowest target voice) — the voice the pitch fan seats
+  // at pan centre, the voice root-anchor pins to f0, and the voice pivot mode
+  // pins under coupling. The old marking (centerIdx, closest-to-f0 by |x|) sat
+  // off-centre under a bipolar spread and read as a bug (human, 2026-07-30).
+  let root = 0;
+  for (let i = 1; i < s.vmVf.length; i++) if (s.vmVf[i] < s.vmVf[root]) root = i;
   for (let i = 0; i < s.vmVf.length; i++) {
     const x = X(s.vmPan[i]);
-    const col = i === s.centerIdx ? '#ffc24b' : '#5ff2e0';
+    const col = i === root ? '#ffc24b' : '#5ff2e0';
     vmx.strokeStyle = col;
     vmx.beginPath(); vmx.arc(x, Y(s.vmVf[i]), 3.4, 0, Math.PI * 2); vmx.stroke();
     vmx.fillStyle = col;
     vmx.beginPath(); vmx.arc(x, Y(s.vmEff[i]), 2.2, 0, Math.PI * 2); vmx.fill();
   }
+}
 }
 
 // Note monitor — every sounding slot as a cell: filled while GATED, hollow and

@@ -165,6 +165,11 @@ table is the deliverable:
 1. **Page count/names** — mock proposes 5: MAIN (play) · OSC (per-osc deep edit) ·
    SPACE (image+FX) · MOD · MORPH. Principle: MAIN is what you touch while playing;
    nothing lives ONLY on MAIN. Right-click = mod-assign/reset/units; ⚙ = global prefs.
+   **Ratified requirement (human, 2026-07-30): EVERY parameter's right-click menu
+   reaches the mod matrix** ("map to…" → pick source, or jump to that param's matrix
+   column) — mapping must never require a trip to the MOD page first. This is the
+   same right-click surface the per-param curve editor (below, 2026-07-21) will live
+   in — one context menu, growing.
 2. **Multi-oscillator architecture** (2–3 full oscillators, each independently
    SAW/SPECTRA/…, per-osc levels; maybe sub stays global). NOT a GUI change — N core
    instances, per-osc param namespace (ids are append-only: design ONCE), per-osc
