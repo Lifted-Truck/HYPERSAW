@@ -475,7 +475,7 @@ struct Plugin
       {
         v.vmVf[i] = s->vf[i];
         v.vmEff[i] = s->eff[i];
-        v.vmPan[i] = core.panBaseAt(i);
+        v.vmPan[i] = core.panEffAt(i);
       }
       // dynamics layer
       v.topo = (int)core.p.topo;

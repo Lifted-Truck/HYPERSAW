@@ -311,6 +311,10 @@ class SwarmCore
   int centerIndex() const { return centerIdx; }
   const Swarm &swarmAt(int i) const { return swarms[i]; }
   double panBaseAt(int i) const { return panBase[i]; }  // viz feed (voice map)
+  // Effective pan for the viz: the motion-modulated seat when pan motion is
+  // live, the base seat otherwise (the motion block only writes panEffV while
+  // panMotion > 0.001, so panEffV would go stale the moment motion stops).
+  double panEffAt(int i) const { return p.panMotion > 0.001 ? panEffV[i] : panBase[i]; }
 
   const Swarm *focus() const
   {
@@ -405,6 +409,7 @@ class SwarmCore
         else { panPh[i] += (0.08 + i * 0.021) * dtB; panPh[i] -= std::floor(panPh[i]); off = pmv * std::sin(kTau * panPh[i]); }
         if (p.motionCenter > 0 && cdFoc) off *= 1 - p.motionCenter * (1 - cdFoc->cdist[i]);
         const double pv = std::max(-1.0, std::min(1.0, panBase[i] + off));
+        panEffV[i] = pv;  // viz feed only (voice map animates pan motion)
         const double th = (pv + 1) * 0.25 * kPiRef;
         panLm[i] = std::cos(th); panRm[i] = std::sin(th);
       }
@@ -1077,6 +1082,7 @@ class SwarmCore
  private:
   double x[kMaxV] = {0}, panL[kMaxV] = {0}, panR[kMaxV] = {0};
   double panBase[kMaxV] = {0};                              // ADR-064 signed base pan
+  double panEffV[kMaxV] = {0};                              // viz-only: motion-modulated seat
                                                             // (named panBase: rebuild has a local `pan`)
   double panPh[kMaxV] = {0}, panLm[kMaxV] = {0}, panRm[kMaxV] = {0};
   double panSweepPh = 0;
