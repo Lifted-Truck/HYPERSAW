@@ -127,6 +127,26 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Even-voice pan fan — symmetric image (human direction, 2026-07-30; needs ADR + fold)
+
+Human: "even numbers of voices should have no voice centered (right now 2 with any
+width is unlistenable)." Correct — the ADR-070 fan seats rank 0 at dead centre and
+steps out at d = r/(n−1), so n=2 degenerates to one voice centre + one voice HARD
+side: a lopsided image at any width. Direction ratified:
+
+- **Even n: no centre seat.** Symmetric pairs balanced across L/R — proposed law:
+  pair k sits at ±(k + 0.5)/(n/2) · width (n=2 → ±0.5·w; n=4 → ±0.25, ±0.75). Pitch
+  ranking and alternating sides unchanged; only the distance law forks on parity.
+- **Odd n unchanged** (root keeps the centre seat — the ADR-070 image the human asked
+  for is explicitly the odd-n case).
+- **Scatter's role in the new mode**: human sketch — scatter OFFSETS the symmetric
+  seats rather than "what it does now"; exact behaviour is an ADR question (offset
+  pairs together to keep balance, or per-voice with a balance re-center?).
+
+This CHANGES DEFAULT OUTPUT for even voice counts → reference-first fold (protected
+swarmsaw.html edit under the human gate above, which this direction constitutes),
+its own ADR, golden updates for even-n scenarios, voice-map verification after.
+
 ## Lab campaign 3 (human direction, 2026-07-30)
 
 Three labs ratified, extending the campaign-2 pattern (audition first, fold with ADR +
@@ -150,8 +170,9 @@ parity after):
    lab: (a) mid-morph, tint by the *mixture* (proportional blend of corner colors —
    the weights made visible) vs by dominant corner only; (b) the edit-routing rule the
    color must make legible — does an edit write to the dominant corner, the nearest,
-   or an explicit armed corner?; (c) color+shape pairing (corner glyphs) so the
-   channel survives colorblindness; (d) keep the palette to 4 highly-separable hues.
+   or an explicit armed corner?; (c) color+shape pairing RATIFIED (human,
+   2026-07-30): every tinted field pairs a small corner glyph with the color —
+   possibly revealed on hover rather than always-on (audition both in the lab); (d) keep the palette to 4 highly-separable hues.
 
 ## GUI information architecture + full-product fold plan (human brief, 2026-07-30)
 
