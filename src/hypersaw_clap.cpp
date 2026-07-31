@@ -331,6 +331,24 @@ struct Plugin
     bool active = false;
   };
   VoiceTag tags[hypersaw::kPoly];
+  // RETIRED TAGS AWAITING NOTE_END (2026-07-31, the mono-poison bug). A mono
+  // retarget — and a poly voice steal — OVERWRITES tags[slot] with the new
+  // note, so the old note's identity is gone before emitNoteEnds could ever
+  // end it. The wrapper's table then carries that note as sounding FOREVER:
+  // Live withholds retriggering its key, the damage survives switching modes
+  // (nothing re-ends it), and a fast arpeggiator "fixes" it by cycling every
+  // key through a fresh on/off/END — the human's exact diagnostic. Every
+  // overwrite of an active tag now queues the old identity here; emitNoteEnds
+  // flushes the queue unconditionally each block.
+  VoiceTag pendingEnds[2 * hypersaw::kPoly];
+  int pendingEndCount = 0;
+  void retireTag(int slot)
+  {
+    if (!tags[slot].active) return;
+    if (pendingEndCount < (int)(sizeof(pendingEnds) / sizeof(pendingEnds[0])))
+      pendingEnds[pendingEndCount++] = tags[slot];
+    tags[slot].active = false;
+  }
 
   // ADR-038: latched per-channel MPE pitch bend, in semitones. MPE hosts
   // send member-channel bend BEFORE the note-on it modifies, so the latch —
@@ -342,6 +360,21 @@ struct Plugin
 
   void emitNoteEnds(const clap_output_events_t *out, uint32_t time)
   {
+    for (int k = 0; k < pendingEndCount; k++)
+    {
+      clap_event_note_t ev{};
+      ev.header.size = sizeof(ev);
+      ev.header.time = time;
+      ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      ev.header.type = CLAP_EVENT_NOTE_END;
+      ev.note_id = pendingEnds[k].noteId;
+      ev.port_index = pendingEnds[k].port;
+      ev.channel = pendingEnds[k].channel;
+      ev.key = pendingEnds[k].key;
+      ev.velocity = 0;
+      out->try_push(out, &ev.header);
+    }
+    pendingEndCount = 0;
     for (int i = 0; i < hypersaw::kPoly; i++)
     {
       if (!tags[i].active) continue;
@@ -884,6 +917,7 @@ struct Plugin
           // No MPE bend re-apply here — SpectraCore has no noteTune (ADR-038's
           // per-note pitch is SAW-side until the kernel unification).
           const int slot = spectra.noteOn(n->key, freq);
+          retireTag(slot);
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
           break;
         }
@@ -942,12 +976,14 @@ struct Plugin
               core.noteOff(core.swarmAt(monoSlot).midi);
             monoSlot = core.noteOn(n->key, freq);
           }
+          retireTag(monoSlot);
           tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};
           struck = monoSlot;
         }
         else
         {
           const int slot = core.noteOn(n->key, freq);
+          retireTag(slot);
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
           struck = slot;
         }
