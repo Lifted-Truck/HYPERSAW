@@ -840,8 +840,10 @@ function drawVmap(s) {
   // at pan centre, the voice root-anchor pins to f0, and the voice pivot mode
   // pins under coupling. The old marking (centerIdx, closest-to-f0 by |x|) sat
   // off-centre under a bipolar spread and read as a bug (human, 2026-07-30).
+  // STABLE marker (test round 1: per-frame lowest-vf HOPPED under drift, hiding
+  // any pivot verdict). The centre SEAT is stable between rebuilds: min |pan|.
   let root = 0;
-  for (let i = 1; i < s.vmVf.length; i++) if (s.vmVf[i] < s.vmVf[root]) root = i;
+  for (let i = 1; i < s.vmPan.length; i++) if (Math.abs(s.vmPan[i]) < Math.abs(s.vmPan[root])) root = i;
   for (let i = 0; i < s.vmVf.length; i++) {
     const x = X(s.vmPan[i]);
     const col = i === root ? '#ffc24b' : '#5ff2e0';

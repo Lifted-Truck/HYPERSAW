@@ -345,10 +345,17 @@ struct Plugin
     for (int i = 0; i < hypersaw::kPoly; i++)
     {
       if (!tags[i].active) continue;
-      const bool dead = spectraMode()
-                            ? (!spectra.swarmAt(i).gate && spectra.swarmAt(i).env < 1e-4)
-                            : (!core.swarmAt(i).gate && core.swarmAt(i).env < 1e-4);
-      if (!dead) continue;  // thresholds match each core's render skip test
+      // EMIT ON RELEASE, NOT ENV DEATH (2026-07-31 redesign, test round 1).
+      // Live gates RETRIGGERING a pitch on receiving this note's END — the
+      // 2026-07-18 finding that motivated emission. Emitting at env death made
+      // the host wait on an invisible ~1.1 s tail: inconsistent minimum note
+      // durations, laggy release, mono re-press blocked until the tail died.
+      // gate==0 is the moment the musical note ended; the DSP tail keeps
+      // sounding regardless (hosts do not gate our audio). The re-press guard
+      // below still covers the one residual ordering hazard: an off and a
+      // re-press of the SAME key landing in the same block.
+      const bool dead = spectraMode() ? !spectra.swarmAt(i).gate : !core.swarmAt(i).gate;
+      if (!dead) continue;
       // RE-PRESS GUARD (2026-07-31, the stuck-note bug): if this key+channel is
       // still HELD in another slot, do NOT end it yet. Hosts without real note
       // ids (Live via the VST3/AU wrappers sends note_id -1) match NOTE_END by

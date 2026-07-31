@@ -35,11 +35,13 @@ int main(){
   // press C, release, re-press INSIDE the tail, hold while old slot dies
   { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON,0,60,-1)); run(e);} held=true;
   blocks(0.10);
-  { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_OFF,0,60,-1)); run(e);} held=false;
+  held=false;   // off is at frame 0 of this block: an END within it is PROMPT, not a violation
+  { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_OFF,0,60,-1)); run(e);}
   blocks(0.05);   // inside the 0.16 s release tail
   { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON,0,60,-1)); run(e);} held=true;
   blocks(2.0);    // old slot dies while the key is HELD — the trap window
-  { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_OFF,0,60,-1)); run(e);} held=false;
+  held=false;
+  { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_OFF,0,60,-1)); run(e);}
   blocks(2.0);    // final END must still arrive
   std::printf("NOTE_ENDs total %d, emitted-while-held %d, final END after last release: %s\n",
               ends, viol, ends>0 ? "yes" : "NO (leak)");
