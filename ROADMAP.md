@@ -127,6 +127,13 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Human-test protocol (ratified 2026-07-31)
+
+**TESTING.md at repo root is the living human test checklist.** Every PR that changes
+human-testable behavior updates it (agent refreshes items; human checks off in Live,
+reports failures by item number). Prioritized, ~15 min; stale items pruned, verified
+items move to known-good. This replaces ad-hoc "try it and see" handoffs.
+
 ## STUCK NOTES: FIRST HARD EVIDENCE (2026-07-31) — poly, computer keyboard, GATE STAYS ON
 
 The note monitor did its job on day one: the human reports "almost every note is
