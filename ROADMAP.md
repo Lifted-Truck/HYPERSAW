@@ -183,6 +183,15 @@ after — pinning may already work and be unobservable under a hopping marker.
 **3. Ruling recorded:** harmonic/oct-spread extremes are sound-design terrain, kept
 as-is (per-law usable-range table remains the eventual answer, already roadmapped).
 
+**Hi-tame audit RESOLVED (2026-07-31, formula-level evidence):** gain is
+(f0/vf)^hiTame, so its bite is proportional to pitch SPREAD — at the human's
+±28¢ default the max cut is −0.14 dB (inaudible, exactly as reported), at
+octave spread it is −6 dB, at harmonic reach 4 it is −28 dB on the top voice.
+NOT broken; spread-proportional by design (ADR-061 is an equal-loudness law).
+GUI tooltip now says so. A RESCALE (e.g. normalizing to the current spread) would
+change reference behavior → it is a fold-discipline decision, parked unless the
+human wants the control to bite at cents-level detune too.
+
 **Quick fixes queued (all GUI-side):**
 - Double-click any slider → default (use kParams defV; trivial, do first).
 - Retrigger soft-gate is wrong: grayed in SPECTRA and whenever scatter==0 is FALSE…
