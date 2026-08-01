@@ -127,6 +127,32 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Serum A/B diagnosis: the fullness gap is CENTRE-VOICE WEIGHTING (2026-07-31)
+
+Human A/B'd a Serum 2 supersaw against ours: Serum "slightly fuller", its scope trace
+a consistent big-tooth saw, ours wavy with "bends". MEASURED at the human's settings
+before concluding (both suspects refuted): the tanh guard squashes peaks only 2.4%
+(0.73% rms distortion — invisible on a scope), and the summed core output is
+numerically PIECEWISE-STRAIGHT (median |2nd diff| ~2e-6 of peak, equal to a pure-saw
+control). Nothing in our chain bends ramps.
+
+The remaining explanation fits every observation: **Serum's supersaw (JP-8000
+architecture) mixes the CENTRE voice louder and the sides down** (its detune-mix/blend
+knob), so one strong saw skeleton survives summation — visually a consistent tooth,
+audibly a solid fundamental = "full". HYPERSAW mixes all 7 voices EQUAL (only global
+density comp), so the sum is a democratic interference pattern — piecewise straight
+but meandering, with the fundamental carried by no one.
+
+**The lever already exists and is already queued: `rootWeight`** — prototyped in the
+detune lab, deliberately excluded from ADR-068 as a gain-domain feature ("its own
+fold later"). Promote it: fold rootWeight as the centre/side mix control, audition
+target = close the Serum fullness gap at matched settings. Confirmation test for the
+human meanwhile: (a) in Serum, pull its detune-mix toward equal — its scope should go
+wavy like ours and lose the fullness; (b) in detune-lab, raise rootWeight on a
+matched patch — fullness should return. Either result confirms; both together settle
+it. Also worth noting for the naming pass: normExp ("Density Comp") interacts — it
+rescales TOTAL level by voice count but never re-weights voices.
+
 ## Pan-motion expansion (human direction, 2026-07-31; reference-first fold)
 
 Two new controls ratified for the ADR-064 pan-motion system:
