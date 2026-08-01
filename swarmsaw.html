@@ -316,7 +316,16 @@ class SwarmSynth {
       const gamma = Math.pow(6, 0.5 - this.p.panCurve);
       for (let r = 0; r < n; r++) {
         const i = idx[r];
-        let d = (n === 1) ? 0 : r / (n - 1);
+        // PARITY FORK (ADR-073): odd n keeps rank 0 at dead centre — the root
+        // holds the middle, ADR-070's requested image. EVEN n has no centre
+        // seat: pairs sit symmetrically at ±(k+0.5)/(n/2), k = the pair index.
+        // The old single law degenerated at n=2 to one voice CENTRE and one
+        // voice HARD side (d = r/(n−1) → 0 and 1): a lopsided image at any
+        // width, "unlistenable" (human, 2026-07-30). n=2 is now ±0.5.
+        let d;
+        if (n === 1) d = 0;
+        else if (n % 2 === 1) d = r / (n - 1);
+        else d = (Math.floor(r / 2) + 0.5) / (n / 2);
         if (this.p.panInvert) d = 1 - d;
         d = Math.pow(d, gamma);
         const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * d * this.p.width));
