@@ -127,6 +127,27 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## S-zag round 3 (2026-08-01): DOES NOT REPRODUCE HEADLESSLY — suspects all refuted with the exact patch
+
+Human's patch state reproduced in the JS core (+ shell sub simulated in both
+topologies). Refuted with numbers: tanh at vol 1 (26% squash — real compression,
+but monotone: cannot create falls); sub sine −1 oct @ 0.43 (its steepest fall
+0.00225/sample loses to the saw sum's rise, and post-tanh order changes nothing —
+zero gradual-fall runs, longest run 1 sample); clean-mode edge width (3.0 samples
+vs BLEP 3.9 — vertical at scope zoom); core curvature (numerically straight).
+UNVERIFIED ASSUMPTION flagged: shell sub at subWave 0 was simulated as a pure sine
+— confirm the actual shell waveform next session.
+
+CONSEQUENCE: the S-zags are introduced DOWNSTREAM of the synth or by the scope's
+display path. DISCRIMINATING TEST for the human (one minute): freeze/render the
+track to an audio clip and inspect the RAW clip waveform in Ableton. S-zags absent
+in the clip → MScope display processing (case closed); present → a device between
+HYPERSAW and the meter (walk the chain, cf. the bass-mono find).
+
+FULLNESS note: at the patch's vol 1 the tanh squashes 26% — Serum does not
+saturate by default, so this alone is a real punch/fullness difference. A/B at
+vol ≈ 0.5 with loudness matched before judging timbre.
+
 ## Serum gap round 2 (2026-08-01): rootWeight test was VOID; S-zag anomaly opened
 
 1. **The rootWeight audition was void, not negative.** In the lab, `vgain = (1 −
