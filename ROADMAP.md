@@ -127,6 +127,27 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Clean-mode aliasing measured (2026-08-01) — with a protocol limit caught mid-run
+
+Midpoint aliasing, dB rel h1 (worst/mean): E3 — BLEP −51.9/−69.9, clean −44.0/−46.6;
+660 Hz — BLEP −180/−186, clean −78.1/−78.8; 1763 Hz — BLEP −173/−180, clean
+−69.6/−70.2.
+
+**PROTOCOL LIMIT (caught before concluding, L0017 again):** these renders used
+BIN-COMMENSURATE f0 (right for the droop test, wrong here) — folded aliases of a
+commensurate saw land ON the harmonic grid, so midpoints are structurally blind to
+them. The BLEP "−180" rows are the protocol seeing nothing, not the saw being that
+clean; BLEP's true aliasing needs a re-run at detuned/incommensurate f0 (the
+shape-lab protocol's original design). What IS valid: **clean mode's aliasing is
+dense/inharmonic so midpoints do see it — it sits at −44 to −79 dB re h1, audible
+territory at high notes.** Clean mode is therefore NOT a free flat-response win;
+the digital↔clean tradeoff is droop-vs-aliasing, quantified on one side only.
+
+DECISION INPUT still owed: BLEP aliasing at incommensurate f0 (expected very clean
+per shape-lab's earlier −149 dB reading, but measure, don't assume). Then the fix
+menu chooses: oversampled BLEP (flat AND clean, at CPU cost) is the likely winner
+if BLEP verifies clean.
+
 ## HF-rolloff hypothesis CONFIRMED (2026-08-01) — the measured Serum-gap lever
 
 Calibrated harmonic-droop measurement (ideal band-limited saw reads 0.00 dB at every
