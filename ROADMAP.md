@@ -127,6 +127,28 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## HF-rolloff hypothesis CONFIRMED (2026-08-01) — the measured Serum-gap lever
+
+Calibrated harmonic-droop measurement (ideal band-limited saw reads 0.00 dB at every
+probe; bin-exact FFT, f0 164.8 Hz): HYPERSAW's default BLEP saw droops **−0.60 dB @
+5 kHz, −2.17 @ 10 kHz, −4.50 @ 15 kHz, −7.56 @ 20 kHz** versus the ideal 1/k law —
+the polyBLEP kernel's sinc²-ish rolloff, exactly the missing "air" vs Serum's
+flat-to-Nyquist wavetable saws (their corner Gibbs ripple, their −60 dB analyzer
+range). SURPRISE with design value: clean mode (digital 0) is far FLATTER (−1.35 dB
+@ 20 kHz) — the default is the droopy mode; measure clean's ALIASING before drawing
+conclusions (flat + aliased is not a free lunch — the aliasing midpoint protocol
+from the shape-lab work is the calibrated tool).
+
+DECISION FOR THE HUMAN (fix menu, already auditioned on the fold map): 2×/4×
+oversampled BLEP · higher-order BLEP kernel · wavetable path · or re-tune the
+digital↔clean blend once clean's aliasing is measured. Any of these touches the
+reference → ADR + parity discipline; the droop numbers above are the acceptance
+baseline to beat.
+
+NOTE: the S-zag/up-jump behavior did NOT reproduce for the human this session
+(cause of the earlier sightings still unidentified — their settings diff is
+pending). waveshape_check now guards the K=0 invariants permanently either way.
+
 ## Competitor-reference convention (ratified 2026-08-01) + HF-rolloff hypothesis
 
 **Convention** (candidate for promotion to doctrine CONVENTIONS.md §Audio plugins via
