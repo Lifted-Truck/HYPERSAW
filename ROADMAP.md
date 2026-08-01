@@ -127,6 +127,33 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Competitor-reference convention (ratified 2026-08-01) + HF-rolloff hypothesis
+
+**Convention** (candidate for promotion to doctrine CONVENTIONS.md §Audio plugins via
+the human's flagpole): naming competitors factually in process docs (ROADMAP, labs,
+ADRs, commits) is fine and normal — nominative use, benchmarking culture. Enforced
+rules: (1) NEVER commit competitor-rendered audio, presets, wavetables, or captured
+data — goldens are self-generated, A/B material stays local; (2) framing verbs stay
+comparative, never imitative — "close the perceptual gap", not "match/clone X";
+(3) SPEC.md stays competitor-free — the invention is defined on its own terms
+(patent posture); (4) marketing copy never names competitors. No retroactive
+scrubbing of merged history — the honest record is the better look.
+
+**Serum gap, round 4 — the HF hypothesis (best-evidenced lead yet).** Human's
+analyzer shots: Serum's saws carry visibly MORE corner ripple (Gibbs = harmonics
+preserved to Nyquist) and MAnalyzer auto-ranges to −60 dB on Serum vs only −30 dB
+on HYPERSAW; our spectrum visibly rolls off faster above ~2 kHz. Mechanism
+candidate: **polyBLEP is a 2-sample correction whose kernel imposes a sinc²-ish HF
+droop**, several dB down well below Nyquist, where wavetable/minBLEP saws (Serum)
+stay flat to the top. "Depth and body" = the missing top two octaves.
+DETERMINISTIC TEST (waveshape_check increment or standalone): render single saw,
+FFT, compare harmonic levels to the ideal 1/k law — report droop at 5/10/15 kHz;
+calibrate the measurement on a synthetic ideal band-limited saw first. If confirmed,
+the fix menu is already on the roadmap: the fold-map's audition included 2×/4×
+oversampling and anti-alias stages; higher-order BLEP and a wavetable path are the
+alternatives. ALSO re-check `digital` (clean mode) — the human's patch ran digital 0,
+which may roll off further.
+
 ## S-zag round 3 (2026-08-01): DOES NOT REPRODUCE HEADLESSLY — suspects all refuted with the exact patch
 
 Human's patch state reproduced in the JS core (+ shell sub simulated in both
