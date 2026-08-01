@@ -127,6 +127,36 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Serum gap round 2 (2026-08-01): rootWeight test was VOID; S-zag anomaly opened
+
+1. **The rootWeight audition was void, not negative.** In the lab, `vgain = (1 −
+   rootWeight·aw·up)` with `aw = p.anchor` for every law except harmonic — at the
+   default anchor 0 the knob multiplies by ZERO. "Doesn't have much of an effect"
+   was the gate, not the hypothesis. RE-RUN: root anchor → 1 (root pinned to f0),
+   THEN sweep rootWeight on the matched patch. Fold consequence if it works: the
+   folded control must NOT be anchor-gated (or the gate must be visible) — a knob
+   that silently no-ops is a repeat of this exact confusion.
+2. **Bass-mono curvature RESOLVED (human found it):** the ADR/M-S elliptic filter's
+   phase rotation curves ramps — real physics, benign, but it means A/Bs against
+   Serum must run with bass mono OFF. Worth a GUI hint at fold time.
+3. **NEW ANOMALY — S-shaped zags.** Human scoped segments that a sum of rising
+   ramps + downward jumps cannot produce: GRADUAL falling stretches / S-curved
+   transitions (MScope, D2 ~73.7 Hz, both screenshots on file in the PR). A sum of
+   ideal saws must rise between wraps (all voice slopes positive) and fall only by
+   near-instant jumps. Candidate mechanisms to test headlessly, in order: (a) any
+   LP in the path bending the jump into an exponential (tone tilt / rtone / hiTame
+   / scope's own display filtering — test by scoping a SINGLE full-scale voice
+   through the same chain); (b) saw-shape morph > 0 (the ADR-058 two-saw machinery
+   creates genuine falling segments); (c) eff-frequency clamp at 0 freezing ramps;
+   (d) width/pan summation in whatever channel MScope displays. DETECTOR to build:
+   sustained negative-slope runs (>5 samples, excluding BLEP corners) on headless
+   renders across a param grid — calibrate on a known-clean single saw FIRST
+   (L0016). NEEDED FROM THE HUMAN: the exact patch state (save the Live set or use
+   the dev state dump) so the render matches the scope shot.
+4. **Fullness gap stays open** pending the valid rootWeight test + S-zag resolution.
+   If both close and the gap remains, next suspects: per-voice level trims at Serum
+   defaults, unison phase relationships at note-on, and Serum's built-in drift.
+
 ## Serum A/B diagnosis: the fullness gap is CENTRE-VOICE WEIGHTING (2026-07-31)
 
 Human A/B'd a Serum 2 supersaw against ours: Serum "slightly fuller", its scope trace
