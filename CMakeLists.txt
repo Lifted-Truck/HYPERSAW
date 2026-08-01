@@ -145,6 +145,11 @@ endif()
 # Note-lifecycle oracle (ADR-038): seeded random note streams through the
 # CLAP process path (poly/mono/legato + MIDI vel-0 note-off convention);
 # output must decay to silence after all keys are up.
+add_executable(waveshape_check tools/waveshape_check.cpp)
+if(NOT MSVC)
+  target_compile_options(waveshape_check PRIVATE -O2)
+endif()
+
 add_executable(endprobe tools/endprobe.cpp)
 target_link_libraries(endprobe PRIVATE ${PROJECT_NAME}-impl)
 
