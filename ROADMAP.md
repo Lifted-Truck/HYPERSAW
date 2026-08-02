@@ -148,6 +148,28 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    few seconds) — we analyze it against the 1/k law LOCALLY (per the competitor
    convention: never committed) and answer "is Serum's saw brighter than ideal?"
    directly. Also still owed: BLEP aliasing at incommensurate f0.
+## Width lab OPEN (2026-08-02) — ADR-025 alternatives bench, pre-calibrated
+
+Human ruling: super-width is NEEDED (Serum-class baseline wideness) and "the pulse
+effect isn't the worst sound" — so the bench keeps ADR-025 as baseline A and
+auditions five alternatives. Design fact the menu encodes: ANY linear M/S boost past
+unity has a negative cross-feed coefficient, so truly non-inverting width must come
+from the time domain or seat redistribution. `docs/design/width-lab.html`, with the
+ADR-025 cliff detector running LIVE (same physical bound for every algo).
+
+Headless pre-calibration at width 1.5 (cliffs per ~4.6 s, drone D2):
+A ADR-025 M/S 3,695 · B mid-duck 1,975 · **C per-voice ITD 0** · D allpass side
+39,504 (worst — constant freq-smeared inversion) · **E seat steepening 0** ·
+**F ITD+steep 0**. Width 1.0: all zero (calibration held).
+
+The audition question for the human: do C / E / F reach algorithm A's side/mid
+number at the same knob position — and which SOUNDS widest without the pulse?
+(E alone caps at hard-pan width; C buys precedence-effect width beyond the gains;
+F stacks both.) Detector note for the record: the first bench build multiplied algo
+A's own side-boost into the legal-slope bound — the known-bad case read ZERO and
+L0016's planted-bad discipline caught it headlessly before the lab shipped. A
+detector whose bound depends on the suspect's gain proves nothing.
+
 ## CLIFF MYSTERY SOLVED (2026-08-02, human isolation + probe): super-width's negative cross-feed
 
 The human isolated it — cliffs appear exactly when **width > 1** — and their standing
