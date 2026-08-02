@@ -148,6 +148,33 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    few seconds) — we analyze it against the 1/k law LOCALLY (per the competitor
    convention: never committed) and answer "is Serum's saw brighter than ideal?"
    directly. Also still owed: BLEP aliasing at incommensurate f0.
+## Richness BREAKTHROUGH (2026-08-02, human ear): drift ~30¢ closes the Serum gap
+
+The human matched HYPERSAW to the basic Serum supersaw by ear — the missing
+ingredient was **driftDepth ≈ 30 cents** (with their patch otherwise as posted).
+This is round 6's mechanism confirmed from the listening side: per-voice random
+frequency wander continuously DECORRELATES the pair phases, so the n(n-1)/2 comb
+sweeps never align — no coherent hollows, stationary spectrum, "Serum richness".
+Serum ships analog-style unison drift ON by default; our default driftDepth is 0.
+
+METRIC STATUS — honest null: a 1-8 kHz BAND-energy hollow detector showed nothing
+(0.9 dB dips in every config, and critically its KNOWN-BAD case — two-saw analytic
+notch sweep — never fired, so per L0016 the metric is invalid for the phenomenon,
+not the phenomenon absent). Comb notches cut INDIVIDUAL harmonics; a band sum over
+~100 harmonics averages them away. Next-session instrument: per-harmonic amplitude
+tracker (bin-exact, frame-wise), calibrated on the two-saw analytic sweep (must show
+full-depth swings), then drift 0 vs 30¢ becomes a number.
+
+DESIGN DECISIONS OPENED (human's call):
+1. Default driftDepth — ship a Serum-class subtle drift ON by default? Changes
+   default output → ADR + golden updates; the alternative is a "Classic Supersaw"
+   factory preset carrying drift 30¢/rate 0.4 and leaving defaults bit-stable.
+2. The richness↔breathing axis is now a designed CONTROL, not a defect: drift up =
+   stationary/rich (Serum-class), drift down + small K = coherent breathing (ours
+   alone). Worth a named macro once the mod matrix lands.
+3. Slider-units pass gains a datapoint: driftDepth already reads in cents — the
+   one knob whose units let the human FIND this. Evidence for finishing that pass.
+
 ## Richness round 6 (2026-08-02): THE UNIFYING HYPOTHESIS — coherent comb-notch breathing
 
 Human, on recreating the "jumping" waveforms at low f0: "it's exactly the distinction
