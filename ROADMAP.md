@@ -148,6 +148,21 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    few seconds) — we analyze it against the 1/k law LOCALLY (per the competitor
    convention: never committed) and answer "is Serum's saw brighter than ideal?"
    directly. Also still owed: BLEP aliasing at incommensurate f0.
+## README screenshot + visual-breakdown docs (human direction, 2026-08-02)
+
+1. **README carries a GUI screenshot** (`docs/img/gui-overview.png`, embedded above
+   "What this repo is") — **refresh discipline is part of the PR protocol**: any PR
+   that visibly changes the GUI updates the screenshot in the same change, exactly
+   like TESTING.md items. The L0020 stamp closes the loop: the build hash visible in
+   the screenshot's corner states which code drew it, so a stale image is
+   self-incriminating.
+2. **Roadmapped: feature-by-feature visual breakdown** — once more labs are folded
+   and the multi-page IA lands, a documented tour (annotated per-cluster captures:
+   what each section is, what it sounds like, which ADR built it). Natural home:
+   `docs/` + README link; builds on the layout-lab's cluster map. Deferred until
+   the interface complexity warrants it (human: "once we've integrated more of the
+   labs").
+
 ## Width characterization measured (2026-08-02) — F confirmed "best of both worlds"
 
 Full study (6 algos × 7 widths × 10 s, parity-recipe swarm, drone D2):
