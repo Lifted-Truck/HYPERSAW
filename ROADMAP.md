@@ -127,6 +127,28 @@ correctness depends on nobody renumbering.
    user params, or leave core-only as implementation detail?
 4. Confirm the `toneTilt` rename approach for the colliding key.
 
+## Richness round 5 (2026-08-02): clean-mode ear test WEAKENS droop-as-whole-story
+
+Human A/B'd digital 0 by ear: "helps the frequency curve a little", does NOT restore
+the richness, adds messy LF (consistent with the measured −44..−79 dB dense aliasing
+— folded products land low), and STILL no corner wiggles. Two consequences:
+
+1. **Wiggles are a spectral-shape signature, not a droop signature.** Gibbs corner
+   ripple requires FLAT-TO-NYQUIST harmonics with a BRICK-WALL cutoff (wavetable/
+   additive-class saws). Both our modes roll off GRADUALLY (droopy BLEP or flat-ish
+   clean) — gradual rolloff cannot ring. If the wiggle look (and its HF sheen) is
+   the target, the fix is a band-limited-additive/wavetable saw path, not just
+   flattening the rolloff. Moves that option UP the fix menu, ahead of plain
+   oversampled BLEP.
+2. **Droop may not be the whole fullness story.** Clean recovers most HF (−1.35 vs
+   −7.56 @ 20 kHz) yet the richness gap persists by ear — so either the richness
+   lives in Serum's spectrum EXCEEDING the 1/k law (brightened wavetable), or in
+   animation (drift/phase motion), not in static response. NEXT MEASUREMENT: the
+   human renders a Serum single-voice saw locally (unison off, FX off, one note,
+   few seconds) — we analyze it against the 1/k law LOCALLY (per the competitor
+   convention: never committed) and answer "is Serum's saw brighter than ideal?"
+   directly. Also still owed: BLEP aliasing at incommensurate f0.
+
 ## Clean-mode aliasing measured (2026-08-01) — with a protocol limit caught mid-run
 
 Midpoint aliasing, dB rel h1 (worst/mean): E3 — BLEP −51.9/−69.9, clean −44.0/−46.6;
