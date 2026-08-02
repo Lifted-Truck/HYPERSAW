@@ -6,6 +6,9 @@
 
 **Elevator version:** every existing supersaw picks a fixed detune recipe and hides it. SWARM✱ makes the swarm itself the instrument: voices are Kuramoto-coupled oscillators you can herd into lock, dissolve into cloud, splay into harmonic multiplication, or erase by interference; the same coupling law operating between *notes* settles chords into just intonation; and every behavior is deterministic, seeded, and provenance-tracked.
 
+![SWARM✱ GUI — phase circle, voice map, note monitor, full param surface](docs/img/gui-overview.png)
+*The instrument as of build `86bdedd` — phase circle with live R meters, voice map (pan × pitch, target vs actual), note monitor, log spectrum, and the full four-cluster parameter surface. (Screenshot refreshed with GUI-changing PRs; the build hash in its corner says exactly which code drew it.)*
+
 ## What this repo is
 
 A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built from six validated browser prototypes (three oscillator engines + a three-engine effects line), driven by Claude Code under the autonomous-paradigm doctrine. Correctness is defined as **bit-level parity with the prototypes** (L0-1, ε=1e-6 RMS — in practice most golden scenarios match to the exact bit), never as plausible-sounding audio. Every claim in SPEC.md traces to a measured behavior in ACCEPTANCE.md; every measured behavior traces to a prototype you can open and hear.
