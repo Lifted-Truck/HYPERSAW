@@ -148,6 +148,35 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    few seconds) — we analyze it against the 1/k law LOCALLY (per the competitor
    convention: never committed) and answer "is Serum's saw brighter than ideal?"
    directly. Also still owed: BLEP aliasing at incommensurate f0.
+## Width characterization measured (2026-08-02) — F confirmed "best of both worlds"
+
+Full study (6 algos × 7 widths × 10 s, parity-recipe swarm, drone D2):
+`docs/reports/2026-08-02-width-characterization.html`. At width 1.5:
+
+| algo | S/M dB | corr | mono-fold | cliffs/s |
+|---|---|---|---|---|
+| A M/S boost | −0.7 ±3.4 | 0.08 | −3.0 | 864 |
+| B mid-duck | −1.5 | 0.16 | −2.6 | 466 |
+| **C ITD** | **−0.1** | **0.01** | −3.3 | **0** |
+| D allpass | −2.7 | 0.29 | −2.2 | 8,869 |
+| E steep | −4.5 | 0.44 | −1.6 | 0 |
+| **F ITD+steep** | **−0.1** | **0.01** | −3.3 | **0** |
+
+READINGS: C/F are the WIDEST of all six (beating A) at zero cliffs — the human's
+"C feels wider than E" and "F is probably the best of both worlds" both confirmed
+numerically (E alone is the narrowest and is dominated by F, which subsumes it; B is
+a worse A). The clean candidates pay ~1.3 dB more mono-fold loss than E (Haas
+combing on fold) — the one tradeoff to keep an ear on for PA use. D is the
+narrowest AND the cliff-heaviest — its value is purely the freq-smeared character
+the human likes, not width.
+
+RECOMMENDED SHIP LIST (matches the human's leaning): **A + D + F** as a 3-mode
+super-width selector — F the default (clean + widest), A "pulse" and D "smear" as
+named character modes with the polarity behavior documented. C and E retire (both
+subsumed by F). Fold = ADR-025 revision: mode enum + F's ITD/steep params into core
+(C++-only superset AGAIN → per L0021 the same commit must extend waveshape_check to
+gate F-at-1.5 clean AND pin A/D's cliff behavior as the documented exception.)
+
 ## Width lab OPEN (2026-08-02) — ADR-025 alternatives bench, pre-calibrated
 
 Human ruling: super-width is NEEDED (Serum-class baseline wideness) and "the pulse
