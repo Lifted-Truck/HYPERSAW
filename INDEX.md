@@ -23,3 +23,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0018] A symmetric phase-warp axis is spectrally sign-blind — check before building dispersion on it | dsp, spectra, design, measurement
 - [L0019] Humanised timing is CORRECTED error, not independent jitter — model mutual correction, expose the gain not the noise | timing, perception, humanize, midi, ensemble, doctrine, cross-project
 - [L0020] A built artifact must display its own provenance — VCS-derived build stamp + dirty marker; load-time fingerprint where there's no build step | build, caching, provenance, debugging, doctrine, cross-project
+- [L0021] A parity oracle cannot see superset-only regions — every superset ships with its own invariant oracle | oracle, parity, superset, testing, dsp

@@ -148,6 +148,40 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    few seconds) — we analyze it against the 1/k law LOCALLY (per the competitor
    convention: never committed) and answer "is Serum's saw brighter than ideal?"
    directly. Also still owed: BLEP aliasing at incommensurate f0.
+## CLIFF MYSTERY SOLVED (2026-08-02, human isolation + probe): super-width's negative cross-feed
+
+The human isolated it — cliffs appear exactly when **width > 1** — and their standing
+hypothesis ("there's one phase-inverted saw mixed in there") was LITERALLY correct.
+Mechanism, src/swarm_core.h:513-525 (ADR-025 super-width): at width > 1 the M/S
+side-boost `sideGain = 1 + (width-1)*2` gives per-channel algebra
+`L' = L*(1+g)/2 + R*(1-g)/2` — at width 1.5, `L' = 1.5L − 0.5R`: every
+opposite-side voice enters PHASE-INVERTED. An inverted saw ramps down and wraps UP =
+the vertical up-cliffs, and the inverted cross-feed comb-filters against same-side
+content = a chunk of the persistent "notching" at the parity patch (width 1.5).
+
+DOSE-RESPONSE (C++ probe, parity patch minus drift): width 0.8/1.0/1.01 → **0**
+cliffs; width 1.2 → 432; width 1.5 → **1,414**, worst rise 8× legal slope.
+
+WHY EVERY EARLIER "CLEAN" VERDICT MISSED IT — the blind spot is STRUCTURAL and worth
+a lesson: ADR-025 is a **C++-only superset** ("no swarmsaw.html reference — the
+reference range is bit-untouched"), so (a) every JS-reference render I cliff-tested
+was width-clamped by construction, and (b) the parity goldens AND waveshape_check
+all run width ≤ 1 — the superset region had ZERO oracle coverage. The parity oracle
+cannot see superset-only regions BY CONSTRUCTION; every superset needs its own
+invariant coverage (L0011's corollary; lesson to bank).
+
+DESIGN DECISION (human's call — ADR-025 revision):
+1. Replace the M/S boost with a non-inverting widener (keep cross-feed coefficient
+   ≥ 0, e.g. sideGain ≤ 1.4 cap ≈ coefficient −0.2… still negative; truly
+   non-inverting needs a different mechanism: per-voice Haas micro-delays, or
+   side-boost with a mid floor);
+2. Cap width at 1.0 and retire super-width (the fan + pan motion may make it
+   redundant);
+3. Keep it, documented as a "beyond-100% = polarity play" zone.
+After the ruling: extend waveshape_check to width 1.5 as a GATED regime (must be
+clean under the new design), and re-audition the parity patch — the notching
+verdict may change entirely at width ≤ 1 + a different widener.
+
 ## Richness BREAKTHROUGH (2026-08-02, human ear): drift ~30¢ closes the Serum gap
 
 The human matched HYPERSAW to the basic Serum supersaw by ear — the missing
