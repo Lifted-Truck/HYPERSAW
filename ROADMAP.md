@@ -165,6 +165,16 @@ not the phenomenon absent). Comb notches cut INDIVIDUAL harmonics; a band sum ov
 tracker (bin-exact, frame-wise), calibrated on the two-saw analytic sweep (must show
 full-depth swings), then drift 0 vs 30¢ becomes a number.
 
+**PARITY RECIPE CAPTURED (human, 2026-08-02):** `docs/presets/serum-parity-reference.json`
+— audible parity with Serum at 16 voices / default detune+blend, EXCEPT the notching,
+which persists and is now the single remaining delta. Levers: n=16 · drift 30.4¢ @
+0.4 · detune 0.143 (cents/gaussian) · **digital 0.37** (a BLEP↔clean BLEND — partial
+HF recovery with partial aliasing, an interesting middle the droop/alias tables
+bracket) · retrig 0 · K=0 · freqGlide 42 ms. The persisting notches at drift 30 +
+K=0 sharpen the per-harmonic tracker's job: identify WHICH pair alignments survive
+that much decorrelation (gaussian commensurate cluster? the 16-voice even-spacing
+statistics?) — that is the hunt's last open door.
+
 DESIGN DECISIONS OPENED (human's call):
 1. Default driftDepth — ship a Serum-class subtle drift ON by default? Changes
    default output → ADR + golden updates; the alternative is a "Classic Supersaw"
