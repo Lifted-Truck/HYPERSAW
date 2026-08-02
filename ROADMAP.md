@@ -148,6 +148,40 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    few seconds) — we analyze it against the 1/k law LOCALLY (per the competitor
    convention: never committed) and answer "is Serum's saw brighter than ideal?"
    directly. Also still owed: BLEP aliasing at incommensurate f0.
+## Richness round 6 (2026-08-02): THE UNIFYING HYPOTHESIS — coherent comb-notch breathing
+
+Human, on recreating the "jumping" waveforms at low f0: "it's exactly the distinction
+I'm hearing: the effect of PWM notches closing and opening, which cuts a hollowness
+into the rich sound of the supersaw." Mathematically exact, and it unifies the hunt:
+
+- Two detuned saws sum to a waveform sweeping through pulse-like configurations, and
+  the PAIR SPECTRUM is a sweeping comb |cos(pi*k*tau/T)|: as relative phase tau
+  drifts at the beat rate, notches sweep the harmonic series. A supersaw is
+  n*(n-1)/2 such pairs. The waveform "jumps"/staircases ARE near-aligned
+  configurations; the audible hollows ARE the notch sweeps.
+- WHY SERUM STAYS RICH: free-running voices, decorrelated beat rates → pairs sweep
+  independently → instantaneous spectrum statistically STATIONARY. Richness =
+  spectral stability over time, not average response.
+- WHY OURS BREATHES HOLLOW: (a) small K > 0 near-critical coupling makes R breathe —
+  ALL pairs sweep through alignment together = deep coherent hollows (the human's
+  K=0.028 patch sits in this regime); (b) commensurate spreads (even/JP) make beat
+  rates harmonically related → periodic collective alignment even at K=0;
+  (c) retrig/keepPhase correlate initial phases. Low f0 + slow beats make it
+  audible as PWM motion — matching exactly when it reproduces.
+
+DETERMINISTIC METRIC (waveshape_check increment): frame-wise FFT over a long
+render; per-harmonic amplitude variance over time + hollow-event count (frames
+where a band drops >X dB under its own median). CALIBRATE: single saw → zero
+variance; two free-running saws → the analytic notch sweep. Compare: even vs
+gaussian vs GOLDEN dist (ADR-067 exists for exactly this) × K ∈ {0, 0.03, 0.3} ×
+retrig on/off. Prediction: golden + retrig 0 + K=0 minimizes hollow events; small
+positive K maximizes them.
+
+IMMEDIATE EAR TEST: dist → golden, retrigger off, K → exactly 0, same low-f0
+patch — does the breathing disappear? Design consequence if confirmed: richness is
+a PHASE-STATISTICS property; the fix menu becomes spacing law + free-run defaults +
+K-taper near 0 (+ per-voice drift) — not oscillator brightness. The Serum reference
+render (round 5) stays wanted to close the static-spectrum question independently.
 
 ## Clean-mode aliasing measured (2026-08-01) — with a protocol limit caught mid-run
 
