@@ -28,6 +28,7 @@
 #include "spectra_core.h"
 #include "fx_rack.h"
 #include "hypersaw_clap_entry.h"
+#include "build_stamp.h"   // generated every build (CMake target)
 
 namespace
 {
@@ -1492,7 +1493,10 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.getParamsJson = [pl]() { return pl->paramsJson(); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
-  hostIf.getBuildId = []() { return std::string(HYPERSAW_BUILD_ID); };
+  // Stamp carries hash AND build time: a hash alone cannot distinguish "the
+  // binary I just built" from "a binary built from the same commit last week",
+  // which is precisely the stale-install question (L0020).
+  hostIf.getBuildId = []() { return std::string(HYPERSAW_BUILD_STAMP); };
   hostIf.getStateJson = [pl]() { return pl->stateJson(); };
   hostIf.applyStateJson = [pl](const std::string &s) { return pl->applyStateJson(s); };
   pl->gui = new hypersaw::HypersawGui(std::move(hostIf));

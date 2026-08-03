@@ -58,8 +58,19 @@ if(NOT HS_GIT_DIRTY STREQUAL "")
   set(HS_GIT_HASH "${HS_GIT_HASH}+")
 endif()
 
+# Build stamp regenerated EVERY build (see tools/build_stamp.cmake for why a
+# configure-time stamp is not good enough).
+set(HS_STAMP_H ${CMAKE_CURRENT_BINARY_DIR}/generated/build_stamp.h)
+add_custom_target(hypersaw_build_stamp ALL
+  COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_CURRENT_SOURCE_DIR} -DOUT=${HS_STAMP_H}
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/build_stamp.cmake
+  BYPRODUCTS ${HS_STAMP_H}
+  COMMENT "stamping build id + time")
+
 add_library(${PROJECT_NAME}-impl STATIC src/hypersaw_clap.cpp)
 target_compile_definitions(${PROJECT_NAME}-impl PRIVATE HYPERSAW_BUILD_ID="${HS_GIT_HASH}")
+add_dependencies(${PROJECT_NAME}-impl hypersaw_build_stamp)
+target_include_directories(${PROJECT_NAME}-impl PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(${PROJECT_NAME}-impl PUBLIC clap clap-wrapper-extensions)
 if(APPLE)
   target_sources(${PROJECT_NAME}-impl PRIVATE src/gui/hypersaw_gui.mm ${GUI_HTML_HEADER})
