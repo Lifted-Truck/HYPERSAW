@@ -211,6 +211,44 @@ int main()
                 ok ? "OK  " : "FAIL", a0, a25, a1);
     if (!ok) fail++;
   }
+  { // ADR-078 gates: (a) per-voice envelopes must SOUND (an earlier build left
+    // every attack coefficient at 0 when voiceEnv was on without onset scatter,
+    // and rendered silence — caught by test, not inspection); (b) release
+    // scatter must actually spread the voices; (c) the note must still end.
+    auto probe = [](double vEnv, double relScat) {
+      SwarmCore c(44100.0);
+      c.setParam("n", 7); c.setParam("detune", 0.28); c.setParam("vol", 0.4);
+      c.setParam("release", 0.15); c.setParam("voiceEnv", vEnv);
+      c.setParam("relScatter", relScat); c.setParam("attackScatter", relScat);
+      const int sl = c.noteOn(45, 110.0);
+      std::vector<float> L(512), R(512);
+      double pk = 0;
+      for (int b = 0; b < 80; b++)
+      { c.render(L.data(), R.data(), 512);
+        if (b > 40) for (int i = 0; i < 512; i++) pk = std::max(pk, (double)std::fabs(L[i])); }
+      c.noteOff(45);
+      for (int b = 0; b < 13; b++) c.render(L.data(), R.data(), 512);
+      const auto &sw = c.swarmAt(sl);
+      double lo = 1e9, hi = -1e9;
+      for (int i = 0; i < 7; i++) { lo = std::min(lo, sw.onsE[i]); hi = std::max(hi, sw.onsE[i]); }
+      int dead = -1;
+      for (int b = 0; b < 600 && dead < 0; b++)
+      { c.render(L.data(), R.data(), 512);
+        double q = 0;
+        for (int i = 0; i < 512; i++) q = std::max(q, (double)std::fabs(L[i]));
+        if (q < 1e-6) dead = b; }
+      struct R2 { double pk, spread; int dead; };
+      return R2{pk, hi - lo, dead};
+    };
+    const auto flat = probe(1, 0.0), spread = probe(1, 0.8);
+    const bool ok = flat.pk > 0.01 && flat.spread < 1e-9 && flat.dead >= 0
+                 && spread.spread > 0.02 && spread.dead >= 0;
+    std::printf("%s ADR-078 per-voice env: level %.3f, uniform spread %.1e, "
+                "scattered spread %.3f, both end (%d/%d)\n",
+                ok ? "OK  " : "FAIL", flat.pk, flat.spread, spread.spread,
+                flat.dead, spread.dead);
+    if (!ok) fail++;
+  }
   { // T5 superposition: mix == sum of solos (same seeded per-voice freqs/phases)
     // Solo renders are approximated by n=1 at each voice frequency with the
     // mix's per-voice gain; EXACT phase/freq match needs core introspection, so

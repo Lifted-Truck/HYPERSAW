@@ -163,6 +163,15 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## ADR-078 SHIPPED (2026-08-03): per-voice envelopes (increment 2 done)
+
+voiceEnv id 94 + relScatter id 95. Shared env demoted to BOOKKEEPING (= max
+per-voice env) so liveness/steal/NOTE_END machinery is untouched — deliberately
+avoiding a rewrite of the note-lifecycle code we spent three rounds stabilising.
+Measured: uniform when unscattered (spread 0.0e+00), genuinely spread at 0.8
+(0.237 at 150 ms), always reaches silence. Per-voice envelope level is now
+available as a future mod SOURCE — the human's stated motivation.
+
 ## ADR-077 SHIPPED (2026-08-03): ensemble onset timing, increment 1
 
 The L0019 research reaches the instrument. Vorberg/Wing correction folded into the

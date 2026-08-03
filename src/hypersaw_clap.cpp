@@ -227,6 +227,9 @@ static const ParamDef kParams[] = {
     {91, "onsetScatter", "Onset Scatter (ms)", 0, 80, 0, false, nullptr},
     {92, "onsetAlpha", "Timing Correction", 0, 1.5, 0.25, false, nullptr},
     {93, "attackScatter", "Attack Scatter", 0, 1, 0, false, nullptr},
+    // ADR-078 per-voice envelopes. Off = one shared envelope (reference path).
+    {94, "voiceEnv", "Per-Voice Env", 0, 1, 0, true, kOffOn},
+    {95, "relScatter", "Release Scatter", 0, 1, 0, false, nullptr},
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.
