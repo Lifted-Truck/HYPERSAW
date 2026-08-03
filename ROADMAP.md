@@ -163,6 +163,25 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## Coherence gain compensation — PROPOSED (human, 2026-08-03: "tame the big additive saw without changing its shape")
+
+At high K the voices phase-align, so the sum's peak rises with COHERENCE, not with
+voice count — and `normExp` (density comp) only compensates the latter. The tanh
+then bends the peaks, which is the shape change the human wants to avoid.
+
+The elegant fix is already sitting in the engine: **scale output gain by the order
+parameter R**, which the core computes every control tick. Coherent (R→1) = quieter
+by design, splayed (R→0) = unchanged, so a K sweep holds level without touching the
+waveform. Sketch: `gain *= 1 / (1 + cohAmt·R·(n^a − 1)/…)` — the exact law needs
+auditioning (an R-follower with a time constant in SECONDS per ADR-009; instantaneous
+R would pump).
+DESIGN NOTES: (a) must be opt-in/default-off — it changes level under K, which is
+audible and golden-visible; (b) it is arguably the most on-brand feature yet — the
+instrument compensating itself using its own physics observable; (c) alternative
+framing is a proper limiter in the FX rack (already ruled a rack slot, ADR-016), but
+that CHANGES SHAPE by construction, which is exactly what the human asked to avoid;
+(d) pairs naturally with the mod matrix, where R becomes a first-class source.
+
 ## ADR-075 SHIPPED (2026-08-03): opt-in 2x oversampling
 
 Built with its oracle. Droop 15 k −4.50 → −2.13 dB, 10 k −2.17 → −1.23; CPU 2.5% →

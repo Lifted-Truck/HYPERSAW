@@ -527,7 +527,14 @@ class SwarmCore
               const int k = (s.osW - 1 - t) & 63;
               aL += hb[t] * s.osZL[k]; aR += hb[t] * s.osZR[k];
             }
-            l = aL * 2.0; r = aR * 2.0;   // decimation halves energy; restore it
+            // NO gain compensation. The halfband is normalised to unity DC
+            // gain and both sub-samples are REAL samples (not zero-stuffed),
+            // so filtering + taking one of two preserves amplitude. The first
+            // version multiplied by 2 "to restore energy" — that is the
+            // UPSAMPLING rule, wrong here, and it made OS +5.9 dB louder,
+            // which soft-clipped the tanh at high K (human caught it by ear:
+            // "oversampling is louder ... the waveform seems to get clipped").
+            l = aL; r = aR;
           }
         }
         }
