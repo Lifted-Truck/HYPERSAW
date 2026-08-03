@@ -905,7 +905,13 @@ async function drawScope() {
         // you need to study a shape (e.g. comparing wide vs pulse width modes).
         const c = 1 - Math.exp(-2 * Math.PI * (f0 * 1.1) / sr);
         let lp = Float64Array.from(s.l);
-        for (let pole = 0; pole < 4; pole++) {
+        // Pole count adapts to pitch. Measured drift D2/A3/C5: 2-pole
+        // .21/1.91/.87, 4-pole .54/.40/.40 — 2 is clearly better in the bass
+        // (a 4-pole's group delay is a large fraction of a low period), 4 is
+        // better above. The human reported exactly this: "still gets jumpy on
+        // the lower octaves".
+        const poles = f0 < 150 ? 2 : 4;
+        for (let pole = 0; pole < poles; pole++) {
           let z = 0;
           const t = new Float64Array(N);
           for (let i = 0; i < N; i++) { z += c * (lp[i] - z); t[i] = z; }
