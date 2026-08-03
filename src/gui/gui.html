@@ -133,7 +133,7 @@
     <canvas id="vmapCanvas" width="256" height="96"></canvas>
   </div>
   <div class="scope">
-    <h2>Scope · <span style="color:var(--pull)">━ L</span> <span style="color:var(--amber)">━ R</span> <span style="color:var(--dim);font-weight:normal">rising-edge triggered</span></h2>
+    <h2>Scope · <span style="color:var(--pull)">━ L</span> <span style="color:var(--amber)">━ R</span> <span style="color:var(--dim);font-weight:normal">f0-triggered · click to hold</span></h2>
     <canvas id="wavCanvas" width="256" height="74"></canvas>
   </div>
   <div class="scope">
@@ -843,9 +843,20 @@ let vmZoom = 4, vmShrink = 0;
 // against the other channel. Auto-gain per frame so quiet patches still read;
 // the trace shape, not the level, is what this panel is for.
 const wvC = $('#wavCanvas'), wvx = wvC.getContext('2d');
+let scopeF0 = 0, scopeSR = 44100;   // fed by the viz poll; drives the trigger filter
+let scopeFrozen = false;
+wvC.style.cursor = 'pointer';
+wvC.title = 'click to freeze / unfreeze — a detuned swarm never repeats exactly, so freeze to study a shape';
+wvC.onclick = () => {
+  scopeFrozen = !scopeFrozen;
+  wvx.fillStyle = scopeFrozen ? 'rgba(255,194,75,0.9)' : 'rgba(11,14,20,0)';
+  if (scopeFrozen) { wvx.fillRect(wvC.width - 34, 3, 31, 11);
+    wvx.fillStyle = '#0b0e13'; wvx.font = '9px ui-monospace,Menlo,monospace';
+    wvx.fillText('HOLD', wvC.width - 31, 12); }
+};
 let scopeBusy = false;
 async function drawScope() {
-  if (scopeBusy || !window.hzGetScope) return;
+  if (scopeFrozen || scopeBusy || !window.hzGetScope) return;
   scopeBusy = true;
   try {
     const s = await bridge.getScope();
@@ -863,13 +874,46 @@ async function drawScope() {
     wvx.strokeStyle = '#2a3040';
     wvx.beginPath(); wvx.moveTo(0, h / 2); wvx.lineTo(w, h / 2); wvx.stroke();
     if (s && s.l && s.l.length) {
-      const N = s.l.length, span = Math.floor(N * 0.6);
+      const N = s.l.length;
       let pk = 1e-4;
       for (let i = 0; i < N; i++) pk = Math.max(pk, Math.abs(s.l[i]), Math.abs(s.r[i]));
-      // trigger: latest upward crossing that still leaves a full span to draw
-      let trig = 0;
-      for (let i = N - span - 1; i > 1; i--)
-        if (s.l[i - 1] <= 0 && s.l[i] > 0) { trig = i; break; }
+      // TRIGGER FILTER — the third attempt, and the first that can work.
+      // A detuned swarm is QUASI-periodic: 16 different frequencies, so at full
+      // bandwidth there is no repeating landmark at all. Measured: the "biggest
+      // wrap" edges sat at gaps of 22/187/10/261 samples, i.e. individual voice
+      // wraps, not an aggregate one — a zero-crossing OR a biggest-step trigger
+      // both latch somewhere different every frame. What IS stable is the
+      // FUNDAMENTAL: all voices sit within a few cents of f0, so a heavy lowpass
+      // leaves a clean near-sine at f0 to trigger on. This is exactly a scope's
+      // trigger-filter / HF-reject coupling. Period and cutoff come from the
+      // engine's own f0 and sample rate, so it tracks the note being played.
+      const f0 = scopeF0, sr = scopeSR;
+      let trig = 0, span = Math.floor(N * 0.6);
+      if (f0 > 0 && sr > 0) {
+        const per = sr / f0;
+        span = Math.max(24, Math.min(N - 2, Math.round(per)));
+        // 4 cascaded poles at 1.1*f0. Measured trigger drift across frames:
+        // 1-pole .33/1.85/1.19, 2-pole .21/1.91/.87, 4-pole .54/.40/.40,
+        // 6-pole 1.97/.20/.17 at D2/A3/C5 — 4 is the only order that is
+        // reasonable at every pitch (6 collapses in the bass, where its group
+        // delay swamps the buffer). HONEST LIMIT: none of these makes the
+        // display stand still, because a 16-voice detuned swarm is
+        // QUASI-periodic — 16 different frequencies never repeat, so there is
+        // no stationary waveform to lock to. The trigger stabilises the
+        // fundamental's phase; the fine detail genuinely keeps moving, and
+        // that motion IS the detune. Click the panel to FREEZE a frame when
+        // you need to study a shape (e.g. comparing wide vs pulse width modes).
+        const c = 1 - Math.exp(-2 * Math.PI * (f0 * 1.1) / sr);
+        let lp = Float64Array.from(s.l);
+        for (let pole = 0; pole < 4; pole++) {
+          let z = 0;
+          const t = new Float64Array(N);
+          for (let i = 0; i < N; i++) { z += c * (lp[i] - z); t[i] = z; }
+          lp = t;
+        }
+        for (let i = N - span - 1; i > 1; i--)
+          if (lp[i - 1] <= 0 && lp[i] > 0) { trig = i; break; }
+      }
       const g = (h / 2 - 3) / pk;
       for (const [arr, col] of [[s.r, '#ffc24b'], [s.l, '#5ff2e0']]) {
         wvx.strokeStyle = col; wvx.lineWidth = 1.2; wvx.beginPath();
@@ -1047,6 +1091,7 @@ async function loop() {
       const spectraOn = !!(v && v.spectra);
       $('#carpetScope').style.display = spectraOn ? 'none' : '';
       $('#stripScope').style.display = spectraOn ? '' : 'none';
+      if (v && v.vmF0 > 0) { scopeF0 = v.vmF0; scopeSR = v.sr || 44100; }
       $('#vmapScope').style.display = spectraOn ? 'none' : '';
       drawPhase(v);
       if (spectraOn) drawStrips(v); else { drawCarpet(v); drawVmap(v); }
