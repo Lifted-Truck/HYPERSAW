@@ -201,6 +201,10 @@ class SwarmCore
     double osZL[64] = {0}, osZR[64] = {0};                 // ADR-075 decimator history
     int osW = 0;
     double onsD[kMaxV] = {0};      // ADR-077 samples until this voice enters
+    // The INITIAL onset delay, kept because onsD decrements to zero and the
+    // envelope visualiser needs what the voice was actually given. Viz-only
+    // bookkeeping: never read in the audio path, so parity is untouched.
+    double onsD0[kMaxV] = {0};
     double onsE[kMaxV] = {0};      // its own 0->1 entry ramp (also ADR-078 env)
     double onsC[kMaxV] = {0};      // that ramp's per-sample attack coefficient
     double relC[kMaxV] = {0};      // ADR-078 per-voice release coefficient
@@ -388,6 +392,7 @@ class SwarmCore
         for (int i = 1; i < n; i++) lo = std::min(lo, s.onsD[i]);
         for (int i = 0; i < n; i++) s.onsD[i] -= lo;
       }
+      for (int i = 0; i < n; i++) s.onsD0[i] = s.onsD[i];
     }
     s.vfInit = 0;                          // ADR-063: snap the glide to the new note
     s.noteTune = 1.0;  // per-note expression resets with a fresh strike;
@@ -557,7 +562,7 @@ class SwarmCore
           s.lpL = 0;
           s.lpR = 0;
           s.midi = -1;
-          for (int i = 0; i < kMaxV; i++) { s.onsE[i] = 0; s.onsD[i] = 0; }
+          for (int i = 0; i < kMaxV; i++) { s.onsE[i] = 0; s.onsD[i] = 0; s.onsD0[i] = 0; }
         }
         continue;
       }

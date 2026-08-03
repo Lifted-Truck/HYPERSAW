@@ -103,6 +103,9 @@
     color: var(--text); border: 1px solid var(--line); font-family: var(--mono-f); font-size: 9px;
   }
   #toast { color: var(--drift); font-size: 10px; }
+  #envCanvas { display:block; margin-top:8px; border:1px solid var(--line); border-radius:3px;
+               background:var(--ink); width:100%; height:auto; }
+  .envlbl { color: var(--dim); font-size: 9px; margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -264,6 +267,18 @@
       <div class="row"><label>decay</label><input type="range" data-p="66" min="-2.3" max="0.602" step="0.001" data-log10="1" data-time="1"><output>0.18s</output></div>
       <div class="row"><label>sustain</label><input type="range" data-p="67" min="0" max="1" step="0.01"><output>1.00</output></div>
       <div class="row"><label>release</label><input type="range" data-p="68" min="-2.3" max="0.903" step="0.001" data-log10="1" data-time="1"><output>0.18s</output></div>
+      <!-- Per-voice envelope + scatter (2026-08-03, human): these shape the
+           ENVELOPE, so they belong here rather than in Drift, which is now
+           purely pitch variation. The display below shows what they do — each
+           faint trace is one voice's real envelope, so the spread IS the
+           scatter. -->
+      <div class="togs" style="margin-top:6px"><label><input type="checkbox" data-p="94"> per-voice envelopes</label></div>
+      <div class="row"><label>onset ±</label><input type="range" data-p="91" min="0" max="80" step="0.5"><output>off</output></div>
+      <div class="row"><label>· correction</label><input type="range" data-p="92" min="0" max="1.5" step="0.01"><output>0.25</output></div>
+      <div class="row"><label>attack ±</label><input type="range" data-p="93" min="0" max="1" step="0.01"><output>0%</output></div>
+      <div class="row"><label>release ±</label><input type="range" data-p="95" min="0" max="1" step="0.01"><output>0%</output></div>
+      <canvas id="envCanvas" width="252" height="92" title="ADSR shape. Bright = the nominal envelope; each faint trace is one voice's ACTUAL envelope as the engine built it, so horizontal offset = onset scatter and differing slopes = attack/release scatter."></canvas>
+      <div class="envlbl" id="envSpread">no scatter — one shared envelope</div>
     </div>
 
     <div class="cluster">
@@ -289,29 +304,28 @@
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
       <div class="row"><label>amount</label><input type="range" data-p="58" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="96" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
       <div class="row"><label>slot 2</label><select data-p="59">
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
       <div class="row"><label>amount</label><input type="range" data-p="60" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="97" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
       <div class="row"><label>slot 3</label><select data-p="61">
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
       <div class="row"><label>amount</label><input type="range" data-p="62" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="98" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
       <div class="row"><label>slot 4</label><select data-p="63">
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
       <div class="row"><label>amount</label><input type="range" data-p="64" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="99" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
     </div>
 
     <div class="cluster drift">
       <h2>Drift</h2>
       <div class="row"><label>depth</label><input type="range" data-p="9" min="0" max="100" step="0.1"><output>0.0c</output></div>
       <div class="row"><label>walk rate</label><input type="range" data-p="10" min="0" max="1" step="0.01"><output>3.4/s</output></div>
-      <div class="row"><label>onset scatter</label><input type="range" data-p="91" min="0" max="80" step="0.5"><output>off</output></div>
-      <div class="row"><label>· correction</label><input type="range" data-p="92" min="0" max="1.5" step="0.01"><output>0.25</output></div>
-      <div class="row"><label>attack scatter</label><input type="range" data-p="93" min="0" max="1" step="0.01"><output>0%</output></div>
-      <div class="row"><label>rel scatter</label><input type="range" data-p="95" min="0" max="1" step="0.01"><output>0%</output></div>
-      <div class="togs"><label><input type="checkbox" data-p="94"> per-voice envelopes</label></div>
       <div class="row"><label>drift mode</label><select data-p="73">
         <option value="0">walk (1/f)</option><option value="1">sine (per-voice)</option><option value="2">sample &amp; hold</option>
       </select><output></output></div>
@@ -1032,6 +1046,74 @@ function drawNotes(s) {
   ntx.globalAlpha = 1;
 }
 
+/* ---- envelope display: the ADSR, plus every voice's ACTUAL envelope.
+   The nominal shape comes from the sliders; the faint traces come from the
+   ENGINE (envOnset/envAtk/envRel in the viz), because the scatter is drawn
+   from the core's seeded stream — reconstructing it in JS would be a second
+   implementation, free to drift from the one you are hearing. Horizontal
+   offset between traces IS onset scatter; differing slopes ARE attack/release
+   scatter. ---- */
+const evC = $('#envCanvas'), evx = evC.getContext('2d');
+function drawEnv(s) {
+  const w = evC.width, h = evC.height;
+  evx.clearRect(0, 0, w, h);
+  const rd = id => { const el = document.querySelector('input[data-p="' + id + '"]'); return el ? +el.value : 0; };
+  const spectraOn = !!(s && s.spectra);   // the engine as the CORE reports it
+  // sliders are log10 seconds (data-log10) for A/D/R; sustain is linear
+  const A = Math.pow(10, rd(spectraOn ? 65 : 19)), D = Math.pow(10, rd(spectraOn ? 66 : 20));
+  const S = rd(spectraOn ? 67 : 21), R = Math.pow(10, rd(spectraOn ? 68 : 22));
+  const onsets = (s && s.envOnset) || [], atks = (s && s.envAtk) || [], rels = (s && s.envRel) || [];
+  // Time axis: whatever is needed to show the whole gesture, including the
+  // latest voice's entry — so raising onset scatter visibly rescales the view.
+  let maxOns = 0;
+  for (let i = 0; i < onsets.length; i++) maxOns = Math.max(maxOns, onsets[i]);
+  const gateMs = Math.max(260, (A + D) * 1000 * 1.3 + maxOns);
+  const span = gateMs + R * 1000 * 2.2;
+  const X = ms => ms / span * (w - 2) + 1, Y = v => h - 2 - v * (h - 6);
+  // one envelope, drawn from its own times (ms)
+  const trace = (onsMs, atkMs, relMs, col, lw, alpha) => {
+    evx.strokeStyle = col; evx.lineWidth = lw; evx.globalAlpha = alpha;
+    evx.beginPath();
+    let started = false;
+    for (let px = 0; px < w; px++) {
+      const t = px / (w - 2) * span;
+      let v;
+      if (t < onsMs) v = 0;
+      else {
+        const u = t - onsMs;
+        if (u < gateMs - onsMs) {
+          // attack to 1 then decay toward sustain — one-poles, same as the core
+          const a = 1 - Math.exp(-u / Math.max(1e-3, atkMs));
+          const dStart = atkMs * 5;
+          v = u <= dStart ? a : S + (1 - S) * Math.exp(-(u - dStart) / Math.max(1e-3, D * 1000));
+        } else {
+          const held = S <= 0 ? 0 : S;
+          v = held * Math.exp(-(t - gateMs) / Math.max(1e-3, relMs));
+        }
+      }
+      const y = Y(Math.max(0, Math.min(1, v)));
+      started ? evx.lineTo(px, y) : (evx.moveTo(px, y), started = true);
+    }
+    evx.stroke();
+  };
+  // gate-off marker
+  evx.strokeStyle = '#2a3040'; evx.lineWidth = 1; evx.globalAlpha = 1;
+  evx.beginPath(); evx.moveTo(X(gateMs), 0); evx.lineTo(X(gateMs), h); evx.stroke();
+  for (let i = 0; i < onsets.length && i < 32; i++)
+    trace(onsets[i], atks[i], rels[i], '#ffc24b', 1, 0.30);
+  trace(0, A * 1000, R * 1000, '#5ff2e0', 1.6, 1);
+  evx.globalAlpha = 1;
+  // spread readout: the number the traces are showing
+  const lbl = $('#envSpread');
+  if (!lbl) return;
+  if (!onsets.length) { lbl.textContent = 'no scatter — one shared envelope'; return; }
+  let aLo = 1e9, aHi = 0, rLo = 1e9, rHi = 0;
+  for (let i = 0; i < atks.length; i++) { aLo = Math.min(aLo, atks[i]); aHi = Math.max(aHi, atks[i]); }
+  for (let i = 0; i < rels.length; i++) { rLo = Math.min(rLo, rels[i]); rHi = Math.max(rHi, rels[i]); }
+  lbl.textContent = onsets.length + ' voices · entry spread ' + maxOns.toFixed(1) + ' ms · attack '
+    + aLo.toFixed(1) + '–' + aHi.toFixed(1) + ' ms · release ' + (rLo / 1000).toFixed(2) + '–' + (rHi / 1000).toFixed(2) + ' s';
+}
+
 function drawCarpet(s) {
   const w = cc2.width, h = cc2.height;
   cctx2.fillStyle = 'rgba(11,14,20,0.25)';
@@ -1128,6 +1210,7 @@ async function loop() {
       drawPhase(v);
       if (spectraOn) drawStrips(v); else { drawCarpet(v); drawVmap(v); }
       drawNotes(v);
+      drawEnv(v);
     } catch (e) {}
     vizBusy = false;
   }

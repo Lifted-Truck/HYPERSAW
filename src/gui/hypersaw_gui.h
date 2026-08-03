@@ -59,6 +59,14 @@ struct VizSnapshot
   // ungated but loud = DSP tail (core side). Turns the human's stuck-note
   // reports from anecdote into a screenshot.
   double outPeak = 0;   // plugin output peak — answers "is it even us?"
+  // Per-voice envelope shape for the envelope display (2026-08-03). Published
+  // as the times the CORE actually gave each voice, not re-derived in JS: the
+  // scatter draws from the core's seeded stream, so any JS reconstruction
+  // would be a second implementation free to drift from the one you hear.
+  int envCount = 0;
+  double envOnsetMs[32] = {0};   // delay before this voice enters
+  double envAtkMs[32] = {0};     // this voice's attack time
+  double envRelMs[32] = {0};     // this voice's release time
   int nmCount = 0;
   int nmMidi[16] = {0};
   int nmGate[16] = {0};

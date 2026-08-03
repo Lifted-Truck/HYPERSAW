@@ -230,6 +230,16 @@ static const ParamDef kParams[] = {
     // ADR-078 per-voice envelopes. Off = one shared envelope (reference path).
     {94, "voiceEnv", "Per-Voice Env", 0, 1, 0, true, kOffOn},
     {95, "relScatter", "Release Scatter", 0, 1, 0, false, nullptr},
+    // Per-slot SECOND axis for the FX rack (2026-08-03) — ADR-071 deferred the
+    // comb's resonance "until the rack grows per-slot param pages"; this is it.
+    // Deliberately ONE generic knob per slot rather than a comb-specific param,
+    // so the next slot type that wants a second control costs no new ids.
+    // Comb reads it as resonance (fb = 0.6 + 0.38*tone); 0.5 reproduces the
+    // previously hardcoded 0.79 exactly, so every existing state loads unchanged.
+    {96, "fx1tone", "FX1 Tone", 0, 1, 0.5, false, nullptr},
+    {97, "fx2tone", "FX2 Tone", 0, 1, 0.5, false, nullptr},
+    {98, "fx3tone", "FX3 Tone", 0, 1, 0.5, false, nullptr},
+    {99, "fx4tone", "FX4 Tone", 0, 1, 0.5, false, nullptr},
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.
@@ -612,6 +622,24 @@ struct Plugin
         v.vmEff[i] = s->eff[i];
         v.vmPan[i] = core.panEffAt(i);
       }
+      // Per-voice envelope shape (ADR-077/078 scatter made visible). Coefficients
+      // are one-poles, so the time constant is the inverse of the derivation in
+      // the core: c = 1 - exp(-1/(t*sr))  ->  t = -1/(sr*ln(1-c)). Published
+      // from the coefficients the core is ACTUALLY using, so the display cannot
+      // disagree with the sound.
+      {
+        const bool perVoice = core.p.onsetScatter > 0 || core.p.voiceEnv > 0.5;
+        v.envCount = perVoice ? (v.n < 32 ? v.n : 32) : 0;
+        const auto tOf = [&](double c) {
+          return (c > 0 && c < 1) ? -1000.0 / (sampleRate * std::log(1.0 - c)) : 0.0;
+        };
+        for (int i = 0; i < v.envCount; i++)
+        {
+          v.envOnsetMs[i] = s->onsD0[i] / sampleRate * 1000.0;
+          v.envAtkMs[i] = tOf(s->onsC[i]);
+          v.envRelMs[i] = tOf(s->relC[i]);
+        }
+      }
       // dynamics layer
       v.topo = (int)core.p.topo;
       v.poles = (int)core.p.poles;
@@ -862,6 +890,11 @@ struct Plugin
         else rack.setAmount(slot, applied);
         return;
       }
+      if (id >= 96 && id <= 99)  // per-slot second axis (comb resonance today)
+      {
+        rack.setTone((int)(id - 96), applied);
+        return;
+      }
       // Width: the SAW core calls it "width", SPECTRA calls it "swidth" — same
       // stereo-spread control, so one slider (id 14) drives both.
       if (id == 14) spectra.setParam("swidth", applied);
@@ -896,6 +929,7 @@ struct Plugin
         const int slot = (int)(d->id - 57) / 2;
         return ((d->id - 57) & 1) == 0 ? (double)rack.getType(slot) : rack.getAmount(slot);
       }
+      if (d->id >= 96 && d->id <= 99) return rack.getTone((int)(d->id - 96));
       return core.getParam(d->coreKey);
     }
     return 0;

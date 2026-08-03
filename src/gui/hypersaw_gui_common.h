@@ -83,6 +83,18 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
     notes.addArrayElement(row);
   }
   obj.addMember("outPeak", v.outPeak);
+  auto eOn = choc::value::createEmptyArray();
+  auto eAt = choc::value::createEmptyArray();
+  auto eRe = choc::value::createEmptyArray();
+  for (int i = 0; i < v.envCount && i < 32; i++)
+  {
+    eOn.addArrayElement(v.envOnsetMs[i]);
+    eAt.addArrayElement(v.envAtkMs[i]);
+    eRe.addArrayElement(v.envRelMs[i]);
+  }
+  obj.addMember("envOnset", eOn);
+  obj.addMember("envAtk", eAt);
+  obj.addMember("envRel", eRe);
   obj.addMember("notes", notes);
   // SPECTRA per-partial strip feed (empty in SAW mode — v.spectra gates it).
   obj.addMember("spectra", v.spectra);

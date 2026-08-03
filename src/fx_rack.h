@@ -148,6 +148,15 @@ class FxRack
     if (slot < 0 || slot >= kRackSlots) return;
     slots[slot].type = (FxType)type;
   }
+  void setTone(int slot, double tone)
+  {
+    if (slot < 0 || slot >= kRackSlots) return;
+    slots[slot].tone = tone < 0 ? 0 : (tone > 1 ? 1 : tone);
+  }
+  double getTone(int slot) const
+  {
+    return (slot < 0 || slot >= kRackSlots) ? 0.5 : slots[slot].tone;
+  }
   void setAmount(int slot, double amount)
   {
     if (slot < 0 || slot >= kRackSlots) return;
@@ -250,7 +259,9 @@ class FxRack
           for (auto &c : combs)
             if (c.key >= 0) act++;
           if (!act) break;
-          const double normTarget = 1.0 / act, fb = 0.79, damp = 0.5;
+          // detune-lab law: fb = 0.6 + 0.38*resonance (res 0.5 -> 0.79, the
+          // value ADR-071 hardcoded, so the default stays bit-identical).
+          const double normTarget = 1.0 / act, fb = 0.6 + 0.38 * s.tone, damp = 0.5;
           for (int i = 0; i < n; i++)
           {
             const double l = L[i], r = R[i];
@@ -306,6 +317,13 @@ class FxRack
   {
     FxType type = FxType::Off;
     double amount = 0.5;
+    // Second per-slot axis (2026-08-03). ADR-071 fixed the comb's resonance at
+    // the lab default "until the rack grows per-slot param pages" — this is
+    // that page, kept to ONE generic knob rather than a comb-specific param so
+    // the next slot type that wants a second control costs no new ids. Only
+    // Comb reads it today; 0.5 reproduces the previously hardcoded fb = 0.79
+    // exactly, so the default is bit-inert.
+    double tone = 0.5;
     double zL = 0, zR = 0;  // one-pole filter memory (Filter type)
   };
   struct Comb

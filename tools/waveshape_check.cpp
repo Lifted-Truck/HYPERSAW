@@ -354,6 +354,47 @@ int main()
                 caught ? "OK  " : "FAIL", planted);
     if (!caught) fail++;
   }
+  { // T7 comb resonance (2026-08-03): the per-slot tone axis must actually
+    // REACH the DSP. parity staying green only proves the 0.5 default is inert
+    // — which is exactly how a dead control hides (the FX dropdowns shipped
+    // Comb unreachable for the same reason). Strike a line, then feed silence,
+    // and measure how long the ring takes to fall 40 dB: fb = 0.6 + 0.38*tone,
+    // so decay time must rise strictly with tone.
+    const double sr = 44100.0;
+    auto ringMs = [&](double tone) {
+      hypersaw::FxRack rack;
+      rack.setSampleRate(sr);
+      rack.setType(0, (int)hypersaw::FxType::Comb);
+      rack.setAmount(0, 1.0);
+      rack.setTone(0, tone);
+      rack.noteOn(45, 110.0);
+      float L[64], R[64];
+      double peak = 0;
+      int held = 0;
+      for (int b = 0; b < 900; b++)
+      {
+        for (int i = 0; i < 64; i++)
+        {
+          // 120 ms of excitation, then silence — the tail is all feedback
+          const double t = (b * 64.0 + i) / sr;
+          const double e = t < 0.12 ? 0.25 * std::sin(2.0 * 3.14159265358979 * 110.0 * t) : 0.0;
+          L[i] = R[i] = (float)e;
+        }
+        rack.processStereo(L, R, 64);
+        if (b < 100) continue;                       // let the ring establish
+        double blk = 0;
+        for (int i = 0; i < 64; i++) blk = std::max(blk, (double)std::fabs(L[i]));
+        if (b == 100) peak = blk;
+        if (peak > 0 && blk > peak * 0.01) held = b;  // last block above -40 dB
+      }
+      return (held - 100) * 64.0 / sr * 1000.0;
+    };
+    const double lo = ringMs(0.1), mid = ringMs(0.5), hi = ringMs(0.9);
+    const bool ok = lo < mid && mid < hi;
+    std::printf("%s comb tone reaches the DSP: ring to -40 dB = %.0f / %.0f / %.0f ms at tone 0.1/0.5/0.9\n",
+                ok ? "OK  " : "FAIL", lo, mid, hi);
+    if (!ok) fail++;
+  }
   std::printf(fail ? "waveshape_check: RED (%d failures)\n" : "waveshape_check: GREEN (0 failures)\n", fail);
   return fail ? 1 : 0;
 }
