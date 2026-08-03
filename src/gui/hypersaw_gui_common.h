@@ -139,6 +139,16 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     for (int i = 0; i < 96; i++) arr.addArrayElement(bins[i]);
     return arr;
   });
+  web->bind("hzGetScope", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    float l[512], r[512];
+    if (host.getScope) host.getScope(l, r, 512);
+    else { for (int i = 0; i < 512; i++) { l[i] = 0; r[i] = 0; } }
+    auto L = choc::value::createEmptyArray(), R = choc::value::createEmptyArray();
+    for (int i = 0; i < 512; i++) { L.addArrayElement(l[i]); R.addArrayElement(r[i]); }
+    auto obj = choc::value::createObject("Scope");
+    obj.addMember("l", L); obj.addMember("r", R);
+    return obj;
+  });
   web->bind("hzGetState", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getStateJson());
   });

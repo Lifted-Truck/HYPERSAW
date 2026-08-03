@@ -288,6 +288,11 @@ struct Plugin
   // cost, torn reads are cosmetic-only (visualizer).
   float specRing[4096] = {0};
   std::atomic<uint32_t> specPos{0};
+  // Scope feed (2026-08-03): STEREO, unlike specRing's mono sum — the whole
+  // point of a scope here is watching L against R (super-width's polarity
+  // modes are invisible in a sum). Write-only on the audio thread.
+  float scopeL[2048] = {0}, scopeR[2048] = {0};
+  std::atomic<uint32_t> scopePos{0};
   uint32_t guiW = 980, guiH = 720;  // resizable (clamped in gui_adjust_size)
   std::atomic<bool> processing{false};
   // ADR-024: the inertia KNOB value (params/state domain). The core holds
@@ -1130,6 +1135,10 @@ struct Plugin
       for (uint32_t i = 0; i < nframes; i++)
         specRing[(w + i) & 4095] = outL[i] + outR[i];
       specPos.store(w + nframes, std::memory_order_release);
+      uint32_t sw = scopePos.load(std::memory_order_relaxed);
+      for (uint32_t i = 0; i < nframes; i++)
+      { scopeL[(sw + i) & 2047] = outL[i]; scopeR[(sw + i) & 2047] = outR[i]; }
+      scopePos.store(sw + nframes, std::memory_order_release);
     }
     emitNoteEnds(p->out_events, nframes > 0 ? nframes - 1 : 0);
 
@@ -1470,6 +1479,12 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
     return pl->vizBuf[pl->vizPublished.load(std::memory_order_acquire)];
   };
   hostIf.getSpectrum = [pl](float *out, int n) { pl->computeSpectrum(out, n); };
+  hostIf.getScope = [pl](float *l, float *r, int n) {
+    const uint32_t w = pl->scopePos.load(std::memory_order_acquire);
+    for (int i = 0; i < n; i++)
+    { const uint32_t k = (w - (uint32_t)n + (uint32_t)i) & 2047;
+      l[i] = pl->scopeL[k]; r[i] = pl->scopeR[k]; }
+  };
   hostIf.getParamsJson = [pl]() { return pl->paramsJson(); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
