@@ -8,6 +8,44 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## Pitch-bend inertia — EXPERIMENT, awaiting audition (human direction, 2026-08-03)
+
+Human: *"I want to try adding an inertia option to pitch bend (with various settings
+to key it in)."* Bench built first (`docs/design/bend-lab.html`); **no core change** —
+the fold decision is open and belongs to the ear, not the meters.
+
+**Why the bench offers four models.** "Inertia" is three different physical claims,
+and they do not sound alike; choosing one silently would have decided the feature by
+accident. A **lag** (one-pole) is proportional — every move takes the same time no
+matter its size. A **rate limit** is constant-velocity — a −12 st dive takes twelve
+times as long as a 1 st nudge, which is what a physical mechanism actually does. Only
+the **mass-spring** is inertia literally: it overshoots and rings, because a mass in
+motion does not stop when the force does. A fourth (lag → rate limit in series) is the
+practical combination. Plus a `return ×` asymmetry — a real spring snaps home faster
+than you can push it — applied to the bend lane only, since a note has no home pitch.
+
+**The bench runs the filter at tick rate**, not sample rate, because that is where a
+fold would put it (ADR-027's live-tune factor is read once per tick at law evaluation).
+Measuring a filter the plugin would never have would measure the wrong thing.
+
+**The finding that matters before any fold.** Every model is a low-pass on the
+player's hand, so inertia *costs wheel vibrato*: a 60 ms lag already keeps only 47 % of
+a 5 Hz wobble, arriving 34 ms late. If both expressive gestures are wanted, flat
+inertia cannot give them — that is an argument for keying the amount to bend
+*distance* (slow travel on a big sweep, near-instant on a small one). Untested and
+deliberately unbuilt; it is a design decision, not an implementation detail.
+
+**Also live in the bench, worth an opinion:** `applies to → note pitch` routes the
+same filter through note-to-note pitch, where the mass-spring puts a **pitch blip on
+every note onset** — what a struck resonator does. That is a different feature from
+bend inertia wearing the same math, and it may be the more interesting one.
+
+**Open questions for the human.** (1) Which model, and does the ringing spring earn its
+place or is it a novelty? (2) Flat amount, or keyed to bend distance? (3) Bend lane
+only, or note pitch too? (4) Does this belong on the wheel *and* on MPE per-note bend
+(ADR-036/038), which is a much more expressive surface and would need per-note state?
+No fold, no ADR, and no param ids until these are answered.
+
 ## Mono note-hang FIXED (2026-07-29, tasks #24 + #28 closed)
 
 The human's 2026-07-26 report — "notes get stuck for longer than they ought to when I
