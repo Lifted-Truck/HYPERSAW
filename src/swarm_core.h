@@ -140,6 +140,12 @@ struct Params
   // (ADR-026) and the existing `glide` TIME knob; core+shell only, so the JS
   // reference — which has no glide at all — is untouched.
   double polyGlide = 0;
+  // ADR-076 glide source: 0 = VOICE-based (bend only while another key is
+  // still HELD — the legato reading, and the same rule the mono path has used
+  // since 2026-07-18), 1 = MEMORY-based (always bend from the last-played
+  // pitch, even after a rest). Human, 2026-08-03: memory-based is wanted but
+  // not always, so it is a mode rather than the behaviour.
+  double glideMode = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -239,6 +245,11 @@ class SwarmCore
   // (CLAP NOTE_END bookkeeping). DSP behavior unchanged — parity-neutral.
   int noteOn(int midi, double f)
   {
+    // Checked BEFORE alloc: alloc() can steal a voice that is still gated, and
+    // asking afterwards would misreport whether anything was actually held.
+    bool anotherHeld = false;
+    for (const auto &sw : swarms)
+      if (sw.gate) { anotherHeld = true; break; }
     Swarm &s = alloc();
     const int slot = (int)(&s - &swarms[0]);
     initVoice(s, midi, f);
@@ -247,7 +258,8 @@ class SwarmCore
     // "remembers the position of the last played note(s) and always begins
     // with a bend" (human, 2026-07-31). lastNoteF persists across silence, so
     // the first note after a rest still bends in from wherever you last were.
-    if (p.polyGlide > 0.5 && p.glide > 0 && lastNoteF > 0 && lastNoteF != f)
+    const bool glideSourceOk = (p.glideMode > 0.5) ? true : anotherHeld;
+    if (p.polyGlide > 0.5 && p.glide > 0 && glideSourceOk && lastNoteF > 0 && lastNoteF != f)
     {
       s.f0 = lastNoteF;
       s.f0cur = lastNoteF;
@@ -724,6 +736,7 @@ class SwarmCore
     if (k == "superMode") return &p.superMode;        // ADR-074 super-width mode
     if (k == "oversample") return &p.oversample;      // ADR-075 2x OS
     if (k == "polyGlide") return &p.polyGlide;        // ADR-076 poly glide
+    if (k == "glideMode") return &p.glideMode;        // ADR-076 voice vs memory
     return nullptr;
   }
 

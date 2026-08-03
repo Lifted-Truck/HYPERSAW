@@ -15,8 +15,10 @@ failures by item number. Ordered by importance; ~15 min total.
 ### Poly glide (ADR-076, new)
 - [ ] Voice: **poly**, enable **poly glide**, set **glide** ~0.2 s - play a melody:
       every note should bend in from the previous one
-- [ ] Leave a rest, then play: it should STILL bend in from the last note you played
-      (memory persists across silence - intended)
+- [ ] **glide from = held note (legato)**: bends between overlapping notes, but a
+      note after a rest starts clean (no bend)
+- [ ] **glide from = last note (memory)**: bends in even after a rest, from wherever
+      you last played
 - [ ] Chords bend as a block from one pitch (per-voice mapping deferred - noted)
 - [ ] Toggle off: bit-identical to before
 

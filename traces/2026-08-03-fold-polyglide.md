@@ -11,6 +11,12 @@
 - Inert both ways: polyGlide 0, and polyGlide 1 with glide 0, both start at 220.0.
 - parity 147/147; verify full green.
 
+## Glide source mode (added same PR)
+`glideMode` id 90: 0 = held note (legato, default), 1 = last note (memory).
+Measured (220 = no bend, 110 = bends in): legato 110.0 overlapping / 220.0 after a
+rest; memory 110.0 / 110.0. anotherHeld is computed BEFORE alloc() — alloc can
+steal a gated voice, so asking afterwards misreports.
+
 ## Deferred
 Per-voice chord mapping (each new voice bending from its own nearest predecessor).
 lastNoteF is a single frequency, so a chord bends as a block. Recorded in ADR-076
