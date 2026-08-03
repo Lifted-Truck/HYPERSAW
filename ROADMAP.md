@@ -163,6 +163,33 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## 2x-oversampling SPIKE measured (2026-08-03) — build it, with a bounded claim
+
+Prototype (headless, polyBLEP saw + windowed-sinc halfband decimation) vs the ideal
+1/k law, droop in dB at 5/10/15/20 kHz:
+
+| path | 5 k | 10 k | 15 k | 20 k |
+|---|---|---|---|---|
+| 1× polyBLEP (shipping) | −0.36 | −1.51 | −3.44 | −6.30 |
+| 2× OS + 31-tap halfband | −0.09 | −0.37 | −0.95 | −5.78 |
+| 2× OS + 63-tap | −0.09 | −0.37 | **−0.83** | −4.36 |
+| 2× OS + 127-tap | −0.09 | −0.37 | −0.83 | −2.55 |
+
+READING: 2× OS recovers essentially ALL the droop through 15 kHz (−3.44 → −0.83,
+and 10 kHz becomes −0.37) with a modest 63-tap filter. **20 kHz is intrinsically
+hard** and NOT an oversampling failure: it sits at 0.91× Nyquist, inside any
+decimator's transition band, so it costs filter length (127 taps only reaches
+−2.55) for a band at/above most listeners' limit. 4× OS would move the transition
+band clear of 20 kHz at ~2× the CPU of 2×.
+
+DECISION RECORDED: build **2× OS + ~63-tap halfband**, claim "flat to 15 kHz",
+explicitly DO NOT claim flat-to-Nyquist. Design constraints for the fold: opt-in
+param (default off = bit-exact, the ADR-063 precedent) so all 147 goldens stay
+green; C++-only superset → per L0021 it ships with its own droop gate in
+waveshape_check (assert ≤1 dB at 15 kHz when on, and assert OFF is bit-identical);
+CPU measured against the E-6 envelope before ratification — the voice loop doubles,
+the decimation FIR is negligible (2 ch × 63 taps ≈ 5.6 M MAC/s).
+
 ## Open questions answered / opened (2026-08-03)
 
 **1. ITD max default — measured, and the measurement says LOWER it.** Natural max
