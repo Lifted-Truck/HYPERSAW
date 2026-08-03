@@ -437,3 +437,14 @@ BUG CAUGHT BY TEST, NOT INSPECTION: the first build computed the per-voice attac
 MEASURED: voiceEnv on with scatter 0 — audible (peak 0.211) and per-voice spread exactly 0 (uniform, as it must be when nothing is scattered); scatter 0.8 — spread 0.237 at 150 ms into the release, i.e. voices genuinely releasing at different rates; both cases reach true silence (106 / 174 blocks). Gates pin all four properties. Parity 147/147, `./verify full` green.
 
 FORWARD: per-voice envelope level is now a natural mod SOURCE (the human's stated motivation). Wiring it into the matrix belongs with that work, not here.
+
+## ADR-079 · NOTE_END must survive a rejected push — ACCEPTED (the real stuck-note bug)
+Four rounds of stuck-note work fixed real bugs and never reached this one. The human's clue closed it: "voices stall ... most when I've recently changed the K value", with release/attack/decay at minimum so the envelope was excluded by construction. Measured first: the CORE is innocent — tail after note-off is 46.4 ms at K 0.0 steady, K 0.9 steady, K 0.9→0.0, K 0.0→0.9, and at rtone ±1. Identical everywhere, exactly what a 5 ms release predicts.
+
+THE BUG: `emitNoteEnds` called `out->try_push(...)` and IGNORED THE RETURN VALUE, then retired the tag (or cleared the pending queue) regardless. `try_push` can legitimately fail — the host's output-event buffer is finite, and `drainQueue` floods that same buffer with outgoing param events every time a knob moves. So sweeping K could crowd out a NOTE_END, which was then destroyed forever: Live never learned the note ended and withheld retriggering that pitch until something else cleared its table. That is precisely the reported signature, including why it correlated with knob movement and why an arpeggiator "fixed" it.
+
+FIX: both emission sites now retire only on ACCEPTANCE. Rejected ends stay queued (the pending array is compacted in place) or leave their tag active, and the next block retries — the note resolves late rather than never.
+
+ORACLE: endprobe gains a REJECTING HOST — try_push refuses the next 40 pushes, as a full buffer does. Proven discriminating by running it against the pre-fix code: **old 0 NOTE_END delivered, new 1**. A test that does not fail on the old code proves nothing, so that check was run deliberately.
+
+LESSON (candidate for LIBRARY): an API that returns a success flag is telling you it can fail. Ignoring it converts a transient, recoverable condition into permanent silent data loss — and the loss is invisible precisely because the failing path is rare and load-dependent, so it presents as intermittent flakiness rather than a bug.

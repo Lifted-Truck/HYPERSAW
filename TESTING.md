@@ -45,6 +45,15 @@ Corner stamp should read **79d2205 · 2026-08-03 06:45Z**. Anything else = resta
 - [ ] Old patches sound unchanged with OS off (bit-exact by gate, but confirm by ear)
 - [ ] CPU with OS on is roughly 2.5× the instrument's own load
 
+## Round 6 — ADR-079 stuck notes, the real fix (NEW — please retest this first)
+- [ ] Play fast on the computer keyboard while SWEEPING K back and forth
+- [ ] **Expect: no stalls at all**, including right after a knob move (that
+      correlation was the diagnostic clue and should now be gone)
+- [ ] Sweep other knobs the same way — any knob can fill the host's event buffer
+- [ ] If a note DOES stall: check the note monitor. Filled cell = the gate is stuck
+      (something new); hollow/dimming = envelope tail, which is the release-knob
+      finding, not this bug
+
 ## Round 5 — ADR-078 per-voice envelopes (NEW)
 - [ ] **per-voice envelopes** on, everything else unchanged: should sound the SAME
       as off (uniform voices) — if it changes, something is wrong
