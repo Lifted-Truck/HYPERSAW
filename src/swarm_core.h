@@ -793,9 +793,15 @@ class SwarmCore
       // the audition value). Precedence-effect width; every cross-feed
       // coefficient stays non-negative, unlike mode A's M/S boost whose
       // negative cross-term injected phase-inverted saws (the up-cliff bug).
+      // 0.3 ms coefficient, NOT the 0.6 ms audition value (measured 2026-08-03,
+      // human-approved): both width metrics SATURATE above ~0.15 ms, so 0.6
+      // bought no measurable width while pushing mono-sum comb nulls down to
+      // ~833 Hz (first null ~ sr/2N). At 0.3 the fan stays inside natural
+      // interaural delay (0.51 ms = head width / c) through width 1.5 and only
+      // reaches 0.6 ms at width 2.
       itdSamp[i] = ((int)p.superMode == 0 && p.width > 1.0)
                        ? (int)std::lround(std::fabs(pan) * (p.width - 1.0) * 2.0
-                                          * 0.0006 * sr) : 0;
+                                          * 0.0003 * sr) : 0;
       if (itdSamp[i] > kItdRing - 2) itdSamp[i] = kItdRing - 2;
       const double th = (pan + 1) * 0.25 * kPiRef;
       panBase[i] = pan;   // signed base pan (post-scatter), kept for pan motion (ADR-064)

@@ -52,7 +52,7 @@
       <option value="5">F · ITD + steepening combo</option>
     </select><output></output></div>
     <div class="row"><label>width</label><input type="range" id="width" min="0" max="2" step="0.01" value="1.5"><output id="width_o"></output></div>
-    <div class="row"><label>ITD max</label><input type="range" id="itdMax" min="0" max="1.2" step="0.01" value="0.6"><output id="itdMax_o"></output></div>
+    <div class="row"><label>ITD max</label><input type="range" id="itdMax" min="0" max="1.2" step="0.01" value="0.3"><output id="itdMax_o"></output></div>
     <div class="row"><label>AP freq</label><input type="range" id="apF" min="100" max="4000" step="10" value="700"><output id="apF_o"></output></div>
     <div class="hint"><b>A</b> is the shipped ADR-025 (baseline; expect cliffs above width 1). <b>B</b> ducks mid instead of boosting side — same family, smaller negative coefficient. <b>C</b> maps width&gt;1 to per-voice interaural DELAY on the far channel (up to ITD max ms) — pure precedence-effect width, cross-feed stays non-negative. <b>D</b> rotates the side channel through a one-pole allpass — the inversion still exists but is frequency-dependent instead of broadband. <b>E</b> remaps the pan seats outward (curve exponent) — everything stays plain non-negative gains. <b>F</b> = C + E.</div>
   </div>
