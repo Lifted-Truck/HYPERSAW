@@ -163,6 +163,14 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## ADR-074 SHIPPED (2026-08-02): super-width 3-mode fold (F/A/D)
+
+Ship list built same-day: superMode id 87 (wide/pulse/smear), F default and clean
+(gated 0 cliffs), A/D pinned as documented character (1,867 / 14,300 cliffs at the
+parity patch — the pin fires if a future change silently linearizes them). C/E
+retired. Parity 147/147 untouched; verify full green; TESTING.md carries the
+audition items. Details: ADR-074, traces/2026-08-02-fold-superwidth.md.
+
 ## Width characterization measured (2026-08-02) — F confirmed "best of both worlds"
 
 Full study (6 algos × 7 widths × 10 s, parity-recipe swarm, drone D2):

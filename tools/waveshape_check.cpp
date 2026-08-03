@@ -86,6 +86,47 @@ int main()
                 v.steepRises, v.gradualFalls, v.worstSlope, theory(7, 0.215, 0.3) * 1.25);
     if (v.steepRises || v.gradualFalls) fail++;
   }
+  { // ADR-074 super-width gates (L0021: the superset region ships WITH its
+    // oracle). Mode F at width 1.5 must be CLEAN — that is the fold's whole
+    // point. Mode A (pulse) at width 1.5 MUST cliff: its polarity cross-feed
+    // is documented character, and pinning cliffs > 0 keeps the exception
+    // explicit — if a future change silently linearizes mode A, this fires
+    // and the change owns up to it. Slope bound for F includes the ITD path
+    // (delays change no amplitudes, so the width<=1 bound still applies).
+    SwarmCore c(44100.0);
+    struct M { const char *name; double mode; bool wantClean; };
+    const M cases[] = {{"F wide", 0, true}, {"A pulse", 1, false}, {"D smear", 2, false}};
+    for (const auto &m : cases)
+    {
+      SwarmCore cc(44100.0);
+      cc.setParam("n", 16); cc.setParam("dist", 2); cc.setParam("seed", 1234);
+      cc.setParam("detune", 0.14334470989761092); cc.setParam("K", 0);
+      cc.setParam("retrig", 0); cc.setParam("normExp", 0.75);
+      cc.setParam("width", 1.5); cc.setParam("superMode", m.mode);
+      cc.setParam("vol", 0.4);
+      cc.noteOn(38, 73.42);
+      std::vector<float> L(512), R(512);
+      std::vector<double> oL, oR;
+      for (int b = 0; b < 300; b++)
+      {
+        cc.render(L.data(), R.data(), 512);
+        for (int i = 0; i < 512; i++) { oL.push_back(L[i]); oR.push_back(R[i]); }
+      }
+      const double fmax = 73.42 * std::pow(2, (14.4 + 31) / 1200.0) * 1.02;
+      const double g = 0.9 * 0.4 / std::pow(16.0, 0.75);
+      const double boost = m.mode == 1 ? 2.0 : (m.mode == 2 ? 1.6 : 1.0);
+      const double slopeMax = 16 * 2 * fmax * g / 44100.0 * boost;
+      int cliffs = 0;
+      for (auto *ch : {&oL, &oR})
+        for (size_t i = 20001; i < ch->size(); i++)
+          if ((*ch)[i] - (*ch)[i - 1] > slopeMax * 1.5) cliffs++;
+      const bool ok = m.wantClean ? (cliffs == 0) : (cliffs > 0);
+      std::printf("%s ADR-074 width 1.5 mode %-7s cliffs=%-6d (%s)\n",
+                  ok ? "OK  " : "FAIL", m.name, cliffs,
+                  m.wantClean ? "must be 0" : "pinned exception: must be > 0");
+      if (!ok) fail++;
+    }
+  }
   { // T5 superposition: mix == sum of solos (same seeded per-voice freqs/phases)
     // Solo renders are approximated by n=1 at each voice frequency with the
     // mix's per-voice gain; EXACT phase/freq match needs core introspection, so

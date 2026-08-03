@@ -14,6 +14,13 @@ failures by item number. Ordered by importance; ~15 min total.
 
 ## Current — untested by human
 
+### 0. ADR-074 super-width modes (NEW — fold just landed)
+- [ ] Width 1.5, mode **wide (clean)**: as wide as the old sound, NO pulse artifact; scope stays cliff-free
+- [ ] Mode **pulse**: the old ADR-025 sound, unchanged
+- [ ] Mode **smear**: the allpass character from the lab's D
+- [ ] Width ≤ 1: mode selector grays out; sound bit-identical to before
+- [ ] Mono-fold check on wide mode: sum a track to mono — acceptable loss?
+
 ### 1. Stuck-note fix (#135) — THE experiment
 - [ ] Poly mode, computer keyboard, type fast with overlapping/repeated keys for ~30 s
 - [ ] **Expect:** note-monitor cells hollow out on every release; NO cell stays filled with keys up

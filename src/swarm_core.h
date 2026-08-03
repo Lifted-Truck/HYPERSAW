@@ -127,6 +127,11 @@ struct Params
   // ADR-070 pan image: layout 0 = alternating pitch-ranked fan (the NEW default
   // — root centred, ensemble widens as it climbs), 1 = legacy x-proportional.
   double panLayout = 0, panCurve = 0.5, panInvert = 0;
+  // ADR-074 super-width mode (width > 1 only; inert at width <= 1):
+  // 0 = wide (F: seat steepening + per-voice ITD, clean — the default),
+  // 1 = pulse (A: the original ADR-025 M/S boost, polarity cross-feed),
+  // 2 = smear (D: allpass side, frequency-dependent inversion).
+  double superMode = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -159,6 +164,8 @@ class SwarmCore
     double hg[kMaxV];                      // per-voice hi-tame gain (init 1 in ctor)
     double driftPh[kMaxV] = {0}, driftHoldT[kMaxV] = {0};  // sine / S&H drift-mode state
     double vfSm[kMaxV] = {0}, fRun[kMaxV] = {0};           // ADR-063 frequency-glide state
+    float itdRing[kMaxV][256] = {};                        // ADR-074 far-channel rings
+    int itdW = 0;
     int vfInit = 0;                                        // 0 → snap the glide on the next tick
     double cdist[kMaxV] = {0};                             // ADR-064 distance from the fundamental
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
@@ -198,7 +205,7 @@ class SwarmCore
     *slot = v;
     if (k == "n" || k == "dist" || k == "seed" || k == "width" || k == "topo" ||
         k == "panScatter" || k == "law" || k == "panLayout" || k == "panCurve" ||
-        k == "panInvert")
+        k == "panInvert" || k == "superMode")
       rebuild();  // law/pan* added by ADR-070 (fan ranks by pitch); idempotent
     return true;
   }
@@ -465,8 +472,19 @@ class SwarmCore
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.hiTame > 0) v *= s.hg[i];
           if (p.mono != 0) { l += v * 0.7071; r += v * 0.7071; }
+          else if (itdSamp[i] > 0)
+          {
+            // ADR-074 mode F: near channel direct, far channel from the
+            // voice's delay ring — a plain delayed copy, never inverted.
+            const int rw = s.itdW & (kItdRing - 1);
+            const float far = s.itdRing[i][(rw - itdSamp[i] + kItdRing) & (kItdRing - 1)];
+            s.itdRing[i][rw] = (float)v;
+            if (PL[i] >= PR[i]) { l += v * PL[i]; r += (double)far * PR[i]; }
+            else { r += v * PR[i]; l += (double)far * PL[i]; }
+          }
           else { l += v * PL[i]; r += v * PR[i]; }
         }
+        s.itdW++;   // ADR-074: one tick per sample; rings indexed off this head
         if (p.lpOut != 0)
         {
           s.lpL += s.lpc * (l - s.lpL);
@@ -510,17 +528,44 @@ class SwarmCore
       }
     }
     this->tick = (this->tick + frames) & (kTick - 1);
-    if (p.width > 1.0)
+    if (p.width > 1.0 && (int)p.superMode != 0)
     {
-      // Super-width (ADR-025): mid/side side-boost ahead of the soft clip.
-      // Only reachable at width > 1 — the reference range is bit-untouched.
-      const double sideGain = 1 + (p.width - 1) * 2;  // up to 2x at 1.5
-      for (int smp = 0; smp < frames; smp++)
+      // ADR-074: super-width is now a 3-mode system; the post-mix stage serves
+      // the two CHARACTER modes only. Mode F (default 0, clean) acts entirely
+      // at the seats/ITD above and needs no post stage.
+      if ((int)p.superMode == 1)
       {
-        const double mid = ((double)outL[smp] + (double)outR[smp]) * 0.5;
-        const double side = ((double)outL[smp] - (double)outR[smp]) * 0.5 * sideGain;
-        outL[smp] = (float)(mid + side);
-        outR[smp] = (float)(mid - side);
+        // mode A "pulse" — the original ADR-025 M/S boost, kept verbatim. Its
+        // negative cross-term (L' = 1.5L - 0.5R at width 1.5) injects
+        // phase-inverted opposite-side voices: audible pulse-like combing and
+        // waveform up-cliffs. DOCUMENTED CHARACTER, not a defect — pinned as
+        // the expected exception in waveshape_check.
+        const double sideGain = 1 + (p.width - 1) * 2;
+        for (int smp = 0; smp < frames; smp++)
+        {
+          const double mid = ((double)outL[smp] + (double)outR[smp]) * 0.5;
+          const double side = ((double)outL[smp] - (double)outR[smp]) * 0.5 * sideGain;
+          outL[smp] = (float)(mid + side);
+          outR[smp] = (float)(mid - side);
+        }
+      }
+      else
+      {
+        // mode D "smear" — one-pole allpass on the side channel before the
+        // boost: the inversion still exists but is frequency-dependent, which
+        // reads as motion/smear rather than a broadband pulse. Same documented-
+        // character status as mode A.
+        const double apc = 1 - std::exp(-kTau * 700.0 / sr);
+        const double sideGain = 1 + (p.width - 1) * 1.2;
+        for (int smp = 0; smp < frames; smp++)
+        {
+          const double mid = ((double)outL[smp] + (double)outR[smp]) * 0.5;
+          double side = ((double)outL[smp] - (double)outR[smp]) * 0.5;
+          apZ += apc * (side - apZ);
+          side = (2 * apZ - side) * sideGain;
+          outL[smp] = (float)(mid + side);
+          outR[smp] = (float)(mid - side);
+        }
       }
     }
     for (int smp = 0; smp < frames; smp++)
@@ -604,6 +649,7 @@ class SwarmCore
     if (k == "panLayout") return &p.panLayout;        // ADR-070 pan image
     if (k == "panCurve") return &p.panCurve;          // ADR-070 fan curve
     if (k == "panInvert") return &p.panInvert;        // ADR-070 fan invert
+    if (k == "superMode") return &p.superMode;        // ADR-074 super-width mode
     return nullptr;
   }
 
@@ -717,7 +763,12 @@ class SwarmCore
       for (int i = 0; i < n; i++) idx[i] = i;
       if ((int)p.law != 4)
         std::stable_sort(idx, idx + n, [&](int a, int b) { return x[a] < x[b]; });
-      const double gamma = std::pow(6, 0.5 - p.panCurve);
+      // ADR-074 mode F seat steepening: width > 1 pushes seats outward via a
+      // curve exponent (audition law from the width lab). 1.0 at width <= 1 or
+      // in other modes, so the reference regime is bit-untouched.
+      const double steep = ((int)p.superMode == 0 && p.width > 1.0)
+                               ? 1.0 / (1.0 + 2.0 * (p.width - 1.0)) : 1.0;
+      const double gamma = std::pow(6, 0.5 - p.panCurve) * steep;
       for (int r = 0; r < n; r++)
       {
         // PARITY FORK (ADR-073, parity with swarmsaw.html): odd n keeps rank 0
@@ -737,6 +788,15 @@ class SwarmCore
     {
       double pan = pos[i];
       if (ps > 0) pan += (pos[perm[i]] - pos[i]) * ps;
+      // ADR-074 mode F per-voice ITD: width beyond 1 delays each voice's FAR
+      // channel in proportion to its seat distance (0.6 ms max at width 2 —
+      // the audition value). Precedence-effect width; every cross-feed
+      // coefficient stays non-negative, unlike mode A's M/S boost whose
+      // negative cross-term injected phase-inverted saws (the up-cliff bug).
+      itdSamp[i] = ((int)p.superMode == 0 && p.width > 1.0)
+                       ? (int)std::lround(std::fabs(pan) * (p.width - 1.0) * 2.0
+                                          * 0.0006 * sr) : 0;
+      if (itdSamp[i] > kItdRing - 2) itdSamp[i] = kItdRing - 2;
       const double th = (pan + 1) * 0.25 * kPiRef;
       panBase[i] = pan;   // signed base pan (post-scatter), kept for pan motion (ADR-064)
       panL[i] = std::cos(th);
@@ -1089,6 +1149,9 @@ class SwarmCore
  private:
   double x[kMaxV] = {0}, panL[kMaxV] = {0}, panR[kMaxV] = {0};
   double panBase[kMaxV] = {0};                              // ADR-064 signed base pan
+  static constexpr int kItdRing = 256;   // 1.2 ms at 192 kHz fits
+  int itdSamp[kMaxV] = {0};              // ADR-074 per-voice far-channel delay
+  double apZ = 0;                        // ADR-074 mode D allpass state
   double panEffV[kMaxV] = {0};                              // viz-only: motion-modulated seat
                                                             // (named panBase: rebuild has a local `pan`)
   double panPh[kMaxV] = {0}, panLm[kMaxV] = {0}, panRm[kMaxV] = {0};
