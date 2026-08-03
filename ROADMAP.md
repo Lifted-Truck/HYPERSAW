@@ -8,6 +8,34 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FX fold status — what IS and IS NOT in the plugin (recorded 2026-08-03, human asked)
+
+Human asked for the comb's fold status to be recorded clearly, believing it was
+"only in a lab". **Checked rather than recalled, and the truth was a third thing —
+plus a live bug.**
+
+- **Karplus-Strong comb: SHIPPED** in the internal FX rack as slot type 5
+  (ADR-071), ids 57/59/61/63, `src/fx_rack.h`. Not a lab-only feature.
+- **…but it was UNREACHABLE from the plugin's own panel.** The rack params were
+  widened 0..3 → 0..5 when ADR-071 landed; the four GUI dropdowns in
+  `src/gui/gui.html` were never widened with them, so **Comp (4) and Comb (5)
+  were shipped, automatable from the host, and invisible in the interface**.
+  Fixed 2026-08-03. Neither of us would have found this by memory — the human's
+  wrong recollection was pointing at a real defect from the wrong direction.
+- **Divergence already on record:** the rack's comb is BUS-side (8 tuned lines
+  fed the whole mix, sympathetic-string posture), not the lab's per-swarm comb.
+  ADR-071 records this honestly; if an A/B says the per-voice isolation matters,
+  the comb moves core-side as its own decision. **Still unaudited by ear** —
+  because until now it could not be selected in the GUI.
+- **NOT folded: the Track E1 swarm filter + notch/phaser.** `filter_core.h` /
+  `notch_core.h` are parity-proven but live in the **separate SWARM-FX plugin**
+  (`src/swarmfx_clap.cpp`), not in HYPERSAW's rack. That is the "whole lab not
+  folded in yet" — `swarmfilter.html` / `swarmphaser.html`.
+
+**Lesson worth the ink:** a param range widened without its GUI control is a
+feature that ships invisible. Every future rack type must widen both, in the same
+change. (Candidate LIBRARY entry.)
+
 ## Pitch-bend inertia — EXPERIMENT, awaiting audition (human direction, 2026-08-03)
 
 Human: *"I want to try adding an inertia option to pitch bend (with various settings
@@ -45,6 +73,44 @@ place or is it a novelty? (2) Flat amount, or keyed to bend distance? (3) Bend l
 only, or note pitch too? (4) Does this belong on the wheel *and* on MPE per-note bend
 (ADR-036/038), which is a much more expressive surface and would need per-note state?
 No fold, no ADR, and no param ids until these are answered.
+
+### Increment 2 — human direction, 2026-08-03 (bench updated, still no fold)
+
+Human's ideal set: *"constant-time glide, constant cents glide, lag, spring (with all
+the current spring settings and possibly an extra slider for the extent to which glide
+distance influences overshoot)"*, plus *"note pitch was actually the whole crux of my
+initial idea"* and *"apply it to MPE as well"*. All now in the bench:
+
+- **Constant time added as its own model** — it was genuinely missing. The old "lag"
+  is a one-pole, which is asymptotic and *never arrives*; constant-time portamento
+  latches a velocity from the move distance and arrives exactly on schedule. Verified
+  by the property that defines it: a 2 st and a 12 st move both reach 50 % at T/2
+  (99.77 ms measured for T=200).
+- **dist→overshoot slider.** Answering the human's "if that isn't already how it
+  works": **partly, yes.** A linear spring overshoots by a fixed *percentage*, so
+  absolute overshoot in cents is *already* proportional to distance — that is k=1, and
+  the knob generalises it to overshoot ¢ ∝ distance^k. Implemented by solving the
+  closed-form ζ↔overshoot relation for the damping that *produces* the wanted
+  overshoot, not by scaling the output. Measured ratios over a 6× distance change:
+  k=1 → 6.00, k=0 → 0.97 (constant absolute), k=2 → 9.07 vs 3²=9.
+- **Note-pitch lane promoted to the default** (`applies to` now defaults to note
+  pitch), since it is the crux of the idea.
+- **MPE lane is real, not a note.** Each note carries its own bend inertia *and its own
+  latched target*; the wheel drives the newest note while the others hold. Verified:
+  bend note A to +2, play note B, move the wheel to −1 → A stays at +2, B follows.
+  **It maps naturally at fold time** — `setNoteExpr` already writes per-voice
+  `noteTune` (ADR-036/038), so per-note bend inertia is one filter instance per voice
+  with no new plumbing.
+
+**Bug fixed in the bench:** releasing any key gated every sounding note off, which made
+glide unauditionable (glide is inseparable from what "still held" means). Replaced with
+a real held stack: per-key release in poly, last-note-priority with fallback-to-still-held
+in mono. Verified for both.
+
+**Mechanism bug the calibration caught:** the move-distance tracker rearmed the moment
+the error crossed zero — but a spring crosses its target at full speed *on the way to
+overshooting*, so it was re-deriving its own damping mid-overshoot. dist→overshoot read
+distance^2.5 instead of distance^2. Rearm now requires arrived AND stopped.
 
 ## Mono note-hang FIXED (2026-07-29, tasks #24 + #28 closed)
 

@@ -39,31 +39,36 @@
 </style>
 </head>
 <body>
-<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-08-03 14:27 &middot; fp <span id="revfp">…</span></div>
+<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-08-03 15:29 &middot; fp <span id="revfp">…</span></div>
 <h1>SWARM✱ bend lab</h1>
-<div class="tagline">Bench for <b>pitch-bend inertia</b> (human request 2026-08-03) — pitch does not arrive where you point it, it <i>travels</i> there. Four models, because "inertia" is four different physical claims and they do <i>not</i> sound alike: a <b>lag</b> is proportional (every move takes the same time regardless of size), a <b>rate limit</b> is constant-velocity (big moves take longer, small ones are instant), and only the <b>mass-spring</b> is inertia in the literal sense — it can overshoot and ring, because a mass in motion does not stop when the force does. The bench measures each: step response with <b>lag / overshoot / settle / reversals</b>, plus a vibrato test, because the price of inertia is that it <i>eats fast wheel vibrato</i> and that cost should be a number, not a surprise. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone, drag the wheel, or fire a gesture (identical input = a fair A/B, which a hand-dragged wheel can never give you).</div>
+<div class="tagline">Bench for <b>pitch-bend inertia</b> (human request 2026-08-03) — pitch does not arrive where you point it, it <i>travels</i> there. Five travel laws, because "how long does a glide take" has more than one honest answer and they do <i>not</i> sound alike: <b>constant time</b> takes the same duration near or far, <b>constant rate</b> holds a fixed cents-per-second so distance sets the duration, <b>lag</b> is asymptotic and never technically arrives, and only the <b>spring</b> is inertia in the literal sense — it can overshoot and ring, because a mass in motion does not stop when the force does. The bench measures each: step response with <b>lag / overshoot / settle / reversals</b>, plus a vibrato test, because the price of inertia is that it <i>eats fast wheel vibrato</i> and that cost should be a number, not a surprise. Both lanes are live — the <b>bend wheel</b> and <b>note pitch</b> (where the spring puts a blip on every onset, the way a struck resonator does), with per-note MPE bend as a toggle. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone, drag the wheel, or fire a gesture (identical input = a fair A/B, which a hand-dragged wheel can never give you).</div>
 
 <div class="cols">
   <div class="card">
     <h2>Inertia model</h2>
     <div class="row"><label>model</label><select id="model">
       <option value="0">0 · off (instant — the baseline)</option>
-      <option value="1" selected>1 · lag (one-pole, proportional)</option>
-      <option value="2">2 · rate limit (constant ¢/s)</option>
-      <option value="3">3 · mass-spring (true inertia — overshoots)</option>
-      <option value="4">4 · lag → rate limit (series)</option>
+      <option value="1">1 · constant time (portamento — fixed duration)</option>
+      <option value="2">2 · constant rate (fixed ¢/s)</option>
+      <option value="3" selected>3 · lag (one-pole — never quite arrives)</option>
+      <option value="4">4 · spring (true inertia — overshoots)</option>
+      <option value="5">5 · lag → constant rate (series)</option>
     </select></div>
+    <div class="row"><label>glide time</label><input type="range" id="gtime" min="5" max="1500" step="5" value="120"><output id="gtime_o"></output></div>
+    <div class="row"><label>glide rate</label><input type="range" id="rate" min="0.5" max="200" step="0.5" value="24"><output id="rate_o"></output></div>
     <div class="row"><label>lag τ</label><input type="range" id="tau" min="1" max="400" step="1" value="60"><output id="tau_o"></output></div>
-    <div class="row"><label>max rate</label><input type="range" id="rate" min="0.5" max="200" step="0.5" value="24"><output id="rate_o"></output></div>
     <div class="row"><label>spring f</label><input type="range" id="springF" min="0.5" max="20" step="0.1" value="4"><output id="springF_o"></output></div>
     <div class="row"><label>damping ζ</label><input type="range" id="damp" min="0.05" max="2" step="0.01" value="0.6"><output id="damp_o"></output></div>
+    <div class="row"><label>dist→overshoot</label><input type="range" id="distOver" min="0" max="2" step="0.05" value="1"><output id="distOver_o"></output></div>
     <div class="row"><label>return ×</label><input type="range" id="retMul" min="0.2" max="3" step="0.05" value="1"><output id="retMul_o"></output></div>
     <div class="row"><label>applies to</label><select id="applyTo">
-      <option value="0" selected>bend wheel only</option>
-      <option value="1">note pitch only (= glide with character)</option>
+      <option value="0">bend only</option>
+      <option value="1" selected>note pitch only (glide with character)</option>
       <option value="2">both</option>
     </select></div>
-    <div class="hint">Only the knobs your model reads are live. <b>return ×</b> scales the time constant when the bend is heading back toward zero — a real spring returns faster than you can push, so &lt;1 gives the snap-back; it is bend-lane only (a note has no "home"). <b>damping ζ</b>: 1 = critical (fastest arrival with no overshoot), &lt;1 rings, &gt;1 goes sluggish. Note that <b>spring on note pitch</b> is the interesting one — it puts a pitch blip on every note onset, which is what a real resonator does when it is struck.</div>
+    <div class="chk"><label><input type="checkbox" id="mpe"> MPE: per-note bend (wheel bends the newest note; others hold theirs)</label></div>
+    <div class="hint">Only the knobs your model reads are live. The first three are the three honest ways to answer "how long does a glide take": <b>constant time</b> takes the same duration near or far, <b>constant rate</b> takes the same cents-per-second so distance sets the duration, and <b>lag</b> is asymptotic — it approaches forever and never technically arrives, which is why it has no "glide time" at all.
+    <br><br><b>dist→overshoot</b>: a plain spring already overshoots by a fixed <i>percentage</i>, so absolute overshoot is <i>already</i> proportional to how far you moved — that is <b>1</b>, the natural law. The knob bends it: overshoot ¢ ∝ distance^k. <b>0</b> = the same absolute wobble whatever you play; <b>2</b> = only the big sweeps bounce. <b>return ×</b> scales the time when heading back toward zero (a real spring snaps home faster than you can push) — bend lane only, since a note has no home. <b>ζ</b>: 1 = critical (fastest arrival, no overshoot), &lt;1 rings, &gt;1 sluggish.</div>
   </div>
 
   <div class="card">
@@ -135,8 +140,16 @@ function gaussFrom(rng) {
 // Shared parameter block: the offline meters and the live audio read the SAME
 // object, so a measured number can never describe a different setting than the
 // one you are hearing.
-const P = { model: 1, tau: 60, rate: 24, springF: 4, damp: 0.6, retMul: 1,
-            applyTo: 0, bendRange: 2, wobF: 5 };
+const P = { model: 3, gtime: 120, rate: 24, tau: 60, springF: 4, damp: 0.6,
+            distOver: 1, retMul: 1, applyTo: 1, bendRange: 2, wobF: 5, mpe: false };
+
+// Overshoot fraction of a second-order step response, and its inverse. Both
+// closed form: os = exp(-pi*z/sqrt(1-z^2)). The inverse is what lets "how far
+// you moved" steer overshoot without inventing a fudge factor — we solve for
+// the damping that PRODUCES a wanted overshoot instead of scaling the output.
+const osFromZeta = z => (z >= 1 ? 0 : Math.exp(-Math.PI * z / Math.sqrt(1 - z * z)));
+const zetaFromOs = os => { const l = Math.log(Math.min(0.95, Math.max(1e-4, os)));
+                           return -l / Math.sqrt(Math.PI * Math.PI + l * l); };
 
 // Inertia: the pitch lane's transfer function, in SEMITONES.
 // Runs at TICK rate (2756/s @ 44.1k), not sample rate — that is where a core
@@ -145,10 +158,25 @@ const P = { model: 1, tau: 60, rate: 24, springF: 4, damp: 0.6, retMul: 1,
 // would never actually have. Time constants are in seconds/ms and converted
 // here; per-tick constants are never hand-written (ADR-009).
 class Inertia {
-  constructor(rate, lane) { this.sr = rate; this.lane = lane; this.x = 0; this.v = 0; this.y = 0; }
-  reset(v) { this.x = v; this.v = 0; this.y = v; }
+  constructor(rate, lane) { this.sr = rate; this.lane = lane; this.x = 0; this.v = 0; this.y = 0; this.D = 0; }
+  reset(v) { this.x = v; this.v = 0; this.y = v; this.D = 0; }
   step(t, p) {
     const dt = 1 / this.sr;
+    // Move distance, peak-held since the last arrival. Constant-time glide
+    // needs it (velocity = distance/time, latched at the start of the move)
+    // and so does distance-steered overshoot. Peak-hold rather than
+    // "remember the target jump" so a continuously-dragged wheel and a
+    // discrete note jump both produce a sane number.
+    const err = Math.abs(t - this.x);
+    if (err > this.D) this.D = err;
+    // Rearm only once the move has arrived AND STOPPED. Testing arrival alone
+    // is wrong for the spring: it crosses the target at full speed on its way
+    // to overshooting, so `err` dips through zero mid-flight and D would rearm
+    // to the overshoot height — silently re-deriving the damping DURING the
+    // overshoot it was supposed to be setting. (Caught by calibration:
+    // distOver=2 read distance^2.5 instead of distance^2.)
+    if (err < 0.004 && Math.abs(this.v) < 0.02) this.D = 0;
+    const D = Math.max(this.D, 0.01);
     // "returning" = heading back toward rest. Bend lane only: a note has no
     // home pitch to spring back to, so the asymmetry is meaningless there.
     const rm = (this.lane === 'bend' && Math.abs(t) < Math.abs(this.x))
@@ -156,23 +184,41 @@ class Inertia {
     switch (p.model) {
       case 0: this.x = t; this.v = 0; this.y = t; break;
       case 1: {
-        const tau = Math.max(1e-4, p.tau * 1e-3 * rm);
-        this.x += (t - this.x) * (1 - Math.exp(-dt / tau));
+        // CONSTANT TIME: every move takes the same duration, near or far, so
+        // velocity is set by the distance. This is the glide most synths mean
+        // by "portamento time" and it is NOT the one-pole (case 3), which
+        // never actually arrives.
+        const s = D / Math.max(1e-3, p.gtime * 1e-3 * rm) * dt, d = t - this.x;
+        this.x += Math.max(-s, Math.min(s, d));
         this.y = this.x; break;
       }
       case 2: {
+        // CONSTANT RATE: fixed cents per second, so distance sets the duration.
         const s = (p.rate / rm) * dt, d = t - this.x;
         this.x += Math.max(-s, Math.min(s, d));
         this.y = this.x; break;
       }
       case 3: {
+        const tau = Math.max(1e-4, p.tau * 1e-3 * rm);
+        this.x += (t - this.x) * (1 - Math.exp(-dt / tau));
+        this.y = this.x; break;
+      }
+      case 4: {
         // Forward Euler is safe here: dt*omega <= 2*pi*20/2756 = 0.046.
-        const w = TAU * p.springF / rm, z = p.damp;
+        const w = TAU * p.springF / rm;
+        // Distance-steered overshoot. A plain linear spring already overshoots
+        // by a fixed PERCENTAGE, so absolute overshoot is proportional to the
+        // move — distOver = 1 is that natural law, and the knob bends it:
+        // overshoot_cents ~ distance^distOver. 0 = the same absolute wobble
+        // whatever you play, 2 = only the big sweeps bounce.
+        let z = p.damp;
+        if (z < 1 && p.distOver !== 1)
+          z = zetaFromOs(osFromZeta(z) * Math.pow(D / 2, p.distOver - 1));
         this.v += (w * w * (t - this.x) - 2 * z * w * this.v) * dt;
         this.x += this.v * dt;
         this.y = this.x; break;
       }
-      case 4: {
+      case 5: {
         const tau = Math.max(1e-4, p.tau * 1e-3 * rm);
         this.y += (t - this.y) * (1 - Math.exp(-dt / tau));
         const s = (p.rate / rm) * dt, d = this.y - this.x;
@@ -257,6 +303,7 @@ class BendBench {
     this.bendTarget = 0; this.bendAct = 0;
     this.tick = 0; this.tickCount = 0;
     this.lastMidi = null; this.mono = true;
+    this.held = []; this.newest = null;
     this.rebuild();
   }
   rebuild() {
@@ -279,19 +326,29 @@ class BendBench {
     const p = this.p, rng = mulberry(p.seed + this.tickCount * 7919 + 1);
     const nt = { midi, gate: 1, env: 0, stCur: midi,
       phase: new Float64Array(p.n), vf: new Float64Array(p.n),
-      driftPh: new Float64Array(p.n), pitch: new Inertia(this.sr / TICK, 'note') };
+      driftPh: new Float64Array(p.n), pitch: new Inertia(this.sr / TICK, 'note'),
+      // MPE: per-note bend, with its own inertia state AND its own latched
+      // target — that latch is the whole point. Bend one note, play another,
+      // and the first must hold where you left it.
+      bend: new Inertia(this.sr / TICK, 'bend'), bendTgt: 0, bendAct: 0 };
     for (let i = 0; i < p.n; i++) { nt.phase[i] = rng(); nt.driftPh[i] = i * 0.13; }
     nt.pitch.reset(this.lastMidi !== null ? this.lastMidi : midi);
     this.updVf(nt);
     return nt;
   }
   updVf(nt) {
-    const p = this.p, f = 440 * Math.pow(2, (nt.stCur + this.bendAct - 69) / 12);
+    const p = this.p;
+    const f = 440 * Math.pow(2, (nt.stCur + (P.mpe ? nt.bendAct : this.bendAct) - 69) / 12);
     for (let i = 0; i < p.n; i++)
       nt.vf[i] = f * Math.pow(2, (this.x[i] * p.detune
                  + Math.sin(TAU * nt.driftPh[i]) * p.drift) / 1200);
   }
   noteOn(midi) {
+    // Last-note priority: a re-press moves the key to the top rather than
+    // stacking a duplicate (the 2026-07-29 phantom-held-key bug, avoided here
+    // by construction rather than rediscovered).
+    this.held = this.held.filter(m => m !== midi);
+    this.held.push(midi);
     if (this.mono && this.notes.length) {
       // retarget: the pitch inertia state SURVIVES, which is what makes a new
       // note travel from the old one instead of teleporting.
@@ -299,12 +356,30 @@ class BendBench {
       nt.midi = midi; nt.gate = 1;
       if (P.applyTo === 0) { nt.pitch.reset(midi); nt.stCur = midi; }
     } else {
-      this.notes.push(this.makeNote(midi));
+      const nt = this.makeNote(midi);
+      this.notes.push(nt);
+      this.newest = nt;
       if (this.notes.length > 6) this.notes.shift();
     }
     this.lastMidi = midi;
   }
-  noteOff() { for (const nt of this.notes) nt.gate = 0; }
+  // Per-KEY release. Releasing one key used to gate every sounding note off —
+  // which made the whole glide/legato question unauditionable, since glide is
+  // inseparable from what "still held" means.
+  noteOff(midi) {
+    this.held = this.held.filter(m => m !== midi);
+    if (this.mono) {
+      const nt = this.notes[0];
+      if (!nt) return;
+      // Fall back to the note still under your other finger instead of
+      // stopping: that fallback IS the legato glide gesture.
+      if (this.held.length) { nt.midi = this.held[this.held.length - 1]; nt.gate = 1; }
+      else nt.gate = 0;
+    } else {
+      for (const nt of this.notes) if (nt.midi === midi) nt.gate = 0;
+    }
+  }
+  allOff() { this.held.length = 0; for (const nt of this.notes) nt.gate = 0; }
   render(outL, outR) {
     const p = this.p, sr = this.sr, n = p.n, N = outL.length;
     const atk = 1 - Math.exp(-1 / (0.004 * sr)), rel = 1 - Math.exp(-1 / (0.15 * sr));
@@ -313,12 +388,18 @@ class BendBench {
     for (let smp = 0; smp < N; smp++) {
       if (this.tick === 0) {
         if (gest) advanceGesture(this);
+        // MPE routes the wheel to the NEWEST sounding note only; every other
+        // note keeps the bend it was left holding.
+        if (P.mpe && this.newest) this.newest.bendTgt = this.bendTarget;
         if (P.applyTo !== 1) this.bendAct = this.bend.step(this.bendTarget, P);
         else { this.bend.reset(this.bendTarget); this.bendAct = this.bendTarget; }
         histT[histW & HMASK] = this.bendTarget;
-        histA[histW & HMASK] = this.bendAct; histW++;
+        histA[histW & HMASK] = P.mpe && this.newest ? this.newest.bendAct : this.bendAct;
+        histW++;
         for (const nt of this.notes) {
           if (!nt.gate && nt.env < 1e-4) continue;
+          if (P.mpe)
+            nt.bendAct = (P.applyTo !== 1) ? nt.bend.step(nt.bendTgt, P) : nt.bendTgt;
           nt.stCur = (P.applyTo !== 0) ? nt.pitch.step(nt.midi, P) : nt.midi;
           for (let i = 0; i < n; i++) nt.driftPh[i] += 0.4 * (0.7 + 0.6 * i / n) * TICK / sr;
           this.updVf(nt);
@@ -345,8 +426,13 @@ class BendBench {
     }
     // retire dead voices rather than leaving them just under the threshold
     // forever (the 2026-08-03 note-history bug, in miniature)
-    if (this.notes.length && !this.mono)
+    if (this.notes.length && !this.mono) {
       this.notes = this.notes.filter(nt => nt.gate || nt.env >= 1e-4);
+      // `newest` is the MPE bend destination — a retired note must not stay
+      // the target, or the wheel would drive a voice that no longer sounds.
+      if (this.newest && !this.notes.includes(this.newest))
+        this.newest = this.notes.length ? this.notes[this.notes.length - 1] : null;
+    }
   }
 }
 
@@ -394,8 +480,10 @@ function ensureAudio() {
 const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
   const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); recalc(); };
   el.addEventListener('input', f); f(); };
+wire('gtime', v => P.gtime = v, v => v.toFixed(0) + ' ms');
+wire('rate', v => P.rate = v, v => (v * 100).toFixed(0) + ' ¢/s');
 wire('tau', v => P.tau = v, v => v.toFixed(0) + ' ms');
-wire('rate', v => P.rate = v, v => v.toFixed(1) + ' st/s');
+wire('distOver', v => P.distOver = v, v => v.toFixed(2));
 wire('springF', v => P.springF = v, v => v.toFixed(1) + ' Hz');
 wire('damp', v => P.damp = v, v => v.toFixed(2));
 wire('retMul', v => P.retMul = v, v => v.toFixed(2) + '×');
@@ -407,7 +495,8 @@ wire('drift', v => bench.p.drift = v, v => v.toFixed(1) + ' ¢');
 wire('vol', v => bench.p.vol = v);
 $('model').addEventListener('change', e => { P.model = +e.target.value; recalc(); });
 $('applyTo').addEventListener('change', e => { P.applyTo = +e.target.value; recalc(); });
-$('mono').addEventListener('change', e => { bench.mono = e.target.checked; bench.notes.length = 0; });
+$('mono').addEventListener('change', e => { bench.mono = e.target.checked; bench.notes.length = 0; bench.held.length = 0; bench.newest = null; });
+$('mpe').addEventListener('change', e => { P.mpe = e.target.checked; });
 
 for (const g of ['step', 'tap', 'ramp', 'dive', 'wob'])
   $('g_' + g).addEventListener('click', () => { ensureAudio(); gest = { type: g, t0: bench.tickCount }; });
@@ -432,9 +521,10 @@ let droneOn = false;
 $('drone').addEventListener('click', () => {
   ensureAudio(); droneOn = !droneOn;
   if (droneOn) { bench.noteOn(38); $('drone').textContent = 'stop'; }
-  else { bench.noteOff(); $('drone').textContent = 'drone D2'; }
+  else { bench.allOff(); $('drone').textContent = 'drone D2'; }
 });
 const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12 };
+const pressed = new Map();
 let octaveBase = 38;
 const octLabel = () => { $('octlbl').textContent = 'octave base MIDI ' + octaveBase + ' (Z/X)'; };
 octLabel();
@@ -444,9 +534,19 @@ addEventListener('keydown', e => {
   if (e.key === 'z') { octaveBase -= 12; octLabel(); return; }
   if (e.key === 'x') { octaveBase += 12; octLabel(); return; }
   const k = KMAP[e.key]; if (k === undefined) return;
-  ensureAudio(); bench.noteOn(octaveBase + k);
+  ensureAudio();
+  // Remember the midi each PHYSICAL key produced: Z/X can shift the octave
+  // between keydown and keyup, and releasing then would target a note that
+  // was never struck.
+  pressed.set(e.key, octaveBase + k);
+  bench.noteOn(octaveBase + k);
 });
-addEventListener('keyup', e => { if (KMAP[e.key] !== undefined) bench.noteOff(); });
+addEventListener('keyup', e => {
+  if (!pressed.has(e.key)) return;
+  bench.noteOff(pressed.get(e.key));
+  pressed.delete(e.key);
+});
+addEventListener('blur', () => { pressed.clear(); bench.allOff(); });
 
 /* ---------- meters + plots ---------- */
 function plot(g, cv, getT, getA, count, span) {
