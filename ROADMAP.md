@@ -8,6 +8,38 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## STANDING CONVENTION — lab visuals ship with the feature (human, 2026-08-03)
+
+Human: *"I want to set a precedent that the best visual elements from each lab are
+included in the synth itself, though many will probably want to just be on their own
+tabs instead of on the global visualizer. The bend lab visuals will be helpful in
+demonstrating to users what these unusual controls actually do."*
+
+**The rule.** A lab is not just a design bench — it is where the *explanation* of a
+control gets built. When a lab feature folds into the plugin, its best visual folds
+with it, and "no visual" is a decision that must be argued, not a default from
+forgetting. Placement is per-feature: the **global visualizer** stays reserved for
+things true of the whole instrument (phase circle, scope, voice map); feature-specific
+displays live on **their own tab beside the controls they explain**.
+
+**Why it matters more here than in a normal synth.** HYPERSAW's controls are unusual
+enough that a user cannot infer them from the name — `dist→overshoot`, `onset α`,
+`super-width mode`, `glide model`. A knob whose meaning is only discoverable by
+careful listening is, in practice, a knob most users will leave alone. The step-response
+plot answers "what does this do" in one glance, and it already exists.
+
+**Backlog of visuals worth folding** (each with its lab source):
+- **bend lab** — step-response plot (target vs actual) + the vibrato-cost readout.
+  Highest value: it makes the glide models legible at a glance. *Ships with the bend
+  fold, whenever that lands.*
+- **width lab** — the L/R scope and the cliff counter (side/mid, correlation).
+- **reverb lab** — the ER/tail envelope display.
+- **ensemble lab** — the onset-scatter raster (shows corrected vs i.i.d. timing).
+- **detune / shape / mod labs** — pending their own folds.
+
+Not a queue item to do now; a **rule applied at each fold**, recorded so it is not
+re-litigated per feature.
+
 ## FX fold status — what IS and IS NOT in the plugin (recorded 2026-08-03, human asked)
 
 Human asked for the comb's fold status to be recorded clearly, believing it was
