@@ -11,6 +11,7 @@
 #include <cmath>
 #include <vector>
 #include "../src/swarm_core.h"
+#include "../src/fx_rack.h"
 using namespace hypersaw;
 namespace {
 struct Cfg { int n; double detune, width, vol; };
@@ -290,6 +291,109 @@ int main()
     std::printf("%s linearity vol 0.1 vs 0.2: worst |b-2a| = %.6f (tanh bound 0.004)\n",
                 worst > 0.004 ? "FAIL" : "OK  ", worst);
     if (worst > 0.004) fail++;
+  }
+  { // T6 comb declick (2026-08-03, human-reported "tiny amount of clicking").
+    // The FX rack's comb retunes lines that may still be RINGING, which used to
+    // be a step discontinuity: the buffer was wiped and the read pointer jumped
+    // mid-ring, and 1/activeLines dropped every other line's output the instant
+    // a note claimed a line.
+    //
+    // PAIRED detector. Within ONE run, compare the worst sample-to-sample jump
+    // NEAR a note-on against the worst jump FAR from any note-on. Same signal,
+    // same line count, same everything — only position differs, so a transient
+    // localized at the retune is the only thing that can separate the two. An
+    // earlier version compared two DIFFERENT note patterns and was measuring
+    // their configurations rather than the click (L0017: the floor has to be
+    // the same signal class).
+    const double sr = 44100.0;
+    auto ratio = [&](bool declick) {
+      hypersaw::FxRack rack;
+      rack.setSampleRate(sr);
+      if (!declick) rack.setCombDeclick(0, 0);   // the pre-fix behaviour
+      rack.setType(0, (int)hypersaw::FxType::Comb);
+      rack.setAmount(0, 1.0);   // full wet: measure the effect, not a dry mask
+      float L[64], R[64];
+      double prev = 0, near = 0, far = 0;
+      const int kNotes[6] = {45, 52, 57, 45, 60, 52};
+      const long W = (long)(0.015 * sr), period = 40 * 64;
+      for (int b = 0; b < 400; b++)
+      {
+        if (b % 40 == 0)
+        {
+          const int key = kNotes[(b / 40) % 6];
+          rack.noteOn(key, 440.0 * std::pow(2.0, (key - 69) / 12.0));
+        }
+        for (int i = 0; i < 64; i++)
+        {
+          const double t = (b * 64.0 + i) / sr;
+          // Literal, not M_PI: MSVC does not define it without
+          // _USE_MATH_DEFINES, and the rest of this file already spells it out
+          // for that reason. (CI caught it — macOS builds fine.)
+          L[i] = R[i] = (float)(0.25 * std::sin(2.0 * 3.14159265358979 * 220.0 * t));
+        }
+        rack.processStereo(L, R, 64);
+        if (b > 80)   // let the lines reach a steady ring first
+          for (int i = 0; i < 64; i++)
+          {
+            const double d = std::fabs(L[i] - prev);
+            if (((long)b * 64 + i) % period < W) { if (d > near) near = d; }
+            else if (d > far) far = d;
+            prev = L[i];
+          }
+        else prev = L[63];
+      }
+      return far > 0 ? near / far : 1e9;
+    };
+    const double fixed = ratio(true), planted = ratio(false);
+    const bool ok = fixed <= 1.25;
+    std::printf("%s comb declick: near/far jump ratio %.2f at note-ons (must be <= 1.25)\n",
+                ok ? "OK  " : "FAIL", fixed);
+    if (!ok) fail++;
+    const bool caught = planted > 2.0;
+    std::printf("%s comb declick detector calibrated: instant retune reads %.2f (must exceed 2.00)\n",
+                caught ? "OK  " : "FAIL", planted);
+    if (!caught) fail++;
+  }
+  { // T7 comb resonance (2026-08-03): the per-slot tone axis must actually
+    // REACH the DSP. parity staying green only proves the 0.5 default is inert
+    // — which is exactly how a dead control hides (the FX dropdowns shipped
+    // Comb unreachable for the same reason). Strike a line, then feed silence,
+    // and measure how long the ring takes to fall 40 dB: fb = 0.6 + 0.38*tone,
+    // so decay time must rise strictly with tone.
+    const double sr = 44100.0;
+    auto ringMs = [&](double tone) {
+      hypersaw::FxRack rack;
+      rack.setSampleRate(sr);
+      rack.setType(0, (int)hypersaw::FxType::Comb);
+      rack.setAmount(0, 1.0);
+      rack.setTone(0, tone);
+      rack.noteOn(45, 110.0);
+      float L[64], R[64];
+      double peak = 0;
+      int held = 0;
+      for (int b = 0; b < 900; b++)
+      {
+        for (int i = 0; i < 64; i++)
+        {
+          // 120 ms of excitation, then silence — the tail is all feedback
+          const double t = (b * 64.0 + i) / sr;
+          const double e = t < 0.12 ? 0.25 * std::sin(2.0 * 3.14159265358979 * 110.0 * t) : 0.0;
+          L[i] = R[i] = (float)e;
+        }
+        rack.processStereo(L, R, 64);
+        if (b < 100) continue;                       // let the ring establish
+        double blk = 0;
+        for (int i = 0; i < 64; i++) blk = std::max(blk, (double)std::fabs(L[i]));
+        if (b == 100) peak = blk;
+        if (peak > 0 && blk > peak * 0.01) held = b;  // last block above -40 dB
+      }
+      return (held - 100) * 64.0 / sr * 1000.0;
+    };
+    const double lo = ringMs(0.1), mid = ringMs(0.5), hi = ringMs(0.9);
+    const bool ok = lo < mid && mid < hi;
+    std::printf("%s comb tone reaches the DSP: ring to -40 dB = %.0f / %.0f / %.0f ms at tone 0.1/0.5/0.9\n",
+                ok ? "OK  " : "FAIL", lo, mid, hi);
+    if (!ok) fail++;
   }
   std::printf(fail ? "waveshape_check: RED (%d failures)\n" : "waveshape_check: GREEN (0 failures)\n", fail);
   return fail ? 1 : 0;

@@ -71,10 +71,21 @@ class FxRack
       c.w = 0;
       c.lpL = c.lpR = 0;
       c.dly = 100;
+      c.g = 0;
+      c.pendDly = 0;
+      c.retuning = false;
     }
     compAtk = 1.0 - std::exp(-1.0 / (6.3576e-5 * sr));
     compRel = 1.0 - std::exp(-1.0 / (1.5106e-2 * sr));
     compEnv = 0;
+    // Declick constants in SECONDS, converted here (ADR-009). 6 ms is long
+    // enough to be inaudible as a step and short enough that a retuned line is
+    // back before the next note; 30 ms smooths the 1/activeLines normaliser,
+    // which used to divide every ringing line's output by a bigger integer the
+    // instant a new note claimed a line — a step of up to 6 dB, mid-ring.
+    combRamp = 1.0 - std::exp(-1.0 / (6.0e-3 * sr));
+    combNorm = 1.0 - std::exp(-1.0 / (3.0e-2 * sr));
+    normSm = 1.0;
   }
 
   // Note feed for note-context slots (ADR-071 comb). Called from the shell's
@@ -95,13 +106,25 @@ class FxRack
         if (c.age < line->age) line = &c;
     }
     const int len = (int)line->bufL.size();
-    line->dly = std::max(2, std::min(len - 1, (int)std::lround(sr / std::max(20.0, freq))));
-    std::memset(line->bufL.data(), 0, sizeof(float) * len);
-    std::memset(line->bufR.data(), 0, sizeof(float) * len);
-    line->w = 0;
-    line->lpL = line->lpR = 0;
+    const int newDly =
+        std::max(2, std::min(len - 1, (int)std::lround(sr / std::max(20.0, freq))));
     line->key = key;
     line->age = ageCounter++;
+    // The buffer is NOT cleared any more. This line is continuously fed from
+    // the bus rather than impulse-excited, so whatever it holds is simply the
+    // excitation for the new pitch — while wiping it mid-ring was an audible
+    // step to zero. What remains discontinuous is the read-pointer jump, so a
+    // still-sounding line rings down first and retunes at the bottom.
+    if (line->g <= 0.002)
+    {
+      line->dly = newDly;   // silent already: nothing to click
+      line->retuning = false;
+    }
+    else
+    {
+      line->pendDly = newDly;
+      line->retuning = true;
+    }
   }
   void noteOff(int key)
   {
@@ -110,10 +133,29 @@ class FxRack
     (void)key;
   }
 
+  // Comb declick times, in SECONDS (ADR-009). Defaults are set in
+  // setSampleRate; 0 restores the pre-2026-08-03 instant behaviour, which is
+  // how the oracle plants a known-bad case to prove its click detector can
+  // actually see one. Not a test-only hook — it is the real constant, exposed.
+  void setCombDeclick(double rampSec, double normSec)
+  {
+    combRamp = rampSec > 0 ? 1.0 - std::exp(-1.0 / (rampSec * sr)) : 1.0;
+    combNorm = normSec > 0 ? 1.0 - std::exp(-1.0 / (normSec * sr)) : 1.0;
+  }
+
   void setType(int slot, int type)
   {
     if (slot < 0 || slot >= kRackSlots) return;
     slots[slot].type = (FxType)type;
+  }
+  void setTone(int slot, double tone)
+  {
+    if (slot < 0 || slot >= kRackSlots) return;
+    slots[slot].tone = tone < 0 ? 0 : (tone > 1 ? 1 : tone);
+  }
+  double getTone(int slot) const
+  {
+    return (slot < 0 || slot >= kRackSlots) ? 0.5 : slots[slot].tone;
   }
   void setAmount(int slot, double amount)
   {
@@ -217,7 +259,9 @@ class FxRack
           for (auto &c : combs)
             if (c.key >= 0) act++;
           if (!act) break;
-          const double norm = 1.0 / act, fb = 0.79, damp = 0.5;
+          // detune-lab law: fb = 0.6 + 0.38*resonance (res 0.5 -> 0.79, the
+          // value ADR-071 hardcoded, so the default stays bit-identical).
+          const double normTarget = 1.0 / act, fb = 0.6 + 0.38 * s.tone, damp = 0.5;
           for (int i = 0; i < n; i++)
           {
             const double l = L[i], r = R[i];
@@ -232,14 +276,35 @@ class FxRack
               dl = c.lpL;
               c.lpR += (1 - damp) * (dr - c.lpR);
               dr = c.lpR;
+              // Feedback is taken pre-gain: the line keeps resonating while it
+              // is faded out, so a retuned line returns already sounding
+              // instead of restarting from nothing.
               c.bufL[c.w] = (float)(l + fb * dl);
               c.bufR[c.w] = (float)(r + fb * dr);
               c.w = (c.w + 1) % len;
-              wl += dl;
-              wr += dr;
+              c.g += ((c.retuning ? 0.0 : 1.0) - c.g) * combRamp;
+              if (c.retuning && c.g < 0.003)
+              {
+                // Retune at the BOTTOM of the ramp, and clear here rather than
+                // in noteOn. Gating the output alone is not enough: the
+                // read-pointer jump is a step in `dl`, which is written back
+                // into the buffer ungated, so it recirculates every dly samples
+                // and re-emerges once the ramp is back up — a click that is
+                // merely LATE. Clearing while muted lets the line rebuild from
+                // the bus, which is continuous, so no step exists to recirculate.
+                c.dly = c.pendDly;
+                c.retuning = false;
+                std::memset(c.bufL.data(), 0, sizeof(float) * c.bufL.size());
+                std::memset(c.bufR.data(), 0, sizeof(float) * c.bufR.size());
+                c.w = 0;
+                c.lpL = c.lpR = 0;
+              }
+              wl += dl * c.g;
+              wr += dr * c.g;
             }
-            L[i] = (float)(l * (1 - mix) + wl * norm * mix);
-            R[i] = (float)(r * (1 - mix) + wr * norm * mix);
+            normSm += (normTarget - normSm) * combNorm;
+            L[i] = (float)(l * (1 - mix) + wl * normSm * mix);
+            R[i] = (float)(r * (1 - mix) + wr * normSm * mix);
           }
           break;
         }
@@ -252,6 +317,13 @@ class FxRack
   {
     FxType type = FxType::Off;
     double amount = 0.5;
+    // Second per-slot axis (2026-08-03). ADR-071 fixed the comb's resonance at
+    // the lab default "until the rack grows per-slot param pages" — this is
+    // that page, kept to ONE generic knob rather than a comb-specific param so
+    // the next slot type that wants a second control costs no new ids. Only
+    // Comb reads it today; 0.5 reproduces the previously hardcoded fb = 0.79
+    // exactly, so the default is bit-inert.
+    double tone = 0.5;
     double zL = 0, zR = 0;  // one-pole filter memory (Filter type)
   };
   struct Comb
@@ -260,6 +332,16 @@ class FxRack
     int key = -1, dly = 100, w = 0;
     long age = -1;
     double lpL = 0, lpR = 0;
+    // Declick (2026-08-03). A line is retuned while it may still be RINGING,
+    // and both the old code's memset and the delay-length jump are step
+    // discontinuities in a signal that is audibly nonzero — the human's "tiny
+    // amount of clicking". `g` gates this line's contribution so a retune can
+    // be deferred until it is silent: retuning -> ramp g to 0 -> apply pendDly
+    // at the bottom -> ramp back. Fading DOWN first is the whole point; a
+    // ramp-up alone cannot hide a discontinuity that already happened.
+    double g = 0;
+    int pendDly = 0;
+    bool retuning = false;
   };
   Slot slots[kRackSlots];
   Comb combs[kCombLines];
@@ -268,6 +350,8 @@ class FxRack
   // (ADR-009); these defaults are the 44.1 kHz values so a shell that never
   // calls setSampleRate still behaves.
   double compEnv = 0, compAtk = 0.3, compRel = 0.0015;
+  // Comb declick state — 44.1 kHz defaults, re-derived in setSampleRate.
+  double combRamp = 3.772e-3, combNorm = 7.556e-4, normSm = 1.0;
   long ageCounter = 0;
 };
 

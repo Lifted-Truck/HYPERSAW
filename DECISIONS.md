@@ -448,3 +448,23 @@ FIX: both emission sites now retire only on ACCEPTANCE. Rejected ends stay queue
 ORACLE: endprobe gains a REJECTING HOST — try_push refuses the next 40 pushes, as a full buffer does. Proven discriminating by running it against the pre-fix code: **old 0 NOTE_END delivered, new 1**. A test that does not fail on the old code proves nothing, so that check was run deliberately.
 
 LESSON (candidate for LIBRARY): an API that returns a success flag is telling you it can fail. Ignoring it converts a transient, recoverable condition into permanent silent data loss — and the loss is invisible precisely because the failing path is rare and load-dependent, so it presents as intermittent flakiness rather than a bug.
+
+## ADR-080 · FX rack: a per-slot SECOND axis; comb resonance folded (2026-08-03) — ACCEPTED
+Human, on the comb: *"Wasn't there a second slider on the comb in the lab?"* — correct. `detune-lab.html` has **comb mix** and **resonance**; only mix was folded. ADR-071 hardcoded `fb = 0.79` and said so explicitly: *"resonance fixed at the lab default until the rack grows per-slot param pages."* This is that page.
+
+**One generic axis, not a comb param.** New ids **96–99** are `fx1tone..fx4tone` — a second knob on *every* slot, so the next slot type wanting a second control costs no new ids and no new concept. Only Comb reads it today; the others ignore it. The alternative — a comb-specific `combRes` id — would have to be repeated per type forever, and would sit dead in the param list whenever the slot is anything else.
+
+**Bit-inert by construction.** Comb resonance uses the lab's own law, `fb = 0.6 + 0.38·tone`. Default `tone = 0.5` gives exactly `0.79`, the value ADR-071 hardcoded — so parity stays 147/147 and **every saved state loads unchanged** (a missing key reads the default, which is the old behaviour).
+
+**Gated, because an inert default is exactly how a dead control hides.** Parity staying green proves only that 0.5 changes nothing; it says nothing about whether the knob is connected. The FX dropdowns shipped Comb *unreachable* for precisely that reason and no oracle saw it. `waveshape_check` T7 therefore measures ring time to −40 dB across the range: **99 / 190 / 772 ms at tone 0.1 / 0.5 / 0.9**, required strictly increasing.
+
+**Interface note.** Ids 96–99 are additive and append-only, pre-1.0 — the same shape as ADR-071's widening of 57/59/61/63 and ADR-078's 94/95.
+
+## ADR-081 · Envelope cluster owns per-voice envelopes + scatter; envelope display added (2026-08-03) — ACCEPTED
+Human: *"the per voice envelope should go in the envelope tab. Maybe also the scatter controls, and we can add an envelope visualizer which also shows the variation from scatter?"*
+
+**Moved** ids 91/92/93/94/95 (onset scatter, timing correction, attack scatter, per-voice envelopes, release scatter) from **Drift** to **Envelope**. The resulting split is cleaner than the one it replaces: **Drift = pitch variation, Envelope = amplitude/time variation**. Onset scatter was the debatable one — it is *timing*, not envelope shape — but it moves the moment each voice's envelope begins, so it belongs with the display that shows exactly that, and separating it from attack/release scatter would scatter one idea across two clusters.
+
+**The display is fed by the ENGINE, not re-derived.** New viz fields `envOnsetMs/envAtkMs/envRelMs` publish, per voice, the times the core actually assigned — recovered from the one-pole coefficients it is using (`t = −1/(sr·ln(1−c))`). The scatter draws from the core's seeded RNG stream, so a JS reconstruction would be a **second implementation free to drift from the one you hear** — the display would eventually lie, and lie plausibly. Requires one new core array, `onsD0` (the initial onset delay, kept because `onsD` decrements to zero); viz-only bookkeeping, never read in the audio path, so parity is untouched.
+
+**Why a visual at all:** the standing convention recorded the same day — lab visuals ship with the feature they explain. Horizontal offset between traces *is* onset scatter; differing slopes *are* attack/release scatter. A numeric readout accompanies it, so the effect is legible without playing a note.
