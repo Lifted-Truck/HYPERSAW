@@ -211,6 +211,10 @@ static const ParamDef kParams[] = {
     // (clean ITD+steepening) — a deliberate default-output change at width > 1
     // versus the old always-M/S behavior, per the human's ratified ship list.
     {87, "superMode", "Super-Width Mode", 0, 2, 0, true, kSuperModeLabels},
+    // ADR-075: opt-in 2x oscillator oversampling. Default 0 keeps every
+    // existing session and all 147 goldens bit-identical; on costs ~2.5x the
+    // core's CPU (measured 2.5% -> 6.3% of one core at 8 notes x 16 voices).
+    {88, "oversample", "Oversample 2x", 0, 1, 0, true, kOffOn},
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.

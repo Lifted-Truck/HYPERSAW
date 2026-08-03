@@ -163,6 +163,15 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## ADR-075 SHIPPED (2026-08-03): opt-in 2x oversampling
+
+Built with its oracle. Droop 15 k −4.50 → −2.13 dB, 10 k −2.17 → −1.23; CPU 2.5% →
+6.3% of one core (E-6 budget 50%); parity 147/147 untouched; gates: OS-off
+determinism + 15 kHz recovery ≥ 1.5 dB (got +2.37). CLAIM IS BOUNDED: "roughly
+halves the droop through 15 kHz", not flat — the spike predicted −0.83 at 15 k and
+the core reaches −2.13, with the 1x R→tone output pole the prime unverified
+suspect for the gap (OPEN, see the trace). Spike record kept below.
+
 ## 2x-oversampling SPIKE measured (2026-08-03) — build it, with a bounded claim
 
 Prototype (headless, polyBLEP saw + windowed-sinc halfband decimation) vs the ideal

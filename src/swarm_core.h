@@ -132,6 +132,9 @@ struct Params
   // 1 = pulse (A: the original ADR-025 M/S boost, polarity cross-feed),
   // 2 = smear (D: allpass side, frequency-dependent inversion).
   double superMode = 0;
+  // ADR-075 oscillator oversampling: 0 = off (bit-exact, the reference path),
+  // 1 = 2x. Opt-in like ADR-063's freqGlide, so every golden stays green.
+  double oversample = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -166,6 +169,8 @@ class SwarmCore
     double vfSm[kMaxV] = {0}, fRun[kMaxV] = {0};           // ADR-063 frequency-glide state
     float itdRing[kMaxV][256] = {};                        // ADR-074 far-channel rings
     int itdW = 0;
+    double osZL[64] = {0}, osZR[64] = {0};                 // ADR-075 decimator history
+    int osW = 0;
     int vfInit = 0;                                        // 0 → snap the glide on the next tick
     double cdist[kMaxV] = {0};                             // ADR-064 distance from the fundamental
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
@@ -175,6 +180,21 @@ class SwarmCore
 
   explicit SwarmCore(double sampleRate) : sr(sampleRate)
   {
+    {   // ADR-075 halfband: windowed sinc (Blackman), unity DC gain
+      const int T = kHbTaps;
+      const double m = (T - 1) * 0.5, cut = 0.235;
+      double g = 0;
+      for (int i = 0; i < T; i++)
+      {
+        const double k = i - m;
+        const double sinc = (k == 0) ? 2 * cut : std::sin(2 * kPiRef * cut * k) / (kPiRef * k);
+        const double win = 0.42 - 0.5 * std::cos(2 * kPiRef * i / (T - 1))
+                                + 0.08 * std::cos(4 * kPiRef * i / (T - 1));
+        hb[i] = sinc * win;
+        g += hb[i];
+      }
+      for (int i = 0; i < T; i++) hb[i] /= g;
+    }
     for (auto &s : swarms)
     {
       std::memset(s.phase, 0, sizeof(s.phase));
@@ -205,7 +225,7 @@ class SwarmCore
     *slot = v;
     if (k == "n" || k == "dist" || k == "seed" || k == "width" || k == "topo" ||
         k == "panScatter" || k == "law" || k == "panLayout" || k == "panCurve" ||
-        k == "panInvert" || k == "superMode")
+        k == "panInvert" || k == "superMode" || k == "oversample")
       rebuild();  // law/pan* added by ADR-070 (fan ranks by pitch); idempotent
     return true;
   }
@@ -422,6 +442,7 @@ class SwarmCore
       }
       PL = panLm; PR = panRm;
     }
+    const int osSub = p.oversample > 0.5 ? 2 : 1;   // ADR-075
     for (auto &s : swarms)
     {
       if (!s.gate && s.env < 1e-4) continue;
@@ -432,10 +453,17 @@ class SwarmCore
         tick = (tick + 1) & (kTick - 1);
         if (glideOn) for (int i = 0; i < n; i++) s.fRun[i] += gCoefS * (s.eff[i] - s.fRun[i]);
         double l = 0, r = 0;
+        // ADR-075: at 2x the voice sum runs TWICE per output sample with half
+        // the phase step, and the two sub-samples feed a halfband decimator.
+        // Everything after the sum (output pole, envelope, ITD head) stays at
+        // 1x. osSub == 1 leaves the original path bit-identical.
+        for (int u = 0; u < osSub; u++)
+        {
+        double ls = 0, rs = 0;
         for (int i = 0; i < n; i++)
         {
           const double f = glideOn ? s.fRun[i] : s.eff[i];
-          const double dph = std::max(0.0, f) / sr;
+          const double dph = std::max(0.0, f) / (sr * osSub);
           double ph = s.phase[i] + dph;
           ph -= std::floor(ph);
           s.phase[i] = ph;
@@ -471,7 +499,7 @@ class SwarmCore
           }
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.hiTame > 0) v *= s.hg[i];
-          if (p.mono != 0) { l += v * 0.7071; r += v * 0.7071; }
+          if (p.mono != 0) { ls += v * 0.7071; rs += v * 0.7071; }
           else if (itdSamp[i] > 0)
           {
             // ADR-074 mode F: near channel direct, far channel from the
@@ -479,12 +507,30 @@ class SwarmCore
             const int rw = s.itdW & (kItdRing - 1);
             const float far = s.itdRing[i][(rw - itdSamp[i] + kItdRing) & (kItdRing - 1)];
             s.itdRing[i][rw] = (float)v;
-            if (PL[i] >= PR[i]) { l += v * PL[i]; r += (double)far * PR[i]; }
-            else { r += v * PR[i]; l += (double)far * PL[i]; }
+            if (PL[i] >= PR[i]) { ls += v * PL[i]; rs += (double)far * PR[i]; }
+            else { rs += v * PR[i]; ls += (double)far * PL[i]; }
           }
-          else { l += v * PL[i]; r += v * PR[i]; }
+          else { ls += v * PL[i]; rs += v * PR[i]; }
         }
-        s.itdW++;   // ADR-074: one tick per sample; rings indexed off this head
+        s.itdW++;   // ADR-074/075: one tick per SUB-sample; itdSamp scales with OS
+        if (osSub == 1) { l = ls; r = rs; }
+        else
+        {
+          // push into the decimator history; emit on the second sub-sample
+          s.osZL[s.osW & 63] = ls; s.osZR[s.osW & 63] = rs;
+          s.osW++;
+          if (u == 1)
+          {
+            double aL = 0, aR = 0;
+            for (int t = 0; t < kHbTaps; t++)
+            {
+              const int k = (s.osW - 1 - t) & 63;
+              aL += hb[t] * s.osZL[k]; aR += hb[t] * s.osZR[k];
+            }
+            l = aL * 2.0; r = aR * 2.0;   // decimation halves energy; restore it
+          }
+        }
+        }
         if (p.lpOut != 0)
         {
           s.lpL += s.lpc * (l - s.lpL);
@@ -650,6 +696,7 @@ class SwarmCore
     if (k == "panCurve") return &p.panCurve;          // ADR-070 fan curve
     if (k == "panInvert") return &p.panInvert;        // ADR-070 fan invert
     if (k == "superMode") return &p.superMode;        // ADR-074 super-width mode
+    if (k == "oversample") return &p.oversample;      // ADR-075 2x OS
     return nullptr;
   }
 
@@ -799,9 +846,13 @@ class SwarmCore
       // ~833 Hz (first null ~ sr/2N). At 0.3 the fan stays inside natural
       // interaural delay (0.51 ms = head width / c) through width 1.5 and only
       // reaches 0.6 ms at width 2.
+      // ITD is in SUB-SAMPLES: with ADR-075 oversampling the voice loop (and
+      // this ring) tick at 2x, so the sample count doubles to keep the same
+      // delay in SECONDS. rebuild() re-runs on `oversample` for this reason.
+      const int osMul = p.oversample > 0.5 ? 2 : 1;
       itdSamp[i] = ((int)p.superMode == 0 && p.width > 1.0)
                        ? (int)std::lround(std::fabs(pan) * (p.width - 1.0) * 2.0
-                                          * 0.0003 * sr) : 0;
+                                          * 0.0003 * sr * osMul) : 0;
       if (itdSamp[i] > kItdRing - 2) itdSamp[i] = kItdRing - 2;
       const double th = (pan + 1) * 0.25 * kPiRef;
       panBase[i] = pan;   // signed base pan (post-scatter), kept for pan motion (ADR-064)
@@ -1158,6 +1209,13 @@ class SwarmCore
   static constexpr int kItdRing = 256;   // 1.2 ms at 192 kHz fits
   int itdSamp[kMaxV] = {0};              // ADR-074 per-voice far-channel delay
   double apZ = 0;                        // ADR-074 mode D allpass state
+  // ADR-075 halfband decimator: 63-tap windowed sinc, cutoff 0.235 of the 2x
+  // rate (~20.7 kHz). The spike measured -0.83 dB droop at 15 kHz at this
+  // length vs -3.44 dB at 1x; longer taps buy only the 20 kHz corner, which
+  // sits at 0.91x Nyquist inside any decimator's transition band and is
+  // deliberately not chased (ADR-075's bounded claim).
+  static constexpr int kHbTaps = 63;
+  double hb[kHbTaps] = {0};
   double panEffV[kMaxV] = {0};                              // viz-only: motion-modulated seat
                                                             // (named panBase: rebuild has a local `pan`)
   double panPh[kMaxV] = {0}, panLm[kMaxV] = {0}, panRm[kMaxV] = {0};
