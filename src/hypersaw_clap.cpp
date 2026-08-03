@@ -216,6 +216,9 @@ static const ParamDef kParams[] = {
     // existing session and all 147 goldens bit-identical; on costs ~2.5x the
     // core's CPU (measured 2.5% -> 6.3% of one core at 8 notes x 16 voices).
     {88, "oversample", "Oversample 2x", 0, 1, 0, true, kOffOn},
+    // ADR-076: poly glide reuses the existing Glide TIME knob (id 33), which
+    // therefore stops being mono-only in the GUI gating.
+    {89, "polyGlide", "Poly Glide", 0, 1, 0, true, kOffOn},
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.

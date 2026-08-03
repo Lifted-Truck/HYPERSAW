@@ -135,6 +135,11 @@ struct Params
   // ADR-075 oscillator oversampling: 0 = off (bit-exact, the reference path),
   // 1 = 2x. Opt-in like ADR-063's freqGlide, so every golden stays green.
   double oversample = 0;
+  // ADR-076 poly glide: 0 = off (bit-exact), 1 = every new voice glides in
+  // from the last-played pitch. Reuses the mono retarget's glide machinery
+  // (ADR-026) and the existing `glide` TIME knob; core+shell only, so the JS
+  // reference — which has no glide at all — is untouched.
+  double polyGlide = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -237,6 +242,19 @@ class SwarmCore
     Swarm &s = alloc();
     const int slot = (int)(&s - &swarms[0]);
     initVoice(s, midi, f);
+    // ADR-076 poly glide: start at the last-played pitch and glide to this
+    // one. Deliberately NOT gated on whether that note is still sounding —
+    // "remembers the position of the last played note(s) and always begins
+    // with a bend" (human, 2026-07-31). lastNoteF persists across silence, so
+    // the first note after a rest still bends in from wherever you last were.
+    if (p.polyGlide > 0.5 && p.glide > 0 && lastNoteF > 0 && lastNoteF != f)
+    {
+      s.f0 = lastNoteF;
+      s.f0cur = lastNoteF;
+      s.glideTarget = f;
+      s.glideActive = 1;
+    }
+    lastNoteF = f;
     return slot;
   }
 
@@ -274,6 +292,7 @@ class SwarmCore
       s.f0cur *= ratio;  // preserve gravity offsets multiplicatively
       s.glideActive = 0;
     }
+    lastNoteF = f;   // ADR-076: mono retargets update the memory too
   }
 
   void initVoice(Swarm &s, int midi, double f)
@@ -704,6 +723,7 @@ class SwarmCore
     if (k == "panInvert") return &p.panInvert;        // ADR-070 fan invert
     if (k == "superMode") return &p.superMode;        // ADR-074 super-width mode
     if (k == "oversample") return &p.oversample;      // ADR-075 2x OS
+    if (k == "polyGlide") return &p.polyGlide;        // ADR-076 poly glide
     return nullptr;
   }
 
@@ -1216,6 +1236,7 @@ class SwarmCore
   static constexpr int kItdRing = 256;   // 1.2 ms at 192 kHz fits
   int itdSamp[kMaxV] = {0};              // ADR-074 per-voice far-channel delay
   double apZ = 0;                        // ADR-074 mode D allpass state
+  double lastNoteF = 0;                  // ADR-076: pitch the next note bends FROM
   // ADR-075 halfband decimator: 63-tap windowed sinc, cutoff 0.235 of the 2x
   // rate (~20.7 kHz). The spike measured -0.83 dB droop at 15 kHz at this
   // length vs -3.44 dB at 1x; longer taps buy only the 20 kHz corner, which
