@@ -310,6 +310,7 @@ struct Plugin
   // Scope feed (2026-08-03): STEREO, unlike specRing's mono sum — the whole
   // point of a scope here is watching L against R (super-width's polarity
   // modes are invisible in a sum). Write-only on the audio thread.
+  double outPeakViz = 0;   // peak since the last viz publish (see publishViz)
   float scopeL[2048] = {0}, scopeR[2048] = {0};
   std::atomic<uint32_t> scopePos{0};
   uint32_t guiW = 980, guiH = 720;  // resizable (clamped in gui_adjust_size)
@@ -532,13 +533,22 @@ struct Plugin
     {
       const int gate = spectraMode() ? spectra.swarmAt(i).gate : core.swarmAt(i).gate;
       const double env = spectraMode() ? spectra.swarmAt(i).env : core.swarmAt(i).env;
-      if (!gate && env < 1e-4) continue;
+      // 1e-9, not 1e-4: the render skip-test also uses 1e-4, so a voice just
+      // under it was invisible to the monitor while still being rendered. The
+      // human hit a note that was audible and ABSENT from the tab (2026-08-03,
+      // SAW, no FX), so the monitor must never be the thing that is silent.
+      if (!gate && env < 1e-9) continue;
       v.nmMidi[nm] = spectraMode() ? spectra.swarmAt(i).midi : core.swarmAt(i).midi;
       v.nmGate[nm] = gate;
       v.nmEnv[nm] = env;
       nm++;
     }
     v.nmCount = nm;
+    // OUTPUT PEAK, published alongside the monitor. If sound continues while
+    // this reads silence, the plugin is not the source — a question that has
+    // cost real debugging time twice now and should be answerable at a glance.
+    v.outPeak = outPeakViz;
+    outPeakViz = 0;
     if (spectraMode())
     {
       // SPECTRA viz: partial-0's cloud drives the phase circle (v.R/psi/phase),
@@ -1178,6 +1188,11 @@ struct Plugin
       for (uint32_t i = 0; i < nframes; i++)
         specRing[(w + i) & 4095] = outL[i] + outR[i];
       specPos.store(w + nframes, std::memory_order_release);
+      for (uint32_t i = 0; i < nframes; i++)
+      {
+        const double a = std::fabs((double)outL[i]) + std::fabs((double)outR[i]);
+        if (a > outPeakViz) outPeakViz = a;
+      }
       uint32_t sw = scopePos.load(std::memory_order_relaxed);
       for (uint32_t i = 0; i < nframes; i++)
       { scopeL[(sw + i) & 2047] = outL[i]; scopeR[(sw + i) & 2047] = outR[i]; }

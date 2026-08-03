@@ -58,6 +58,7 @@ struct VizSnapshot
   // layer at fault: gated = a note-off never arrived (host/wrapper side);
   // ungated but loud = DSP tail (core side). Turns the human's stuck-note
   // reports from anecdote into a screenshot.
+  double outPeak = 0;   // plugin output peak — answers "is it even us?"
   int nmCount = 0;
   int nmMidi[16] = {0};
   int nmGate[16] = {0};

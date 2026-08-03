@@ -82,6 +82,7 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
     row.addArrayElement(v.nmEnv[i]);
     notes.addArrayElement(row);
   }
+  obj.addMember("outPeak", v.outPeak);
   obj.addMember("notes", notes);
   // SPECTRA per-partial strip feed (empty in SAW mode — v.spectra gates it).
   obj.addMember("spectra", v.spectra);
