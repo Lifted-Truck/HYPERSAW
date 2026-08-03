@@ -12,6 +12,29 @@ failures by item number. Ordered by importance; ~15 min total.
 ## Extras logged: hi-tame inaudible · double-click defaults wanted · retrigger
 ## gray-out wrong · SPECTRA voice map wanted.
 
+## Round 3 — build 79d2205 (2026-08-03) · installed, awaiting ears
+
+Corner stamp should read **79d2205 · 2026-08-03 06:45Z**. Anything else = restart Live.
+
+### A. Oversampling level fix (the bug your ear found)
+- [ ] Toggle **oversample 2×** on/off at K 0, then K 0.5, then K 0.9
+- [ ] **Expect: no level jump** in any of them (measured +0.01 dB; it was +5.9 dB)
+- [ ] **Expect: no soft-clip bending** at high K with OS on — the peaks that were
+      folding over should now stay as sharp as with OS off
+- [ ] Any remaining difference should be *air only* (+2.55 dB at 15 kHz), not loudness
+
+### B. Scope readability
+- [ ] Waveform should now **stand still** (rising-edge triggered on L) instead of
+      sliding/ghosting
+- [ ] Legend reads ━ L cyan / ━ R amber; at width > 1 in **wide** mode the two traces
+      should sit at a visible fixed offset (that offset IS the ITD)
+- [ ] Switch super-width to **pulse**: R should visibly mirror/invert against L
+      (that's the polarity character — the thing that caused the cliffs)
+
+### C. Sanity after both changes
+- [ ] Old patches sound unchanged with OS off (bit-exact by gate, but confirm by ear)
+- [ ] CPU with OS on is roughly 2.5× the instrument's own load
+
 ## Current — untested by human
 
 ### 0a. ADR-075 oversample 2× (NEW)
