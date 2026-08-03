@@ -542,7 +542,25 @@ class SwarmCore
     const bool vEnvOn = p.voiceEnv > 0.5;          // ADR-078
     for (auto &s : swarms)
     {
-      if (!s.gate && s.env < 1e-4) continue;
+      if (!s.gate && s.env < 1e-4)
+      {
+        // RETIRE THE SLOT PROPERLY. The envelope is a one-pole: it asymptotes
+        // toward zero and never arrives, so a skipped voice used to sit just
+        // under the threshold FOREVER. Anything inspecting slot state then saw
+        // every note ever played (human, 2026-08-03: "every time a note is
+        // played it returns the whole note history"). Zeroing here also clears
+        // the output pole, so no residual charge can outlive the note — the
+        // ghost-voice failure mode this session went hunting for.
+        if (s.env != 0.0)
+        {
+          s.env = 0;
+          s.lpL = 0;
+          s.lpR = 0;
+          s.midi = -1;
+          for (int i = 0; i < kMaxV; i++) { s.onsE[i] = 0; s.onsD[i] = 0; }
+        }
+        continue;
+      }
       int tick = this->tick;
       for (int smp = 0; smp < frames; smp++)
       {
