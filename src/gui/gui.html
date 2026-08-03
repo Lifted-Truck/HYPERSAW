@@ -25,6 +25,12 @@
   body { padding: 10px; user-select: none; overflow-x: hidden; }
   header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
   h1 { font-family: var(--disp-f); font-weight: 700; font-size: 18px; letter-spacing: 0.06em; }
+  /* PANIC: there was no all-notes-off control at all until 2026-08-03, so a
+     stuck voice meant deleting the device. Styled as the emergency it is. */
+  #panicBtn { position:fixed; top:8px; right:96px; z-index:80; background:#2a1518;
+    color:#ff5a5a; border:1px solid #ff5a5a; border-radius:4px; font:inherit;
+    font-size:11px; letter-spacing:1px; padding:3px 12px; cursor:pointer; }
+  #panicBtn:hover { background:#ff5a5a; color:#0b0e13; }
   h1 .star { color: var(--pull); }
   .tagline { color: var(--dim); font-size: 10px; }
   header .spacer { margin-left: auto; }
@@ -99,6 +105,7 @@
 <body>
 <header>
   <h1>HYPERSAW</h1>
+  <button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails">PANIC</button>
   <div class="tagline">kuramoto-coupled unison · seeded swarms · 8-voice poly</div>
   <span id="toast"></span>
   <span class="spacer"></span>
@@ -386,6 +393,7 @@ if (!window.hzGetViz) {
 }
 
 const bridge = {
+  panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
   getBuild: () => window.hzGetBuild ? window.hzGetBuild() : Promise.resolve('dev'),
   getViz: () => window.hzGetViz(),
   getParams: () => window.hzGetParams(),
@@ -1143,6 +1151,12 @@ window.addEventListener('load', async () => {
     document.body.appendChild(el);
   } catch (e) {}
 });
+{ const pb = $('#panicBtn');
+  if (pb) pb.onclick = () => {
+    bridge.panic().catch(() => {});
+    pb.textContent = 'CLEARED';
+    setTimeout(() => { pb.textContent = 'PANIC'; }, 700);
+  }; }
 window.addEventListener('load', () => { syncFromEngine().catch(() => {}); loop(); });
 </script>
 </body>

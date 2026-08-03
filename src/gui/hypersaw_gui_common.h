@@ -82,6 +82,7 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
     row.addArrayElement(v.nmEnv[i]);
     notes.addArrayElement(row);
   }
+  obj.addMember("outPeak", v.outPeak);
   obj.addMember("notes", notes);
   // SPECTRA per-partial strip feed (empty in SAW mode — v.spectra gates it).
   obj.addMember("spectra", v.spectra);
@@ -114,6 +115,10 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
 
   web->bind("hzGetViz", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return vizToValue(host.getViz());
+  });
+  web->bind("hzPanic", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    if (host.panic) host.panic();
+    return choc::value::createInt32(1);
   });
   web->bind("hzGetBuild", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getBuildId ? host.getBuildId() : std::string("?"));

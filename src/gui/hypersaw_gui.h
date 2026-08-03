@@ -58,6 +58,7 @@ struct VizSnapshot
   // layer at fault: gated = a note-off never arrived (host/wrapper side);
   // ungated but loud = DSP tail (core side). Turns the human's stuck-note
   // reports from anecdote into a screenshot.
+  double outPeak = 0;   // plugin output peak — answers "is it even us?"
   int nmCount = 0;
   int nmMidi[16] = {0};
   int nmGate[16] = {0};
@@ -72,6 +73,7 @@ struct GuiHost
   std::function<std::string()> getParamsJson;            // {"<id>":value,...}
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin
+  std::function<void()> panic;                          // all-off, both engines + rack
   std::function<std::string()> getBuildId;               // git short hash, GUI corner
   std::function<std::string()> getStateJson;             // full provenance dump
   std::function<bool(const std::string &)> applyStateJson;
