@@ -173,6 +173,44 @@ int main()
                 gain >= 1.5 ? "OK  " : "FAIL", gain);
     if (gain < 1.5) fail++;
   }
+  { // ADR-077 gate (L0021 again): the claim is about SERIAL STRUCTURE, so the
+    // oracle checks structure, not level. lag-1 autocorrelation of the onset
+    // asynchrony must FALL as the correction gain rises — alpha 0 random-walks
+    // (lag-1 -> 1), alpha 1 is i.i.d. (lag-1 -> 0). A change that silently
+    // turned this into per-note jitter would still "scatter onsets" and would
+    // pass any variance-based test; only the ordering catches it.
+    auto lag1 = [](double alpha) {
+      SwarmCore c(44100.0);
+      c.setParam("n", 7); c.setParam("onsetScatter", 30); c.setParam("onsetAlpha", alpha);
+      std::vector<float> L(512), R(512);
+      std::vector<double> asy;
+      for (int note = 0; note < 300; note++)
+      {
+        const int sl = c.noteOn(45, 110.0);
+        const auto &sw = c.swarmAt(sl);
+        double mean = 0;
+        for (int i = 0; i < 7; i++) mean += sw.onsD[i];
+        mean /= 7;
+        asy.push_back(sw.onsD[0] - mean);
+        for (int b = 0; b < 4; b++) c.render(L.data(), R.data(), 512);
+        c.noteOff(45);
+        for (int b = 0; b < 10; b++) c.render(L.data(), R.data(), 512);
+      }
+      const int N = (int)asy.size();
+      double m = 0;
+      for (double v : asy) m += v;
+      m /= N;
+      double v0 = 0, v1 = 0;
+      for (int i = 0; i < N; i++) v0 += (asy[i] - m) * (asy[i] - m);
+      for (int i = 1; i < N; i++) v1 += (asy[i] - m) * (asy[i - 1] - m);
+      return v1 / v0;
+    };
+    const double a0 = lag1(0.0), a25 = lag1(0.25), a1 = lag1(1.0);
+    const bool ok = a0 > 0.9 && a25 > 0.4 && a25 < a0 && a1 < 0.2;
+    std::printf("%s ADR-077 timing structure: lag-1 %.3f (a0) > %.3f (a.25) > %.3f (a1)\n",
+                ok ? "OK  " : "FAIL", a0, a25, a1);
+    if (!ok) fail++;
+  }
   { // T5 superposition: mix == sum of solos (same seeded per-voice freqs/phases)
     // Solo renders are approximated by n=1 at each voice frequency with the
     // mix's per-voice gain; EXACT phase/freq match needs core introspection, so

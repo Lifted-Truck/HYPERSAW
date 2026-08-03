@@ -146,6 +146,17 @@ struct Params
   // pitch, even after a rest). Human, 2026-08-03: memory-based is wanted but
   // not always, so it is a mode rather than the behaviour.
   double glideMode = 0;
+  // ADR-077 ensemble onset timing (Vorberg/Wing linear phase correction, the
+  // 2026-07-28 research headline, LIBRARY L0019). Voices enter at slightly
+  // DIFFERENT times, and those times are produced by mutual error correction
+  // rather than independent jitter — which is what carries the serial
+  // structure listeners actually judge ensembles by.
+  //   off_i <- off_i - alpha*(off_i - mean_off) + motorNoise_i
+  // onsetScatter is the motor-noise sigma in MILLISECONDS and is the master
+  // switch: 0 = off = bit-exact. alpha 0 random-walks apart, ~0.25 is the
+  // measured near-optimal for real quartets, 1 collapses to i.i.d. jitter
+  // (which is exactly what conventional humanize does, and is audibly worse).
+  double onsetScatter = 0, onsetAlpha = 0.25, attackScatter = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -182,6 +193,9 @@ class SwarmCore
     int itdW = 0;
     double osZL[64] = {0}, osZR[64] = {0};                 // ADR-075 decimator history
     int osW = 0;
+    double onsD[kMaxV] = {0};      // ADR-077 samples until this voice enters
+    double onsE[kMaxV] = {0};      // its own 0->1 entry ramp
+    double onsC[kMaxV] = {0};      // that ramp's per-sample coefficient
     int vfInit = 0;                                        // 0 → snap the glide on the next tick
     double cdist[kMaxV] = {0};                             // ADR-064 distance from the fundamental
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
@@ -325,6 +339,34 @@ class SwarmCore
     s.lpL = 0;
     s.lpR = 0;
     std::memset(s.vlp, 0, sizeof(s.vlp));  // tone-tilt one-pole state
+    // ADR-077: advance the timing system one note and lay out the entries.
+    if (p.onsetScatter > 0)
+    {
+      const int n = (int)p.n;
+      double mean = 0;
+      for (int i = 0; i < n; i++) mean += tOff[i];
+      mean /= (n > 0 ? n : 1);
+      const double sig = p.onsetScatter * 0.001;
+      for (int i = 0; i < n; i++)
+        tOff[i] += -p.onsetAlpha * (tOff[i] - mean) + gaussT() * sig;
+      double m2 = 0;
+      for (int i = 0; i < n; i++) m2 += tOff[i];
+      m2 /= (n > 0 ? n : 1);
+      for (int i = 0; i < n; i++)
+      {
+        // shift so the EARLIEST voice starts at 0 — the note must not feel
+        // late overall, only internally spread (the lab biases by 1.6 sigma;
+        // taking the actual minimum is equivalent and cannot go negative).
+        s.onsD[i] = (tOff[i] - m2) * sr;
+        s.onsE[i] = 0;
+        const double jit = 1 + gaussT() * p.attackScatter * 0.6;
+        const double atk = std::max(0.002, p.attackS * std::max(0.15, jit));
+        s.onsC[i] = 1 - std::exp(-1 / (atk * sr));
+      }
+      double lo = s.onsD[0];
+      for (int i = 1; i < n; i++) lo = std::min(lo, s.onsD[i]);
+      for (int i = 0; i < n; i++) s.onsD[i] -= lo;
+    }
     s.vfInit = 0;                          // ADR-063: snap the glide to the new note
     s.noteTune = 1.0;  // per-note expression resets with a fresh strike;
                        // legato retargets keep the incoming bend (MPE streams
@@ -474,6 +516,7 @@ class SwarmCore
       PL = panLm; PR = panRm;
     }
     const int osSub = p.oversample > 0.5 ? 2 : 1;   // ADR-075
+    const bool ensOn = p.onsetScatter > 0;         // ADR-077
     for (auto &s : swarms)
     {
       if (!s.gate && s.env < 1e-4) continue;
@@ -493,6 +536,9 @@ class SwarmCore
         double ls = 0, rs = 0;
         for (int i = 0; i < n; i++)
         {
+          // ADR-077: a voice that has not entered yet contributes nothing AND
+          // does not advance its phase — it has not started playing.
+          if (ensOn && s.onsD[i] > 0) { s.onsD[i] -= 1; continue; }
           const double f = glideOn ? s.fRun[i] : s.eff[i];
           const double dph = std::max(0.0, f) / (sr * osSub);
           double ph = s.phase[i] + dph;
@@ -530,6 +576,12 @@ class SwarmCore
           }
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.hiTame > 0) v *= s.hg[i];
+          if (ensOn)
+          {   // each voice fades in on its OWN attack, so a late entry does not
+              // click in at whatever level the shared envelope has reached
+            s.onsE[i] += (1 - s.onsE[i]) * s.onsC[i];
+            v *= s.onsE[i];
+          }
           if (p.mono != 0) { ls += v * 0.7071; rs += v * 0.7071; }
           else if (itdSamp[i] > 0)
           {
@@ -737,6 +789,9 @@ class SwarmCore
     if (k == "oversample") return &p.oversample;      // ADR-075 2x OS
     if (k == "polyGlide") return &p.polyGlide;        // ADR-076 poly glide
     if (k == "glideMode") return &p.glideMode;        // ADR-076 voice vs memory
+    if (k == "onsetScatter") return &p.onsetScatter;  // ADR-077 (ms, 0 = off)
+    if (k == "onsetAlpha") return &p.onsetAlpha;      // ADR-077 correction gain
+    if (k == "attackScatter") return &p.attackScatter;
     return nullptr;
   }
 
@@ -1250,6 +1305,16 @@ class SwarmCore
   int itdSamp[kMaxV] = {0};              // ADR-074 per-voice far-channel delay
   double apZ = 0;                        // ADR-074 mode D allpass state
   double lastNoteF = 0;                  // ADR-076: pitch the next note bends FROM
+  // ADR-077: the ensemble's timing state persists ACROSS notes — the whole
+  // point is that each note's offsets are corrected from the previous ones.
+  double tOff[kMaxV] = {0};
+  uint32_t tRng = 12345;
+  double gaussT()
+  {   // Box-Muller from the core's own stream; no wall clock, seeded, portable
+    double u = rngNext(tRng); if (u < 1e-9) u = 1e-9;
+    const double v = rngNext(tRng);
+    return std::sqrt(-2 * std::log(u)) * std::cos(kTau * v);
+  }
   // ADR-075 halfband decimator: 63-tap windowed sinc, cutoff 0.235 of the 2x
   // rate (~20.7 kHz). The spike measured -0.83 dB droop at 15 kHz at this
   // length vs -3.44 dB at 1x; longer taps buy only the 20 kHz corner, which
