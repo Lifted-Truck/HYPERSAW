@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SWARM✱ bend lab — pitch-bend inertia bench</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
+          --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace; padding:14px 18px 40px; }
+  h1 { font-size:15px; margin-bottom:2px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:var(--dim);
+         background:#0b0e13; border:1px solid var(--line); border-radius:3px; padding:2px 6px; opacity:0.75; }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:12px; max-width:1080px; }
+  .tagline b { color:var(--fg); }
+  .cols { column-width:340px; column-gap:12px; max-width:1080px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+          break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
+  .card h2 { font-size:12px; color:var(--pull); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .row label { width:96px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:70px; text-align:right; font-size:11px; }
+  .row select { background:var(--panel2); color:var(--fg); border:1px solid var(--line); font:inherit; flex:1; }
+  .hint { color:var(--dim); font-size:11px; margin:6px 0 2px; }
+  .hint b { color:var(--fg); }
+  .meter { font-size:12px; margin:4px 0; }
+  .meter b { color:var(--amber); }
+  .meter .bad { color:var(--red); font-weight:bold; }
+  .meter .good { color:var(--pull); }
+  canvas { border:1px solid var(--line); border-radius:4px; background:#0b0e13; display:block; margin-top:6px; }
+  #wheel { cursor:ns-resize; touch-action:none; }
+  .wheelwrap { display:flex; gap:10px; align-items:flex-start; }
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:4px;
+           font:inherit; padding:4px 10px; cursor:pointer; margin:2px 2px 0 0; }
+  button:hover { border-color:var(--pull); }
+  kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+  .chk { font-size:11px; color:var(--dim); }
+</style>
+</head>
+<body>
+<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-08-03 14:27 &middot; fp <span id="revfp">…</span></div>
+<h1>SWARM✱ bend lab</h1>
+<div class="tagline">Bench for <b>pitch-bend inertia</b> (human request 2026-08-03) — pitch does not arrive where you point it, it <i>travels</i> there. Four models, because "inertia" is four different physical claims and they do <i>not</i> sound alike: a <b>lag</b> is proportional (every move takes the same time regardless of size), a <b>rate limit</b> is constant-velocity (big moves take longer, small ones are instant), and only the <b>mass-spring</b> is inertia in the literal sense — it can overshoot and ring, because a mass in motion does not stop when the force does. The bench measures each: step response with <b>lag / overshoot / settle / reversals</b>, plus a vibrato test, because the price of inertia is that it <i>eats fast wheel vibrato</i> and that cost should be a number, not a surprise. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone, drag the wheel, or fire a gesture (identical input = a fair A/B, which a hand-dragged wheel can never give you).</div>
+
+<div class="cols">
+  <div class="card">
+    <h2>Inertia model</h2>
+    <div class="row"><label>model</label><select id="model">
+      <option value="0">0 · off (instant — the baseline)</option>
+      <option value="1" selected>1 · lag (one-pole, proportional)</option>
+      <option value="2">2 · rate limit (constant ¢/s)</option>
+      <option value="3">3 · mass-spring (true inertia — overshoots)</option>
+      <option value="4">4 · lag → rate limit (series)</option>
+    </select></div>
+    <div class="row"><label>lag τ</label><input type="range" id="tau" min="1" max="400" step="1" value="60"><output id="tau_o"></output></div>
+    <div class="row"><label>max rate</label><input type="range" id="rate" min="0.5" max="200" step="0.5" value="24"><output id="rate_o"></output></div>
+    <div class="row"><label>spring f</label><input type="range" id="springF" min="0.5" max="20" step="0.1" value="4"><output id="springF_o"></output></div>
+    <div class="row"><label>damping ζ</label><input type="range" id="damp" min="0.05" max="2" step="0.01" value="0.6"><output id="damp_o"></output></div>
+    <div class="row"><label>return ×</label><input type="range" id="retMul" min="0.2" max="3" step="0.05" value="1"><output id="retMul_o"></output></div>
+    <div class="row"><label>applies to</label><select id="applyTo">
+      <option value="0" selected>bend wheel only</option>
+      <option value="1">note pitch only (= glide with character)</option>
+      <option value="2">both</option>
+    </select></div>
+    <div class="hint">Only the knobs your model reads are live. <b>return ×</b> scales the time constant when the bend is heading back toward zero — a real spring returns faster than you can push, so &lt;1 gives the snap-back; it is bend-lane only (a note has no "home"). <b>damping ζ</b>: 1 = critical (fastest arrival with no overshoot), &lt;1 rings, &gt;1 goes sluggish. Note that <b>spring on note pitch</b> is the interesting one — it puts a pitch blip on every note onset, which is what a real resonator does when it is struck.</div>
+  </div>
+
+  <div class="card">
+    <h2>Step response · +range, release at 0.6 s</h2>
+    <canvas id="step" width="316" height="150"></canvas>
+    <div class="meter">lag to 50%: <b id="m_lag">—</b> &nbsp;·&nbsp; overshoot: <b id="m_over">—</b></div>
+    <div class="meter">settle to ±5 ¢: <b id="m_settle">—</b> &nbsp;·&nbsp; reversals: <b id="m_rings">—</b></div>
+    <div class="hint">Computed offline at tick rate the instant a knob moves — no gesture needed. Dim = where you pointed, cyan = where the pitch actually was. <b>Reversals</b> counts overshoot direction changes past ±2 ¢: 0 = arrives and stays, 1 = one bump, 3+ = it is ringing and you have built a vibrato, not a bend.</div>
+  </div>
+
+  <div class="card">
+    <h2>Vibrato cost</h2>
+    <div class="row"><label>wobble f</label><input type="range" id="wobF" min="1" max="12" step="0.1" value="5"><output id="wobF_o"></output></div>
+    <div class="meter">depth kept: <b id="m_depth">—</b> &nbsp;·&nbsp; lag: <b id="m_wlag">—</b></div>
+    <div class="hint">A sine on the wheel at this rate, measured at the fundamental. This is the bill for inertia: every model is a low-pass on your hand, so wheel vibrato loses depth and arrives late. <b>Below ~70% kept, wheel vibrato is effectively gone</b> — if you want both, that is an argument for keying inertia to bend DISTANCE rather than applying it flat.</div>
+  </div>
+
+  <div class="card">
+    <h2>Wheel &amp; gestures</h2>
+    <div class="wheelwrap">
+      <canvas id="wheel" width="58" height="168"></canvas>
+      <div style="flex:1">
+        <div class="row"><label>range ±</label><input type="range" id="bendRange" min="1" max="12" step="1" value="2"><output id="bendRange_o"></output></div>
+        <div class="chk"><label><input type="checkbox" id="springReturn" checked> wheel springs back on release</label></div>
+        <div style="margin-top:6px">
+          <button id="g_step">step</button><button id="g_tap">tap</button><button id="g_ramp">ramp</button>
+          <button id="g_dive">dive</button><button id="g_wob">wobble</button>
+        </div>
+      </div>
+    </div>
+    <div class="hint"><b>tap</b> is the diagnostic one: an instant there-and-back that no hand can perform. A lag just rounds it off; a spring keeps moving after your hand has stopped, which is the whole point of the model. <b>dive</b> is −12 st and back — the case where a rate limit and a lag part company completely.</div>
+  </div>
+
+  <div class="card">
+    <h2>Live trajectory · last ~3 s</h2>
+    <canvas id="live" width="316" height="130"></canvas>
+    <div class="hint">Dim = target, cyan = sounding pitch. Play and bend; the gap between the two lines is the feature.</div>
+  </div>
+
+  <div class="card">
+    <h2>Swarm</h2>
+    <div class="row"><label>voices</label><input type="range" id="n" min="1" max="16" step="1" value="7"><output id="n_o"></output></div>
+    <div class="row"><label>detune σ</label><input type="range" id="detune" min="0" max="40" step="0.5" value="14"><output id="detune_o"></output></div>
+    <div class="row"><label>drift ¢</label><input type="range" id="drift" min="0" max="60" step="0.5" value="20"><output id="drift_o"></output></div>
+    <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.5"><output id="vol_o"></output></div>
+    <div class="chk"><label><input type="checkbox" id="mono" checked> mono (retarget one voice — new notes glide)</label></div>
+    <div class="row" style="margin-top:6px"><button id="drone">drone D2</button><span class="hint" style="margin:0" id="octlbl"></span></div>
+    <div class="hint">No coupling in this bench on purpose: K does not touch the pitch lane, and leaving it out means nothing else can be blamed for what you hear. Detune and drift stay because bend on a <i>swarm</i> is the case that matters — a moving pitch drags 7 slightly-different pitches with it.</div>
+  </div>
+</div>
+
+<script>
+/* ================= DSP ================= */
+const TAU = Math.PI * 2, TICK = 16;
+function mulberry(seed) {
+  let a = seed >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function gaussFrom(rng) {
+  let u = 0, v = 0;
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v);
+}
+
+// Shared parameter block: the offline meters and the live audio read the SAME
+// object, so a measured number can never describe a different setting than the
+// one you are hearing.
+const P = { model: 1, tau: 60, rate: 24, springF: 4, damp: 0.6, retMul: 1,
+            applyTo: 0, bendRange: 2, wobF: 5 };
+
+// Inertia: the pitch lane's transfer function, in SEMITONES.
+// Runs at TICK rate (2756/s @ 44.1k), not sample rate — that is where a core
+// fold would put it (the live-tune factor is read at law evaluation, one per
+// tick) and running the bench anywhere else would measure a filter the plugin
+// would never actually have. Time constants are in seconds/ms and converted
+// here; per-tick constants are never hand-written (ADR-009).
+class Inertia {
+  constructor(rate, lane) { this.sr = rate; this.lane = lane; this.x = 0; this.v = 0; this.y = 0; }
+  reset(v) { this.x = v; this.v = 0; this.y = v; }
+  step(t, p) {
+    const dt = 1 / this.sr;
+    // "returning" = heading back toward rest. Bend lane only: a note has no
+    // home pitch to spring back to, so the asymmetry is meaningless there.
+    const rm = (this.lane === 'bend' && Math.abs(t) < Math.abs(this.x))
+             ? Math.max(0.05, p.retMul) : 1;
+    switch (p.model) {
+      case 0: this.x = t; this.v = 0; this.y = t; break;
+      case 1: {
+        const tau = Math.max(1e-4, p.tau * 1e-3 * rm);
+        this.x += (t - this.x) * (1 - Math.exp(-dt / tau));
+        this.y = this.x; break;
+      }
+      case 2: {
+        const s = (p.rate / rm) * dt, d = t - this.x;
+        this.x += Math.max(-s, Math.min(s, d));
+        this.y = this.x; break;
+      }
+      case 3: {
+        // Forward Euler is safe here: dt*omega <= 2*pi*20/2756 = 0.046.
+        const w = TAU * p.springF / rm, z = p.damp;
+        this.v += (w * w * (t - this.x) - 2 * z * w * this.v) * dt;
+        this.x += this.v * dt;
+        this.y = this.x; break;
+      }
+      case 4: {
+        const tau = Math.max(1e-4, p.tau * 1e-3 * rm);
+        this.y += (t - this.y) * (1 - Math.exp(-dt / tau));
+        const s = (p.rate / rm) * dt, d = this.y - this.x;
+        this.x += Math.max(-s, Math.min(s, d)); break;
+      }
+    }
+    return this.x;
+  }
+}
+
+/* ---------- offline characterisation (the meters) ---------- */
+const CR = 44100 / TICK;   // control rate the meters are computed at
+
+function simStep(p) {
+  const T = 1.4, N = Math.round(T * CR), A = p.bendRange;
+  const t0 = Math.round(0.05 * CR), t1 = Math.round(0.65 * CR);
+  const tgt = new Float64Array(N), act = new Float64Array(N);
+  const inr = new Inertia(CR, 'bend');
+  for (let i = 0; i < N; i++) {
+    const t = (i >= t0 && i < t1) ? A : 0;
+    tgt[i] = t; act[i] = inr.step(t, p);
+  }
+  return { tgt, act, N, t0, t1, A };
+}
+
+function stepMeters(s) {
+  const { act, t0, t1, A } = s;
+  let lag50 = -1, peak = 0, settleIdx = -1, rings = 0, prevSgn = 0;
+  for (let i = t0; i < t1; i++) {
+    const e = act[i] - A;
+    if (lag50 < 0 && Math.abs(act[i]) >= 0.5 * Math.abs(A)) lag50 = (i - t0) / CR * 1000;
+    if (Math.abs(act[i]) > Math.abs(peak)) peak = act[i];
+    if (Math.abs(e) > 0.05) settleIdx = i;          // last tick outside ±5 cents
+    // reversals: sign flips of the error, ignoring the ±2 cent dead zone so
+    // an asymptotic approach cannot manufacture ringing out of float noise.
+    if (Math.abs(e) > 0.02) { const sg = Math.sign(e); if (prevSgn !== 0 && sg !== prevSgn) rings++; prevSgn = sg; }
+  }
+  const over = Math.max(0, (Math.abs(peak) - Math.abs(A)) * 100);
+  const never = settleIdx >= t1 - 2;
+  return {
+    lag50: lag50 < 0 ? 0 : lag50,
+    over,
+    settle: never ? -1 : (settleIdx < 0 ? 0 : (settleIdx - t0 + 1) / CR * 1000),
+    rings
+  };
+}
+
+function simWobble(p) {
+  const f = p.wobF, T = 2.0, N = Math.round(T * CR), A = p.bendRange * 0.5;
+  const start = Math.round(1.0 * CR);
+  const inr = new Inertia(CR, 'bend'); inr.reset(0);
+  let reX = 0, imX = 0, reT = 0, imT = 0;
+  for (let i = 0; i < N; i++) {
+    const ph = TAU * f * i / CR;
+    const t = A * Math.sin(ph);
+    const x = inr.step(t, p);
+    if (i >= start) {
+      const c = Math.cos(ph), s = Math.sin(ph);
+      reX += x * c; imX -= x * s; reT += t * c; imT -= t * s;
+    }
+  }
+  const magX = Math.hypot(reX, imX), magT = Math.hypot(reT, imT);
+  let d = Math.atan2(imX, reX) - Math.atan2(imT, reT);
+  while (d > Math.PI) d -= TAU;
+  while (d < -Math.PI) d += TAU;
+  // Fundamental-component measure: rate limiting is nonlinear, so this is the
+  // first harmonic, not the whole story — but it is the part you hear as depth.
+  return { depth: magT > 0 ? magX / magT * 100 : 0, lagMs: -d / (TAU * f) * 1000 };
+}
+
+/* ---------- live bench ---------- */
+const HN = 8192, HMASK = HN - 1;
+const histT = new Float64Array(HN), histA = new Float64Array(HN);
+let histW = 0;
+
+class BendBench {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = { n: 7, detune: 14, drift: 20, vol: 0.5, seed: 1234 };
+    this.notes = []; this.x = []; this.seatL = []; this.seatR = [];
+    this.bend = new Inertia(sr / TICK, 'bend');
+    this.bendTarget = 0; this.bendAct = 0;
+    this.tick = 0; this.tickCount = 0;
+    this.lastMidi = null; this.mono = true;
+    this.rebuild();
+  }
+  rebuild() {
+    const p = this.p, n = p.n, rng = mulberry(p.seed + 77);
+    this.x = Array.from({ length: n }, () => gaussFrom(rng));
+    // pitch-ranked alternating fan (ADR-070/073) — same seat law as the core
+    const idx = Array.from({ length: n }, (_, i) => i).sort((a, b) => this.x[a] - this.x[b]);
+    for (let r = 0; r < n; r++) {
+      const i = idx[r];
+      let d;
+      if (n === 1) d = 0;
+      else if (n % 2 === 1) d = r / (n - 1);
+      else d = (Math.floor(r / 2) + 0.5) / (n / 2);
+      const pan = Math.max(-1, Math.min(1, (r % 2 === 0 ? -1 : 1) * d * 0.7));
+      const th = (pan + 1) * 0.25 * Math.PI;
+      this.seatL[i] = Math.cos(th); this.seatR[i] = Math.sin(th);
+    }
+  }
+  makeNote(midi) {
+    const p = this.p, rng = mulberry(p.seed + this.tickCount * 7919 + 1);
+    const nt = { midi, gate: 1, env: 0, stCur: midi,
+      phase: new Float64Array(p.n), vf: new Float64Array(p.n),
+      driftPh: new Float64Array(p.n), pitch: new Inertia(this.sr / TICK, 'note') };
+    for (let i = 0; i < p.n; i++) { nt.phase[i] = rng(); nt.driftPh[i] = i * 0.13; }
+    nt.pitch.reset(this.lastMidi !== null ? this.lastMidi : midi);
+    this.updVf(nt);
+    return nt;
+  }
+  updVf(nt) {
+    const p = this.p, f = 440 * Math.pow(2, (nt.stCur + this.bendAct - 69) / 12);
+    for (let i = 0; i < p.n; i++)
+      nt.vf[i] = f * Math.pow(2, (this.x[i] * p.detune
+                 + Math.sin(TAU * nt.driftPh[i]) * p.drift) / 1200);
+  }
+  noteOn(midi) {
+    if (this.mono && this.notes.length) {
+      // retarget: the pitch inertia state SURVIVES, which is what makes a new
+      // note travel from the old one instead of teleporting.
+      const nt = this.notes[0];
+      nt.midi = midi; nt.gate = 1;
+      if (P.applyTo === 0) { nt.pitch.reset(midi); nt.stCur = midi; }
+    } else {
+      this.notes.push(this.makeNote(midi));
+      if (this.notes.length > 6) this.notes.shift();
+    }
+    this.lastMidi = midi;
+  }
+  noteOff() { for (const nt of this.notes) nt.gate = 0; }
+  render(outL, outR) {
+    const p = this.p, sr = this.sr, n = p.n, N = outL.length;
+    const atk = 1 - Math.exp(-1 / (0.004 * sr)), rel = 1 - Math.exp(-1 / (0.15 * sr));
+    const g = 0.9 * p.vol / Math.pow(n, 0.75);
+    outL.fill(0); outR.fill(0);
+    for (let smp = 0; smp < N; smp++) {
+      if (this.tick === 0) {
+        if (gest) advanceGesture(this);
+        if (P.applyTo !== 1) this.bendAct = this.bend.step(this.bendTarget, P);
+        else { this.bend.reset(this.bendTarget); this.bendAct = this.bendTarget; }
+        histT[histW & HMASK] = this.bendTarget;
+        histA[histW & HMASK] = this.bendAct; histW++;
+        for (const nt of this.notes) {
+          if (!nt.gate && nt.env < 1e-4) continue;
+          nt.stCur = (P.applyTo !== 0) ? nt.pitch.step(nt.midi, P) : nt.midi;
+          for (let i = 0; i < n; i++) nt.driftPh[i] += 0.4 * (0.7 + 0.6 * i / n) * TICK / sr;
+          this.updVf(nt);
+        }
+        this.tickCount++;
+      }
+      this.tick = (this.tick + 1) & (TICK - 1);
+      for (const nt of this.notes) {
+        if (!nt.gate && nt.env < 1e-4) continue;
+        nt.env += ((nt.gate ? 1 : 0) - nt.env) * (nt.gate ? atk : rel);
+        let l = 0, r = 0;
+        for (let i = 0; i < n; i++) {
+          const dph = nt.vf[i] / sr;
+          let ph = nt.phase[i] + dph; ph -= Math.floor(ph); nt.phase[i] = ph;
+          let v = 2 * ph - 1;
+          const d = Math.max(dph, 1e-6);
+          if (ph < d) { const t = ph / d; v -= t + t - t * t - 1; }
+          else if (ph > 1 - d) { const t = (ph - 1) / d; v -= t * t + t + t + 1; }
+          v *= nt.env * g;
+          l += v * this.seatL[i]; r += v * this.seatR[i];
+        }
+        outL[smp] += l; outR[smp] += r;
+      }
+    }
+    // retire dead voices rather than leaving them just under the threshold
+    // forever (the 2026-08-03 note-history bug, in miniature)
+    if (this.notes.length && !this.mono)
+      this.notes = this.notes.filter(nt => nt.gate || nt.env >= 1e-4);
+  }
+}
+
+/* ---------- gestures: identical input, so the A/B is fair ---------- */
+let gest = null;
+const GESTURES = {
+  step: { dur: 1.25, f: (t, A) => (t < 0.6 ? A : 0) },
+  tap:  { dur: 1.25, f: (t, A) => (t < 0.06 ? A : 0) },
+  ramp: { dur: 2.10, f: (t, A) => (t < 0.8 ? A * t / 0.8
+                                 : t < 1.1 ? A
+                                 : A * Math.max(0, 1 - (t - 1.1) / 0.8)) },
+  dive: { dur: 1.25, f: (t) => (t < 0.35 ? -12 * t / 0.35 : t < 0.55 ? -12 : 0) },
+  wob:  { dur: 2.30, f: (t, A) => (t < 2 ? A * 0.5 * Math.sin(TAU * P.wobF * t) : 0) }
+};
+function advanceGesture(b) {
+  const t = (b.tickCount - gest.t0) / (b.sr / TICK);
+  const G = GESTURES[gest.type];
+  b.bendTarget = G.f(t, P.bendRange);
+  if (t > G.dur) { b.bendTarget = 0; gest = null; }
+}
+
+/* ================= UI ================= */
+const $ = id => document.getElementById(id);
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const bench = new BendBench(ctx.sampleRate);
+// Declared HERE, not next to the drawing code: wire() fires recalc() during
+// setup, and recalc() touches these. As `const` further down they were in the
+// temporal dead zone, so the very first wire() threw and silently took the
+// whole rest of the script with it — no gestures, no keyboard, blank canvases.
+const stc = $('step'), sx = stc.getContext('2d');
+const lvc = $('live'), lx = lvc.getContext('2d');
+let spn = null;
+function ensureAudio() {
+  if (ctx.state === 'suspended') ctx.resume();
+  if (spn) return;
+  spn = ctx.createScriptProcessor(1024, 0, 2);
+  const L = new Float32Array(1024), R = new Float32Array(1024);
+  spn.onaudioprocess = e => {
+    const oL = e.outputBuffer.getChannelData(0), oR = e.outputBuffer.getChannelData(1);
+    bench.render(L, R);
+    for (let i = 0; i < 1024; i++) { oL[i] = L[i]; oR[i] = R[i]; }
+  };
+  spn.connect(ctx.destination);
+}
+const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
+  const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); recalc(); };
+  el.addEventListener('input', f); f(); };
+wire('tau', v => P.tau = v, v => v.toFixed(0) + ' ms');
+wire('rate', v => P.rate = v, v => v.toFixed(1) + ' st/s');
+wire('springF', v => P.springF = v, v => v.toFixed(1) + ' Hz');
+wire('damp', v => P.damp = v, v => v.toFixed(2));
+wire('retMul', v => P.retMul = v, v => v.toFixed(2) + '×');
+wire('bendRange', v => P.bendRange = v, v => '±' + v.toFixed(0) + ' st');
+wire('wobF', v => P.wobF = v, v => v.toFixed(1) + ' Hz');
+wire('n', v => { bench.p.n = v | 0; bench.rebuild(); bench.notes.length = 0; }, v => '' + v);
+wire('detune', v => bench.p.detune = v, v => v.toFixed(1) + ' ¢');
+wire('drift', v => bench.p.drift = v, v => v.toFixed(1) + ' ¢');
+wire('vol', v => bench.p.vol = v);
+$('model').addEventListener('change', e => { P.model = +e.target.value; recalc(); });
+$('applyTo').addEventListener('change', e => { P.applyTo = +e.target.value; recalc(); });
+$('mono').addEventListener('change', e => { bench.mono = e.target.checked; bench.notes.length = 0; });
+
+for (const g of ['step', 'tap', 'ramp', 'dive', 'wob'])
+  $('g_' + g).addEventListener('click', () => { ensureAudio(); gest = { type: g, t0: bench.tickCount }; });
+
+/* wheel */
+const wc = $('wheel'), wx = wc.getContext('2d');
+let wheelDrag = false;
+function wheelSet(clientY) {
+  const r = wc.getBoundingClientRect();
+  const u = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+  gest = null;
+  bench.bendTarget = (0.5 - u) * 2 * P.bendRange;
+}
+wc.addEventListener('pointerdown', e => { ensureAudio(); wheelDrag = true; wc.setPointerCapture(e.pointerId); wheelSet(e.clientY); });
+wc.addEventListener('pointermove', e => { if (wheelDrag) wheelSet(e.clientY); });
+const wheelUp = () => { if (!wheelDrag) return; wheelDrag = false; if ($('springReturn').checked) bench.bendTarget = 0; };
+wc.addEventListener('pointerup', wheelUp);
+wc.addEventListener('pointercancel', wheelUp);
+
+/* keyboard */
+let droneOn = false;
+$('drone').addEventListener('click', () => {
+  ensureAudio(); droneOn = !droneOn;
+  if (droneOn) { bench.noteOn(38); $('drone').textContent = 'stop'; }
+  else { bench.noteOff(); $('drone').textContent = 'drone D2'; }
+});
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12 };
+let octaveBase = 38;
+const octLabel = () => { $('octlbl').textContent = 'octave base MIDI ' + octaveBase + ' (Z/X)'; };
+octLabel();
+addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); $('drone').click(); return; }
+  if (e.key === 'z') { octaveBase -= 12; octLabel(); return; }
+  if (e.key === 'x') { octaveBase += 12; octLabel(); return; }
+  const k = KMAP[e.key]; if (k === undefined) return;
+  ensureAudio(); bench.noteOn(octaveBase + k);
+});
+addEventListener('keyup', e => { if (KMAP[e.key] !== undefined) bench.noteOff(); });
+
+/* ---------- meters + plots ---------- */
+function plot(g, cv, getT, getA, count, span) {
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  let hi = 0.5;
+  for (let i = 0; i < count; i++) hi = Math.max(hi, Math.abs(getT(i)), Math.abs(getA(i)));
+  hi *= 1.15;
+  const y = v => H * 0.5 - v / hi * H * 0.46;
+  g.strokeStyle = '#2a3040'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, y(0)); g.lineTo(W, y(0)); g.stroke();
+  const draw = (get, col, w) => {
+    g.strokeStyle = col; g.lineWidth = w; g.beginPath();
+    for (let px = 0; px < W; px++) {
+      const i = Math.min(count - 1, Math.round(px / W * count));
+      const v = y(get(i));
+      px ? g.lineTo(px, v) : g.moveTo(px, v);
+    }
+    g.stroke();
+  };
+  draw(getT, '#7f8899', 1);
+  draw(getA, '#5ff2e0', 1.6);
+  g.fillStyle = '#7f8899'; g.font = '9px ui-monospace,monospace';
+  g.fillText(hi.toFixed(1) + ' st', 3, 10);
+  g.fillText(span, W - 44, H - 4);
+}
+function recalc() {
+  const s = simStep(P), m = stepMeters(s), w = simWobble(P);
+  plot(sx, stc, i => s.tgt[i], i => s.act[i], s.N, '1.4 s');
+  $('m_lag').textContent = m.lag50.toFixed(0) + ' ms';
+  $('m_over').textContent = m.over.toFixed(0) + ' ¢';
+  $('m_settle').textContent = m.settle < 0 ? '> 600 ms' : m.settle.toFixed(0) + ' ms';
+  $('m_rings').innerHTML = m.rings === 0 ? '<span class="good">0</span>'
+    : (m.rings >= 3 ? '<span class="bad">' + m.rings + '</span>' : '' + m.rings);
+  const dcol = w.depth >= 70 ? 'good' : (w.depth >= 40 ? '' : 'bad');
+  $('m_depth').innerHTML = '<span class="' + dcol + '">' + w.depth.toFixed(0) + ' %</span>';
+  $('m_wlag').textContent = w.lagMs.toFixed(1) + ' ms';
+}
+recalc();
+
+setInterval(() => {
+  // live trajectory
+  const span = Math.min(histW, HN);
+  const base = histW - span;
+  plot(lx, lvc, i => histT[(base + i) & HMASK], i => histA[(base + i) & HMASK],
+       Math.max(2, span), (span / (ctx.sampleRate / TICK)).toFixed(1) + ' s');
+  // wheel
+  const W = wc.width, H = wc.height;
+  wx.clearRect(0, 0, W, H);
+  wx.fillStyle = '#171c26'; wx.fillRect(0, 0, W, H);
+  wx.strokeStyle = '#2a3040'; wx.strokeRect(0.5, 0.5, W - 1, H - 1);
+  wx.beginPath(); wx.moveTo(0, H / 2); wx.lineTo(W, H / 2); wx.stroke();
+  const yOf = v => H / 2 - Math.max(-1, Math.min(1, v / P.bendRange)) * (H / 2 - 6);
+  wx.strokeStyle = '#7f8899'; wx.lineWidth = 1;
+  wx.beginPath(); wx.moveTo(4, yOf(bench.bendTarget)); wx.lineTo(W - 4, yOf(bench.bendTarget)); wx.stroke();
+  wx.strokeStyle = '#5ff2e0'; wx.lineWidth = 2.5;
+  wx.beginPath(); wx.moveTo(2, yOf(bench.bendAct)); wx.lineTo(W - 2, yOf(bench.bendAct)); wx.stroke();
+  wx.fillStyle = '#5ff2e0'; wx.font = '9px ui-monospace,monospace';
+  wx.fillText((bench.bendAct >= 0 ? '+' : '') + (bench.bendAct * 100).toFixed(0) + '¢', 4, H - 5);
+}, 50);
+</script>
+<script>
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  const el = document.getElementById('revfp');
+  if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+})();
+</script>
+</body>
+</html>
