@@ -163,6 +163,45 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## Open questions answered / opened (2026-08-03)
+
+**1. ITD max default — measured, and the measurement says LOWER it.** Natural max
+interaural delay is 0.51 ms (head width / c). Our law `0.6 · (w−1)·2 · |pan|` gives
+0.60 ms at width 1.5 and 1.20 ms at width 2 — past natural ITD into Haas territory.
+Cost curve at width 1.5: side/mid and mono-fold both SATURATE at ITD ≥ 0.15 ms
+(−0.4 dB / −2.8 dB, identical from 0.15 through 1.2 ms). So everything above ~0.15 ms
+buys ZERO measured width while still paying delay costs: mono-sum comb nulls move
+DOWN with delay (first null ≈ sr/2N: 3.3 kHz at 0.15 ms, 833 Hz at 0.6 ms, 417 Hz at
+1.2 ms — the per-voice spread smears them, but the trend is real), plus transient
+smearing. **PROPOSED: drop the coefficient 0.6 → 0.3** (width 1.5 → 0.30 ms, inside
+natural ITD; width 2 → 0.60 ms). Honest limit: the metrics saturate, so this is a
+"stop paying for nothing" argument, not a measured-benefit one — the EAR should
+ratify, ideally A/B at 0.6 vs 0.3 in the width lab before the change lands.
+
+**2. AP freq 700 Hz (mode D smear) — arbitrary, no measurement behind it.** Picked
+by feel when the lab was built. Options: measure a coloration/motion metric across
+300 / 700 / 1500 Hz, or expose it (id churn) — recommend the human A/B in the lab
+(the knob is already there) and pin whatever wins.
+
+**3. Baseline saw to Nyquist — RECOMMENDED NEXT DSP FOLD, with a caveat.** Measured
+droop vs ideal 1/k: BLEP −0.60/−2.17/−4.50/−7.56 dB at 5/10/15/20 kHz; clean mode
+−1.35 @ 20 kHz but with −44…−79 dB aliasing. CAVEAT FROM ROUND 5: flattening HF did
+NOT restore the richness by ear (drift 30¢ did) — so this buys AIR and the
+brick-wall Gibbs "wiggle" character, NOT the fullness that is already solved. Fix
+menu, ordered by cost: (a) **2× oversampled BLEP** — flat AND clean, CPU cost to
+measure against the E-6 envelope, the standard answer; (b) higher-order BLEP kernel
+— cheaper, partial; (c) band-limited additive/wavetable saw path — the only option
+that gives a true BRICK WALL (and thus the wiggle), but it is a second oscillator
+architecture beside the phase-accumulator core, i.e. a big fold. Acceptance baseline
+is the droop table; the aliasing midpoint protocol (at INCOMMENSURATE f0 — still
+owed) is the other gate.
+
+**4. Wordmark — asterisk removed from the GUI (human, 2026-08-03):** HYPER✱SAW read
+as adjacent to NI's SUPER✱SAW styling. Now plain "HYPERSAW". NOTE for the Phase-5
+naming pass: the ✱ is still the SWARM✱ house mark across docs/prototypes — decide
+there whether it survives at all, and give the final name a proper clearance check
+(the repo is public; the competitor-reference convention already governs prose).
+
 ## ADR-074 SHIPPED (2026-08-02): super-width 3-mode fold (F/A/D)
 
 Ship list built same-day: superMode id 87 (wide/pulse/smear), F default and clean

@@ -98,7 +98,7 @@
 </head>
 <body>
 <header>
-  <h1>HYPER<span class="star">✱</span>SAW</h1>
+  <h1>HYPERSAW</h1>
   <div class="tagline">kuramoto-coupled unison · seeded swarms · 8-voice poly</div>
   <span id="toast"></span>
   <span class="spacer"></span>
@@ -131,6 +131,10 @@
   <div class="scope" id="vmapScope">
     <h2>Voice map · pan × pitch <span style="color:var(--dim)">(○ target · ● actual)</span></h2>
     <canvas id="vmapCanvas" width="256" height="96"></canvas>
+  </div>
+  <div class="scope">
+    <h2>Scope · <span style="color:var(--pull)">L</span> / <span style="color:var(--amber)">R</span></h2>
+    <canvas id="wavCanvas" width="256" height="74"></canvas>
   </div>
   <div class="scope">
     <h2>Log spectrum · 30 Hz – 16 kHz</h2>
@@ -378,6 +382,7 @@ const bridge = {
   setParam: (id, v) => window.hzSetParam(id, v),
   gesture: (id, begin) => window.hzGesture(id, begin),
   getSpec: () => window.hzGetSpec(),
+  getScope: () => window.hzGetScope ? window.hzGetScope() : Promise.resolve(null),
   getState: () => window.hzGetState(),
   applyState: (s) => window.hzApplyState(s),
 };
@@ -831,6 +836,41 @@ const vmC = $('#vmapCanvas'), vmx = vmC.getContext('2d');
 const VM_RANGES = [50/1200, 100/1200, 200/1200, 1, 2.5, 5, 10];
 const VM_LABELS = ['±50 ¢', '±100 ¢', '±200 ¢', '±1 oct', '±2.5 oct', '±5 oct', '±10 oct'];
 let vmZoom = 4, vmShrink = 0;
+// Scope — raw L/R samples, both channels overlaid. STEREO on purpose: the
+// super-width character modes (ADR-074 pulse/smear) differ between channels and
+// vanish in a mono sum, and the polarity cliffs they produce are only visible
+// against the other channel. Auto-gain per frame so quiet patches still read;
+// the trace shape, not the level, is what this panel is for.
+const wvC = $('#wavCanvas'), wvx = wvC.getContext('2d');
+let scopeBusy = false;
+async function drawScope() {
+  if (scopeBusy || !window.hzGetScope) return;
+  scopeBusy = true;
+  try {
+    const s = await bridge.getScope();
+    const w = wvC.width, h = wvC.height;
+    wvx.fillStyle = 'rgba(11,14,20,0.5)';
+    wvx.fillRect(0, 0, w, h);
+    wvx.strokeStyle = '#2a3040';
+    wvx.beginPath(); wvx.moveTo(0, h / 2); wvx.lineTo(w, h / 2); wvx.stroke();
+    if (s && s.l && s.l.length) {
+      let pk = 1e-4;
+      for (let i = 0; i < s.l.length; i++)
+        pk = Math.max(pk, Math.abs(s.l[i]), Math.abs(s.r[i]));
+      const g = (h / 2 - 3) / pk;
+      for (const [arr, col] of [[s.r, '#ffc24b'], [s.l, '#5ff2e0']]) {
+        wvx.strokeStyle = col; wvx.lineWidth = 1; wvx.beginPath();
+        for (let i = 0; i < arr.length; i++) {
+          const x = i / (arr.length - 1) * w, y = h / 2 - arr[i] * g;
+          i ? wvx.lineTo(x, y) : wvx.moveTo(x, y);
+        }
+        wvx.stroke();
+      }
+    }
+  } catch (e) {}
+  scopeBusy = false;
+}
+
 function drawVmap(s) {
   const w = vmC.width, h = vmC.height;
   vmx.fillStyle = 'rgba(11,14,20,0.35)';
@@ -1004,6 +1044,7 @@ async function loop() {
   // Host automation / device-panel moves reflect back into the GUI: poll
   // params ~2x/s, but never fight an active drag.
   if (frameCount % 3 === 0) drawSpec();  // ~20 fps is plenty for a spectrum
+  if (frameCount % 2 === 0) drawScope().catch(() => {});
   if (++frameCount % 30 === 0 && !dragging) syncFromEngine().catch(() => {});
   requestAnimationFrame(loop);
 }

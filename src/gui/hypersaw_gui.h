@@ -67,6 +67,7 @@ struct GuiHost
 {
   std::function<VizSnapshot()> getViz;
   std::function<void(float *, int)> getSpectrum;  // log-spaced 0..1 bins
+  std::function<void(float *, float *, int)> getScope;  // raw L/R tail, newest last
   std::function<std::string()> getParamsJson;            // {"<id>":value,...}
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin
