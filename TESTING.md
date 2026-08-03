@@ -45,6 +45,14 @@ Corner stamp should read **79d2205 · 2026-08-03 06:45Z**. Anything else = resta
 - [ ] Old patches sound unchanged with OS off (bit-exact by gate, but confirm by ear)
 - [ ] CPU with OS on is roughly 2.5× the instrument's own load
 
+## Round 5 — ADR-078 per-voice envelopes (NEW)
+- [ ] **per-voice envelopes** on, everything else unchanged: should sound the SAME
+      as off (uniform voices) — if it changes, something is wrong
+- [ ] **rel scatter** up: a held chord should come apart as it decays, voices
+      falling away at different rates rather than one gate closing
+- [ ] **attack scatter** now works with per-voice envelopes even at onset scatter 0
+- [ ] Notes still end fully (no lingering voice) at high rel scatter
+
 ## Round 4 — ADR-077 ensemble timing (NEW)
 - [ ] **onset scatter** up (try 20-30 ms): a chord should sound like players, not one
       multiplied source — entries slightly spread

@@ -157,6 +157,13 @@ struct Params
   // measured near-optimal for real quartets, 1 collapses to i.i.d. jitter
   // (which is exactly what conventional humanize does, and is audibly worse).
   double onsetScatter = 0, onsetAlpha = 0.25, attackScatter = 0;
+  // ADR-078 per-voice envelopes (increment 2). 0 = one shared envelope for the
+  // swarm (the reference path, bit-exact); 1 = every voice runs its own ADSR,
+  // so entries AND releases can differ. relScatter spreads the release times
+  // the way attackScatter spreads the attacks — a chord that decays as players
+  // rather than as one gate. Per-voice state is also what a mod matrix wants
+  // as a SOURCE later (human, 2026-08-03: "voice-state-based modulation").
+  double voiceEnv = 0, relScatter = 0;
 };
 
 // Consonance gravity ratio set (SPEC Layer 3, ADR-008) — the DYNAMICS
@@ -194,8 +201,10 @@ class SwarmCore
     double osZL[64] = {0}, osZR[64] = {0};                 // ADR-075 decimator history
     int osW = 0;
     double onsD[kMaxV] = {0};      // ADR-077 samples until this voice enters
-    double onsE[kMaxV] = {0};      // its own 0->1 entry ramp
-    double onsC[kMaxV] = {0};      // that ramp's per-sample coefficient
+    double onsE[kMaxV] = {0};      // its own 0->1 entry ramp (also ADR-078 env)
+    double onsC[kMaxV] = {0};      // that ramp's per-sample attack coefficient
+    double relC[kMaxV] = {0};      // ADR-078 per-voice release coefficient
+    int vAtk[kMaxV] = {0};         // ADR-078 per-voice attack-stage flag
     int vfInit = 0;                                        // 0 → snap the glide on the next tick
     double cdist[kMaxV] = {0};                             // ADR-064 distance from the fundamental
     // Per-note expression tuning factor (ADR-036, MPE): 1.0 is bit-inert
@@ -339,33 +348,46 @@ class SwarmCore
     s.lpL = 0;
     s.lpR = 0;
     std::memset(s.vlp, 0, sizeof(s.vlp));  // tone-tilt one-pole state
-    // ADR-077: advance the timing system one note and lay out the entries.
-    if (p.onsetScatter > 0)
+    // ADR-077/078 per-voice onset state. The COEFFICIENTS are needed whenever
+    // either feature is on — an earlier version computed them only inside the
+    // onsetScatter branch, so voiceEnv with scatter 0 left every attack
+    // coefficient at 0 and the swarm rendered SILENCE. The timing correction
+    // itself still only runs when scatter is on.
+    const bool perVoice = (p.onsetScatter > 0) || (p.voiceEnv > 0.5);
+    if (perVoice)
     {
       const int n = (int)p.n;
-      double mean = 0;
-      for (int i = 0; i < n; i++) mean += tOff[i];
-      mean /= (n > 0 ? n : 1);
-      const double sig = p.onsetScatter * 0.001;
-      for (int i = 0; i < n; i++)
-        tOff[i] += -p.onsetAlpha * (tOff[i] - mean) + gaussT() * sig;
-      double m2 = 0;
-      for (int i = 0; i < n; i++) m2 += tOff[i];
-      m2 /= (n > 0 ? n : 1);
       for (int i = 0; i < n; i++)
       {
-        // shift so the EARLIEST voice starts at 0 — the note must not feel
-        // late overall, only internally spread (the lab biases by 1.6 sigma;
-        // taking the actual minimum is equivalent and cannot go negative).
-        s.onsD[i] = (tOff[i] - m2) * sr;
+        s.onsD[i] = 0;
         s.onsE[i] = 0;
+        s.vAtk[i] = 1;
         const double jit = 1 + gaussT() * p.attackScatter * 0.6;
         const double atk = std::max(0.002, p.attackS * std::max(0.15, jit));
         s.onsC[i] = 1 - std::exp(-1 / (atk * sr));
+        const double rjit = 1 + gaussT() * p.relScatter * 0.6;
+        const double rel = std::max(0.002, p.releaseS * std::max(0.15, rjit));
+        s.relC[i] = 1 - std::exp(-1 / (rel * sr));
       }
-      double lo = s.onsD[0];
-      for (int i = 1; i < n; i++) lo = std::min(lo, s.onsD[i]);
-      for (int i = 0; i < n; i++) s.onsD[i] -= lo;
+      if (p.onsetScatter > 0)
+      {
+        // Vorberg/Wing: correct toward the ensemble mean, then add motor noise
+        double mean = 0;
+        for (int i = 0; i < n; i++) mean += tOff[i];
+        mean /= (n > 0 ? n : 1);
+        const double sig = p.onsetScatter * 0.001;
+        for (int i = 0; i < n; i++)
+          tOff[i] += -p.onsetAlpha * (tOff[i] - mean) + gaussT() * sig;
+        double m2 = 0;
+        for (int i = 0; i < n; i++) m2 += tOff[i];
+        m2 /= (n > 0 ? n : 1);
+        for (int i = 0; i < n; i++) s.onsD[i] = (tOff[i] - m2) * sr;
+        // shift so the EARLIEST voice starts at 0 — the note must not feel
+        // late overall, only internally spread
+        double lo = s.onsD[0];
+        for (int i = 1; i < n; i++) lo = std::min(lo, s.onsD[i]);
+        for (int i = 0; i < n; i++) s.onsD[i] -= lo;
+      }
     }
     s.vfInit = 0;                          // ADR-063: snap the glide to the new note
     s.noteTune = 1.0;  // per-note expression resets with a fresh strike;
@@ -517,6 +539,7 @@ class SwarmCore
     }
     const int osSub = p.oversample > 0.5 ? 2 : 1;   // ADR-075
     const bool ensOn = p.onsetScatter > 0;         // ADR-077
+    const bool vEnvOn = p.voiceEnv > 0.5;          // ADR-078
     for (auto &s : swarms)
     {
       if (!s.gate && s.env < 1e-4) continue;
@@ -527,6 +550,7 @@ class SwarmCore
         tick = (tick + 1) & (kTick - 1);
         if (glideOn) for (int i = 0; i < n; i++) s.fRun[i] += gCoefS * (s.eff[i] - s.fRun[i]);
         double l = 0, r = 0;
+        double vMax = 0;   // ADR-078: loudest voice envelope, for liveness
         // ADR-075: at 2x the voice sum runs TWICE per output sample with half
         // the phase step, and the two sub-samples feed a halfband decimator.
         // Everything after the sum (output pole, envelope, ITD head) stays at
@@ -538,7 +562,7 @@ class SwarmCore
         {
           // ADR-077: a voice that has not entered yet contributes nothing AND
           // does not advance its phase — it has not started playing.
-          if (ensOn && s.onsD[i] > 0) { s.onsD[i] -= 1; continue; }
+          if ((ensOn || vEnvOn) && s.onsD[i] > 0) { s.onsD[i] -= 1; continue; }
           const double f = glideOn ? s.fRun[i] : s.eff[i];
           const double dph = std::max(0.0, f) / (sr * osSub);
           double ph = s.phase[i] + dph;
@@ -576,9 +600,28 @@ class SwarmCore
           }
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.hiTame > 0) v *= s.hg[i];
-          if (ensOn)
-          {   // each voice fades in on its OWN attack, so a late entry does not
-              // click in at whatever level the shared envelope has reached
+          if (vEnvOn)
+          {
+            // ADR-078: a full per-voice ADSR. Same arithmetic as the shared
+            // envelope (ADR-021), run once per voice — attack while gated,
+            // decay toward sustain, own release coefficient when released.
+            if (s.gate)
+            {
+              if (p.sustainL >= 1.0) s.onsE[i] += (1 - s.onsE[i]) * s.onsC[i];
+              else if (s.vAtk[i])
+              {
+                s.onsE[i] += (1 - s.onsE[i]) * s.onsC[i];
+                if (s.onsE[i] >= 0.995) s.vAtk[i] = 0;
+              }
+              else s.onsE[i] += (p.sustainL - s.onsE[i]) * dec;
+            }
+            else s.onsE[i] += (0 - s.onsE[i]) * s.relC[i];
+            v *= s.onsE[i];
+            if (s.onsE[i] > vMax) vMax = s.onsE[i];
+          }
+          else if (ensOn)
+          {   // ADR-077 entry only: fade in on the voice's own attack so a late
+              // entry does not click in at the shared envelope's current level
             s.onsE[i] += (1 - s.onsE[i]) * s.onsC[i];
             v *= s.onsE[i];
           }
@@ -637,7 +680,15 @@ class SwarmCore
         // ((1-env)*atk while gated, (0-env)*rel released) — decay never
         // engages, parity preserved. sustainL < 1: attack->decay machine,
         // deliberately divergent (superset behavior).
-        if (s.gate)
+        if (vEnvOn)
+        {
+          // The shared envelope becomes pure BOOKKEEPING: every liveness,
+          // voice-steal and NOTE_END test keys off s.env, so it tracks the
+          // loudest voice and all that machinery keeps working unchanged
+          // while the AUDIO is enveloped per voice above.
+          s.env = vMax;
+        }
+        else if (s.gate)
         {
           if (p.sustainL >= 1.0)
           {
@@ -657,7 +708,7 @@ class SwarmCore
         {
           s.env += (0 - s.env) * rel;
         }
-        const double g = gain * s.env;
+        const double g = vEnvOn ? gain : gain * s.env;   // ADR-078: already applied per voice
         // Float32Array += semantics: round to f32 on every store
         outL[smp] = (float)((double)outL[smp] + s.lpL * g);
         outR[smp] = (float)((double)outR[smp] + s.lpR * g);
@@ -792,6 +843,8 @@ class SwarmCore
     if (k == "onsetScatter") return &p.onsetScatter;  // ADR-077 (ms, 0 = off)
     if (k == "onsetAlpha") return &p.onsetAlpha;      // ADR-077 correction gain
     if (k == "attackScatter") return &p.attackScatter;
+    if (k == "voiceEnv") return &p.voiceEnv;          // ADR-078 per-voice ADSR
+    if (k == "relScatter") return &p.relScatter;
     return nullptr;
   }
 
