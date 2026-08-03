@@ -547,6 +547,7 @@ struct Plugin
       v.KsmP = s->KsmP;
       for (int i = 0; i < v.n && i < 32; i++) v.phase[i] = s->phase[i];
       // voice map: focus swarm's placement vs actual, plus its pan seats
+      v.sampleRate = sampleRate;
       v.vmF0 = s->f0cur;
       for (int i = 0; i < v.n && i < 32; i++)
       {

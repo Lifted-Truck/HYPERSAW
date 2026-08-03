@@ -48,6 +48,7 @@ struct VizSnapshot
   // Per-voice data for the FOCUS swarm — target freq (vf, post-law placement),
   // actual freq (eff, coupling included; the gap between them IS the pull),
   // signed base pan. f0 anchors the pitch axis.
+  double sampleRate = 44100;   // scope needs period in SAMPLES from f0
   double vmF0 = 0;
   double vmVf[32] = {0};
   double vmEff[32] = {0};

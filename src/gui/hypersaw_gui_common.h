@@ -58,6 +58,7 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
   for (int i = 0; i < v.n && i < 32; i++) phase.addArrayElement(v.phase[i]);
   obj.addMember("phase", phase);
   // voice map + note monitor (SAW mode; empty arrays in SPECTRA mode)
+  obj.addMember("sr", v.sampleRate);
   obj.addMember("vmF0", v.vmF0);
   auto vmVf = choc::value::createEmptyArray();
   auto vmEff = choc::value::createEmptyArray();
@@ -140,11 +141,14 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     return arr;
   });
   web->bind("hzGetScope", [&host](const choc::value::ValueView &) -> choc::value::Value {
-    float l[512], r[512];
-    if (host.getScope) host.getScope(l, r, 512);
-    else { for (int i = 0; i < 512; i++) { l[i] = 0; r[i] = 0; } }
+    // 1536, not 512: at D2 one period is ~604 samples, so a 512-sample window
+    // cannot even hold one — there was nothing for a trigger to lock onto.
+    constexpr int kN = 1536;
+    float l[kN], r[kN];
+    if (host.getScope) host.getScope(l, r, kN);
+    else { for (int i = 0; i < kN; i++) { l[i] = 0; r[i] = 0; } }
     auto L = choc::value::createEmptyArray(), R = choc::value::createEmptyArray();
-    for (int i = 0; i < 512; i++) { L.addArrayElement(l[i]); R.addArrayElement(r[i]); }
+    for (int i = 0; i < kN; i++) { L.addArrayElement(l[i]); R.addArrayElement(r[i]); }
     auto obj = choc::value::createObject("Scope");
     obj.addMember("l", L); obj.addMember("r", R);
     return obj;
