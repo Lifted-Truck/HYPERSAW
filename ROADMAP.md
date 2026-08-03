@@ -2,11 +2,61 @@
 
 Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset + trace written. Passing ≠ done; done = green + acceptance criteria + DECISIONS/trace updated.
 
-**Status (2026-07-21):** Phases 0–1 CLOSED. Phase 2 (SAW) + Phase 3 (dynamics) gate-close proposed and shipped — **formal ratification still pending** (see per-phase gates below). Phase 4 SPECTRA ported + shell-integrated; **ADR-037 P=1 ruling still open** (human decision). Track E: E0 force-core + E2 time engines done; E1 frequency cores done (L0-17/18 + SWARM-FX GUI remain); **E3 internal FX rack increment 1 shipped** (ADR-054). Feature adds (2026-07-20/21): SPECTRA ADSR (ADR-055), bipolar onset lock (ADR-056), SPECTRA transposition (ADR-057), SAW waveshape morph (ADR-058), GUI column layout + fixes. **Swarmalator** core+oracle done, awaiting nondestructive shell integration — the recommended next build. Mod matrix: Kuramoto LFO design accepted (ADR-053); rotor-to-golden pending. Dev: `./install` installs the plugin locally in one command. Open housekeeping: formally close the Phase 2/3 gates; rule ADR-037; prune merged branches.
+**Status (2026-07-21):** Phases 0–1 CLOSED. Phase 2 (SAW) + Phase 3 (dynamics) gate-close proposed and shipped — **formal ratification still pending** (see per-phase gates below). Phase 4 SPECTRA ported + shell-integrated; ADR-037's P=1 gate was RULED 2026-07-18 (option (a), measured equivalence) — its only live remnant is the shared-voice-path A/B follow-up. Track E: E0 force-core + E2 time engines done; E1 frequency cores done (L0-17/18 + SWARM-FX GUI remain); **E3 internal FX rack increment 1 shipped** (ADR-054). Feature adds (2026-07-20/21): SPECTRA ADSR (ADR-055), bipolar onset lock (ADR-056), SPECTRA transposition (ADR-057), SAW waveshape morph (ADR-058), GUI column layout + fixes. **Swarmalator** core+oracle done, awaiting nondestructive shell integration — the recommended next build. Mod matrix: Kuramoto LFO design accepted (ADR-053); rotor-to-golden pending. Dev: `./install` installs the plugin locally in one command. Open housekeeping: formally close the Phase 2/3 gates. (ADR-037 ruled 2026-07-18; merged branches pruned 2026-08-03.) **This status block is historical — see the OPEN WORK REGISTER below for what is actually open.**
 
 **Status (2026-07-18):** Phase 1 GATE CLOSED (PR #2 merged; protocol findings + free-row erratum ratified with the merge, erratum applied to ACCEPTANCE). Phase 2 in progress: SwarmCore is live in the plugin — placeholder sine replaced, 18-param CLAP surface at prototype ranges (dissolve in seconds, driftDepth in cents), versioned key=value state; pluginval strictness 10 SUCCESS, auval SUCCEEDED post-integration. Phase 2 remaining: tempo-grid law port (needs host tempo; L0-12), bimodal/clustered-pairs distributions (OPEN QUESTION — SPEC lists them, the reference doesn't implement them: extending the reference is a spec change needing a human ruling), GUI v1 + dev state button, webview smoke test, Layer-E 1/2/5 sign-off.
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
+
+## OPEN WORK REGISTER (reconciled 2026-08-03)
+
+**Why this exists.** ROADMAP is a narrative record — excellent for *why* a decision was
+made, useless for *what is open right now*, because an item's status is buried in the
+paragraph that created it. Two stale claims were found in the status block above during
+this reconciliation (ADR-037 recorded as unruled when it was ruled 2026-07-18; branch
+pruning listed as pending when it was done). **This register is the index; the sections
+below remain the evidence.** Update it in the same change that changes an item's status.
+
+### A · Waiting on the human (no build work possible until answered)
+
+| # | Item | Where |
+|---|---|---|
+| A1 | **Bend inertia fold** — which travel law; flat vs distance-keyed; bend lane / note pitch / both; does it reach MPE | § Pitch-bend inertia; `docs/design/bend-lab.html` |
+| A2 | **Swarmalator** — listen before shell integration (core + oracle done, bit-exact) | § Experimental engines |
+| A3 | **Shape lab fold** — mandate rulings: fold mode and carrier purity both leave saw territory deliberately | § Lab campaign 2 item 6 |
+| A4 | **ITD max 0.6 → 0.3** — proposed on measurement (metrics saturate above 0.15 ms); wants an ear A/B first | § Open questions 2026-08-03 #1 |
+| A5 | **AP freq 700 Hz** (super-width mode D) — arbitrary, never measured; A/B in the width lab and pin | § Open questions 2026-08-03 #2 |
+| A6 | **SPEC citation amendment** — protected path, awaiting approval | § Timbre-space research |
+| A7 | **Law/dist widening** — state compatibility, scope, and which core-only params to expose | § Open questions for the human (4 sub-items) |
+| A8 | **Phase 2/3 formal gate ratification** — shipped and evidenced, never formally closed | § Phase 2 / Phase 3 gates |
+
+### B · Queued build work
+
+| # | Item | Status |
+|---|---|---|
+| B1 | **Baseline saw to Nyquist** | recommended next DSP fold; caveat recorded (buys air, not the fullness already solved by drift) |
+| B2 | **FX rack: reverb + Kuramoto-modulated delays as slots** | labs done, not folded |
+| B3 | **Modulation lab → golden + matrix** | **deliberately blocked**: rotor axes still moving, a golden measured now would churn (and its ACCEPTANCE rows are protected-path) |
+| B4 | **E1 remainder** — SWARM-FX GUI + L0-17/18 | cores parity-proven, shell incomplete |
+| B5 | **ADR-037 follow-up** — shared voice path behind a switch, for an A/B against the frozen cores | ruling done, follow-up open |
+| B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | labs not yet built |
+| B7 | **Lab-visual fold backlog** — bend step-response · width scope+cliffs · reverb ER/tail · ensemble raster | per the convention below; bend ships with A1 |
+| B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
+| B9 | **Pan motion speed + bipolar position weighting** (subsumes `motionCenter`) | requested 2026-07-31 |
+| B10 | **Slider units/naming pass** + feature-by-feature visual breakdown for docs | deferred until the interface settles |
+| B11 | **Multi-oscillator ADR** (layout-lab IA) | open design decision |
+| B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
+| B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
+
+### C · Closed during this reconciliation
+- **Divergence ADRs** (root-pivot topology · pan default image · saw retarget) — each is
+  recorded, but *inside* the ADR that made the change rather than as three standalone
+  entries: root-pivot in the fold ADR + `traces/2026-07-24-fold-root-pivot.md`; the pan
+  default's mono-fold consequence explicitly "accepted with the divergence"; retarget in
+  ADR-026. Tracked as open for weeks because the task expected three separate documents.
+- **Prune merged branches** — 91 local branches deleted 2026-08-03 after verifying every
+  one was fully contained in `main` (no stashes, no dirty files, no remote-only commits).
+  95 remote branches remain on GitHub.
 
 ## STANDING CONVENTION — lab visuals ship with the feature (human, 2026-08-03)
 
