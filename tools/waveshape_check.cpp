@@ -326,7 +326,10 @@ int main()
         for (int i = 0; i < 64; i++)
         {
           const double t = (b * 64.0 + i) / sr;
-          L[i] = R[i] = (float)(0.25 * std::sin(2.0 * M_PI * 220.0 * t));
+          // Literal, not M_PI: MSVC does not define it without
+          // _USE_MATH_DEFINES, and the rest of this file already spells it out
+          // for that reason. (CI caught it — macOS builds fine.)
+          L[i] = R[i] = (float)(0.25 * std::sin(2.0 * 3.14159265358979 * 220.0 * t));
         }
         rack.processStereo(L, R, 64);
         if (b > 80)   // let the lines reach a steady ring first
