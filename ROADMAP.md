@@ -163,6 +163,40 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## STICKY NOTES: measured — the release knob is a TIME CONSTANT, not a time-to-silence
+
+Human, 2026-08-03, still: "sticky notes (take a little too long to end after I stop
+pressing)". MEASURED (per-block envelope, after a first attempt that thresholded raw
+samples and reported nonsense — a waveform crosses zero every cycle):
+
+| release setting | −40 dB at | −60 dB at | ratio |
+|---|---|---|---|
+| 0.005 s | 35 ms | 46 ms | 9.3× |
+| 0.050 s | 209 ms | 337 ms | 6.7× |
+| **0.160 s (default)** | **801 ms** | **1057 ms** | **6.6×** |
+| 0.500 s | 2345 ms | 3390 ms | 6.8× |
+
+The envelope is a one-pole (`env += (0−env)·rel`, rel = 1−exp(−1/(release·sr))), so
+the knob is a TIME CONSTANT and silence takes ln(1000) ≈ 6.9 of them. At the default
+a note is still audible ~1 second after key-up. That is very likely the whole
+remaining "sticky" complaint — nothing to do with note-offs.
+
+DISCRIMINATING TEST (the note monitor exists for exactly this): after key-up, is the
+cell **FILLED** (gate stuck — a real bug, our side) or **HOLLOW AND SLOWLY DIMMING**
+(envelope tail — this finding)? One glance settles which.
+
+FIX OPTIONS (human's call — this is taste + compatibility, not correctness):
+1. **Shell-side knob taper** (ADR-024 inertia precedent): applyParam divides the knob
+   by ~6.9 so "release 0.16 s" means audible-silence in 0.16 s. Parity-safe — the
+   core keeps its semantics, only the mapping changes — but existing sessions get
+   ~7× shorter releases, which is a big audible change to saved work.
+2. **Leave the law, fix the LABEL** in the units pass: display the knob as its
+   time-to-silence (0.16 s → "1.1 s"), so the number stops lying.
+3. Do nothing; document in TESTING.
+Recommendation: (2) now — it is honest, breaks nothing, and folds into the
+already-planned units pass — with (1) offered as an opt-in curve later if the human
+wants Serum-like snap.
+
 ## Coherence gain compensation — PROPOSED (human, 2026-08-03: "tame the big additive saw without changing its shape")
 
 At high K the voices phase-align, so the sum's peak rises with COHERENCE, not with
