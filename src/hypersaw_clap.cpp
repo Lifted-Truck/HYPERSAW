@@ -221,6 +221,12 @@ static const ParamDef kParams[] = {
     // therefore stops being mono-only in the GUI gating.
     {89, "polyGlide", "Poly Glide", 0, 1, 0, true, kOffOn},
     {90, "glideMode", "Glide From", 0, 1, 0, true, kGlideModeLabels},
+    // ADR-077 ensemble onset timing. onsetScatter is the master switch (0 = off
+    // = bit-exact); alpha is the mutual-correction gain that carries the serial
+    // structure listeners judge (LIBRARY L0019).
+    {91, "onsetScatter", "Onset Scatter (ms)", 0, 80, 0, false, nullptr},
+    {92, "onsetAlpha", "Timing Correction", 0, 1.5, 0.25, false, nullptr},
+    {93, "attackScatter", "Attack Scatter", 0, 1, 0, false, nullptr},
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.

@@ -45,6 +45,17 @@ Corner stamp should read **79d2205 · 2026-08-03 06:45Z**. Anything else = resta
 - [ ] Old patches sound unchanged with OS off (bit-exact by gate, but confirm by ear)
 - [ ] CPU with OS on is roughly 2.5× the instrument's own load
 
+## Round 4 — ADR-077 ensemble timing (NEW)
+- [ ] **onset scatter** up (try 20-30 ms): a chord should sound like players, not one
+      multiplied source — entries slightly spread
+- [ ] **correction** 0: timing drifts apart over a held passage (deliberately unusable
+      — it is the "ensemble that never listens to itself" end)
+- [ ] **correction** ~0.25 vs **1.0**: both are "scattered", but 0.25 should feel like
+      an ensemble and 1.0 like a humanize knob. THIS is the research claim — if you
+      cannot hear a difference, that is a real finding worth reporting
+- [ ] **attack scatter** up: entries vary in bite as well as time
+- [ ] onset scatter at 0: everything sounds exactly as before (bit-exact by gate)
+
 ## Current — untested by human
 
 ### 0a. ADR-075 oversample 2× (NEW)

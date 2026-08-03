@@ -163,6 +163,14 @@ the richness, adds messy LF (consistent with the measured −44..−79 dB dense 
    the interface complexity warrants it (human: "once we've integrated more of the
    labs").
 
+## ADR-077 SHIPPED (2026-08-03): ensemble onset timing, increment 1
+
+The L0019 research reaches the instrument. Vorberg/Wing correction folded into the
+core (ids 91/92/93), inert at onsetScatter 0. Reproduces the regimes: lag-1 +0.985
+(alpha 0, random walk) -> +0.679 (0.25, structured) -> -0.072 (1.0, i.i.d. jitter).
+Oracle gates the STRUCTURE, not the variance. Increment 2 (per-voice ADSR) deferred
+— needs the per-swarm -> per-voice envelope rework.
+
 ## STICKY NOTES: measured — the release knob is a TIME CONSTANT, not a time-to-silence
 
 Human, 2026-08-03, still: "sticky notes (take a little too long to end after I stop
