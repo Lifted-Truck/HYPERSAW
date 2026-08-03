@@ -522,13 +522,35 @@ struct Plugin
   {
     const int writeIdx = 1 - vizPublished.load(std::memory_order_relaxed);
     hypersaw::VizSnapshot &v = vizBuf[writeIdx];
+    // NOTE MONITOR — built here, BEFORE the engine branch, and from whichever
+    // engine is sounding. It used to live inside the SAW-only path after the
+    // SPECTRA early-return, so in SPECTRA mode there was no monitor AT ALL and
+    // a stuck voice there was invisible by construction (human, 2026-08-03:
+    // "a properly stuck note that isn't expressing on the notes tab").
+    int nm = 0;
+    for (int i = 0; i < hypersaw::kPoly && nm < 16; i++)
+    {
+      const int gate = spectraMode() ? spectra.swarmAt(i).gate : core.swarmAt(i).gate;
+      const double env = spectraMode() ? spectra.swarmAt(i).env : core.swarmAt(i).env;
+      if (!gate && env < 1e-4) continue;
+      v.nmMidi[nm] = spectraMode() ? spectra.swarmAt(i).midi : core.swarmAt(i).midi;
+      v.nmGate[nm] = gate;
+      v.nmEnv[nm] = env;
+      nm++;
+    }
+    v.nmCount = nm;
     if (spectraMode())
     {
       // SPECTRA viz: partial-0's cloud drives the phase circle (v.R/psi/phase),
       // and the per-partial strip feed (v.partR/partAmp/partPhase) carries the
       // whole harmonic series — the cascade lock-front made visible.
       const auto *fs = spectra.focus();
-      v = hypersaw::VizSnapshot{};
+      { const int keep = v.nmCount;
+        int km[16]; int kg[16]; double ke[16];
+        for (int i = 0; i < keep; i++) { km[i] = v.nmMidi[i]; kg[i] = v.nmGate[i]; ke[i] = v.nmEnv[i]; }
+        v = hypersaw::VizSnapshot{};
+        v.nmCount = keep;
+        for (int i = 0; i < keep; i++) { v.nmMidi[i] = km[i]; v.nmGate[i] = kg[i]; v.nmEnv[i] = ke[i]; } }
       if (fs)
       {
         v.active = true;
@@ -594,16 +616,6 @@ struct Plugin
         v.gravErr[i] = core.gravErr[i];
       }
       // note monitor: every slot, gated or ringing
-      v.nmCount = 0;
-      for (int i = 0; i < hypersaw::kPoly && v.nmCount < 16; i++)
-      {
-        const auto &sw = core.swarmAt(i);
-        if (!sw.gate && sw.env < 1e-4) continue;
-        v.nmMidi[v.nmCount] = sw.midi;
-        v.nmGate[v.nmCount] = sw.gate;
-        v.nmEnv[v.nmCount] = sw.env;
-        v.nmCount++;
-      }
       // grid status (ADR-016/017): unit, occupied rungs, cause-AND-state lock
       v.gridActive = ((int)core.p.law == 3);
       if (v.gridActive)
@@ -1522,6 +1534,19 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   // Stamp carries hash AND build time: a hash alone cannot distinguish "the
   // binary I just built" from "a binary built from the same commit last week",
   // which is precisely the stale-install question (L0020).
+  // PANIC: kill everything a stuck note could be hiding in. There was no such
+  // control at all before 2026-08-03, so a stuck voice meant deleting the
+  // device. Clears both engines, every note tag (including the pending-END
+  // queue), the mono held-stack, and the FX rack's tails.
+  hostIf.panic = [pl]() {
+    pl->core.allOff();
+    pl->spectra.allOff();
+    pl->rack.reset();
+    pl->heldCount = 0;
+    pl->monoSlot = -1;
+    pl->pendingEndCount = 0;
+    for (auto &t : pl->tags) t.active = false;
+  };
   hostIf.getBuildId = []() { return std::string(HYPERSAW_BUILD_STAMP); };
   hostIf.getStateJson = [pl]() { return pl->stateJson(); };
   hostIf.applyStateJson = [pl](const std::string &s) { return pl->applyStateJson(s); };
