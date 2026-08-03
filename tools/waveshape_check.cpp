@@ -249,6 +249,33 @@ int main()
                 flat.dead, spread.dead);
     if (!ok) fail++;
   }
+  { // Dead slots must leave NO residue. The envelope is a one-pole that never
+    // reaches zero, so without an explicit retire a played note lingers in slot
+    // state forever — which surfaced as the note monitor showing the whole
+    // note history (2026-08-03). Also pins that the output pole is cleared, so
+    // no residual charge can outlive a note.
+    SwarmCore c(44100.0);
+    c.setParam("n", 7); c.setParam("vol", 0.4); c.setParam("release", 0.05);
+    std::vector<float> L(512), R(512);
+    for (int k = 0; k < 6; k++)
+    {
+      c.noteOn(48 + k * 2, 130.0 * (1 + 0.1 * k));
+      for (int b = 0; b < 30; b++) c.render(L.data(), R.data(), 512);
+      c.noteOff(48 + k * 2);
+      for (int b = 0; b < 200; b++) c.render(L.data(), R.data(), 512);
+    }
+    int live = 0;
+    double pole = 0;
+    for (int i = 0; i < kPoly; i++)
+    {
+      const auto &sw = c.swarmAt(i);
+      if (sw.gate || sw.env >= 1e-9) live++;
+      pole = std::max(pole, std::fabs(sw.lpL) + std::fabs(sw.lpR));
+    }
+    std::printf("%s dead slots leave no residue: %d live, output pole %.1e\n",
+                (live == 0 && pole == 0.0) ? "OK  " : "FAIL", live, pole);
+    if (live != 0 || pole != 0.0) fail++;
+  }
   { // T5 superposition: mix == sum of solos (same seeded per-voice freqs/phases)
     // Solo renders are approximated by n=1 at each voice frequency with the
     // mix's per-voice gain; EXACT phase/freq match needs core introspection, so
