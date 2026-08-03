@@ -69,6 +69,7 @@ static const char *const kDriftModeLabels[] = {"walk (1/f)", "sine (per-voice)",
 static const char *const kPanModeLabels[] = {"drift (per-voice)", "sweep (whole image)"};
 static const char *const kPivotLabels[] = {"mean field", "root (fundamental)"};
 static const char *const kPanLayoutLabels[] = {"pitch fan", "legacy (x-position)"};
+static const char *const kSuperModeLabels[] = {"wide (clean)", "pulse (M/S)", "smear (allpass)"};
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
@@ -206,6 +207,10 @@ static const ParamDef kParams[] = {
     {84, "panLayout", "Pan Image", 0, 1, 0, true, kPanLayoutLabels},  // ADR-070
     {85, "panCurve", "Fan Curve", 0, 1, 0.5, false, nullptr},       // ADR-070
     {86, "panInvert", "Fan Invert", 0, 1, 0, true, kOffOn},         // ADR-070
+    // ADR-074 super-width mode: active only at width > 1. Default 0 = mode F
+    // (clean ITD+steepening) — a deliberate default-output change at width > 1
+    // versus the old always-M/S behavior, per the human's ratified ship list.
+    {87, "superMode", "Super-Width Mode", 0, 2, 0, true, kSuperModeLabels},
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.
