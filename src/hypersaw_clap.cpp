@@ -389,6 +389,7 @@ struct Plugin
 
   void emitNoteEnds(const clap_output_events_t *out, uint32_t time)
   {
+    int kept = 0;
     for (int k = 0; k < pendingEndCount; k++)
     {
       clap_event_note_t ev{};
@@ -401,9 +402,17 @@ struct Plugin
       ev.channel = pendingEnds[k].channel;
       ev.key = pendingEnds[k].key;
       ev.velocity = 0;
-      out->try_push(out, &ev.header);
+      // KEEP IT IF THE PUSH IS REJECTED. try_push CAN fail — the host's output
+      // buffer is finite and drainQueue floods it with param events whenever a
+      // knob moves. Ignoring the return value silently DESTROYED the NOTE_END,
+      // so Live never learned the note ended and withheld retriggering that
+      // pitch: "stuck for longer than it should, most when I've recently
+      // changed the K value" (human, 2026-08-03). Survivors are compacted and
+      // retried next block.
+      if (out->try_push(out, &ev.header)) continue;
+      pendingEnds[kept++] = pendingEnds[k];
     }
-    pendingEndCount = 0;
+    pendingEndCount = kept;
     for (int i = 0; i < hypersaw::kPoly; i++)
     {
       if (!tags[i].active) continue;
@@ -450,8 +459,10 @@ struct Plugin
       ev.channel = tags[i].channel;
       ev.key = tags[i].key;
       ev.velocity = 0;
-      out->try_push(out, &ev.header);
-      tags[i].active = false;
+      // Same rule: only retire the tag once the host has ACCEPTED the end.
+      // A rejected push leaves the tag active so the next block tries again —
+      // the note is resolved late rather than never.
+      if (out->try_push(out, &ev.header)) tags[i].active = false;
     }
   }
 
