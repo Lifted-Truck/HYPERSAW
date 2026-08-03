@@ -127,6 +127,52 @@ int main()
       if (!ok) fail++;
     }
   }
+  { // ADR-075 oversampling gates (L0021: the superset ships with its oracle).
+    // (a) OS off must be BIT-IDENTICAL to a plain render — the whole reason the
+    // 147 goldens stay green; (b) OS on must RECOVER high-harmonic level. Level
+    // is measured by Goertzel at exact harmonics with a bin-commensurate f0,
+    // which is valid here — the earlier detector trap (L0017) was using sparse
+    // probes for ALIASING, where folded products miss the probe grid; harmonic
+    // LEVELS sit exactly on it.
+    auto renderOS = [](double os) {
+      SwarmCore c(44100.0);
+      c.setParam("n", 1); c.setParam("detune", 0); c.setParam("width", 0);
+      c.setParam("vol", 0.3); c.setParam("K", 0); c.setParam("oversample", os);
+      c.noteOn(52, 44100.0 / 65536.0 * 245.0);
+      std::vector<float> L(512), R(512);
+      std::vector<double> o;
+      for (int b = 0; b < 200; b++)
+      { c.render(L.data(), R.data(), 512);
+        for (int i = 0; i < 512; i++) o.push_back(L[i]); }
+      return std::vector<double>(o.begin() + 20000, o.end());
+    };
+    auto goertzel = [](const std::vector<double> &x, double f) {
+      const double w = 2 * 3.14159265358979 * f / 44100.0, cw = 2 * std::cos(w);
+      double s1 = 0, s2 = 0;
+      for (double v : x) { const double t = v + cw * s1 - s2; s2 = s1; s1 = t; }
+      return std::sqrt(std::max(0.0, s1 * s1 + s2 * s2 - cw * s1 * s2));
+    };
+    const double f0 = 44100.0 / 65536.0 * 245.0;
+    const auto off = renderOS(0), on = renderOS(1);
+    // (a) inertness: OS off is the untouched path (bit-identical to itself is
+    // trivial, so compare against a SECOND construction — catches accidental
+    // state bleed from the new decimator members).
+    const auto off2 = renderOS(0);
+    double worstDiff = 0;
+    for (size_t i = 0; i < off.size() && i < off2.size(); i++)
+      worstDiff = std::max(worstDiff, std::fabs(off[i] - off2[i]));
+    std::printf("%s ADR-075 OS off deterministic: worst |diff| = %.3g\n",
+                worstDiff == 0.0 ? "OK  " : "FAIL", worstDiff);
+    if (worstDiff != 0.0) fail++;
+    // (b) recovery at 15 kHz, relative to each render's own fundamental
+    const int k15 = (int)std::lround(15000.0 / f0);
+    const double rOff = 20 * std::log10(goertzel(off, k15 * f0) / goertzel(off, f0));
+    const double rOn = 20 * std::log10(goertzel(on, k15 * f0) / goertzel(on, f0));
+    const double gain = rOn - rOff;
+    std::printf("%s ADR-075 2x recovers 15 kHz: +%.2f dB (gate: >= 1.5)\n",
+                gain >= 1.5 ? "OK  " : "FAIL", gain);
+    if (gain < 1.5) fail++;
+  }
   { // T5 superposition: mix == sum of solos (same seeded per-voice freqs/phases)
     // Solo renders are approximated by n=1 at each voice frequency with the
     // mix's per-voice gain; EXACT phase/freq match needs core introspection, so

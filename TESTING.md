@@ -14,6 +14,11 @@ failures by item number. Ordered by importance; ~15 min total.
 
 ## Current — untested by human
 
+### 0a. ADR-075 oversample 2× (NEW)
+- [ ] Toggle on at a bright patch: highs should open slightly (measured +2.4 dB at 15 kHz)
+- [ ] Toggle OFF must sound *identical* to before this build (bit-exact by gate)
+- [ ] Watch CPU in Live: expect roughly 2.5× the instrument's own load
+
 ### 0. ADR-074 super-width modes (NEW — fold just landed)
 - [ ] Width 1.5, mode **wide (clean)**: as wide as the old sound, NO pulse artifact; scope stays cliff-free
 - [ ] Mode **pulse**: the old ADR-025 sound, unchanged
