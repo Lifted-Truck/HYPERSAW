@@ -39,7 +39,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B3 | **Modulation lab → golden + matrix** | **deliberately blocked**: rotor axes still moving, a golden measured now would churn (and its ACCEPTANCE rows are protected-path) |
 | B4 | **E1 remainder** — SWARM-FX GUI + L0-17/18 | cores parity-proven, shell incomplete |
 | B5 | **ADR-037 follow-up** — shared voice path behind a switch, for an A/B against the frozen cores | ruling done, follow-up open |
-| B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | labs not yet built |
+| B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | **swarm-filters lab BUILT 2026-08-04** (`docs/design/filter-lab.html`, findings below); SPECTRA + quantum morph not yet built |
 | B7 | **Lab-visual fold backlog** — bend step-response · width scope+cliffs · reverb ER/tail · ensemble raster | per the convention below; bend ships with A1 |
 | B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
 | B9 | **Pan motion speed + bipolar position weighting** (subsumes `motionCenter`) | requested 2026-07-31 |
@@ -57,6 +57,51 @@ below remain the evidence.** Update it in the same change that changes an item's
 - **Prune merged branches** — 91 local branches deleted 2026-08-03 after verifying every
   one was fully contained in `main` (no stashes, no dirty files, no remote-only commits).
   95 remote branches remain on GitHub.
+
+## Swarm-filters lab — BUILT, and the "not quite there yet" verdict is now three numbers (2026-08-04)
+
+`docs/design/filter-lab.html`. The human's verdict on the E1 cores was *"not quite
+there yet"*, so the bench began by **measuring the shipped core** (`filter_core.h`,
+`processExternal`, swept steady-state at 48 kHz) rather than guessing at a fix.
+
+**Three defects, measured:**
+
+1. **The resonance knob is a backwards volume knob.** Peak output falls
+   **+0.98 → −3.21 → −9.32 dB** as `qbase` goes 0.1 → 0.5 → 0.9. Cause is structural,
+   not a bug: N summed *unity-gain* bandpasses capture less total power as they narrow.
+   Turn up resonance, get quieter and thinner — almost certainly the feel behind the
+   verdict.
+2. **No low end, and it worsens with Q.** 40 Hz sits **24.2 dB** below peak at default,
+   **28.4 dB** at high Q. The bank has no DC path at all, so anything it processes loses
+   its body.
+3. **It is a band-pass hump, not a filter.** Every configuration rolls off on BOTH
+   sides; there is no LP/HP/notch topology and no cutoff-with-slope. Between bands the
+   response nulls hard — **27.1 dB** deep at the default 16-band spread, worse with
+   fewer bands, where it is frankly a comb.
+
+**Plus a gap rather than a defect: no key tracking on the effect path.** `setNoteFreq`
+moves only the gravity centre, and only when placement is harmonic — so in the rack the
+filter does not follow the note at all. The lab adds a `track` control (0 = shipped) to
+audition what it should be.
+
+**Two candidate fixes, both auditionable and both measured:**
+- **Q compensation** (normalise by √Q, since summed power ∝ 1/Q): level swing across the
+  whole Q range **9.0 → 1.0 dB**. Resonance becomes a character control.
+- **LF preserve** (one-pole at the lowest band, added back): LF deficit **22.6 → 4.7 dB**.
+- Combined, plus a conventional multimode alongside and a bank→conventional series
+  option, for the brief's "how would this sit next to a conventional filter" question.
+
+**Fidelity, stated honestly.** The lab's band POSITIONS come from its own seeded draw,
+not `forcecore::buildOffsets`, so its absolute curve is not the core's curve
+sample-for-sample. What was cross-checked is what the bench is for — the structural
+diagnostics: LF deficit **24.2 dB in C++ vs 22.6 in the lab**, Q swing **10.3 vs 9.0**.
+Both defects follow from summing unity-gain bandpasses and survive any particular draw.
+
+**Not yet decided (human):** whether the bank becomes a proper rack filter (fixes 1+2, or
+1+2 in series with a conventional multimode), whether key tracking is added and at what
+default, or whether the bank stays a *resonator/formant* effect and a conventional filter
+is built beside it. The measurements argue it is currently neither one thing nor the
+other, which is a plausible reading of "not quite there yet".
 
 ## STANDING CONVENTION — lab visuals ship with the feature (human, 2026-08-03)
 
