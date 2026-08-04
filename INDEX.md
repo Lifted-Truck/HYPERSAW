@@ -25,3 +25,6 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0020] A built artifact must display its own provenance — VCS-derived build stamp + dirty marker; load-time fingerprint where there's no build step | build, caching, provenance, debugging, doctrine, cross-project
 - [L0021] A parity oracle cannot see superset-only regions — every superset ships with its own invariant oracle | oracle, parity, superset, testing, dsp
 - [L0022] A rejected best-effort push must be retried, never assumed delivered — retire state only on acceptance | api, realtime, events, plugins, debugging, doctrine
+- [L0023] A param range widened without its UI control ships an INVISIBLE feature — no oracle sees it | interface, testing, oracle, gui, plugins, doctrine
+- [L0024] A result landing right at its threshold means the DETECTOR is wrong, not that the fix is marginal | measurement, oracle, epistemics, doctrine, cross-project
+- [L0025] A narrative decision log records WHY, not WHAT IS OPEN — keep a status index, updated atomically | docs, process, roadmap, doctrine, cross-project
