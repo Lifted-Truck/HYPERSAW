@@ -39,7 +39,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B3 | **Modulation lab → golden + matrix** | **deliberately blocked**: rotor axes still moving, a golden measured now would churn (and its ACCEPTANCE rows are protected-path) |
 | B4 | **E1 remainder** — SWARM-FX GUI + L0-17/18 | cores parity-proven, shell incomplete |
 | B5 | **ADR-037 follow-up** — shared voice path behind a switch, for an A/B against the frozen cores | ruling done, follow-up open |
-| B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | labs not yet built |
+| B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | **swarm-filters lab BUILT 2026-08-04** (`docs/design/filter-lab.html`, findings below); SPECTRA + quantum morph not yet built |
 | B7 | **Lab-visual fold backlog** — bend step-response · width scope+cliffs · reverb ER/tail · ensemble raster | per the convention below; bend ships with A1 |
 | B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
 | B9 | **Pan motion speed + bipolar position weighting** (subsumes `motionCenter`) | requested 2026-07-31 |
@@ -57,6 +57,101 @@ below remain the evidence.** Update it in the same change that changes an item's
 - **Prune merged branches** — 91 local branches deleted 2026-08-03 after verifying every
   one was fully contained in `main` (no stashes, no dirty files, no remote-only commits).
   95 remote branches remain on GitHub.
+
+## Swarm-filters lab — BUILT, and the "not quite there yet" verdict is now three numbers (2026-08-04)
+
+`docs/design/filter-lab.html`. The human's verdict on the E1 cores was *"not quite
+there yet"*, so the bench began by **measuring the shipped core** (`filter_core.h`,
+`processExternal`, swept steady-state at 48 kHz) rather than guessing at a fix.
+
+**Three defects, measured:**
+
+1. **The resonance knob is a backwards volume knob.** Peak output falls
+   **+0.98 → −3.21 → −9.32 dB** as `qbase` goes 0.1 → 0.5 → 0.9. Cause is structural,
+   not a bug: N summed *unity-gain* bandpasses capture less total power as they narrow.
+   Turn up resonance, get quieter and thinner — almost certainly the feel behind the
+   verdict.
+2. **No low end, and it worsens with Q.** 40 Hz sits **24.2 dB** below peak at default,
+   **28.4 dB** at high Q. The bank has no DC path at all, so anything it processes loses
+   its body.
+3. **It is a band-pass hump, not a filter.** Every configuration rolls off on BOTH
+   sides; there is no LP/HP/notch topology and no cutoff-with-slope. Between bands the
+   response nulls hard — **27.1 dB** deep at the default 16-band spread, worse with
+   fewer bands, where it is frankly a comb.
+
+**Plus a gap rather than a defect: no key tracking on the effect path.** `setNoteFreq`
+moves only the gravity centre, and only when placement is harmonic — so in the rack the
+filter does not follow the note at all. The lab adds a `track` control (0 = shipped) to
+audition what it should be.
+
+**Two candidate fixes, both auditionable and both measured:**
+- **Q compensation** (normalise by √Q, since summed power ∝ 1/Q): level swing across the
+  whole Q range **9.0 → 1.0 dB**. Resonance becomes a character control.
+- **LF preserve** (one-pole at the lowest band, added back): LF deficit **22.6 → 4.7 dB**.
+- Combined, plus a conventional multimode alongside and a bank→conventional series
+  option, for the brief's "how would this sit next to a conventional filter" question.
+
+**Fidelity, stated honestly.** The lab's band POSITIONS come from its own seeded draw,
+not `forcecore::buildOffsets`, so its absolute curve is not the core's curve
+sample-for-sample. What was cross-checked is what the bench is for — the structural
+diagnostics: LF deficit **24.2 dB in C++ vs 22.6 in the lab**, Q swing **10.3 vs 9.0**.
+Both defects follow from summing unity-gain bandpasses and survive any particular draw.
+
+**Three lab bugs found by the human on first play, all mine, all fixed 2026-08-04:**
+- **Sound skipping.** `redraw()` blocked the main thread for **299 ms**, and
+  ScriptProcessorNode runs its audio callback on that same thread — an audio block is
+  23.2 ms, so every redraw starved ~13 consecutive blocks, and every knob move triggered
+  one. Fixed by replacing the simulated sweep with the **analytic** transfer function
+  (the TPT SVF is a bilinear-transformed analog prototype, so `s = j·tan(πf/fs)/g` gives
+  it in closed form; bands summed COMPLEX because the phase between them is what carves
+  the inter-band nulls). **299 ms → 0.9 ms.**
+- **New notes killing old ones.** The source did `src.notes = [one note]` — monophonic by
+  construction. Replaced with a held stack and per-key release. *This is the same defect
+  fixed in bend-lab.html hours earlier and then written fresh here.*
+- **K audible but invisible.** The old `measure()` built a **fresh** bank per call, and a
+  fresh bank has never run `controlTick` — so coupling could not appear in the measurement
+  at all, by construction. The curve now reads the live bank and animates while the swarm
+  is in motion. Verified: at K=1 the band spread collapses 5.396 → 0 octaves and the comb
+  becomes a single +15.5 dB peak.
+
+**K was unusable outside ±0.1 — and the taper was the smaller half of why (2026-08-04).**
+Human: *"K is only usable about 0.1 on either side of 0, and really only as a kind of YOY
+filter."* Two causes, and the second was the real one:
+- **Taper.** The lab's law was a raw per-tick gain (`K*0.05`), which at tick rate spends
+  the whole knob below |K| ≈ 0.1. Re-expressed as a collapse TIME CONSTANT in seconds
+  (ADR-009), log-spaced: |K| = 0.1 → 2.35 s, 0.5 → 0.28 s, 1.0 → 0.02 s. *This is
+  ADR-059's taper lesson recurring for the third time in this project.*
+- **No restoring force — the actual reason it read as "only a YOY filter".** The bench's
+  coupling was a pure attractor with nothing to pull against, so ANY non-zero K collapsed
+  the bank to a single frequency and K only set how *fast*. What the human was hearing was
+  the transient; the steady state was identical everywhere. The real core has this term
+  (`pop.tHome` + the force system) and the bench had dropped it. Restored, K now settles at
+  an **equilibrium** between coupling and home, so it controls depth: measured equilibrium
+  spread **5.40 (K=0) → 4.70 → 4.31 → 3.78 → 3.12 → 2.41 → 1.18 → 0.29 octaves** at
+  K = 0 / 0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.7 / 1.0. Smooth and monotone across the whole
+  knob. **Honest limit:** the splay side saturates around K = −0.6 (7.61 → 8.10 oct), where
+  the bands hit the 40 Hz / 11 kHz clamp — less usable travel than the lock side.
+
+**Animation chop fixed by splitting cheap from expensive.** Each frame was also rebuilding
+three throwaway Banks for the Q-swing probe — ~4× a frame's work plus allocation churn.
+The curve and band map now animate alone (**0.06–0.14 ms/frame**, ~119× headroom at 60 fps)
+and the diagnostics run self-throttled at ~3 Hz. No accuracy was traded for the speed: the
+analytic response is exact, so the "less accurate but faster" fallback the human offered
+was not needed.
+
+**The analytic path is verified against the simulation**, which stays as the oracle:
+worst |analytic − simulated| = **0.01–0.02 dB** across all six topologies. Getting there
+exposed a fourth issue worth recording — the first comparison showed an 87 dB disagreement
+in the deep stopband and **the simulation was the wrong one**: 8 cycles of warm-up left
+transient energy that set a ~−65 dB floor, and in a stopband that floor *is* the reading.
+With warm-up scaled to the actual ring time, the deep stopband agrees exactly (−151.9 vs
+−151.9 dB at 16 kHz). An oracle can be less accurate than the thing it checks.
+
+**Not yet decided (human):** whether the bank becomes a proper rack filter (fixes 1+2, or
+1+2 in series with a conventional multimode), whether key tracking is added and at what
+default, or whether the bank stays a *resonator/formant* effect and a conventional filter
+is built beside it. The measurements argue it is currently neither one thing nor the
+other, which is a plausible reading of "not quite there yet".
 
 ## STANDING CONVENTION — lab visuals ship with the feature (human, 2026-08-03)
 

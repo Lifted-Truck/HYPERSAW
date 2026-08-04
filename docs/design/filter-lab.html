@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SWARM✱ filter lab — swarm bank as a rack filter</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
+          --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --conv:#b98cff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace; padding:14px 18px 40px; }
+  h1 { font-size:15px; margin-bottom:2px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:var(--dim);
+         background:#0b0e13; border:1px solid var(--line); border-radius:3px; padding:2px 6px; opacity:0.75; }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:12px; max-width:1120px; }
+  .tagline b { color:var(--fg); }
+  .cols { column-width:350px; column-gap:12px; max-width:1120px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+          break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
+  .card h2 { font-size:12px; color:var(--pull); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .row label { width:104px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:74px; text-align:right; font-size:11px; }
+  .row select { background:var(--panel2); color:var(--fg); border:1px solid var(--line); font:inherit; flex:1; }
+  .hint { color:var(--dim); font-size:11px; margin:6px 0 2px; }
+  .hint b { color:var(--fg); }
+  .meter { font-size:12px; margin:4px 0; }
+  .meter b { color:var(--amber); }
+  .meter .bad { color:var(--red); font-weight:bold; }
+  .meter .good { color:var(--pull); }
+  canvas { border:1px solid var(--line); border-radius:4px; background:#0b0e13; display:block; margin-top:6px; }
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:4px;
+           font:inherit; padding:4px 10px; cursor:pointer; margin:2px 2px 0 0; }
+  button:hover { border-color:var(--pull); }
+  kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+  .chk { font-size:11px; color:var(--dim); }
+  table.diag { width:100%; font-size:11px; border-collapse:collapse; margin-top:4px; }
+  table.diag td { padding:2px 4px; border-top:1px solid var(--line); }
+  table.diag td:last-child { text-align:right; color:var(--amber); }
+</style>
+</head>
+<body>
+<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-08-04 00:42 &middot; fp <span id="revfp">…</span></div>
+<h1>SWARM✱ filter lab</h1>
+<div class="tagline">Lab campaign 3 item 2 — the human's verdict on the E1 cores was <b>"not quite there yet"</b>, so this bench starts by measuring <i>why</i> rather than guessing. <b>The shipped bank was measured first</b> (`filter_core.h`, `processExternal`, swept steady-state at 48 kHz) and three concrete defects came out, all reproduced live below: it is a <b>band-pass hump with no filter topology</b> (rolls off on BOTH sides in every configuration); its <b>low end is 24 dB down at default and gets WORSE as Q rises</b> (28 dB); and most importantly <b>the resonance knob is a backwards volume knob</b> — peak output falls +0.98 → −3.21 → −9.32 dB as qbase goes 0.1 → 0.5 → 0.9, because summing N unity-gain bandpasses captures less total energy as they narrow. Turn up resonance, get quieter and thinner: that is almost certainly the feel behind the verdict. Each fix is a switchable variant so you can hear whether it earns its place, with a conventional multimode alongside for the "how would this sit in the rack" question. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone.</div>
+
+<div class="cols">
+  <div class="card">
+    <h2>Filter under test</h2>
+    <div class="row"><label>topology</label><select id="topo">
+      <option value="0" selected>0 · swarm bank — AS SHIPPED</option>
+      <option value="1">1 · bank + Q compensation</option>
+      <option value="2">2 · bank + LF preserve</option>
+      <option value="3">3 · bank + Q comp + LF preserve</option>
+      <option value="4">4 · conventional multimode (A/B reference)</option>
+      <option value="5">5 · bank → conventional, in series</option>
+    </select></div>
+    <div class="row"><label>conv. mode</label><select id="cmode">
+      <option value="0" selected>low-pass</option><option value="1">band-pass</option>
+      <option value="2">high-pass</option><option value="3">notch</option>
+    </select></div>
+    <div class="row"><label>conv. slope</label><select id="cpoles">
+      <option value="1">12 dB/oct</option><option value="2" selected>24 dB/oct</option>
+    </select></div>
+    <div class="row"><label>wet</label><input type="range" id="wet" min="0" max="1" step="0.01" value="1"><output id="wet_o"></output></div>
+    <div class="hint"><b>Q compensation</b> divides the bank sum by its own measured power gain so resonance stops being a level control. <b>LF preserve</b> adds back the input below the lowest band (one-pole, corner = lowest band frequency) — the bank has no DC path at all, so a rack filter built on it loses the body of anything it touches.</div>
+  </div>
+
+  <div class="card">
+    <h2>Magnitude response · 30 Hz – 16 kHz</h2>
+    <canvas id="resp" width="326" height="176"></canvas>
+    <table class="diag">
+      <tr><td>peak</td><td id="d_peak">—</td></tr>
+      <tr><td>LF deficit (40 Hz vs peak)</td><td id="d_lf">—</td></tr>
+      <tr><td>deepest inter-band null</td><td id="d_null">—</td></tr>
+      <tr><td title="peak output across the whole Q range — a real filter should barely move">Q sweep → level swing</td><td id="d_qswing">—</td></tr>
+    </table>
+    <div class="hint">Measured, not drawn from a formula: the response is swept sine-by-sine through the ACTUAL filter code this page runs, steady-state RMS out ÷ RMS in, the same method used on the C++ core. <b>Q sweep → level swing</b> is the headline number — it re-measures peak output at qbase 0.1 / 0.5 / 0.9 and reports the spread. <span class="good">Under ~2 dB</span> means resonance is a character control; <span class="bad">10 dB+</span> means it is a volume knob.
+    <br><br><b>Read this number only for the BANK topologies.</b> On the conventional multimode it measures the opposite thing and looks alarming for the wrong reason: a resonant filter is SUPPOSED to grow a peak at its corner as Q rises (measured here at +14.4 dB, a 33 dB "swing"), and that peak is the feature. The bank's 9 dB is a collapse — the whole curve sinking — while the conventional filter's is a peak rising out of an otherwise stable curve. Same statistic, opposite meaning; compare curves, not just the row.</div>
+  </div>
+
+  <div class="card">
+    <h2>Swarm bank</h2>
+    <div class="row"><label>bands</label><input type="range" id="nb" min="1" max="24" step="1" value="16"><output id="nb_o"></output></div>
+    <div class="row"><label>centre</label><input type="range" id="center" min="5.32" max="13.42" step="0.01" value="9.64"><output id="center_o"></output></div>
+    <div class="row"><label>spread</label><input type="range" id="spread" min="0" max="1" step="0.01" value="0.5"><output id="spread_o"></output></div>
+    <div class="row"><label>Q (qbase)</label><input type="range" id="qbase" min="0" max="1" step="0.01" value="0.5"><output id="qbase_o"></output></div>
+    <div class="row"><label>placement</label><select id="place">
+      <option value="0" selected>ERB (perceptual)</option><option value="1">log</option><option value="2">harmonic n·f0</option>
+    </select></div>
+    <div class="row"><label>coupling K</label><input type="range" id="K" min="-1" max="1" step="0.01" value="0"><output id="K_o"></output></div>
+    <div class="row"><label>drift</label><input type="range" id="driftDepth" min="0" max="1" step="0.01" value="0"><output id="driftDepth_o"></output></div>
+    <div class="hint">Placement, Q law and SVF coefficients are transcribed from <b>filter_core.h</b> — the same `2·20^qbase` Q, the same TPT SVF, the same ERB/log/harmonic laws with the 40 Hz floor and 11 kHz ceiling.
+    <br><br><b>Fidelity, stated honestly.</b> Band POSITIONS come from this page's own seeded draw, not `forcecore::buildOffsets`, so the absolute curve is not the core's curve sample-for-sample. What was cross-checked is the thing the bench is FOR — the structural diagnostics: LF deficit <b>24.2 dB in C++ vs 22.6 here</b>, Q swing <b>10.3 vs 9.0</b>. Both defects follow from summing unity-gain bandpasses and so survive any particular draw. Do not read absolute dB here as a core measurement; read the diagnostics and the variant comparisons.</div>
+  </div>
+
+  <div class="card">
+    <h2>Key tracking</h2>
+    <div class="row"><label>track</label><input type="range" id="ktrack" min="0" max="1" step="0.01" value="0"><output id="ktrack_o"></output></div>
+    <div class="row"><label>track ref</label><input type="range" id="kref" min="36" max="72" step="1" value="57"><output id="kref_o"></output></div>
+    <div class="hint"><b>Shipped behaviour is 0 — the effect path does not follow the note at all.</b> `setNoteFreq` moves only the gravity centre, and only when placement is harmonic. At 1.0 the bank centre transposes 1:1 with the played note relative to the reference key. This is the second thing the brief asked about, and it is currently absent rather than wrong.</div>
+  </div>
+
+  <div class="card">
+    <h2>Source</h2>
+    <div class="row"><label>signal</label><select id="src">
+      <option value="0" selected>swarm saw (the real case)</option>
+      <option value="1">white noise</option>
+      <option value="2">saw, single voice</option>
+    </select></div>
+    <div class="row"><label>voices</label><input type="range" id="n" min="1" max="16" step="1" value="7"><output id="n_o"></output></div>
+    <div class="row"><label>detune σ</label><input type="range" id="detune" min="0" max="40" step="0.5" value="14"><output id="detune_o"></output></div>
+    <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.5"><output id="vol_o"></output></div>
+    <div class="row"><button id="drone">drone A2</button><span class="hint" style="margin:0" id="octlbl"></span></div>
+    <div class="hint">Filtering a swarm is the case that matters — a detuned stack has energy everywhere, so a bank with gaps between bands shows them immediately.</div>
+  </div>
+
+  <div class="card">
+    <h2>Band map</h2>
+    <canvas id="bands" width="326" height="72"></canvas>
+    <div class="hint">Where the bank actually put its resonators, on the same log axis as the response above. Gaps here are the nulls there — with few bands the "filter" is a comb.</div>
+  </div>
+</div>
+
+<script>
+/* ================= DSP =================
+   Bank transcribed from src/filter_core.h + src/force_core.h. Kept literal on
+   purpose: this bench exists to characterise the SHIPPED filter, so a tidier
+   reimplementation would be measuring something the plugin does not do. */
+const TAU = Math.PI * 2, TICK = 16;
+// Coupling collapse time constants, in SECONDS (see controlTick).
+const kTauFast = 0.02, kTauSlow = 4.0, kTauHome = 0.35;
+const PI_REF = Math.PI;                       // kPiRefF in the core
+const erbN = f => 21.4 * Math.log10(1 + 0.00437 * f);
+const erbInv = E => (Math.pow(10, E / 21.4) - 1) / 0.00437;
+function mulberry(seed) {
+  let a = seed >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function gaussFrom(rng) {
+  let u = 0, v = 0;
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v);
+}
+
+const P = { topo: 0, cmode: 0, cpoles: 2, wet: 1,
+            nb: 16, center: 9.64, spread: 0.5, qbase: 0.5, place: 0, K: 0, driftDepth: 0,
+            ktrack: 0, kref: 57, src: 0, n: 7, detune: 14, vol: 0.5 };
+
+// The bank. One instance drives audio; the response measurement builds throwaway
+// instances so a sweep never disturbs what you are listening to.
+class Bank {
+  constructor(sr) { this.sr = sr; this.x = []; this.v = []; this.ic1 = []; this.ic2 = [];
+    this.cA1 = []; this.cA2 = []; this.cA3 = []; this.cK = [];
+    this.lpZ = 0; this.driftPh = 0; this.tick = 0; this.noteF = 220;
+    this.svf = [{ic1:0, ic2:0}, {ic1:0, ic2:0}];
+    this.rebuild(); }
+  rebuild() {
+    const n = P.nb, rng = mulberry(1234 + 77);
+    this.x = Array.from({ length: n }, () => gaussFrom(rng));
+    this.place();
+    this.ic1 = new Float64Array(n); this.ic2 = new Float64Array(n);
+    this.cA1 = new Float64Array(n); this.cA2 = new Float64Array(n);
+    this.cA3 = new Float64Array(n); this.cK = new Float64Array(n);
+    this.coeffs();
+  }
+  // placeFrequencyTargets, 40 Hz floor / 11 kHz ceiling (kFilterProfile)
+  place() {
+    const n = P.nb;
+    // key tracking is the LAB's addition — shipped code has none on this path
+    const kt = P.ktrack * Math.log2(this.noteF / (440 * Math.pow(2, (P.kref - 69) / 12)));
+    const cF = Math.pow(2, P.center + kt);
+    this.v = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      let f;
+      if (P.place === 0) f = erbInv(Math.max(1, erbN(cF) + this.x[i] * P.spread * 12));
+      else if (P.place === 1) f = cF * Math.pow(2, this.x[i] * P.spread * 2.5);
+      else f = (i + 1) * this.noteF * Math.pow(2, this.x[i] * P.spread * 0.12);
+      this.v[i] = Math.log2(Math.min(11000, Math.max(40, f)));
+    }
+    this.v.sort();
+    this.tHome = Float64Array.from(this.v);   // coupling pulls against these
+  }
+  coeffs() {
+    const n = P.nb;
+    // FilterLab: Qb = 2*20^qbase, capped 60. (collapse widening needs the force
+    // system; K/drift below move the CENTRES, which is the audible half.)
+    const qEff = Math.min(60, 2 * Math.pow(20, P.qbase));
+    const k = 1 / qEff;
+    this.qEff = qEff;
+    for (let i = 0; i < n; i++) {
+      const fc = Math.pow(2, this.v[i]);
+      const g = Math.tan(PI_REF * Math.min(0.24, fc / this.sr));
+      const a1 = 1 / (1 + g * (g + k));
+      this.cA1[i] = a1; this.cA2[i] = g * a1; this.cA3[i] = g * this.cA2[i]; this.cK[i] = k;
+    }
+    // Q COMPENSATION (variant 1/3). N summed unity-gain bandpasses capture less
+    // total power as they narrow, so peak output falls as Q rises — measured on
+    // the C++ core as a 10 dB swing across the knob. Normalising by sqrt(qEff)
+    // restores it: bandwidth ~ f/Q, so summed power ~ 1/Q, so amplitude ~ 1/sqrt(Q).
+    this.qComp = (P.topo === 1 || P.topo === 3) ? Math.sqrt(qEff / 6.32) : 1;
+    // LF PRESERVE (variant 2/3): one-pole at the LOWEST band, added back.
+    this.lfHz = Math.pow(2, this.v[0]);
+    this.lfC = 1 - Math.exp(-TAU * this.lfHz / this.sr);
+  }
+  controlTick(dt) {
+    if (P.driftDepth > 0 || P.K !== 0) {
+      this.driftPh += 0.4 * dt;
+      const n = P.nb;
+      let mean = 0;
+      for (let i = 0; i < n; i++) mean += this.v[i];
+      mean /= n;
+      // Collapse expressed as a TIME CONSTANT in seconds, converted here
+      // (ADR-009) — the previous law was a raw per-tick gain, `K*0.05`, which
+      // at the tick rate meant the whole knob was spent inside |K| < 0.1 and
+      // everything above collapsed in a few milliseconds. Log-spaced tau makes
+      // the travel perceptually even: |K|=1 -> 20 ms, |K|=0.1 -> 2.3 s.
+      // (ADR-059's taper lesson, recurring — third time in this project.)
+      let c = 0;
+      if (P.K !== 0) {
+        const tau = kTauFast * Math.pow(kTauSlow / kTauFast, 1 - Math.abs(P.K));
+        c = Math.sign(P.K) * (1 - Math.exp(-dt / tau));
+      }
+      // Restoring pull toward the placement target. WITHOUT this the knob is a
+      // pure attractor, so any non-zero K eventually collapses the bank to one
+      // frequency and K only sets HOW FAST — which is why it read as usable
+      // only near 0 and "really only as a kind of YOY filter": what you were
+      // hearing was the transient, because the steady state was always the
+      // same. The real core has this term (`pop.tHome` + the force system);
+      // this bench had dropped it. With it, K settles at an EQUILIBRIUM
+      // spread — coupling vs home — so the knob controls depth, not just rate.
+      const cHome = 1 - Math.exp(-dt / kTauHome);
+      for (let i = 0; i < n; i++) {
+        if (cHome > 0) this.v[i] += cHome * (this.tHome[i] - this.v[i]);
+        if (c !== 0) this.v[i] += c * (mean - this.v[i]);
+        if (P.driftDepth > 0)
+          this.v[i] += Math.sin(TAU * (this.driftPh + i * 0.13)) * P.driftDepth * 0.004;
+        this.v[i] = Math.min(13.42, Math.max(5.32, this.v[i]));
+      }
+      this.coeffs();
+    }
+  }
+  // Conventional TPT SVF, cascadable — the A/B reference a rack user expects.
+  conv(x, fc) {
+    const k = 1 / Math.max(0.5, this.qEff * 0.25);
+    const g = Math.tan(PI_REF * Math.min(0.24, fc / this.sr));
+    const a1 = 1 / (1 + g * (g + k));
+    let y = x;
+    for (let s = 0; s < P.cpoles; s++) {
+      const st = this.svf[s];
+      const v3 = y - st.ic2;
+      const v1 = a1 * st.ic1 + g * a1 * v3;
+      const v2 = st.ic2 + g * a1 * st.ic1 + g * g * a1 * v3;
+      st.ic1 = 2 * v1 - st.ic1; st.ic2 = 2 * v2 - st.ic2;
+      y = P.cmode === 0 ? v2 : P.cmode === 1 ? v1 : P.cmode === 2 ? (y - k * v1 - v2) : (y - k * v1);
+    }
+    return y;
+  }
+  // One sample through the topology under test. `dry` is the input.
+  step(dry) {
+    const n = P.nb;
+    if (P.topo === 4) return this.conv(dry, Math.pow(2, P.center));
+    let wetS = 0;
+    for (let i = 0; i < n; i++) {
+      const v3 = dry - this.ic2[i];
+      const v1 = this.cA1[i] * this.ic1[i] + this.cA2[i] * v3;
+      const v2 = this.ic2[i] + this.cA2[i] * this.ic1[i] + this.cA3[i] * v3;
+      this.ic1[i] = 2 * v1 - this.ic1[i];
+      this.ic2[i] = 2 * v2 - this.ic2[i];
+      wetS += v1 * this.cK[i];
+    }
+    wetS *= 1.6 / Math.sqrt(n) * this.qComp;
+    if (P.topo === 2 || P.topo === 3) {
+      this.lpZ += this.lfC * (dry - this.lpZ);
+      wetS += this.lpZ;
+    }
+    if (P.topo === 5) wetS = this.conv(wetS, Math.pow(2, P.center));
+    return wetS;
+  }
+}
+
+/* ---------- magnitude response ----------
+   ANALYTIC, not simulated. The simulated sweep below is exact but costs ~300 ms,
+   and ScriptProcessorNode runs its audio callback on the MAIN thread — so every
+   redraw starved ~13 consecutive audio blocks and the sound skipped whenever a
+   knob moved. The TPT SVF is a bilinear-transformed analog prototype, so its
+   response has a closed form: with the input frequency prewarped the same way
+   the cutoff is, s = j*tan(pi*f/fs)/g, the digital response IS the analog one.
+   Bands are summed COMPLEX (they run in parallel, so phase between them is what
+   carves the inter-band nulls) before the magnitude is taken.
+   `verifyAnalytic()` below checks this against the simulation — the simulation
+   stays as the oracle, it just no longer runs on the audio thread. */
+function analyticDb(b, sr) {
+  const n = P.nb, k = 1 / b.qEff;
+  const ck = 1 / Math.max(0.5, b.qEff * 0.25);
+  const cg = Math.tan(PI_REF * Math.min(0.24, Math.pow(2, P.center) / sr));
+  const out = [];
+  for (const f of RESP_F) {
+    const t = Math.tan(Math.min(Math.PI * f / sr, Math.PI * 0.4999));
+    let re = 0, im = 0;
+    if (P.topo === 4) { re = 1; im = 0; }
+    else {
+      for (let i = 0; i < n; i++) {
+        const g = Math.tan(PI_REF * Math.min(0.24, Math.pow(2, b.v[i]) / sr));
+        const O = t / g;
+        // band = k*v1 = k*jO / (1 - O^2 + jkO)   (unity gain at O = 1)
+        const ni = k * O, dr = 1 - O * O, di = k * O, dd = dr * dr + di * di;
+        re += (ni * di) / dd;
+        im += (ni * dr) / dd;
+      }
+      const sc = 1.6 / Math.sqrt(n) * b.qComp;
+      re *= sc; im *= sc;
+      if (P.topo === 2 || P.topo === 3) {          // LF preserve one-pole
+        const c = b.lfC, w = 2 * Math.PI * f / sr;
+        const dr2 = 1 - (1 - c) * Math.cos(w), di2 = (1 - c) * Math.sin(w);
+        const dd2 = dr2 * dr2 + di2 * di2;
+        re += c * dr2 / dd2; im += -c * di2 / dd2;
+      }
+    }
+    if (P.topo === 4 || P.topo === 5) {            // conventional stage, cascaded
+      const O = t / cg, dr = 1 - O * O, di = ck * O, dd = dr * dr + di * di;
+      let hr, hi;
+      if (P.cmode === 0) { hr = dr / dd; hi = -di / dd; }                       // LP  = 1/D
+      else if (P.cmode === 1) { hr = (O * di) / dd; hi = (O * dr) / dd; }       // BP  = jO/D
+      else if (P.cmode === 2) { hr = (-O * O * dr) / dd; hi = (O * O * di) / dd; } // HP = -O^2/D
+      else { const nr = 1 - O * O; hr = (nr * dr) / dd; hi = (-nr * di) / dd; } // notch = (1-O^2)/D
+      for (let s2 = 0; s2 < P.cpoles; s2++) {
+        const nre = re * hr - im * hi, nim = re * hi + im * hr;
+        re = nre; im = nim;
+      }
+    }
+    const m = Math.hypot(re, im);
+    out.push(m > 0 ? 20 * Math.log10(m) : -120);
+  }
+  return out;
+}
+// Oracle: the analytic curve must match the simulated one. Run from the console.
+function verifyAnalytic(sr) {
+  const saved = P.topo, report = [];
+  for (const topo of [0, 1, 2, 3, 4, 5]) {
+    P.topo = topo;
+    const b = new Bank(sr || 48000);
+    const a = analyticDb(b, sr || 48000), m = measure(sr || 48000, {});
+    let worst = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] > -70 || m[i] > -70) worst = Math.max(worst, Math.abs(a[i] - m[i]));
+    report.push('topo ' + topo + ': worst |analytic-simulated| = ' + worst.toFixed(2) + ' dB');
+  }
+  P.topo = saved;
+  return report.join('\n');
+}
+
+/* ---------- offline magnitude response, SIMULATED (the oracle for the above) ---------- */
+const RESP_F = [];
+for (let i = 0; i <= 60; i++) RESP_F.push(30 * Math.pow(16000 / 30, i / 60));
+
+function measure(sr, overrides) {
+  const saved = {};
+  for (const k in (overrides || {})) { saved[k] = P[k]; P[k] = overrides[k]; }
+  const b = new Bank(sr);
+  const out = [];
+  // Steady-state RMS in/out per frequency. Short blocks: the bank is linear and
+  // time-invariant while K/drift are held, so this converges fast.
+  for (const hz of RESP_F) {
+    // Warm-up must outlast the ring, not just a few cycles. At 8 cycles the
+    // sine's abrupt start left transient energy that set a ~-65 dB floor — and
+    // in a deep stopband that floor IS the reading, which made the simulation
+    // look like it disagreed with the analytic form by 87 dB when the analytic
+    // form was the accurate one. High-Q bands ring for thousands of samples.
+    const ring = 8 * b.qEff * sr / Math.pow(2, b.v[0]);
+    const warm = Math.max(8192, Math.round(Math.min(sr * 0.5, Math.max(sr / hz * 40, ring))));
+    const meas = Math.max(4096, Math.round(sr / hz * 32));
+    for (let i = 0; i < P.nb; i++) { b.ic1[i] = 0; b.ic2[i] = 0; }
+    b.lpZ = 0; b.svf.forEach(s => { s.ic1 = 0; s.ic2 = 0; });
+    let si = 0, so = 0;
+    for (let i = 0; i < warm + meas; i++) {
+      const x = Math.sin(TAU * hz * i / sr);
+      const y = b.step(x);
+      if (i >= warm) { si += x * x; so += y * y; }
+    }
+    out.push(si > 0 && so > 0 ? 20 * Math.log10(Math.sqrt(so / si)) : -120);
+  }
+  for (const k in saved) P[k] = saved[k];
+  return out;
+}
+
+/* ================= UI ================= */
+const $ = id => document.getElementById(id);
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const bank = new Bank(ctx.sampleRate);
+
+// Draw state is declared HERE, above the wiring. wire()/sel() invoke their
+// callback once during setup, which calls schedule(), which touches `pending`
+// and redraw() touches the canvas handles — as `const`/`let` further down they
+// were in the temporal dead zone, so the FIRST wire() threw and silently took
+// the rest of the script with it (no keyboard, no drone, blank canvases). This
+// is the second time this exact trap landed today; setup-time callbacks reach
+// forward, so anything they touch must be declared before them.
+const rc = $('resp'), rx = rc.getContext('2d');
+const bc = $('bands'), bx = bc.getContext('2d');
+let pending = null;
+function schedule() { clearTimeout(pending);
+  pending = setTimeout(() => { redraw(); updateDiagnostics(true); }, 90); }
+
+// source: a small saw swarm so the filter is judged on the signal it will meet
+const src = { notes: [], x: [], rng: null };
+function srcRebuild() {
+  const rng = mulberry(99);
+  src.x = Array.from({ length: 16 }, () => gaussFrom(rng));
+}
+srcRebuild();
+// Polyphonic, with a held stack and per-key release. The first version assigned
+// `src.notes = [one note]`, so every new key destroyed the sounding one — the
+// same defect fixed in bend-lab.html hours earlier and then written fresh here.
+src.held = [];
+function noteOn(midi) {
+  src.held = src.held.filter(m => m !== midi);
+  src.held.push(midi);                                  // last-note priority
+  const f = 440 * Math.pow(2, (midi - 69) / 12);
+  let nt = src.notes.find(x => x.midi === midi);
+  if (nt) { nt.gate = 1; nt.env = Math.max(nt.env, 0); }
+  else {
+    src.notes.push({ midi, f, gate: 1, env: 0, phase: new Float64Array(16) });
+    if (src.notes.length > 8) src.notes.shift();
+  }
+  bank.noteF = f;                                       // newest note drives key tracking
+  bank.place(); bank.coeffs();
+}
+function noteOff(midi) {
+  src.held = src.held.filter(m => m !== midi);
+  for (const nt of src.notes) if (midi === undefined || nt.midi === midi) nt.gate = 0;
+}
+function allOff() { src.held.length = 0; for (const nt of src.notes) nt.gate = 0; }
+
+let spn = null;
+function ensureAudio() {
+  if (ctx.state === 'suspended') ctx.resume();
+  if (spn) return;
+  spn = ctx.createScriptProcessor(1024, 0, 2);
+  spn.onaudioprocess = e => {
+    const oL = e.outputBuffer.getChannelData(0), oR = e.outputBuffer.getChannelData(1);
+    const sr = ctx.sampleRate;
+    const atk = 1 - Math.exp(-1 / (0.004 * sr)), rel = 1 - Math.exp(-1 / (0.15 * sr));
+    for (let s = 0; s < 1024; s++) {
+      if (bank.tick === 0) bank.controlTick(TICK / sr);
+      bank.tick = (bank.tick + 1) & (TICK - 1);
+      let dry = 0;
+      if (P.src === 1) dry = (Math.random() * 2 - 1) * 0.3;
+      else for (const nt of src.notes) {
+        if (!nt.gate && nt.env < 1e-4) continue;
+        nt.env += ((nt.gate ? 1 : 0) - nt.env) * (nt.gate ? atk : rel);
+        const nv = P.src === 2 ? 1 : P.n;
+        let v = 0;
+        for (let i = 0; i < nv; i++) {
+          const f = nt.f * Math.pow(2, (src.x[i] * P.detune) / 1200);
+          const dph = f / sr;
+          let ph = nt.phase[i] + dph; ph -= Math.floor(ph); nt.phase[i] = ph;
+          let sw = 2 * ph - 1;
+          const d = Math.max(dph, 1e-6);
+          if (ph < d) { const t = ph / d; sw -= t + t - t * t - 1; }
+          else if (ph > 1 - d) { const t = (ph - 1) / d; sw -= t * t + t + t + 1; }
+          v += sw;
+        }
+        dry += v / Math.pow(nv, 0.75) * nt.env * 0.5;
+      }
+      const wetOut = bank.step(dry);
+      const y = Math.tanh((dry * (1 - P.wet) + wetOut * P.wet) * P.vol * 2);
+      oL[s] = y; oR[s] = y;
+    }
+  };
+  spn.connect(ctx.destination);
+}
+
+const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
+  const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); schedule(); };
+  el.addEventListener('input', f); f(); };
+const sel = (id, fn) => { const el = $(id);
+  const f = () => { fn(+el.value); schedule(); };
+  el.addEventListener('change', f); f(); };
+
+const hz = v => v >= 1000 ? (v / 1000).toFixed(2) + ' k' : v.toFixed(0) + ' Hz';
+wire('wet', v => P.wet = v);
+wire('nb', v => { P.nb = v | 0; bank.rebuild(); }, v => '' + v);
+wire('center', v => { P.center = v; bank.place(); bank.coeffs(); }, v => hz(Math.pow(2, v)));
+wire('spread', v => { P.spread = v; bank.place(); bank.coeffs(); });
+wire('qbase', v => { P.qbase = v; bank.coeffs(); }, v => 'Q ' + Math.min(60, 2 * Math.pow(20, v)).toFixed(1));
+wire('K', v => P.K = v, v => v === 0 ? 'off'
+     : (v < 0 ? 'splay ' : 'lock ') + (kTauFast * Math.pow(kTauSlow / kTauFast, 1 - Math.abs(v))).toFixed(2) + ' s');
+wire('driftDepth', v => P.driftDepth = v);
+wire('ktrack', v => { P.ktrack = v; bank.place(); bank.coeffs(); }, v => (v * 100).toFixed(0) + ' %');
+wire('kref', v => { P.kref = v; bank.place(); bank.coeffs(); },
+     v => ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][((v % 12) + 12) % 12] + (Math.floor(v / 12) - 1));
+wire('n', v => P.n = v | 0, v => '' + v);
+wire('detune', v => P.detune = v, v => v.toFixed(1) + ' ¢');
+wire('vol', v => P.vol = v);
+sel('topo', v => { P.topo = v; bank.coeffs(); });
+sel('cmode', v => P.cmode = v);
+sel('cpoles', v => P.cpoles = v);
+sel('place', v => { P.place = v; bank.place(); bank.coeffs(); });
+sel('src', v => P.src = v);
+
+let droneOn = false;
+$('drone').addEventListener('click', () => {
+  ensureAudio(); droneOn = !droneOn;
+  if (droneOn) { noteOn(45); $('drone').textContent = 'stop'; }
+  else { allOff(); $('drone').textContent = 'drone A2'; }
+});
+const pressed = new Map();
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12 };
+let octaveBase = 45;
+const octLabel = () => { $('octlbl').textContent = 'octave base MIDI ' + octaveBase + ' (Z/X)'; };
+octLabel();
+addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); $('drone').click(); return; }
+  if (e.key === 'z') { octaveBase -= 12; octLabel(); return; }
+  if (e.key === 'x') { octaveBase += 12; octLabel(); return; }
+  const k = KMAP[e.key]; if (k === undefined) return;
+  ensureAudio();
+  pressed.set(e.key, octaveBase + k);   // Z/X can shift the octave between down and up
+  noteOn(octaveBase + k);
+});
+addEventListener('keyup', e => {
+  if (!pressed.has(e.key)) return;
+  noteOff(pressed.get(e.key));
+  pressed.delete(e.key);
+});
+addEventListener('blur', () => { pressed.clear(); allOff(); });
+
+/* ---------- response plot + diagnostics ---------- */
+
+function redraw() {
+  const sr = ctx.sampleRate;
+  const curve = analyticDb(bank, sr);
+  const W = rc.width, H = rc.height;
+  rx.clearRect(0, 0, W, H);
+  const X = i => i / (RESP_F.length - 1) * (W - 2) + 1;
+  const Y = db => H - 4 - (db + 60) / 72 * (H - 10);
+  rx.strokeStyle = '#2a3040'; rx.lineWidth = 1;
+  for (const g of [0, -12, -24, -36, -48]) {
+    rx.beginPath(); rx.moveTo(0, Y(g)); rx.lineTo(W, Y(g)); rx.stroke();
+  }
+  rx.fillStyle = '#7f8899'; rx.font = '9px ui-monospace,monospace';
+  rx.fillText('0 dB', 2, Y(0) - 2); rx.fillText('-48', 2, Y(-48) - 2);
+  rx.fillText('30 Hz', 2, H - 2); rx.fillText('16 k', W - 26, H - 2);
+  // the shipped topology as a dim reference whenever you are auditioning a variant
+  if (P.topo !== 0) {
+    const t0 = P.topo; P.topo = 0;
+    const base = analyticDb(bank, sr); P.topo = t0;
+    rx.strokeStyle = '#7f8899'; rx.lineWidth = 1; rx.beginPath();
+    base.forEach((d, i) => i ? rx.lineTo(X(i), Y(d)) : rx.moveTo(X(i), Y(d)));
+    rx.stroke();
+  }
+  rx.strokeStyle = P.topo === 4 ? '#b98cff' : '#5ff2e0'; rx.lineWidth = 1.7; rx.beginPath();
+  curve.forEach((d, i) => i ? rx.lineTo(X(i), Y(d)) : rx.moveTo(X(i), Y(d)));
+  rx.stroke();
+
+  drawBands();
+}
+
+// The expensive half, deliberately NOT on the animation path. Each call builds
+// three throwaway Banks and runs three extra sweeps for the Q-swing probe —
+// ~4x a frame's work plus the allocation churn, which is what made the
+// animation choppy even though the curve itself costs under a millisecond.
+let diagAt = 0;
+function updateDiagnostics(force) {
+  const now = performance.now();
+  if (!force && now - diagAt < 300) return;
+  diagAt = now;
+  const sr = ctx.sampleRate;
+  const curve = analyticDb(bank, sr);
+  let peak = -999, peakI = 0;
+  curve.forEach((d, i) => { if (d > peak) { peak = d; peakI = i; } });
+  const at = f => { let bi = 0, bd = 1e9;
+    RESP_F.forEach((x, i) => { const dd = Math.abs(x - f); if (dd < bd) { bd = dd; bi = i; } });
+    return curve[bi]; };
+  const lf = peak - at(40);
+  // deepest null BETWEEN bands: the largest local dip inside the passband region
+  let worstDip = 0;
+  for (let i = 1; i < curve.length - 1; i++) {
+    if (curve[i] < curve[i - 1] && curve[i] < curve[i + 1]) {
+      let l = curve[i], r = curve[i];
+      for (let j = i; j >= 0 && curve[j] >= l; j--) l = Math.max(l, curve[j]);
+      for (let j = i; j < curve.length && curve[j] >= r; j++) r = Math.max(r, curve[j]);
+      worstDip = Math.max(worstDip, Math.min(l, r) - curve[i]);
+    }
+  }
+  // Fresh bank on purpose: this isolates Q, so wherever the swarm has drifted to
+  // cannot confound the level-swing number.
+  const pk = q => { const sq = P.qbase; P.qbase = q; const b2 = new Bank(sr);
+    const c = analyticDb(b2, sr); P.qbase = sq; return Math.max(...c); };
+  const swing = Math.max(pk(0.1), pk(0.5), pk(0.9)) - Math.min(pk(0.1), pk(0.5), pk(0.9));
+  const cls = (v, good, bad) => v <= good ? 'good' : (v >= bad ? 'bad' : '');
+  $('d_peak').textContent = peak.toFixed(2) + ' dB @ ' + hz(RESP_F[peakI]);
+  $('d_lf').innerHTML = '<span class="' + cls(lf, 6, 18) + '">' + lf.toFixed(1) + ' dB down</span>';
+  $('d_null').innerHTML = '<span class="' + cls(worstDip, 6, 15) + '">' + worstDip.toFixed(1) + ' dB</span>';
+  $('d_qswing').innerHTML = '<span class="' + cls(swing, 2, 8) + '">' + swing.toFixed(1) + ' dB</span>';
+
+}
+
+function drawBands() {
+  const BW = bc.width, BH = bc.height;
+  bx.clearRect(0, 0, BW, BH);
+  bx.fillStyle = '#7f8899'; bx.font = '9px ui-monospace,monospace';
+  bx.fillText(P.nb + ' bands · Q ' + bank.qEff.toFixed(1), 3, 10);
+  const bxOf = f => Math.log(f / 30) / Math.log(16000 / 30) * (BW - 2) + 1;
+  for (let i = 0; i < P.nb; i++) {
+    const f = Math.pow(2, bank.v[i]), x = bxOf(f);
+    bx.strokeStyle = '#5ff2e0'; bx.globalAlpha = 0.75; bx.lineWidth = 1.4;
+    bx.beginPath(); bx.moveTo(x, BH - 4); bx.lineTo(x, 18); bx.stroke();
+  }
+  bx.globalAlpha = 1;
+}
+redraw();
+updateDiagnostics(true);
+
+// K and drift MOVE the bands continuously, so a curve drawn once on knob-release
+// shows none of it — the reason K was audible but invisible. (The original
+// simulated sweep was worse: it built a FRESH bank per call, which never runs
+// controlTick, so the coupling could never appear in the measurement at all.)
+// Now that the response is analytic and costs microseconds, animate it whenever
+// the swarm is actually in motion, and leave it static otherwise.
+let rafOn = false;
+function animate() {
+  if (P.K !== 0 || P.driftDepth > 0) {
+    redraw();               // curve + band map only: ~1 ms, smooth at 60 fps
+    updateDiagnostics();    // self-throttled to ~3 Hz
+    rafOn = true; requestAnimationFrame(animate);
+  }
+  else if (rafOn) { rafOn = false; redraw(); updateDiagnostics(true); }
+  else setTimeout(animate, 200);                 // idle poll: cheap, no redraw
+}
+animate();
+</script>
+<script>
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  const el = document.getElementById('revfp');
+  if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+})();
+</script>
+</body>
+</html>
