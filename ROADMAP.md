@@ -114,6 +114,31 @@ Both defects follow from summing unity-gain bandpasses and survive any particula
   is in motion. Verified: at K=1 the band spread collapses 5.396 → 0 octaves and the comb
   becomes a single +15.5 dB peak.
 
+**K was unusable outside ±0.1 — and the taper was the smaller half of why (2026-08-04).**
+Human: *"K is only usable about 0.1 on either side of 0, and really only as a kind of YOY
+filter."* Two causes, and the second was the real one:
+- **Taper.** The lab's law was a raw per-tick gain (`K*0.05`), which at tick rate spends
+  the whole knob below |K| ≈ 0.1. Re-expressed as a collapse TIME CONSTANT in seconds
+  (ADR-009), log-spaced: |K| = 0.1 → 2.35 s, 0.5 → 0.28 s, 1.0 → 0.02 s. *This is
+  ADR-059's taper lesson recurring for the third time in this project.*
+- **No restoring force — the actual reason it read as "only a YOY filter".** The bench's
+  coupling was a pure attractor with nothing to pull against, so ANY non-zero K collapsed
+  the bank to a single frequency and K only set how *fast*. What the human was hearing was
+  the transient; the steady state was identical everywhere. The real core has this term
+  (`pop.tHome` + the force system) and the bench had dropped it. Restored, K now settles at
+  an **equilibrium** between coupling and home, so it controls depth: measured equilibrium
+  spread **5.40 (K=0) → 4.70 → 4.31 → 3.78 → 3.12 → 2.41 → 1.18 → 0.29 octaves** at
+  K = 0 / 0.1 / 0.2 / 0.3 / 0.4 / 0.5 / 0.7 / 1.0. Smooth and monotone across the whole
+  knob. **Honest limit:** the splay side saturates around K = −0.6 (7.61 → 8.10 oct), where
+  the bands hit the 40 Hz / 11 kHz clamp — less usable travel than the lock side.
+
+**Animation chop fixed by splitting cheap from expensive.** Each frame was also rebuilding
+three throwaway Banks for the Q-swing probe — ~4× a frame's work plus allocation churn.
+The curve and band map now animate alone (**0.06–0.14 ms/frame**, ~119× headroom at 60 fps)
+and the diagnostics run self-throttled at ~3 Hz. No accuracy was traded for the speed: the
+analytic response is exact, so the "less accurate but faster" fallback the human offered
+was not needed.
+
 **The analytic path is verified against the simulation**, which stays as the oracle:
 worst |analytic − simulated| = **0.01–0.02 dB** across all six topologies. Getting there
 exposed a fourth issue worth recording — the first comparison showed an 87 dB disagreement

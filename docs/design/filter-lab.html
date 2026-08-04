@@ -128,6 +128,8 @@
    purpose: this bench exists to characterise the SHIPPED filter, so a tidier
    reimplementation would be measuring something the plugin does not do. */
 const TAU = Math.PI * 2, TICK = 16;
+// Coupling collapse time constants, in SECONDS (see controlTick).
+const kTauFast = 0.02, kTauSlow = 4.0, kTauHome = 0.35;
 const PI_REF = Math.PI;                       // kPiRefF in the core
 const erbN = f => 21.4 * Math.log10(1 + 0.00437 * f);
 const erbInv = E => (Math.pow(10, E / 21.4) - 1) / 0.00437;
@@ -181,6 +183,7 @@ class Bank {
       this.v[i] = Math.log2(Math.min(11000, Math.max(40, f)));
     }
     this.v.sort();
+    this.tHome = Float64Array.from(this.v);   // coupling pulls against these
   }
   coeffs() {
     const n = P.nb;
@@ -211,8 +214,29 @@ class Bank {
       let mean = 0;
       for (let i = 0; i < n; i++) mean += this.v[i];
       mean /= n;
+      // Collapse expressed as a TIME CONSTANT in seconds, converted here
+      // (ADR-009) — the previous law was a raw per-tick gain, `K*0.05`, which
+      // at the tick rate meant the whole knob was spent inside |K| < 0.1 and
+      // everything above collapsed in a few milliseconds. Log-spaced tau makes
+      // the travel perceptually even: |K|=1 -> 20 ms, |K|=0.1 -> 2.3 s.
+      // (ADR-059's taper lesson, recurring — third time in this project.)
+      let c = 0;
+      if (P.K !== 0) {
+        const tau = kTauFast * Math.pow(kTauSlow / kTauFast, 1 - Math.abs(P.K));
+        c = Math.sign(P.K) * (1 - Math.exp(-dt / tau));
+      }
+      // Restoring pull toward the placement target. WITHOUT this the knob is a
+      // pure attractor, so any non-zero K eventually collapses the bank to one
+      // frequency and K only sets HOW FAST — which is why it read as usable
+      // only near 0 and "really only as a kind of YOY filter": what you were
+      // hearing was the transient, because the steady state was always the
+      // same. The real core has this term (`pop.tHome` + the force system);
+      // this bench had dropped it. With it, K settles at an EQUILIBRIUM
+      // spread — coupling vs home — so the knob controls depth, not just rate.
+      const cHome = 1 - Math.exp(-dt / kTauHome);
       for (let i = 0; i < n; i++) {
-        if (P.K !== 0) this.v[i] += P.K * 0.05 * (mean - this.v[i]);
+        if (cHome > 0) this.v[i] += cHome * (this.tHome[i] - this.v[i]);
+        if (c !== 0) this.v[i] += c * (mean - this.v[i]);
         if (P.driftDepth > 0)
           this.v[i] += Math.sin(TAU * (this.driftPh + i * 0.13)) * P.driftDepth * 0.004;
         this.v[i] = Math.min(13.42, Math.max(5.32, this.v[i]));
@@ -378,7 +402,8 @@ const bank = new Bank(ctx.sampleRate);
 const rc = $('resp'), rx = rc.getContext('2d');
 const bc = $('bands'), bx = bc.getContext('2d');
 let pending = null;
-function schedule() { clearTimeout(pending); pending = setTimeout(redraw, 90); }
+function schedule() { clearTimeout(pending);
+  pending = setTimeout(() => { redraw(); updateDiagnostics(true); }, 90); }
 
 // source: a small saw swarm so the filter is judged on the signal it will meet
 const src = { notes: [], x: [], rng: null };
@@ -462,7 +487,8 @@ wire('nb', v => { P.nb = v | 0; bank.rebuild(); }, v => '' + v);
 wire('center', v => { P.center = v; bank.place(); bank.coeffs(); }, v => hz(Math.pow(2, v)));
 wire('spread', v => { P.spread = v; bank.place(); bank.coeffs(); });
 wire('qbase', v => { P.qbase = v; bank.coeffs(); }, v => 'Q ' + Math.min(60, 2 * Math.pow(20, v)).toFixed(1));
-wire('K', v => P.K = v);
+wire('K', v => P.K = v, v => v === 0 ? 'off'
+     : (v < 0 ? 'splay ' : 'lock ') + (kTauFast * Math.pow(kTauSlow / kTauFast, 1 - Math.abs(v))).toFixed(2) + ' s');
 wire('driftDepth', v => P.driftDepth = v);
 wire('ktrack', v => { P.ktrack = v; bank.place(); bank.coeffs(); }, v => (v * 100).toFixed(0) + ' %');
 wire('kref', v => { P.kref = v; bank.place(); bank.coeffs(); },
@@ -532,7 +558,20 @@ function redraw() {
   curve.forEach((d, i) => i ? rx.lineTo(X(i), Y(d)) : rx.moveTo(X(i), Y(d)));
   rx.stroke();
 
-  // diagnostics
+  drawBands();
+}
+
+// The expensive half, deliberately NOT on the animation path. Each call builds
+// three throwaway Banks and runs three extra sweeps for the Q-swing probe —
+// ~4x a frame's work plus the allocation churn, which is what made the
+// animation choppy even though the curve itself costs under a millisecond.
+let diagAt = 0;
+function updateDiagnostics(force) {
+  const now = performance.now();
+  if (!force && now - diagAt < 300) return;
+  diagAt = now;
+  const sr = ctx.sampleRate;
+  const curve = analyticDb(bank, sr);
   let peak = -999, peakI = 0;
   curve.forEach((d, i) => { if (d > peak) { peak = d; peakI = i; } });
   const at = f => { let bi = 0, bd = 1e9;
@@ -560,7 +599,9 @@ function redraw() {
   $('d_null').innerHTML = '<span class="' + cls(worstDip, 6, 15) + '">' + worstDip.toFixed(1) + ' dB</span>';
   $('d_qswing').innerHTML = '<span class="' + cls(swing, 2, 8) + '">' + swing.toFixed(1) + ' dB</span>';
 
-  // band map
+}
+
+function drawBands() {
   const BW = bc.width, BH = bc.height;
   bx.clearRect(0, 0, BW, BH);
   bx.fillStyle = '#7f8899'; bx.font = '9px ui-monospace,monospace';
@@ -574,6 +615,7 @@ function redraw() {
   bx.globalAlpha = 1;
 }
 redraw();
+updateDiagnostics(true);
 
 // K and drift MOVE the bands continuously, so a curve drawn once on knob-release
 // shows none of it — the reason K was audible but invisible. (The original
@@ -583,8 +625,12 @@ redraw();
 // the swarm is actually in motion, and leave it static otherwise.
 let rafOn = false;
 function animate() {
-  if (P.K !== 0 || P.driftDepth > 0) { redraw(); rafOn = true; requestAnimationFrame(animate); }
-  else if (rafOn) { rafOn = false; redraw(); }   // one last frame to settle
+  if (P.K !== 0 || P.driftDepth > 0) {
+    redraw();               // curve + band map only: ~1 ms, smooth at 60 fps
+    updateDiagnostics();    // self-throttled to ~3 Hz
+    rafOn = true; requestAnimationFrame(animate);
+  }
+  else if (rafOn) { rafOn = false; redraw(); updateDiagnostics(true); }
   else setTimeout(animate, 200);                 // idle poll: cheap, no redraw
 }
 animate();
