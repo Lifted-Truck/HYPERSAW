@@ -39,7 +39,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B3 | **Modulation lab → golden + matrix** | **deliberately blocked**: rotor axes still moving, a golden measured now would churn (and its ACCEPTANCE rows are protected-path) |
 | B4 | **E1 remainder** — SWARM-FX GUI + L0-17/18 | cores parity-proven, shell incomplete |
 | B5 | **ADR-037 follow-up** — shared voice path behind a switch, for an A/B against the frozen cores | ruling done, follow-up open |
-| B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | **swarm-filters lab BUILT 2026-08-04** (`docs/design/filter-lab.html`, findings below); SPECTRA + quantum morph not yet built |
+| B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | **SPECTRA lab BUILT 2026-08-04** (findings below); **swarm-filters lab BUILT 2026-08-04** (`docs/design/filter-lab.html`, findings below); SPECTRA + quantum morph not yet built |
 | B7 | **Lab-visual fold backlog** — bend step-response · width scope+cliffs · reverb ER/tail · ensemble raster | per the convention below; bend ships with A1 |
 | B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
 | B9 | **Pan motion speed + bipolar position weighting** (subsumes `motionCenter`) | requested 2026-07-31 |
@@ -57,6 +57,52 @@ below remain the evidence.** Update it in the same change that changes an item's
 - **Prune merged branches** — 91 local branches deleted 2026-08-03 after verifying every
   one was fully contained in `main` (no stashes, no dirty files, no remote-only commits).
   95 remote branches remain on GitHub.
+
+## SPECTRA lab — BUILT, and the brief's premise was only half right (2026-08-04)
+
+`docs/design/spectra-lab.html`. Campaign 3 item 1 asked to *"make the engine worthwhile —
+find the features that give SPECTRA its own identity rather than 'the other engine'."*
+Measured the shipped core first.
+
+**SPECTRA does not sound like SAW. It sounds DARKER than SAW.** Spectral centroid
+**562 Hz vs 2449 Hz** at matched pitch (A2), because 12 partials at 110 Hz stop at
+1.3 kHz. It is not competing with SAW and losing — it is playing a quieter game. That
+reframes the brief: the question is not "how do we differentiate it" but **"is dark-and-
+evolving the identity, or should it reach for brightness?"** Partial count is the lever
+and it costs CPU linearly.
+
+**K spends 85 % of its travel doing nothing.** Measured on the core at 0.05 steps: R sits
+at the free-run floor (~0.28) from K 0 to 0.45 and drifts slightly DOWN (0.282 → 0.251),
+then the entire lock happens between **0.65 and 0.85**, then saturates. In the lab's own
+port the usable band is 0.50–0.65 = **15 % of travel**; a piecewise taper that sprints
+through the dead zone and crawls through the band takes it to **40 %** — a 2.7× gain.
+**Honest limit:** Kuramoto lock is a genuine phase transition, so the knee is physics, not
+a taper bug. A taper can put the knee mid-knob; it cannot make the transition gentle.
+*Fourth taper failure in this project* (ADR-059 inertia, filter-lab K, bend-lab, this).
+
+**`seed` cannot affect the spectrum, by construction.** `rebuild()` builds cloud offsets
+as `x[m] = 2m/(M−1) − 1` — a perfectly even ramp — so every partial's cloud is identically
+regular and seed only touches phase (measured: **0.00 dB** spectral distance across seeds).
+SAW draws its swarm from seeded gaussian/cauchy distributions and gets much of its life
+from that irregularity. The lab offers even / gaussian / cauchy spacing as a candidate
+identity feature.
+
+**cascade and dissolve are healthy, and they are the actual identity.** Cascade staggers
+*which partial locks when* (measured 5.7–11.2 dB of sustained spectral change, R climbing
+0.32 → 0.52 over seconds); dissolve sets how long a coupling burst survives (0.05 s → gone
+immediately; 8 s → R still 0.974 after 4.5 s, smooth throughout). **Nothing in a detuned
+saw bank can do either.** They are currently buried at the bottom of the panel.
+
+**Method note worth keeping.** Three instruments were wrong before the right one: a
+steady-state FFT audit (blind to timing knobs), a zero-crossing proxy (blind to spectral
+ones — dominated by the fundamental), and a time-resolved FFT (blind to phase lock, which
+magnitude spectra average away). The correct instrument was the **order parameter R**,
+which the engine already computes. For a coupling engine, measure coupling. *L0017 for the
+fourth and fifth time.*
+
+**Open (human):** brightness direction (raise partial count / re-tilt, vs commit to dark);
+whether cloud spacing becomes a real parameter; whether cascade/dissolve get promoted in
+the GUI; whether the K taper folds.
 
 ## Swarm-filters lab — BUILT, and the "not quite there yet" verdict is now three numbers (2026-08-04)
 
