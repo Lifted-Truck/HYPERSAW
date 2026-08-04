@@ -40,7 +40,7 @@
 </style>
 </head>
 <body>
-<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-08-04 00:42 &middot; fp <span id="revfp">…</span></div>
+<div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
 <h1>SWARM✱ filter lab</h1>
 <div class="tagline">Lab campaign 3 item 2 — the human's verdict on the E1 cores was <b>"not quite there yet"</b>, so this bench starts by measuring <i>why</i> rather than guessing. <b>The shipped bank was measured first</b> (`filter_core.h`, `processExternal`, swept steady-state at 48 kHz) and three concrete defects came out, all reproduced live below: it is a <b>band-pass hump with no filter topology</b> (rolls off on BOTH sides in every configuration); its <b>low end is 24 dB down at default and gets WORSE as Q rises</b> (28 dB); and most importantly <b>the resonance knob is a backwards volume knob</b> — peak output falls +0.98 → −3.21 → −9.32 dB as qbase goes 0.1 → 0.5 → 0.9, because summing N unity-gain bandpasses captures less total energy as they narrow. Turn up resonance, get quieter and thinner: that is almost certainly the feel behind the verdict. Each fix is a switchable variant so you can hear whether it earns its place, with a conventional multimode alongside for the "how would this sit in the rack" question. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone.</div>
 
@@ -644,6 +644,20 @@ animate();
   }
   const el = document.getElementById('revfp');
   if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+  // Rev date DERIVED, not typed. Every lab's hand-written stamp had drifted —
+  // all nine, by 3 minutes to over a day — because nothing forces you to bump
+  // it when you edit. document.lastModified is the file's mtime and works over
+  // file://, so it cannot drift. Caveat: mtime is when this COPY was written,
+  // so a git checkout of an unchanged file bumps it; that is still the right
+  // answer for the question the badge exists to answer ("is the browser
+  // showing what is on disk?"), just not "when the code last changed".
+  const dt = document.getElementById('revdate');
+  if (dt) {
+    const m = new Date(document.lastModified), p = n => String(n).padStart(2, '0');
+    dt.textContent = isNaN(m.getTime()) ? '?'
+      : m.getFullYear() + '-' + p(m.getMonth() + 1) + '-' + p(m.getDate()) +
+        ' ' + p(m.getHours()) + ':' + p(m.getMinutes());
+  }
 })();
 </script>
 </body>

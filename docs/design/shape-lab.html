@@ -35,7 +35,7 @@
 </head>
 <body>
 <h1>SWARM<span class="star">✱</span> · shape lab</h1>
-<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-07-29 18:58 &middot; fp <span id="revfp">…</span></div>
+<div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
 <div class="tagline">Campaign-2 item 6 — the three phase-domain axes from the 2026-07-25 timbre research, prototyped together because they share one aliasing budget. <b>Every axis keeps the waveform a rising ramp per cycle</b>, so the saw mandate holds: sync resets the ramp early, warp changes its <i>rate</i>, ripple perturbs it. Nothing here replaces the sawtooth with another waveform. Audition lab, spec-in-code — NOT a reference. Live-style keys: <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd><kbd>G</kbd><kbd>H</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> whites · <kbd>W</kbd><kbd>E</kbd> · <kbd>T</kbd><kbd>Y</kbd><kbd>U</kbd> · <kbd>O</kbd><kbd>P</kbd> blacks · <kbd>Z</kbd>/<kbd>X</kbd> octave · <kbd>space</kbd> drone.</div>
 
 <script>
@@ -792,6 +792,20 @@ draw();
   }
   const el = document.getElementById('revfp');
   if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+  // Rev date DERIVED, not typed. Every lab's hand-written stamp had drifted —
+  // all nine, by 3 minutes to over a day — because nothing forces you to bump
+  // it when you edit. document.lastModified is the file's mtime and works over
+  // file://, so it cannot drift. Caveat: mtime is when this COPY was written,
+  // so a git checkout of an unchanged file bumps it; that is still the right
+  // answer for the question the badge exists to answer ("is the browser
+  // showing what is on disk?"), just not "when the code last changed".
+  const dt = document.getElementById('revdate');
+  if (dt) {
+    const m = new Date(document.lastModified), p = n => String(n).padStart(2, '0');
+    dt.textContent = isNaN(m.getTime()) ? '?'
+      : m.getFullYear() + '-' + p(m.getMonth() + 1) + '-' + p(m.getDate()) +
+        ' ' + p(m.getHours()) + ':' + p(m.getMinutes());
+  }
 })();
 </script>
 </body>
