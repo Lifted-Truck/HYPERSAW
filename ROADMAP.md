@@ -97,6 +97,31 @@ sample-for-sample. What was cross-checked is what the bench is for — the struc
 diagnostics: LF deficit **24.2 dB in C++ vs 22.6 in the lab**, Q swing **10.3 vs 9.0**.
 Both defects follow from summing unity-gain bandpasses and survive any particular draw.
 
+**Three lab bugs found by the human on first play, all mine, all fixed 2026-08-04:**
+- **Sound skipping.** `redraw()` blocked the main thread for **299 ms**, and
+  ScriptProcessorNode runs its audio callback on that same thread — an audio block is
+  23.2 ms, so every redraw starved ~13 consecutive blocks, and every knob move triggered
+  one. Fixed by replacing the simulated sweep with the **analytic** transfer function
+  (the TPT SVF is a bilinear-transformed analog prototype, so `s = j·tan(πf/fs)/g` gives
+  it in closed form; bands summed COMPLEX because the phase between them is what carves
+  the inter-band nulls). **299 ms → 0.9 ms.**
+- **New notes killing old ones.** The source did `src.notes = [one note]` — monophonic by
+  construction. Replaced with a held stack and per-key release. *This is the same defect
+  fixed in bend-lab.html hours earlier and then written fresh here.*
+- **K audible but invisible.** The old `measure()` built a **fresh** bank per call, and a
+  fresh bank has never run `controlTick` — so coupling could not appear in the measurement
+  at all, by construction. The curve now reads the live bank and animates while the swarm
+  is in motion. Verified: at K=1 the band spread collapses 5.396 → 0 octaves and the comb
+  becomes a single +15.5 dB peak.
+
+**The analytic path is verified against the simulation**, which stays as the oracle:
+worst |analytic − simulated| = **0.01–0.02 dB** across all six topologies. Getting there
+exposed a fourth issue worth recording — the first comparison showed an 87 dB disagreement
+in the deep stopband and **the simulation was the wrong one**: 8 cycles of warm-up left
+transient energy that set a ~−65 dB floor, and in a stopband that floor *is* the reading.
+With warm-up scaled to the actual ring time, the deep stopband agrees exactly (−151.9 vs
+−151.9 dB at 16 kHz). An oracle can be less accurate than the thing it checks.
+
 **Not yet decided (human):** whether the bank becomes a proper rack filter (fixes 1+2, or
 1+2 in series with a conventional multimode), whether key tracking is added and at what
 default, or whether the bank stays a *resonator/formant* effect and a conventional filter
