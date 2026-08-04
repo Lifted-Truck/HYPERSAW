@@ -64,7 +64,7 @@
 </style>
 </head>
 <body>
-<div class="rev" title="when this file last changed, plus a fingerprint of its code computed at load. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev 2026-07-30 18:20 &middot; fp <span id="revfp">…</span></div>
+<div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
 <h1>SWARM✱ layout lab</h1>
 <div class="tagline">Information-architecture audition (human brief 2026-07-30): click through the proposed <b>pages</b> before any fold work begins. Nothing here makes sound — the controls are the REAL inventory (every shipped param, every lab feature with a fold path), placed where the proposal says they'd live. Chips: <span style="color:var(--amber)">amber = shipped but new (ADR-072)</span> · <span style="color:var(--mag)">magenta = lab-only, needs a fold</span> · plain = shipped &amp; settled. The decisions table below is the actual deliverable.</div>
 
@@ -246,6 +246,20 @@ document.querySelector('.page[data-pg="MAIN"]').classList.add('on');
   }
   const el = document.getElementById('revfp');
   if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+  // Rev date DERIVED, not typed. Every lab's hand-written stamp had drifted —
+  // all nine, by 3 minutes to over a day — because nothing forces you to bump
+  // it when you edit. document.lastModified is the file's mtime and works over
+  // file://, so it cannot drift. Caveat: mtime is when this COPY was written,
+  // so a git checkout of an unchanged file bumps it; that is still the right
+  // answer for the question the badge exists to answer ("is the browser
+  // showing what is on disk?"), just not "when the code last changed".
+  const dt = document.getElementById('revdate');
+  if (dt) {
+    const m = new Date(document.lastModified), p = n => String(n).padStart(2, '0');
+    dt.textContent = isNaN(m.getTime()) ? '?'
+      : m.getFullYear() + '-' + p(m.getMonth() + 1) + '-' + p(m.getDate()) +
+        ' ' + p(m.getHours()) + ':' + p(m.getMinutes());
+  }
 })();
 </script>
 </body>
