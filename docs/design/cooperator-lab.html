@@ -33,10 +33,8 @@
            font:inherit; padding:4px 10px; cursor:pointer; margin:2px 2px 0 0; }
   button:hover { border-color:var(--pull); }
   kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
-  #mgrid { display:grid; grid-template-columns:34px repeat(4, 1fr); gap:3px 6px; align-items:center; margin-top:6px; }
-  #mgrid .gl { color:var(--dim); font-size:10px; text-align:right; }
-  #mgrid input[type=range] { width:100%; }
-  #mgrid .diag { color:var(--line); text-align:center; font-size:10px; }
+  #algs button { font-size:10px; padding:3px 7px; }
+  #algs button.on { border-color:var(--pull); color:var(--pull); }
 </style>
 </head>
 <body>
@@ -82,7 +80,11 @@
     <div class="row"><label>r3</label><input type="range" id="r3" min="-2" max="3" step="0.01" value="1.585"><output id="r3_o"></output></div>
     <div class="row"><label>r4</label><input type="range" id="r4" min="-2" max="3" step="0.01" value="2.322"><output id="r4_o"></output></div>
     <div class="row"><label>mix 2/3/4</label><input type="range" id="mix" min="0" max="1" step="0.01" value="0.3"><output id="mix_o"></output></div>
-    <div id="mgrid"></div>
+    <div id="algs" style="margin-top:6px"></div>
+    <div style="display:flex; gap:8px; align-items:flex-start">
+      <canvas id="mtx" width="188" height="188" title="the coupling matrix — drag a cell vertically to set how strongly the COLUMN op drives the ROW op; double-click clears it"></canvas>
+      <canvas id="graph" width="120" height="188" title="the live algorithm — arrow thickness = edge weight; arrow brightness = current phase agreement between the two ops, so lock is visible as edges glowing"></canvas>
+    </div>
     <div class="hint">Op 1 is the carrier at the note; r2–r4 are the others' ratios (log₂). The grid is the "algorithm" — cell <b>i←j</b> is how strongly op j drives op i, and it is CONTINUOUS, so morphing between DX-style algorithms is a drag, not a menu. <b>edge law</b> is the experiment: at 0 every edge is a Kuramoto edge (j pulls i's frequency toward phase agreement — gentle, self-tuning); at 1 every edge is an FM edge (j's output injected into i's phase — strong, timbral). In between, both. Mutual FM normally goes chaotic immediately; the Kuramoto share plus the gravity basin is what makes it playable. <b>mix</b> blends ops 2–4 into the output alongside the carrier.
     <br><br><b>Honest physics note:</b> the R meter reads LOW in network mode (measured 0.2–0.3) because the four ops sit at DIFFERENT frequencies, and a 1:1 phase pull cannot lock a 2:1 ratio — so Kuramoto edges matter most between near-unison ops, or after gravity has captured two ratios onto the same lattice point. True cross-ratio locking needs <b>n:m edges</b> (sin(n·θj − m·θi), Arnold tongues) — queued as increment 2, not faked here. Also by design: a Kuramoto edge INTO op 1 bends the note's pitch toward agreement (measured max 33.5 ¢, clamped at ±80) — mutual coupling taken seriously; zero op 1's row to silence it.</div>
   </div>
@@ -334,22 +336,125 @@ const rHist = new Float32Array(152); let rW = 0, rSmooth = 0;
 const outRing = new Float32Array(4096); let ringW = 0;
 const pressed = new Map();
 
-// coupling-matrix grid, generated (12 off-diagonal cells)
-{
-  const g = $('mgrid');
-  g.insertAdjacentHTML('beforeend', '<span></span><span class="gl">←op1</span><span class="gl">←op2</span><span class="gl">←op3</span><span class="gl">←op4</span>');
-  for (let i = 0; i < 4; i++) {
-    g.insertAdjacentHTML('beforeend', '<span class="gl">op' + (i + 1) + '</span>');
+/* ---- FM8-style matrix (the editor) + Operator-style presets (the entry
+   points) + a live graph (the understanding). The matrix is the ground truth
+   — presets WRITE it and then get out of the way, because this engine's whole
+   pitch is that the algorithm is continuous, not a menu. The graph shows what
+   FM8's matrix cannot: our edges have STATE — arrow brightness is the live
+   phase agreement between the two ops, so lock is visible as edges glowing. */
+const mtx = $('mtx'), mtxX = mtx.getContext('2d');
+const gph = $('graph'), gphX = gph.getContext('2d');
+const CELL = 38, OFF = 34;
+function drawMatrix() {
+  const Wd = mtx.width, Hd = mtx.height;
+  mtxX.clearRect(0, 0, Wd, Hd);
+  mtxX.font = '10px ui-monospace,monospace'; mtxX.textAlign = 'center';
+  for (let k = 0; k < 4; k++) {
+    mtxX.fillStyle = k === 0 ? '#ffc24b' : '#b98cff';
+    mtxX.fillText('' + (k + 1), OFF + k * CELL + CELL / 2, 10);       // column = source
+    mtxX.fillText('' + (k + 1), 12, OFF + k * CELL + CELL / 2 + 3);   // row = target
+  }
+  mtxX.fillStyle = '#7f8899'; mtxX.fillText('→', 12, 10);
+  for (let i = 0; i < 4; i++)
     for (let j = 0; j < 4; j++) {
-      if (i === j) { g.insertAdjacentHTML('beforeend', '<span class="diag">·</span>'); continue; }
-      const el = document.createElement('input');
-      el.type = 'range'; el.min = 0; el.max = 1; el.step = 0.01; el.value = W[i][j];
-      el.title = 'op' + (j + 1) + ' → op' + (i + 1);
-      el.addEventListener('input', () => { W[i][j] = +el.value; });
-      g.appendChild(el);
+      const x = OFF + j * CELL, y = OFF + i * CELL;
+      if (i === j) { mtxX.strokeStyle = '#171c26'; mtxX.strokeRect(x + 1, y + 1, CELL - 2, CELL - 2); continue; }
+      const w = W[i][j];
+      mtxX.strokeStyle = '#2a3040'; mtxX.strokeRect(x + 1, y + 1, CELL - 2, CELL - 2);
+      if (w > 0) {
+        mtxX.fillStyle = 'rgba(95,242,224,' + (0.18 + w * 0.6).toFixed(2) + ')';
+        const h = (CELL - 4) * w;
+        mtxX.fillRect(x + 2, y + CELL - 2 - h, CELL - 4, h);
+        mtxX.fillStyle = '#0b0e13';
+        mtxX.fillText((w * 100).toFixed(0), x + CELL / 2, y + CELL / 2 + 3);
+      }
+      if (w === 0) { mtxX.fillStyle = '#2a3040'; mtxX.fillText('·', x + CELL / 2, y + CELL / 2 + 3); }
     }
+}
+function cellAt(ev) {
+  const r = mtx.getBoundingClientRect();
+  const j = Math.floor((ev.clientX - r.left - OFF) / CELL);
+  const i = Math.floor((ev.clientY - r.top - OFF) / CELL);
+  return (i >= 0 && i < 4 && j >= 0 && j < 4 && i !== j) ? { i, j } : null;
+}
+let mtxDrag = null;
+mtx.addEventListener('pointerdown', ev => { const c = cellAt(ev); if (!c) return;
+  mtx.setPointerCapture(ev.pointerId);
+  mtxDrag = { ...c, y0: ev.clientY, w0: W[c.i][c.j] };
+});
+mtx.addEventListener('pointermove', ev => { if (!mtxDrag) return;
+  W[mtxDrag.i][mtxDrag.j] = Math.max(0, Math.min(1, mtxDrag.w0 + (mtxDrag.y0 - ev.clientY) / 80));
+  markAlg(); drawMatrix();
+});
+mtx.addEventListener('pointerup', () => mtxDrag = null);
+mtx.addEventListener('dblclick', ev => { const c = cellAt(ev); if (!c) return;
+  W[c.i][c.j] = 0; markAlg(); drawMatrix(); });
+
+// Operator-style presets. The last two are the ones a DX/Operator CANNOT have:
+// cyclic and mutual edges only make sense when coupling is allowed to be
+// two-way, which is exactly this engine's premise.
+const ALGS = [
+  { name: 'chain',  hint: '4→3→2→1 — the classic series stack',            e: [[1,2,.7],[2,3,.7],[3,4,.7]] },
+  { name: 'fan-in', hint: '2,3,4 all → 1 — bright parallel modulators',    e: [[1,2,.6],[1,3,.6],[1,4,.6]] },
+  { name: 'branch', hint: '3→2→1 and 4→2→1 — a Y into the carrier',        e: [[1,2,.7],[2,3,.6],[2,4,.6]] },
+  { name: 'pairs',  hint: '2→1 and 4→3 — two independent duos (raise mix)', e: [[1,2,.7],[3,4,.7]] },
+  { name: 'cycle',  hint: '1→4→3→2→1 — a RING; no DX algorithm can close the loop', e: [[1,2,.6],[2,3,.6],[3,4,.6],[4,1,.35]] },
+  { name: 'mutual', hint: '1↔2 and 3↔4 — two-way edges, this engine\'s native shape', e: [[1,2,.6],[2,1,.35],[3,4,.6],[4,3,.6]] },
+];
+function applyAlg(a) {
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) W[i][j] = 0;
+  for (const [ti, sj, w] of a.e) W[ti - 1][sj - 1] = w;
+  drawMatrix(); markAlg(a.name);
+}
+function markAlg(name) {
+  document.querySelectorAll('#algs button').forEach(b => b.classList.toggle('on', b.textContent === name));
+}
+{
+  const holder = $('algs');
+  for (const a of ALGS) {
+    const b = document.createElement('button');
+    b.textContent = a.name; b.title = a.hint;
+    b.addEventListener('click', () => applyAlg(a));
+    holder.appendChild(b);
   }
 }
+// node positions: carrier bottom-centre, 2 left, 3 top, 4 right
+const NODE = [[60, 158], [18, 94], [60, 30], [102, 94]];
+function drawGraph() {
+  const Wd = gph.width, Hd = gph.height;
+  gphX.clearRect(0, 0, Wd, Hd);
+  const nt = P.mode === 1 ? eng.focus() : null;
+  for (let i = 0; i < 4; i++)
+    for (let j = 0; j < 4; j++) {
+      if (i === j || W[i][j] <= 0) continue;
+      const [xj, yj] = NODE[j], [xi, yi] = NODE[i];
+      // brightness = live phase agreement — the coupling WORKING, not just wired
+      let agree = 0.45;
+      if (nt) agree = 0.25 + 0.75 * Math.max(0, Math.cos((nt.ph[j] - nt.ph[i]) * TAU));
+      const mutual = W[j][i] > 0;   // curve two-way pairs apart so both arrows show
+      const mx = (xj + xi) / 2 + (mutual ? (yi - yj) * 0.18 : 0);
+      const my = (yj + yi) / 2 + (mutual ? (xj - xi) * 0.18 : 0);
+      gphX.strokeStyle = 'rgba(95,242,224,' + (agree * (0.35 + W[i][j] * 0.65)).toFixed(2) + ')';
+      gphX.lineWidth = 0.8 + W[i][j] * 3.2;
+      gphX.beginPath(); gphX.moveTo(xj, yj); gphX.quadraticCurveTo(mx, my, xi, yi); gphX.stroke();
+      // arrowhead at the target
+      const ang = Math.atan2(yi - my, xi - mx);
+      gphX.beginPath();
+      gphX.moveTo(xi - Math.cos(ang - 0.4) * 9, yi - Math.sin(ang - 0.4) * 9);
+      gphX.lineTo(xi, yi);
+      gphX.lineTo(xi - Math.cos(ang + 0.4) * 9, yi - Math.sin(ang + 0.4) * 9);
+      gphX.stroke();
+    }
+  for (let u = 0; u < 4; u++) {
+    const [x, y] = NODE[u];
+    const amp = nt ? Math.min(1, Math.abs(nt.prev[u])) : 0;
+    gphX.fillStyle = u === 0 ? '#ffc24b' : '#b98cff';
+    gphX.beginPath(); gphX.arc(x, y, 8 + amp * 3, 0, TAU); gphX.fill();
+    gphX.fillStyle = '#0b0e13'; gphX.font = '10px ui-monospace,monospace'; gphX.textAlign = 'center';
+    gphX.fillText('' + (u + 1), x, y + 3);
+  }
+}
+drawMatrix();
 
 let spn = null;
 function ensureAudio() {
@@ -500,7 +605,7 @@ function draw() {
   }
   spx.stroke();
 }
-setInterval(draw, 50);
+setInterval(() => { draw(); drawGraph(); }, 50);
 </script>
 <script>
 (() => {
