@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SWARM✱ spectra lab — what makes SPECTRA its own engine</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
+          --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --saw:#b98cff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace; padding:14px 18px 40px; }
+  h1 { font-size:15px; margin-bottom:2px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:var(--dim);
+         background:#0b0e13; border:1px solid var(--line); border-radius:3px; padding:2px 6px; opacity:0.75; }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:12px; max-width:1120px; }
+  .tagline b { color:var(--fg); }
+  .cols { column-width:350px; column-gap:12px; max-width:1120px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+          break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
+  .card h2 { font-size:12px; color:var(--pull); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .row label { width:100px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:76px; text-align:right; font-size:11px; }
+  .row select { background:var(--panel2); color:var(--fg); border:1px solid var(--line); font:inherit; flex:1; }
+  .hint { color:var(--dim); font-size:11px; margin:6px 0 2px; }
+  .hint b { color:var(--fg); }
+  .meter { font-size:12px; margin:4px 0; }
+  .meter b { color:var(--amber); }
+  .meter .bad { color:var(--red); font-weight:bold; }
+  .meter .good { color:var(--pull); }
+  canvas { border:1px solid var(--line); border-radius:4px; background:#0b0e13; display:block; margin-top:6px; }
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:4px;
+           font:inherit; padding:4px 10px; cursor:pointer; margin:2px 2px 0 0; }
+  button:hover { border-color:var(--pull); }
+  kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+  .chk { font-size:11px; color:var(--dim); }
+  table.diag { width:100%; font-size:11px; border-collapse:collapse; margin-top:4px; }
+  table.diag td { padding:2px 4px; border-top:1px solid var(--line); }
+  table.diag td:last-child { text-align:right; color:var(--amber); }
+</style>
+</head>
+<body>
+<div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
+<h1>SWARM✱ spectra lab</h1>
+<div class="tagline">Lab campaign 3 item 1 — *"make the engine worthwhile: find the features that give SPECTRA its own identity rather than 'the other engine'."* The shipped core was measured first, and the brief's premise turned out to be only half right. <b>SPECTRA does not sound like SAW — it sounds DARKER than SAW</b> (spectral centroid 562 Hz vs 2449 at matched pitch), because 12 partials at 110 Hz simply stop at 1.3 kHz. It is not competing with SAW and losing; it is playing a different, quieter game. Three measured problems shape this bench: <b>(1) K spends 80 % of its travel doing nothing</b> — the whole lock transition happens between 0.65 and 0.85, and below 0.45 the order parameter actually drifts DOWN; <b>(2) the clouds are a perfectly even ramp</b>, not a seeded draw, so `seed` cannot change the spectrum at all and every partial is identically regular; <b>(3) the two controls SAW cannot imitate — cascade and dissolve — are healthy and buried.</b> Cascade staggers per-partial locking; nothing in a detuned saw bank can do that. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone.</div>
+
+<div class="cols">
+  <div class="card">
+    <h2>Coupling — the identity controls</h2>
+    <div class="row"><label>K</label><input type="range" id="K" min="0" max="1" step="0.005" value="0"><output id="K_o"></output></div>
+    <div class="row"><label>K taper</label><select id="ktaper">
+      <option value="0" selected>as shipped (raw)</option>
+      <option value="1">spread (transition across the travel)</option>
+    </select></div>
+    <div class="row"><label>onset</label><input type="range" id="onset" min="0" max="1" step="0.01" value="0"><output id="onset_o"></output></div>
+    <div class="row"><label>dissolve</label><input type="range" id="dissolve" min="0.05" max="8" step="0.05" value="0.63"><output id="dissolve_o"></output></div>
+    <div class="row"><label>cascade</label><input type="range" id="cascade" min="0" max="1" step="0.01" value="0"><output id="cascade_o"></output></div>
+    <div class="hint"><b>K taper.</b> Measured on the shipped core: R stays at the free-run floor (~0.28) from K 0 to 0.45, drifts slightly DOWN to 0.25, then the entire lock happens between <b>0.65 and 0.85</b> — 20 % of the knob — and saturates above. "spread" remaps the knob so that transition occupies the travel. Same taper failure as ADR-059's inertia knob and the filter lab's K; <b>fourth occurrence in this project</b>.
+    <br><br><b>cascade and dissolve are what SAW cannot do.</b> Cascade staggers WHICH partial locks WHEN, so the spectrum re-orders itself over seconds; dissolve sets how long a coupling burst survives. Measured: dissolve 0.05 → gone immediately, 8.0 → R still 0.974 after 4.5 s, smooth throughout. These are the engine's real identity and they sit at the bottom of the panel in the plugin.</div>
+  </div>
+
+  <div class="card">
+    <h2>Per-partial lock · R over time</h2>
+    <canvas id="raster" width="326" height="180"></canvas>
+    <div class="hint">One row per partial, low at the bottom. Brightness = that partial's order parameter R: dark = its cloud is spread and beating, bright = locked. <b>This is the display the magnitude spectrum cannot give you</b> — I measured this engine three wrong ways before using R, because coupling changes phase lock and a magnitude spectrum averages exactly that away. Watch cascade turn a flat wall into a diagonal.</div>
+    <div class="meter">mean R: <b id="m_R">—</b> &nbsp;·&nbsp; spread across partials: <b id="m_Rspread">—</b></div>
+  </div>
+
+  <div class="card">
+    <h2>Spectrum · the brightness gap</h2>
+    <canvas id="spec" width="326" height="140"></canvas>
+    <div class="meter">centroid: <b id="m_cen">—</b> &nbsp;·&nbsp; top partial: <b id="m_top">—</b></div>
+    <div class="hint">The dim marker is SAW's measured centroid (2449 Hz at A2). SPECTRA's default lands at 562 Hz. <b>Partial count is the lever</b>: 12 partials at 110 Hz reach 1.3 kHz and stop. Raising partials costs CPU linearly, which is the real design question — is SPECTRA's identity "dark and evolving", or should it reach for brightness and meet SAW head-on?</div>
+  </div>
+
+  <div class="card">
+    <h2>Partials</h2>
+    <div class="row"><label>count</label><input type="range" id="partials" min="1" max="48" step="1" value="12"><output id="partials_o"></output></div>
+    <div class="row"><label>tilt</label><input type="range" id="tilt" min="0.2" max="3" step="0.01" value="1"><output id="tilt_o"></output></div>
+    <div class="row"><label>stretch</label><input type="range" id="stretch" min="0" max="1" step="0.01" value="0"><output id="stretch_o"></output></div>
+    <div class="hint"><b>tilt</b> is the amplitude law, 1/k^tilt — at tilt = 1 that is exactly a sawtooth's spectrum, so the default IS a band-limited saw. <b>stretch</b> is inharmonicity (f = k·f0·√(1+Bk²)), the piano/bell axis, and it is the one axis here that a saw bank structurally cannot reach.</div>
+  </div>
+
+  <div class="card">
+    <h2>Clouds</h2>
+    <div class="row"><label>voices</label><input type="range" id="cloud" min="1" max="7" step="1" value="5"><output id="cloud_o"></output></div>
+    <div class="row"><label>width</label><input type="range" id="cwidth" min="0" max="1" step="0.01" value="0.25"><output id="cwidth_o"></output></div>
+    <div class="row"><label>width tilt</label><input type="range" id="wtilt" min="-1" max="1.5" step="0.01" value="0"><output id="wtilt_o"></output></div>
+    <div class="row"><label>spacing</label><select id="dist">
+      <option value="0" selected>even ramp (as shipped)</option>
+      <option value="1">gaussian (seeded)</option>
+      <option value="2">cauchy (seeded)</option>
+    </select></div>
+    <div class="row"><label>seed</label><input type="range" id="seed" min="1" max="99" step="1" value="12"><output id="seed_o"></output></div>
+    <div class="hint"><b>Spacing is a candidate identity feature, not a shipped one.</b> The core builds cloud offsets as `x[m] = 2m/(M−1) − 1` — a perfectly even ramp — so every partial's cloud is identically regular and the `seed` parameter cannot affect the spectrum at all (measured: 0.00 dB across seeds). SAW draws its swarm from seeded gaussian/cauchy distributions and gets its life from the irregularity. Auditioning the same choice here.</div>
+  </div>
+
+  <div class="card">
+    <h2>Source</h2>
+    <div class="row"><label>width</label><input type="range" id="swidth" min="0" max="1" step="0.01" value="0.8"><output id="swidth_o"></output></div>
+    <div class="row"><label>volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.4"><output id="vol_o"></output></div>
+    <div class="row"><button id="drone">drone A2</button><span class="hint" style="margin:0" id="octlbl"></span></div>
+    <div class="hint">Notes are polyphonic with per-key release. Retrigger a note to see the raster restart — cascade and onset are note-relative, so their whole story is in the first seconds.</div>
+  </div>
+</div>
+
+<script>
+/* ================= DSP =================
+   Transcribed from src/spectra_core.h: partial placement with inharmonicity,
+   the 1/k^tilt amplitude law, per-partial clouds spread in cents (wlaw 0),
+   the order parameter, and the Kenv/onset/dissolve/cascade coupling. Kept
+   literal — this bench exists to characterise the SHIPPED engine. */
+const TAU = Math.PI * 2, STICK = 32;
+const kTauK = 0.08;
+function mulberry(seed) {
+  let a = seed >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function gaussFrom(rng) { let u = 0, v = 0;
+  while (u === 0) u = rng(); while (v === 0) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
+
+const P = { K: 0, ktaper: 0, onset: 0, dissolve: 0.63, cascade: 0,
+            partials: 12, tilt: 1, stretch: 0,
+            cloud: 5, cwidth: 0.25, wtilt: 0, dist: 0, seed: 12,
+            swidth: 0.8, vol: 0.4 };
+
+// Measured on the shipped core: R sits at the free-run floor until K~0.45 and
+// the whole transition is K 0.65..0.85. "spread" maps the knob onto that band
+// so the travel is spent where something happens.
+// PIECEWISE, not a power curve. My first attempt was `0.45 + 0.45*K^0.65`,
+// which measured WORSE than raw — 10 % of travel vs 20 % — because a power
+// curve rises fastest exactly where the transition needed to be slowest. The
+// fix is to spend the knob deliberately: sprint through the dead zone, crawl
+// through the band where R actually moves, sprint through saturation.
+const kEff = () => {
+  if (P.ktaper === 0) return P.K;
+  const u = P.K, lo = 0.48, hi = 0.72;   // measured transition band
+  if (u < 0.15) return u / 0.15 * lo;                       // dead zone, 15 % of travel
+  if (u > 0.85) return hi + (u - 0.85) / 0.15 * (1 - hi);   // saturation, 15 %
+  return lo + (u - 0.15) / 0.70 * (hi - lo);                // the useful band, 70 %
+};
+
+class Spectra {
+  constructor(sr) { this.sr = sr; this.notes = []; this.held = []; this.tick = 0; this.rebuild(); }
+  rebuild() {
+    const M = P.cloud;
+    this.x = new Float64Array(M);
+    if (P.dist === 0) { for (let m = 0; m < M; m++) this.x[m] = M === 1 ? 0 : (2 * m / (M - 1) - 1); }
+    else {
+      const rng = mulberry(P.seed * 2654435761 >>> 0);
+      for (let m = 0; m < M; m++) {
+        if (P.dist === 1) this.x[m] = gaussFrom(rng) * 0.6;
+        else { const u = rng() - 0.5; this.x[m] = Math.tan(Math.PI * u) * 0.25; }
+        this.x[m] = Math.max(-1.5, Math.min(1.5, this.x[m]));
+      }
+    }
+    this.amp = new Float64Array(P.partials);
+    for (let k = 0; k < P.partials; k++) this.amp[k] = 1 / Math.pow(k + 1, P.tilt);
+    for (const nt of this.notes) this.sizeNote(nt);
+  }
+  sizeNote(nt) {
+    const N = P.partials * P.cloud;
+    if (!nt.phase || nt.phase.length !== N) {
+      const ph = new Float64Array(N), rng = mulberry(P.seed + 7);
+      for (let i = 0; i < N; i++) ph[i] = rng();
+      nt.phase = ph;
+    }
+    nt.R = new Float64Array(P.partials);
+    nt.psi = new Float64Array(P.partials);
+    nt.vf = new Float64Array(P.partials * P.cloud);
+  }
+  noteOn(midi) {
+    this.held = this.held.filter(m => m !== midi); this.held.push(midi);
+    let nt = this.notes.find(n => n.midi === midi);
+    if (!nt) { nt = { midi, f0: 440 * Math.pow(2, (midi - 69) / 12), gate: 1, env: 0,
+                      Kenv: 0, t: 0 };
+      this.sizeNote(nt); this.notes.push(nt); if (this.notes.length > 6) this.notes.shift(); }
+    nt.gate = 1; nt.t = 0;
+    nt.Kenv = 8 * P.onset * P.onset;          // spectra_core: Kenv = 8*onset^2
+    return nt;
+  }
+  noteOff(midi) { this.held = this.held.filter(m => m !== midi);
+    for (const nt of this.notes) if (midi === undefined || nt.midi === midi) nt.gate = 0; }
+  allOff() { this.held.length = 0; for (const nt of this.notes) nt.gate = 0; }
+  controlTick(nt) {
+    const Pn = P.partials, M = P.cloud, dt = STICK / this.sr;
+    nt.t += dt;
+    nt.Kenv *= Math.exp(-dt / Math.max(0.01, P.dissolve));
+    const km = 4 * kEff() * Math.abs(kEff());
+    const B = P.stretch * P.stretch * 0.002;
+    for (let k = 0; k < Pn; k++) {
+      const h = k + 1;
+      const fk = nt.f0 * h * Math.sqrt(1 + B * h * h);
+      const tiltMul = Math.pow(h, P.wtilt);
+      let sx = 0, sy = 0;
+      for (let m = 0; m < M; m++) {
+        const i = k * M + m;
+        const cents = this.x[m] * P.cwidth * 40 * tiltMul;
+        nt.vf[i] = Math.max(1, fk * Math.pow(2, Math.max(-300, Math.min(300, cents)) / 1200));
+        const a = nt.phase[i] * TAU;
+        sx += Math.cos(a); sy += Math.sin(a);
+      }
+      sx /= M; sy /= M;
+      nt.R[k] = Math.sqrt(sx * sx + sy * sy);
+      nt.psi[k] = Math.atan2(sy, sx);
+      // cascade: partials engage in sequence rather than together — the thing a
+      // detuned saw bank structurally cannot do.
+      const delay = P.cascade * (k / Math.max(1, Pn - 1)) * 2.5;
+      nt.gateK = 1;
+      const g = nt.t < delay ? 0 : 1;
+      const syncT = (Math.max(0, km) + nt.Kenv) * g;
+      for (let m = 0; m < M; m++) {
+        const i = k * M + m;
+        const c = syncT * nt.R[k] * Math.sin(nt.psi[k] - nt.phase[i] * TAU);
+        nt.vf[i] *= Math.pow(2, c * 0.01);
+      }
+    }
+  }
+  render(outL, outR, n) {
+    const sr = this.sr, Pn = P.partials, M = P.cloud;
+    const atk = 1 - Math.exp(-1 / (0.004 * sr)), rel = 1 - Math.exp(-1 / (0.18 * sr));
+    outL.fill(0); outR.fill(0);
+    for (const nt of this.notes) {
+      if (!nt.gate && nt.env < 1e-4) continue;
+      for (let s = 0; s < n; s++) {
+        if (this.tick === 0) this.controlTick(nt);
+        this.tick = (this.tick + 1) & (STICK - 1);
+        nt.env += ((nt.gate ? 1 : 0) - nt.env) * (nt.gate ? atk : rel);
+        let l = 0, r = 0;
+        for (let k = 0; k < Pn; k++) {
+          const a = this.amp[k];
+          if (a < 1e-4) continue;
+          for (let m = 0; m < M; m++) {
+            const i = k * M + m;
+            let ph = nt.phase[i] + nt.vf[i] / sr; ph -= Math.floor(ph); nt.phase[i] = ph;
+            const v = Math.sin(ph * TAU) * a;
+            const pan = Math.max(-1, Math.min(1, this.x[m] * ((k & 1) ? -1 : 1))) * P.swidth;
+            const th = (pan + 1) * 0.25 * Math.PI;
+            l += v * Math.cos(th); r += v * Math.sin(th);
+          }
+        }
+        const g = nt.env * P.vol / Math.pow(Pn * M, 0.5) * 2.2;
+        outL[s] += Math.tanh(l * g); outR[s] += Math.tanh(r * g);
+      }
+    }
+    this.notes = this.notes.filter(nt => nt.gate || nt.env >= 1e-4);
+  }
+  focus() { let b = null; for (const nt of this.notes) if (!b || nt.env > b.env) b = nt; return b; }
+}
+
+/* ================= UI ================= */
+const $ = id => document.getElementById(id);
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const eng = new Spectra(ctx.sampleRate);
+// Declared before the wiring: wire() invokes its callback during setup, and
+// anything that callback touches must already exist (twice-burned, 2026-08-03).
+const rasC = $('raster'), rasX = rasC.getContext('2d');
+const spC = $('spec'), spX = spC.getContext('2d');
+const RAS_W = rasC.width;
+let rasCol = 0;
+const pressed = new Map();
+
+let spn = null;
+function ensureAudio() {
+  if (ctx.state === 'suspended') ctx.resume();
+  if (spn) return;
+  spn = ctx.createScriptProcessor(1024, 0, 2);
+  const L = new Float32Array(1024), R = new Float32Array(1024);
+  spn.onaudioprocess = e => {
+    const oL = e.outputBuffer.getChannelData(0), oR = e.outputBuffer.getChannelData(1);
+    eng.render(L, R, 1024);
+    for (let i = 0; i < 1024; i++) { oL[i] = L[i]; oR[i] = R[i]; }
+  };
+  spn.connect(ctx.destination);
+}
+const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
+  const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => (+v).toFixed(2)))(+el.value); };
+  el.addEventListener('input', f); f(); };
+const sel = (id, fn) => { const el = $(id); const f = () => fn(+el.value); el.addEventListener('change', f); f(); };
+
+wire('K', v => P.K = v, v => v === 0 ? 'off' : 'K ' + kEff().toFixed(2) + (P.ktaper ? ' (eff)' : ''));
+wire('onset', v => P.onset = v, v => v === 0 ? 'off' : v.toFixed(2));
+wire('dissolve', v => P.dissolve = v, v => v.toFixed(2) + ' s');
+wire('cascade', v => P.cascade = v, v => v === 0 ? 'together' : (v * 2.5).toFixed(1) + ' s spread');
+wire('partials', v => { P.partials = v | 0; eng.rebuild(); }, v => '' + v);
+wire('tilt', v => { P.tilt = v; eng.rebuild(); });
+wire('stretch', v => P.stretch = v);
+wire('cloud', v => { P.cloud = v | 0; eng.rebuild(); }, v => '' + v);
+wire('cwidth', v => P.cwidth = v);
+wire('wtilt', v => P.wtilt = v);
+wire('seed', v => { P.seed = v | 0; eng.rebuild(); }, v => '' + v);
+wire('swidth', v => P.swidth = v);
+wire('vol', v => P.vol = v);
+sel('ktaper', v => { P.ktaper = v; $('K').dispatchEvent(new Event('input')); });
+sel('dist', v => { P.dist = v; eng.rebuild(); });
+
+let droneOn = false;
+$('drone').addEventListener('click', () => { ensureAudio(); droneOn = !droneOn;
+  if (droneOn) { eng.noteOn(45); $('drone').textContent = 'stop'; }
+  else { eng.allOff(); $('drone').textContent = 'drone A2'; } });
+const KMAP = { 'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12 };
+let octaveBase = 45;
+const octLabel = () => { $('octlbl').textContent = 'octave base MIDI ' + octaveBase + ' (Z/X)'; };
+octLabel();
+addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); $('drone').click(); return; }
+  if (e.key === 'z') { octaveBase -= 12; octLabel(); return; }
+  if (e.key === 'x') { octaveBase += 12; octLabel(); return; }
+  const k = KMAP[e.key]; if (k === undefined) return;
+  ensureAudio(); pressed.set(e.key, octaveBase + k); eng.noteOn(octaveBase + k);
+});
+addEventListener('keyup', e => { if (!pressed.has(e.key)) return;
+  eng.noteOff(pressed.get(e.key)); pressed.delete(e.key); });
+addEventListener('blur', () => { pressed.clear(); eng.allOff(); });
+
+/* ---------- displays ---------- */
+function drawRaster() {
+  const nt = eng.focus();
+  const H = rasC.height, Pn = P.partials;
+  // scroll left by one column
+  rasX.drawImage(rasC, -1, 0);
+  rasX.fillStyle = '#0b0e13';
+  rasX.fillRect(RAS_W - 1, 0, 1, H);
+  if (nt) {
+    const rh = H / Pn;
+    for (let k = 0; k < Pn; k++) {
+      const R = Math.max(0, Math.min(1, nt.R[k]));
+      const y = H - (k + 1) * rh;
+      // cyan ramp: dark = spread/beating, bright = locked
+      rasX.fillStyle = 'rgba(95,242,224,' + (0.06 + R * 0.94).toFixed(3) + ')';
+      rasX.fillRect(RAS_W - 1, y, 1, Math.max(1, rh));
+    }
+    let m = 0, lo = 1, hi = 0;
+    for (let k = 0; k < Pn; k++) { m += nt.R[k]; lo = Math.min(lo, nt.R[k]); hi = Math.max(hi, nt.R[k]); }
+    m /= Pn;
+    $('m_R').textContent = m.toFixed(3);
+    $('m_Rspread').innerHTML = '<span class="' + (hi - lo > 0.25 ? 'good' : '') + '">' + (hi - lo).toFixed(3) + '</span>';
+  }
+}
+function drawSpec() {
+  const W = spC.width, H = spC.height, Pn = P.partials;
+  spX.clearRect(0, 0, W, H);
+  const nt = eng.focus();
+  const f0 = nt ? nt.f0 : 110;
+  const B = P.stretch * P.stretch * 0.002;
+  const X = f => Math.log(Math.max(30, f) / 30) / Math.log(16000 / 30) * (W - 2) + 1;
+  // SAW's measured centroid, for the brightness comparison
+  spX.strokeStyle = '#b98cff'; spX.setLineDash([2, 3]); spX.beginPath();
+  spX.moveTo(X(2449), 0); spX.lineTo(X(2449), H); spX.stroke(); spX.setLineDash([]);
+  spX.fillStyle = '#b98cff'; spX.font = '9px ui-monospace,monospace';
+  spX.fillText('SAW 2449', X(2449) + 3, 10);
+  let num = 0, den = 0, top = 0;
+  for (let k = 0; k < Pn; k++) {
+    const h = k + 1, f = f0 * h * Math.sqrt(1 + B * h * h), a = 1 / Math.pow(h, P.tilt);
+    if (f > 16000) break;
+    top = f; num += f * a; den += a;
+    const x = X(f), hgt = Math.max(1, (1 + Math.log10(Math.max(1e-3, a)) / 3) * (H - 14));
+    spX.strokeStyle = '#5ff2e0'; spX.lineWidth = 1.2;
+    spX.beginPath(); spX.moveTo(x, H - 2); spX.lineTo(x, H - 2 - hgt); spX.stroke();
+  }
+  const cen = den > 0 ? num / den : 0;
+  spX.strokeStyle = '#ffc24b'; spX.beginPath();
+  spX.moveTo(X(cen), 0); spX.lineTo(X(cen), H); spX.stroke();
+  $('m_cen').innerHTML = '<span class="' + (cen < 1200 ? 'bad' : 'good') + '">' + cen.toFixed(0) + ' Hz</span>';
+  $('m_top').textContent = (top / 1000).toFixed(1) + ' kHz';
+}
+setInterval(() => { drawRaster(); drawSpec(); }, 40);
+</script>
+<script>
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  const el = document.getElementById('revfp');
+  if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+  const dt = document.getElementById('revdate');
+  if (dt) {
+    const m = new Date(document.lastModified), p = n => String(n).padStart(2, '0');
+    dt.textContent = isNaN(m.getTime()) ? '?'
+      : m.getFullYear() + '-' + p(m.getMonth() + 1) + '-' + p(m.getDate()) +
+        ' ' + p(m.getHours()) + ':' + p(m.getMinutes());
+  }
+})();
+</script>
+</body>
+</html>
