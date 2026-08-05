@@ -39,7 +39,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B3 | **Modulation lab → golden + matrix** | **deliberately blocked**: rotor axes still moving, a golden measured now would churn (and its ACCEPTANCE rows are protected-path) |
 | B4 | **E1 remainder** — SWARM-FX GUI + L0-17/18 | cores parity-proven, shell incomplete |
 | B5 | **ADR-037 follow-up** — shared voice path behind a switch, for an A/B against the frozen cores | ruling done, follow-up open |
-| B14 | **COOPERATOR** — Kuramoto-FM engine candidate (ratified 2026-08-05: name, BOTH architectures, full force system) | lab BUILT (`docs/design/cooperator-lab.html`); n:m edges queued as increment 2 |
+| B14 | **COOPERATOR** — Kuramoto-FM engine candidate | **DEFERRED (human verdict 2026-08-05)** — pare to basics before building complexity; see the verdict note in the COOPERATOR section |
 | B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | **SPECTRA lab BUILT 2026-08-04** (findings below); **swarm-filters lab BUILT 2026-08-04** (`docs/design/filter-lab.html`, findings below); SPECTRA + quantum morph not yet built |
 | B7 | **Lab-visual fold backlog** — bend step-response · width scope+cliffs · reverb ER/tail · ensemble raster | per the convention below; bend ships with A1 |
 | B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
@@ -97,6 +97,33 @@ the note's pitch.
 **Honest limit, queued as increment 2:** network R is low (0.2–0.3) because 1:1 phase
 pull cannot lock ops at different ratios — true cross-ratio locking needs **n:m edges**
 (sin(n·θj − m·θi), Arnold tongues). Stated in the lab rather than faked.
+
+### VERDICT — deferred (human, 2026-08-05)
+
+Human, after playing it: *"this system may be starting with too many complicated novelties
+in its first swing — it's very hard to control and most of the sounds aren't particularly
+interesting. My instinct is to pare it down to basics until it makes a decent sound at
+all, and then build the complexity on top."* Rest of the build deferred; quantum morph
+prototyped next instead.
+
+**The verdict is fair, and the "edge law does nothing" report diagnosed it precisely.**
+Verified before recording: in NETWORK mode the slider transforms the sound (zero-cross
+111 → 1381 Hz between its extremes); in CLOUD mode — **the default** — the two extremes
+are byte-identical, because edge law is network-only and the lab leaves it visible,
+draggable, and dead. The user's experience was correct even though the DSP wasn't broken:
+a control that does nothing in the mode you're in IS a dead control. That is the
+first-swing problem in miniature — eleven force/coupling controls presented flat, no
+mode gating, no hierarchy, novelties (R→index, edge morph, mutual edges) stacked before
+a plain 2-op patch sounds good.
+
+**Return path, recorded for the restart:** begin from the SUBTRACTED version — carrier +
+ONE modulator, ratio, index, envelope, nothing else — and make that sound genuinely good
+first (FM's bread and butter: index envelopes, velocity→index; the lab has none of
+these, which is much of why the sounds were uninteresting). Then add ONE novelty at a
+time in auditioned increments: gravity capture first (it measured best: 23.2 ¢ → 0 in
+2 s), then the modulator cloud, then the matrix. Mode-gate the panel so only live
+controls show. The measured mechanisms all survive — nothing here invalidates them; the
+lesson is about ORDER of assembly, not the physics.
 
 **Open (human):** which architecture survives (or both); does R→index earn its place;
 n:m edges as increment 2; fold path (engine selector, SAW byte-frozen) if the ear says yes.
@@ -1209,7 +1236,21 @@ parity after):
    resonance behavior, key-tracking, how they'd sit in the rack next to a conventional
    multimode (this pairs with, but is distinct from, the layout-lab's
    conventional-filter-topology question).
-3. **Quantum-morph lab** (exists; STAYS gitignored for now — human ruling 2026-07-30,
+3. **Quantum-morph lab — ACTIVE; campaign-3 increment BUILT 2026-08-05** (human: "prototype
+   the quantum morph first, then perfect the global interface and all the sub-pages").
+   Built onto the existing flip-morph prototype, all verified in-browser:
+   (a) **both tint modes** auditionable — Dominant (crisp allegiance, flips read as color
+   flips) vs Mixture (the weight vector as a blended hue; the glyph still shows the OWNER,
+   so hue answers "where am I" and glyph answers "who owns this" — two channels, two
+   questions); (c) **glyph pairing shipped** per the ratified ruling — ◆▲●■ on every chip
+   and in the legend, with Always / Hover / Off auditionable; (b) **edit routing made
+   legible**: chips are now EDITABLE (vertical drag), the write goes to Owner / Nearest /
+   Armed per a selector, and the edit flash is the TARGET corner's color — where the edit
+   landed is answered by sight; (e) **copy-from shipped**: arm a corner in the legend,
+   copy any other corner's preset into it. Remaining: (f) cross-engine blending needs the
+   real engines (deferred to fold time); **(g) mod-matrix collisions — the brief requires
+   capturing the human's ideas BEFORE designing; this is the session, ideas requested.**
+   (exists; STAYS gitignored for now — human ruling 2026-07-30,
    revisit once the lab has settled). NEW INTERFACE CONCEPT to prototype there —
    **corner colors**: each morph corner owns a color; every control tinted by the
    corner it currently controls, so allegiance flips are visible as color flips, and
