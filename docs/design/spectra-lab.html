@@ -220,12 +220,22 @@ class Spectra {
         this.panL[k * M + m] = Math.cos(th);
         this.panR[k * M + m] = Math.sin(th);
       }
+    // RESIZE LIVE NOTES. The liveliness rewrite of this function dropped this
+    // loop, and that WAS the human's NaN: grow partials or cloud while a note
+    // rings and render indexes past the old vf/phase arrays — typed-array OOB
+    // reads return undefined, undefined/sr is NaN, and fsin(NaN) poisons the
+    // output from there on. The resize must happen wherever the sizes change,
+    // which is exactly here.
+    for (const nt of this.notes) this.sizeNote(nt);
   }
   sizeNote(nt) {
     const N = P.partials * P.cloud;
     if (!nt.phase || nt.phase.length !== N) {
       const ph = new Float64Array(N), rng = mulberry(P.seed + 7);
       for (let i = 0; i < N; i++) ph[i] = rng();
+      // keep the phases of oscillators that survive the resize — a mid-note
+      // slider drag should grow the cloud, not restrike the note
+      if (nt.phase) for (let i = 0; i < Math.min(N, nt.phase.length); i++) ph[i] = nt.phase[i];
       nt.phase = ph;
     }
     nt.R = new Float64Array(P.partials);
@@ -329,7 +339,15 @@ class Spectra {
           }
         }
         const g = nt.env * P.vol / Math.pow(Pn * M, 0.5) * 2.2;
-        outL[s] += Math.tanh(l * g); outR[s] += Math.tanh(r * g);
+        let yl = Math.tanh(l * g), yr = Math.tanh(r * g);
+        if (!isFinite(yl) || !isFinite(yr)) {
+          // ADR-032 watchdog: self-heal instead of poisoning every later
+          // sample. Any future indexing bug becomes one glitch + a counter,
+          // not a dead page.
+          for (let i = 0; i < nt.phase.length; i++) nt.phase[i] = (i * 0.618) % 1;
+          nanResets++; yl = 0; yr = 0;
+        }
+        outL[s] += yl; outR[s] += yr;
       }
     }
     this.notes = this.notes.filter(nt => nt.gate || nt.env >= 1e-4);
@@ -349,7 +367,7 @@ const RAS_W = rasC.width;
 let rasCol = 0;
 const pressed = new Map();
 
-let spn = null, cpuAvg = 0;
+let spn = null, cpuAvg = 0, nanResets = 0;
 function ensureAudio() {
   if (ctx.state === 'suspended') ctx.resume();
   if (spn) return;
@@ -472,7 +490,7 @@ setInterval(() => {
   $('m_osc').innerHTML = got + (got < want ? ' <span class="bad">(thinned from ' + want + ')</span>' : '');
   const pct = cpuAvg * 100;
   $('m_cpu').innerHTML = '<span class="' + (pct > 70 ? 'bad' : pct > 40 ? '' : 'good') + '">'
-    + pct.toFixed(0) + ' %</span>';
+    + pct.toFixed(0) + ' %</span>' + (nanResets ? ' <span class="bad">· ' + nanResets + ' NaN resets</span>' : '');
 }, 120);
 </script>
 <script>
