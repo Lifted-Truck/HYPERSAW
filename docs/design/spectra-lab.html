@@ -60,6 +60,24 @@
   </div>
 
   <div class="card">
+    <h2>Liveliness — candidates, all default off</h2>
+    <div class="row"><label>lock wave</label><input type="range" id="wave" min="0" max="1" step="0.01" value="0"><output id="wave_o"></output></div>
+    <div class="row"><label>· rate</label><input type="range" id="waveRate" min="0.02" max="1.5" step="0.01" value="0.15"><output id="waveRate_o"></output></div>
+    <div class="row"><label>partial drift</label><input type="range" id="drift" min="0" max="1" step="0.01" value="0"><output id="drift_o"></output></div>
+    <div class="row"><label>· rate</label><input type="range" id="driftRate" min="0.02" max="2" step="0.01" value="0.3"><output id="driftRate_o"></output></div>
+    <div class="row"><label>R → tone</label><input type="range" id="rtone" min="-1" max="1" step="0.01" value="0"><output id="rtone_o"></output></div>
+    <div class="hint"><b>lock wave</b> is cascade's mechanism made cyclic. Cascade measured as the strongest, most distinctive control in the engine, and its only limit is that it fires once and is over — a travelling band of coupling that ping-pongs along the partial series turns that gesture into a continuous animator. <b>Which partials are locked keeps changing</b>, which is precisely what no detuned saw bank can imitate. Watch it on the raster as a diagonal that comes back.
+    <br><br><b>partial drift</b>: SPECTRA has none at all. SAW has driftDepth/driftRate and that slow wander is most of why SAW feels alive; this gives each partial its own slow rate so the cloud centres never sit still. <b>R → tone</b> makes the coupling audible in the TIMBRE rather than only in the beating — positive lifts a partial as its cloud locks, negative ducks it.</div>
+  </div>
+
+  <div class="card">
+    <h2>Load</h2>
+    <div class="row"><label>osc budget</label><input type="range" id="budget" min="64" max="2048" step="64" value="640"><output id="budget_o"></output></div>
+    <div class="meter">oscillators: <b id="m_osc">—</b> &nbsp;·&nbsp; render load: <b id="m_cpu">—</b></div>
+    <div class="hint">Cost is voices × partials × cloud, so a 6-note chord at 48 partials and 7 cloud voices is <b>2016 running oscillators</b> — which is what overloaded this page. Two fixes: pan is now precomputed (it is constant per partial/voice and was costing two trig calls per oscillator per sample) and the oscillator is a table lookup. Beyond that the budget <b>thins the CLOUD on the highest partials first</b> rather than dropping partials, because partial count is the brightness lever we want to be free to raise, and a top partial with fewer beating voices is far less audible than a missing one. The cost is shown rather than hidden — if the budget is biting, the oscillator count will sit below partials × cloud × voices.</div>
+  </div>
+
+  <div class="card">
     <h2>Per-partial lock · R over time</h2>
     <canvas id="raster" width="326" height="180"></canvas>
     <div class="hint">One row per partial, low at the bottom. Brightness = that partial's order parameter R: dark = its cloud is spread and beating, bright = locked. <b>This is the display the magnitude spectrum cannot give you</b> — I measured this engine three wrong ways before using R, because coupling changes phase lock and a magnitude spectrum averages exactly that away. Watch cascade turn a flat wall into a diagonal.</div>
@@ -112,6 +130,19 @@
    literal — this bench exists to characterise the SHIPPED engine. */
 const TAU = Math.PI * 2, STICK = 32;
 const kTauK = 0.08;
+// Sine lookup. The render loop was calling Math.sin/cos THREE times per
+// oscillator per sample; at 6 voices x 48 partials x 7 cloud that is ~265
+// million trig calls a second, which is what overloaded the page. Two of the
+// three were computing a CONSTANT (pan depends only on x[m], partial parity and
+// width) and are now precomputed; this table removes the third.
+const SIN_N = 4096, SIN_MASK = SIN_N - 1;
+const SIN = new Float32Array(SIN_N + 1);
+for (let i = 0; i <= SIN_N; i++) SIN[i] = Math.sin(TAU * i / SIN_N);
+function fsin(ph) {                     // ph in [0,1)
+  const x = ph * SIN_N, i = x | 0, f = x - i;
+  const a = SIN[i & SIN_MASK], b = SIN[(i + 1) & SIN_MASK];
+  return a + (b - a) * f;
+}
 function mulberry(seed) {
   let a = seed >>> 0;
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -126,7 +157,10 @@ function gaussFrom(rng) { let u = 0, v = 0;
 const P = { K: 0, ktaper: 0, onset: 0, dissolve: 0.63, cascade: 0,
             partials: 12, tilt: 1, stretch: 0,
             cloud: 5, cwidth: 0.25, wtilt: 0, dist: 0, seed: 12,
-            swidth: 0.8, vol: 0.4 };
+            swidth: 0.8, vol: 0.4,
+            // liveliness candidates (all default 0 = the shipped engine)
+            wave: 0, waveRate: 0.15, drift: 0, driftRate: 0.3, rtone: 0,
+            budget: 640 };
 
 // Measured on the shipped core: R sits at the free-run floor until K~0.45 and
 // the whole transition is K 0.65..0.85. "spread" maps the knob onto that band
@@ -160,7 +194,32 @@ class Spectra {
     }
     this.amp = new Float64Array(P.partials);
     for (let k = 0; k < P.partials; k++) this.amp[k] = 1 / Math.pow(k + 1, P.tilt);
-    for (const nt of this.notes) this.sizeNote(nt);
+    // CLOUD THINNING under an oscillator budget. Cost is voices x partials x
+    // cloud; at 48 partials and 7 cloud voices a 6-note chord is 2016 running
+    // oscillators. Rather than cap partials (which is the brightness lever we
+    // actually want to raise), thin the CLOUD on the highest partials first —
+    // they carry least perceptual weight, and a top partial with fewer beating
+    // voices is far less audible than a missing top partial.
+    const budget = Math.max(64, P.budget), voices = Math.max(1, this.notes.length);
+    this.cn = new Int32Array(P.partials);
+    for (let k = 0; k < P.partials; k++) this.cn[k] = M;
+    let total = P.partials * M * voices;
+    for (let k = P.partials - 1; k >= 0 && total > budget; k--) {
+      while (this.cn[k] > 1 && total > budget) { this.cn[k]--; total -= voices; }
+    }
+    this.oscCount = 0;
+    for (let k = 0; k < P.partials; k++) this.oscCount += this.cn[k];
+    // pan is CONSTANT per (partial, cloud voice) — precompute it out of the
+    // per-sample loop, where it was costing two trig calls per oscillator.
+    this.panL = new Float64Array(P.partials * M);
+    this.panR = new Float64Array(P.partials * M);
+    for (let k = 0; k < P.partials; k++)
+      for (let m = 0; m < M; m++) {
+        const pan = Math.max(-1, Math.min(1, this.x[m] * ((k & 1) ? -1 : 1))) * P.swidth;
+        const th = (pan + 1) * 0.25 * Math.PI;
+        this.panL[k * M + m] = Math.cos(th);
+        this.panR[k * M + m] = Math.sin(th);
+      }
   }
   sizeNote(nt) {
     const N = P.partials * P.cloud;
@@ -181,6 +240,7 @@ class Spectra {
       this.sizeNote(nt); this.notes.push(nt); if (this.notes.length > 6) this.notes.shift(); }
     nt.gate = 1; nt.t = 0;
     nt.Kenv = 8 * P.onset * P.onset;          // spectra_core: Kenv = 8*onset^2
+    this.rebuild();      // re-split the oscillator budget across the new voice count
     return nt;
   }
   noteOff(midi) { this.held = this.held.filter(m => m !== midi);
@@ -210,9 +270,29 @@ class Spectra {
       // cascade: partials engage in sequence rather than together — the thing a
       // detuned saw bank structurally cannot do.
       const delay = P.cascade * (k / Math.max(1, Pn - 1)) * 2.5;
-      nt.gateK = 1;
-      const g = nt.t < delay ? 0 : 1;
+      let g = nt.t < delay ? 0 : 1;
+      // LOCK WAVE — cascade's mechanism made CYCLIC. Cascade was measured as
+      // the engine's strongest and most distinctive control, and its only limit
+      // is that it fires once and is over. A travelling band of coupling that
+      // sweeps up and down the partial series turns that one gesture into a
+      // continuous animator, and it is the thing no detuned saw bank can
+      // imitate: WHICH partials are locked keeps changing.
+      if (P.wave > 0) {
+        const pos = (nt.t * P.waveRate) % 2;
+        const centre = (pos < 1 ? pos : 2 - pos) * (Pn - 1);   // ping-pong
+        const d = Math.abs(k - centre) / Math.max(1, Pn * 0.25);
+        g *= (1 - P.wave) + P.wave * Math.exp(-d * d);
+      }
       const syncT = (Math.max(0, km) + nt.Kenv) * g;
+      // PER-PARTIAL DRIFT. SPECTRA has none at all — SAW has driftDepth/Rate and
+      // that slow wander is most of why SAW feels alive. Each partial gets its
+      // own slow rate so the cloud centres never sit still.
+      if (P.drift > 0) {
+        const ph = nt.t * P.driftRate * (0.6 + 0.5 * ((k * 7919) % 13) / 13) + k * 0.37;
+        const cents = Math.sin(TAU * ph) * P.drift * 12;
+        const mul = Math.pow(2, cents / 1200);
+        for (let m = 0; m < M; m++) nt.vf[k * M + m] *= mul;
+      }
       for (let m = 0; m < M; m++) {
         const i = k * M + m;
         const c = syncT * nt.R[k] * Math.sin(nt.psi[k] - nt.phase[i] * TAU);
@@ -232,15 +312,20 @@ class Spectra {
         nt.env += ((nt.gate ? 1 : 0) - nt.env) * (nt.gate ? atk : rel);
         let l = 0, r = 0;
         for (let k = 0; k < Pn; k++) {
-          const a = this.amp[k];
+          let a = this.amp[k];
           if (a < 1e-4) continue;
-          for (let m = 0; m < M; m++) {
+          // R -> TONE: let the coupling be audible in the TIMBRE, not only in
+          // the beating. Positive lifts a partial as its cloud locks, negative
+          // ducks it — either way the physics becomes something you hear rather
+          // than something you read off the raster.
+          if (P.rtone !== 0) a *= 1 + P.rtone * (nt.R[k] - 0.5) * 1.6;
+          if (a < 1e-4) continue;
+          const cn = this.cn[k];
+          for (let m = 0; m < cn; m++) {
             const i = k * M + m;
             let ph = nt.phase[i] + nt.vf[i] / sr; ph -= Math.floor(ph); nt.phase[i] = ph;
-            const v = Math.sin(ph * TAU) * a;
-            const pan = Math.max(-1, Math.min(1, this.x[m] * ((k & 1) ? -1 : 1))) * P.swidth;
-            const th = (pan + 1) * 0.25 * Math.PI;
-            l += v * Math.cos(th); r += v * Math.sin(th);
+            const v = fsin(ph) * a;
+            l += v * this.panL[i]; r += v * this.panR[i];
           }
         }
         const g = nt.env * P.vol / Math.pow(Pn * M, 0.5) * 2.2;
@@ -264,7 +349,7 @@ const RAS_W = rasC.width;
 let rasCol = 0;
 const pressed = new Map();
 
-let spn = null;
+let spn = null, cpuAvg = 0;
 function ensureAudio() {
   if (ctx.state === 'suspended') ctx.resume();
   if (spn) return;
@@ -272,7 +357,11 @@ function ensureAudio() {
   const L = new Float32Array(1024), R = new Float32Array(1024);
   spn.onaudioprocess = e => {
     const oL = e.outputBuffer.getChannelData(0), oR = e.outputBuffer.getChannelData(1);
+    const t0 = performance.now();
     eng.render(L, R, 1024);
+    // render load = how much of the block's real-time budget the render used
+    const load = (performance.now() - t0) / (1024 / ctx.sampleRate * 1000);
+    cpuAvg += (load - cpuAvg) * 0.05;
     for (let i = 0; i < 1024; i++) { oL[i] = L[i]; oR[i] = R[i]; }
   };
   spn.connect(ctx.destination);
@@ -295,6 +384,12 @@ wire('wtilt', v => P.wtilt = v);
 wire('seed', v => { P.seed = v | 0; eng.rebuild(); }, v => '' + v);
 wire('swidth', v => P.swidth = v);
 wire('vol', v => P.vol = v);
+wire('wave', v => P.wave = v, v => v === 0 ? 'off' : (v * 100).toFixed(0) + ' %');
+wire('waveRate', v => P.waveRate = v, v => (1 / v).toFixed(1) + ' s/sweep');
+wire('drift', v => P.drift = v, v => v === 0 ? 'off' : (v * 12).toFixed(1) + ' ¢');
+wire('driftRate', v => P.driftRate = v, v => v.toFixed(2) + ' Hz');
+wire('rtone', v => P.rtone = v, v => v === 0 ? 'off' : (v > 0 ? 'lift ' : 'duck ') + Math.abs(v).toFixed(2));
+wire('budget', v => { P.budget = v | 0; eng.rebuild(); }, v => (v | 0) + ' osc');
 sel('ktaper', v => { P.ktaper = v; $('K').dispatchEvent(new Event('input')); });
 sel('dist', v => { P.dist = v; eng.rebuild(); });
 
@@ -369,7 +464,16 @@ function drawSpec() {
   $('m_cen').innerHTML = '<span class="' + (cen < 1200 ? 'bad' : 'good') + '">' + cen.toFixed(0) + ' Hz</span>';
   $('m_top').textContent = (top / 1000).toFixed(1) + ' kHz';
 }
-setInterval(() => { drawRaster(); drawSpec(); }, 40);
+setInterval(() => {
+  drawRaster(); drawSpec();
+  const live = eng.notes.filter(n => n.gate || n.env >= 1e-4).length;
+  const want = P.partials * P.cloud * Math.max(1, live);
+  const got = (eng.oscCount || 0) * Math.max(1, live);
+  $('m_osc').innerHTML = got + (got < want ? ' <span class="bad">(thinned from ' + want + ')</span>' : '');
+  const pct = cpuAvg * 100;
+  $('m_cpu').innerHTML = '<span class="' + (pct > 70 ? 'bad' : pct > 40 ? '' : 'good') + '">'
+    + pct.toFixed(0) + ' %</span>';
+}, 120);
 </script>
 <script>
 (() => {
