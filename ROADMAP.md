@@ -1271,7 +1271,36 @@ parity after):
    and the audio had two copies of the scoring law; they are now one `pickCorner()` (the
    L0011 trap — a map that can disagree with the sound). Discoverability fixed alongside:
    an explicit territory selector + live grid-share readout, since the only way in was
-   clicking a rack chip. **Also added same day (human):
+   clicking a rack chip. **RESHUFFLE POLICY + CLEAR-ALL (human, 2026-08-05):** "Reset this parameter" does
+   return a parameter to the pure lottery and re-eligibility (verified), and there is now
+   a **Clear all authorship** button plus a policy toggle deciding whether reshuffle
+   **Keeps authorship** (default — re-rolls only the lottery underneath) or **Re-rolls
+   everything** (wipes bias and pins first). An authored-count readout sits beside it,
+   because authorship is otherwise invisible state and easy to forget three patches later.
+
+   **INTELLIGENT RANDOMNESS — human design note, 2026-08-05, NOT YET BUILT.** *"Most users
+   are just going to want to run with the random settings (or, possibly, an intelligent
+   randomness that we predetermine for at least a subset of parameters based on which
+   features depend on which others to be musical)."* This is the right long-term default
+   and it is a genuine design problem, so it is recorded rather than improvised.
+   **What already exists:** `module coupling` is a coarse first version — parameters in
+   the same module share a Gumbel draw, so they tend to flip together. **What it misses,**
+   from the actual 22-parameter list:
+   - **Guard dependencies** — `lfoRate` / `lfoDepth` are meaningless when `lfoDest` is
+     `off`; flipping them changes nothing audible, so a flip "spends" randomness that the
+     listener never hears. Ties them to the guard is logic, not taste.
+   - **Joint-musicality pairs** — `cutoff`+`res` (high resonance at a low cutoff is a
+     scream), `atk`+`dec`, `dlyTime`+`dlyFb`+`dlyMix` (long time × high feedback × high
+     mix = wash). Independent flips can land on combinations no corner authored.
+   - **Anti-degenerate constraints** — `levA`+`levB` both landing on low-level corners is
+     near-silence; both on high is a level jump. Neither is a state any corner contains.
+   **Proposed shape:** declare dependency GROUPS (guard / joint / anti-degenerate) that
+   share a draw or constrain each other, sitting under the existing coupling knob as a
+   smarter default rather than replacing authorship. **Needs a human ruling on the
+   groupings themselves** — which pairs are genuinely coupled is a taste judgement about
+   this instrument, and the agent should not invent it.
+
+   **Also added same day (human):
    CAPTURE — arm a corner and overwrite it with the current resolved settings, so a
    mixture found by ear on the pad becomes a corner you can morph back to.** Continuous
    params capture their blended value; discrete params capture the owning corner's value.
