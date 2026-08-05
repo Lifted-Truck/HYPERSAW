@@ -100,6 +100,41 @@ magnitude spectra average away). The correct instrument was the **order paramete
 which the engine already computes. For a coupling engine, measure coupling. *L0017 for the
 fourth and fifth time.*
 
+### Liveliness increment + the CPU blocker (human, 2026-08-04)
+
+Human: *"What can we do to make spectra more lively and interesting? Also any polyphony
+with high partials is overloading the lab."*
+
+**The overload was mine, and it was 234 % of real time.** The render loop made THREE trig
+calls per oscillator per sample — and two of them computed a CONSTANT (pan depends only on
+`x[m]`, partial parity and width, none of which change per sample). Measured on the inner
+loop at 2016 oscillators: **2336 ms to render 1 s of audio = 234 % real-time**, i.e. it
+could not keep up at all. Precomputing pan and replacing `Math.sin` with a 4096-point
+interpolated table (max error 3e-7): **435 ms = 43 %, a 5.4× speedup.**
+
+**Then an oscillator budget that thins the CLOUD on the highest partials first**, rather
+than dropping partials — partial count is the brightness lever we want free to raise, and a
+top partial with fewer beating voices is far less audible than a missing one. Worst case
+(6 voices × 48 partials × 7 cloud) goes 2016 → 636 oscillators, **76 % → 36 %** measured in
+the real engine. Cost is displayed, not hidden: the panel shows the live oscillator count
+and flags when the budget is biting.
+
+**Why the engine feels static, in one measurement.** With sustained K, mean R climbs to
+0.96 in the first second and then **sits at 0.96 forever**. Nothing changes after the
+attack. That is the whole complaint, and it points at the fix: the engine's distinctive
+mechanism (cascade) already reorders the spectrum, but it fires once and is over.
+
+**Three candidates added, all default off, all measured:**
+- **Lock wave** — cascade made CYCLIC. A travelling band of coupling ping-pongs along the
+  partial series, so WHICH partials are locked keeps changing. Measured: R-spread across
+  partials oscillates 0.57 → 0.94 → 0.83 continuously, against the static case's flat 0.96.
+  **This is the headline candidate** — it is the one mechanism a detuned saw bank
+  structurally cannot imitate, turned from a one-shot into an animator.
+- **Per-partial drift** — SPECTRA has none at all; SAW's driftDepth/driftRate is most of
+  why SAW feels alive. Each partial gets its own slow rate. Measured −8.4 ¢ of movement.
+- **R → tone** — coupling made audible in TIMBRE rather than only in beating; a partial
+  lifts or ducks as its cloud locks. Measured peak 0.496 → 0.737 (lift) / 0.366 (duck).
+
 **Open (human):** brightness direction (raise partial count / re-tilt, vs commit to dark);
 whether cloud spacing becomes a real parameter; whether cascade/dissolve get promoted in
 the GUI; whether the K taper folds.
