@@ -29,6 +29,9 @@
   table.mtx td { padding:1px; }
   table.mtx input { width:44px; background:#0d1016; color:var(--text); border:1px solid var(--line); font:inherit; font-size:10px; text-align:center; padding:2px 1px; }
   table.mtx input.hot { border-color:var(--amber); color:var(--amber); }
+  .scopechip { font-size:8px; text-align:center; border:1px solid; border-radius:2px;
+               margin-top:1px; cursor:pointer; padding:0 1px; letter-spacing:.02em; user-select:none; }
+  .scopechip:hover { filter:brightness(1.4); }
   .hint { color:var(--dim); font-size:10.5px; margin-top:6px; max-width:280px; }
   .ab { display:flex; gap:6px; margin-top:6px; }
   kbd { background:#0d1016; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
@@ -543,9 +546,29 @@ class KuroPhaser {
 // 0..7 = K1..K8 · 8 = R · 9 = LFO A · 10 = LFO B · 11 = ENV. Fixed because a
 // route must survive changing the voice count — reindexing would silently
 // re-point every existing route when you add a voice.
+/* ===== MORPH LAYER (2026-08-05) =====
+   The mod matrix and the quantum morph were designed on paper to compose —
+   "modulate where you stand in the morph field" — and had never met in code.
+   This adds the morph as BOTH a destination (you can modulate the field
+   position) and an owner (a routing can belong to a corner and be morphed).
+   The corner vocabulary is copied verbatim from the morph lab because it is
+   now a GLOBAL convention (human ruling 2026-08-05): same four hues, same
+   glyphs, meaning the same thing on every surface. */
+const CORNERS = [
+  { id:'A', name:'GLASS',  color:'#f2b134', glyph:'\u25c6' },
+  { id:'B', name:'GRIT',   color:'#ff4d6d', glyph:'\u25b2' },
+  { id:'C', name:'HOLLOW', color:'#4cc9f0', glyph:'\u25cf' },
+  { id:'D', name:'BLOOM',  color:'#7ae582', glyph:'\u25a0' },
+];
+const NEUTRAL = '#8b93a6';        // system-wide scope: belongs to no corner
 const SOURCES = ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8', 'R', 'LFOA', 'LFOB', 'ENV'];
 const SRC_R = 8, SRC_LFOA = 9, SRC_LFOB = 10, SRC_ENV = 11;
-const DESTS = ['K', 'Kboost', 'detune', 'cutoff', 'level', 'choDep', 'phDep'];
+// morphX/morphY are the composition the ROADMAP specced and nothing implemented:
+// the field POSITION as a modulation destination. Everything downstream of the
+// morph therefore moves with them — including discrete flips, which is where
+// the chatter problem lives.
+const DESTS = ['K', 'Kboost', 'detune', 'cutoff', 'level', 'choDep', 'phDep', 'morphX', 'morphY'];
+const D_MORPHX = 7, D_MORPHY = 8;
 class ModLab {
   constructor(sr) {
     this.sr = sr;
@@ -567,6 +590,18 @@ class ModLab {
     this.phaser = new KuroPhaser(sr);
     // depth[src][dst] in -1..1
     this.depth = SOURCES.map(() => DESTS.map(() => 0));
+    // SCOPE per routing (human ruling 2026-08-05):
+    //   -1 system-wide — survives every flip and reshuffle, neutral colour
+    //   0..3 corner-owned — blends with that corner's field weight, wears its hue
+    //   -2 morph-owned — FLIPS: live only while its drawn owner holds the slot
+    this.scope = SOURCES.map(() => DESTS.map(() => -1));
+    this.owner = SOURCES.map(() => DESTS.map(() => 0));
+    this.mxBase = 0.5; this.myBase = 0.5; this.mx = 0.5; this.my = 0.5;
+    this.temp = 1;
+    this.hyst = 0.12;          // flip deadband — the control that was missing
+    this.flipCount = 0; this.flipRate = 0;
+    this.rsSeed = 7;
+    this.reshuffleMorph();
     this.mods = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0, ph: 0 };
     this.tick = 0;
     this.srcVal = new Float64Array(SOURCES.length);
@@ -580,8 +615,56 @@ class ModLab {
     for (const s of this.synth.sw) if (s.midi === midi && s.gate) s.modEnv.noteOff();
     this.synth.noteOff(midi); this.env.noteOff();
   }
+  reshuffleMorph() {
+    let a = this.rsSeed >>> 0;
+    const rnd = () => { a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const gum = () => -Math.log(-Math.log(Math.min(1 - 1e-9, Math.max(1e-9, rnd()))));
+    this.gum = SOURCES.map(() => DESTS.map(() => [gum(), gum(), gum(), gum()]));
+  }
+  // Which corner owns each morph-owned routing at the current field position.
+  // HYSTERESIS is the answer to flip chatter: a challenger must beat the
+  // incumbent by a MARGIN, so sweeping a modulator across a boundary no longer
+  // stutters on every hair-width crossing.
+  morphTick(dt) {
+    const x = Math.max(0, Math.min(1, this.mx)), y = Math.max(0, Math.min(1, this.my));
+    const w = [(1 - x) * (1 - y), x * (1 - y), (1 - x) * y, x * y];
+    const T = Math.max(0.02, this.temp);
+    const lw = w.map(v => v > 1e-9 ? Math.log(v) / T : -1e12);
+    let flips = 0;
+    for (let si = 0; si < SOURCES.length; si++)
+      for (let di = 0; di < DESTS.length; di++) {
+        if (this.scope[si][di] !== -2) continue;      // -2 = morph-owned
+        const g = this.gum[si][di], cur = this.owner[si][di];
+        let best = -Infinity, bi = cur;
+        for (let k = 0; k < 4; k++) {
+          const sc = lw[k] + g[k] + (k === cur ? this.hyst : 0);
+          if (sc > best) { best = sc; bi = k; }
+        }
+        if (bi !== cur) { this.owner[si][di] = bi; flips++; }
+      }
+    this.flipCount += flips;
+    this.flipRate += (flips / Math.max(1e-6, dt) - this.flipRate) * Math.min(1, dt * 4);
+  }
+  // Effective gain of a routing under the morph, per the (g) ruling: where the
+  // topology agrees the DEPTH blends; where it differs the routing FLIPS.
+  //  -1 system-wide  -> always live, survives flips and reshuffle
+  //   0..3 corner    -> blends with that corner's field weight
+  //  -2 morph-owned  -> flips: live only while its drawn owner holds the slot
+  routeGain(si, di) {
+    const sc = this.scope[si][di];
+    if (sc === -1) return 1;
+    const x = Math.max(0, Math.min(1, this.mx)), y = Math.max(0, Math.min(1, this.my));
+    const w = [(1 - x) * (1 - y), x * (1 - y), (1 - x) * y, x * y];
+    if (sc === -2) return w[this.owner[si][di]] > 0 ? 1 : 1;   // owner gates elsewhere
+    return w[sc];
+  }
+
   controlTick() {
     const dt = TICK / this.sr;
+    this.morphTick(dt);
     // (rotor ticks itself inside advance(), matching the prototype structure;
     // srcVal reads its latest published lfo/R)
     const a = this.lfoA.tick(dt), b = this.lfoB.tick(dt), e = this.env.tick(dt);
@@ -603,7 +686,7 @@ class ModLab {
     // FINDING, not a lab quirk: retiring onset lock via the matrix requires
     // the bus to reach the coupling target, not the clamped K knob.
     const SCALE = { K: 1.0, Kboost: 1.0, detune: 0.5, cutoff: 1.0, level: 0.6, choDep: 1.0, phDep: 1.0 };
-    const out = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0, ph: 0 };
+    const out = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0, ph: 0, mx: 0, my: 0 };
     for (let si = 0; si < SOURCES.length; si++) {
       const d = this.depth[si];
       // finding #2: with per-note ON, the ENV source's Kboost route is
@@ -612,15 +695,31 @@ class ModLab {
       // each new key. ENV's other routes stay global (cutoff/level are
       // per-block quantities in this mini-synth; scope recorded).
       const perNoteDiverted = (si === SRC_ENV && this.envPerNote);
-      if (d[0]) out.k += d[0] * s[si] * SCALE.K;
-      if (d[1] && !perNoteDiverted) out.kb += d[1] * s[si] * SCALE.Kboost;
-      if (d[2]) out.det += d[2] * s[si] * SCALE.detune;
-      if (d[3]) out.cut += d[3] * s[si] * SCALE.cutoff;
-      if (d[4]) out.amp += d[4] * s[si] * SCALE.level;
-      if (d[5]) out.cho += d[5] * s[si] * SCALE.choDep;
-      if (d[6]) out.ph += d[6] * s[si] * SCALE.phDep;
+      // g folds SCOPE into every routing: system-wide routings are unaffected
+      // by the morph, corner-owned ones fade with their corner's weight, and
+      // morph-owned ones are gated by whichever corner currently holds them.
+      const g = this.routeGain(si, 0);
+      const gd = di => { const sc = this.scope[si][di];
+        if (sc === -1) return 1;
+        const x = Math.max(0, Math.min(1, this.mx)), y = Math.max(0, Math.min(1, this.my));
+        const w = [(1 - x) * (1 - y), x * (1 - y), (1 - x) * y, x * y];
+        return sc === -2 ? (this.owner[si][di] === 0 ? 1 : 0) : w[sc]; };
+      if (d[0]) out.k += d[0] * s[si] * SCALE.K * gd(0);
+      if (d[1] && !perNoteDiverted) out.kb += d[1] * s[si] * SCALE.Kboost * gd(1);
+      if (d[2]) out.det += d[2] * s[si] * SCALE.detune * gd(2);
+      if (d[3]) out.cut += d[3] * s[si] * SCALE.cutoff * gd(3);
+      if (d[4]) out.amp += d[4] * s[si] * SCALE.level * gd(4);
+      if (d[5]) out.cho += d[5] * s[si] * SCALE.choDep * gd(5);
+      if (d[6]) out.ph += d[6] * s[si] * SCALE.phDep * gd(6);
+      // THE COMPOSITION: modulating where you stand in the morph field.
+      if (d[D_MORPHX]) out.mx += d[D_MORPHX] * s[si] * gd(D_MORPHX) * 0.5;
+      if (d[D_MORPHY]) out.my += d[D_MORPHY] * s[si] * gd(D_MORPHY) * 0.5;
     }
     this.synth.perNoteKb = this.envPerNote ? this.depth[SRC_ENV][1] * SCALE.Kboost : 0;
+    // feed the modulated field position back — this is the loop that makes
+    // flip chatter possible at all, and it is the point of the experiment
+    this.mx = this.mxBase + out.mx;
+    this.my = this.myBase + out.my;
     this.mods = out;
   }
   render(outL, outR) {
@@ -702,7 +801,17 @@ class ModLab {
   </div>
 
   <div class="cluster">
-    <h2>Matrix — depth −1..+1</h2>
+    <h2>Morph field <span style="color:var(--dim);font-weight:normal;font-size:10px">— the composition that had never been built</span></h2>
+    <canvas id="mfield" width="190" height="190" style="cursor:crosshair"></canvas>
+    <div class="row"><label>temperature</label><input type="range" id="mTemp" min="0.05" max="3" step="0.01" value="1"><output id="mTemp_o"></output></div>
+    <div class="row"><label>hysteresis</label><input type="range" id="mHyst" min="0" max="1" step="0.01" value="0.12"><output id="mHyst_o"></output></div>
+    <div class="row"><button id="mReshuffle">reshuffle morph</button></div>
+    <div class="meter">flips/s: <b id="m_flip">0</b> <span id="m_chat"></span></div>
+    <div class="hint">Drag the field, or route a source to <b>morphX / morphY</b> in the matrix and let a modulator drive it. <b>This is the collision made audible:</b> a morph-owned routing flips the instant the field crosses a boundary, so an LFO on morphX crossing one repeatedly produces a stutter — watch flips/s climb. <b>Hysteresis</b> is the fix that was missing: a challenger must beat the incumbent by a margin, so a hair-width crossing no longer flips. At 0 you get the raw chatter; the flip counter is the evidence either way.</div>
+  </div>
+
+  <div class="cluster">
+    <h2>Matrix — depth −1..+1 <span style="color:var(--dim);font-weight:normal;font-size:10px">· click a cell's scope chip to change ownership</span></h2>
     <table class="mtx" id="mtx"></table>
     <div class="hint">Rows = sources (K1–K4 the rotor voices, R its coherence, then classic). Cols = mini-swarm destinations. Type or drag values.</div>
     <h2 style="margin-top:10px">Consolidation A/B (onset lock vs env→K)</h2>
@@ -777,6 +886,14 @@ const SRC_COL = ['#5ff2e0', '#ffc24b', '#b48cff', '#5fd08a',   // K1..K4
                  '#ff6b8a', '#6ba8ff', '#ff9f5f'];              // LFO A, LFO B, ENV
 const ctx = new (window.AudioContext || window.webkitAudioContext)();
 const lab = new ModLab(ctx.sampleRate);
+// HOISTED (2026-08-05). wire('rN', ...) invokes its callback during setup and
+// that callback calls rebuildMatrixRows(), which touches `mtx` — declared far
+// below as a const. The whole script therefore died in the temporal dead zone
+// and THE MATRIX NEVER RENDERED. Pre-existing, silent, and invisible because
+// the rest of the page looks fine. Fourth instance of this exact trap in this
+// project (L0026): setup-time callbacks reach forward, so anything they touch
+// is declared before them.
+const mtx = $('mtx');
 let spn = null;
 function ensureAudio() {
   if (spn) return;
@@ -848,15 +965,85 @@ $('aDot').style.background = SRC_COL[5]; $('aNm').style.color = SRC_COL[5];
 $('bDot').style.background = SRC_COL[6]; $('bNm').style.color = SRC_COL[6];
 $('eDot').style.background = SRC_COL[7]; $('eNm').style.color = SRC_COL[7];
 
+rebuildMatrixRows();   // the setup-time call ran against an empty table
+
+/* morph field: drag to move, and it is also a modulation DESTINATION, so the
+   dot moves on its own once something is routed to morphX/morphY */
+const mf = $('mfield'), mfx = mf.getContext('2d');
+{
+  let drag = false;
+  const put = e => { const r = mf.getBoundingClientRect();
+    lab.mxBase = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    lab.myBase = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)); };
+  mf.addEventListener('pointerdown', e => { drag = true; try{mf.setPointerCapture(e.pointerId);}catch(_){} put(e); });
+  mf.addEventListener('pointermove', e => { if (drag) put(e); });
+  mf.addEventListener('pointerup', e => { drag = false; try{mf.releasePointerCapture(e.pointerId);}catch(_){} });
+}
+wire('mTemp', v => lab.temp = v);
+wire('mHyst', v => lab.hyst = v, v => v === 0 ? 'off (raw chatter)' : v.toFixed(2));
+$('mReshuffle').addEventListener('click', () => { lab.rsSeed = (Math.random() * 1e5) | 0; lab.reshuffleMorph(); });
+function drawMorphField() {
+  const W = mf.width, H = mf.height;
+  mfx.clearRect(0, 0, W, H);
+  mfx.fillStyle = '#0d1016'; mfx.fillRect(0, 0, W, H);
+  const pos = [[0, 0], [W, 0], [0, H], [W, H]];
+  CORNERS.forEach((c, k) => {
+    const g = mfx.createRadialGradient(pos[k][0], pos[k][1], 0, pos[k][0], pos[k][1], W * 0.66);
+    g.addColorStop(0, c.color + '3a'); g.addColorStop(1, c.color + '00');
+    mfx.fillStyle = g; mfx.fillRect(0, 0, W, H);
+    mfx.fillStyle = c.color; mfx.font = '9px ui-monospace,monospace';
+    mfx.textAlign = k % 2 ? 'right' : 'left';
+    mfx.fillText(c.id + ' ' + c.glyph, k % 2 ? W - 4 : 4, k < 2 ? 11 : H - 4);
+  });
+  mfx.strokeStyle = '#2a3140'; mfx.beginPath();
+  mfx.moveTo(W / 2, 0); mfx.lineTo(W / 2, H); mfx.moveTo(0, H / 2); mfx.lineTo(W, H / 2); mfx.stroke();
+  // base position (where you put it) vs live position (after modulation)
+  const bx = lab.mxBase * W, by = lab.myBase * H;
+  const lx = Math.max(0, Math.min(1, lab.mx)) * W, ly = Math.max(0, Math.min(1, lab.my)) * H;
+  mfx.strokeStyle = 'rgba(255,255,255,.28)';
+  mfx.beginPath(); mfx.arc(bx, by, 5, 0, 7); mfx.stroke();
+  mfx.strokeStyle = '#5ff2e0'; mfx.beginPath(); mfx.moveTo(bx, by); mfx.lineTo(lx, ly); mfx.stroke();
+  mfx.fillStyle = '#5ff2e0'; mfx.beginPath(); mfx.arc(lx, ly, 4, 0, 7); mfx.fill();
+  const fr = lab.flipRate;
+  $('m_flip').textContent = fr < 0.05 ? '0' : fr.toFixed(1);
+  const el = $('m_chat');
+  el.textContent = fr > 8 ? '\u2014 chattering' : fr > 1.5 ? '\u2014 flipping' : '';
+  el.style.color = fr > 8 ? '#ff5a5a' : fr > 1.5 ? '#ffc24b' : 'var(--dim)';
+}
+
 /* matrix grid */
-const mtx = $('mtx');
 {
   let html = '<tr><th></th>' + DESTS.map(d => `<th>${d}</th>`).join('') + '</tr>';
   SOURCES.forEach((s, si) => {
     html += `<tr data-src="${si}"><th class="src" style="color:${SRC_COL[si]}"><span class="dot" style="background:${SRC_COL[si]}"></span>${s}</th>` + DESTS.map((d, di) =>
-      `<td><input data-s="${si}" data-d="${di}" value="0"></td>`).join('') + '</tr>';
+      `<td><input data-s="${si}" data-d="${di}" value="0"><div class="scopechip" data-s="${si}" data-d="${di}" title="scope: click to cycle system-wide -> A/B/C/D -> morph-owned">sys</div></td>`).join('') + '</tr>';
   });
   mtx.innerHTML = html;
+  // SCOPE chips. Colour IS the legibility mechanism (human ruling): a
+  // corner-owned routing wears its corner's hue and glyph and moves with the
+  // morph; a system-wide routing is neutral and survives every flip.
+  const scopeLabel = v => v === -1 ? 'sys'
+    : v === -2 ? '\u25c8 morph'
+    : CORNERS[v].glyph + ' ' + CORNERS[v].id;
+  const scopeColour = v => v === -1 ? NEUTRAL : v === -2 ? '#cdd6e4' : CORNERS[v].color;
+  const paintScope = el => {
+    const v = lab.scope[+el.dataset.s][+el.dataset.d];
+    el.textContent = scopeLabel(v);
+    el.style.color = scopeColour(v);
+    el.style.borderColor = scopeColour(v);
+    el.style.opacity = v === -1 ? 0.5 : 1;
+  };
+  mtx.querySelectorAll('.scopechip').forEach(el => {
+    paintScope(el);
+    el.addEventListener('click', () => {
+      const si = +el.dataset.s, di = +el.dataset.d;
+      // cycle: system-wide -> A -> B -> C -> D -> morph-owned -> system-wide
+      const order = [-1, 0, 1, 2, 3, -2];
+      const cur = order.indexOf(lab.scope[si][di]);
+      lab.scope[si][di] = order[(cur + 1) % order.length];
+      paintScope(el);
+    });
+  });
   const commit = inp => {
     const v = Math.max(-1, Math.min(1, parseFloat(inp.value) || 0));
     inp.value = v ? v.toFixed(2) : '0';
@@ -1016,6 +1203,7 @@ function drawEnv(cx, w, h, p, v, colour) {
 const scopeHist = Array.from({length: SOURCES.length}, () => []);
 const kHist = [];
 function draw() {
+  drawMorphField();
   requestAnimationFrame(draw);
   /* rotor circle */
   rv.fillStyle = '#0b0e13'; rv.fillRect(0, 0, 230, 150);

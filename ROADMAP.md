@@ -8,6 +8,40 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## MOD LAB REOPENED — morph×mod built, and the matrix was dead (2026-08-05)
+
+**Found first: the mod lab's matrix had not been rendering at all.** `wire('rN', …)`
+invokes its callback during setup and that callback calls `rebuildMatrixRows()`, which
+touches `mtx` — declared ~3700 characters further down as a `const`. The script died in
+the temporal dead zone every load, so the entire matrix, the A/B buttons and everything
+after them never existed. **Pre-existing** (the call precedes the declaration in the
+original file too) and invisible, because the rest of the page renders fine. **Fourth
+instance of L0026 in this project**, which is the evidence for that lesson's falsifier:
+the fix is tooling (`no-use-before-define`), not care — knowing about the trap has now
+failed to prevent it four times. Fixed by hoisting the handle above the wiring; matrix
+now builds 13 rows × 108 cells.
+
+**Morph × mod now exists in code.** It was specced ("modulate where you stand in the
+morph field") and never built; `mod-lab.html` had zero morph references.
+- **morphX / morphY are destinations** — route any source at the field position and the
+  morph moves under modulation. The field draws both the base position and the live
+  modulated one, joined by a line.
+- **Every routing has a SCOPE**, per the human's ruling, cycled from a chip under each
+  matrix cell and coloured by the global corner vocabulary: *system-wide* (neutral,
+  survives every flip and reshuffle), *corner-owned* A/B/C/D (wears that corner's hue and
+  glyph, and its depth blends with the corner's field weight — measured 1.00 at its own
+  corner, 0.00 at the opposite one), or *morph-owned* (flips: live only while its drawn
+  owner holds the slot).
+- **Hysteresis added** — the missing third control against flip chatter. Measured over a
+  2 s, 3 Hz sweep across the field's middle: **604 flips at hysteresis 0 → 437 at 0.12 →
+  189 at 0.5**. A flips/second readout labels the regime (*flipping* / *chattering*) so
+  the artifact is visible while you audition whether you want it.
+
+**Still open in the lab** (the questions the human flagged): whether scope is per-routing
+or per-source; what a corner-owned routing does when its corner owns nothing; and the
+priority rule when a corner-owned and a system-wide routing hit the same destination
+(currently they simply sum).
+
 ## STANDING CONVENTION — corner colour is global, and it means ONE thing (human, 2026-08-05)
 
 Human: *"I want to make sure the color mapping (corners to parameters) stays consistent
