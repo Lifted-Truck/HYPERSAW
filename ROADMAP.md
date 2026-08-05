@@ -1255,7 +1255,23 @@ parity after):
    destination, or a routing that exists in one corner and not the other), the routing
    FLIPS through the same quantum machinery as the discrete params. Convergent with the
    agent's proposal — arrived at independently, which is the strongest ratification the
-   process produces. Design can now proceed at fold time. **Also added same day (human):
+   process produces. Design can now proceed at fold time. **TERRITORY AUTHORSHIP (human, 2026-08-05): "I can't actually seem to edit the
+   territory for each setting, which would be a useful level of granularity for making
+   sure the whole morph produced good sounds."** The flip map was a pure lottery —
+   reshuffle until you like it, with no way to guarantee a parameter never flips
+   somewhere ugly. Two authored terms now enter the SAME score the audio path uses:
+   **corner weight** (per-parameter, per-corner thumb on the ballot — hand a corner more
+   or less of the grid) and **pin** (hard override; one corner owns the field and the
+   parameter never flips). Deliberately part of the score rather than a post-hoc
+   override, so temperature/coupling/reshuffle keep working on top; reshuffle re-rolls
+   the lottery and leaves authorship intact (verified). Measured: cutoff baseline
+   A 60.0 / B 23.3 / C 6.3 / D 10.4 % → corner-C weight +2.5 gives 26.1/18.2/**54.0**/1.7,
+   −2.5 gives 63.7/23.3/**0.1**/12.8; pin B gives 0/**100**/0/0 and the audio path shows
+   corner B for all 200 sampled field positions. **Refactor that made it safe:** the map
+   and the audio had two copies of the scoring law; they are now one `pickCorner()` (the
+   L0011 trap — a map that can disagree with the sound). Discoverability fixed alongside:
+   an explicit territory selector + live grid-share readout, since the only way in was
+   clicking a rack chip. **Also added same day (human):
    CAPTURE — arm a corner and overwrite it with the current resolved settings, so a
    mixture found by ear on the pad becomes a corner you can morph back to.** Continuous
    params capture their blended value; discrete params capture the owning corner's value.
