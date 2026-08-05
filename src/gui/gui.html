@@ -168,14 +168,16 @@
     </div>
     <div class="cluster">
       <h2>The swarm</h2>
-      <!-- SPECTRA hidden from NEW patches (human, 2026-08-05) during the
-           interface renovation: SAW is the broadly functional engine, and the
-           renovation targets multi-oscillator + morph + mods on it. This hides
-           the OPTION only — id 43 still exists, the core still runs, state
-           still round-trips, and the option is restored on load if a saved
-           patch is SPECTRA (see engineOptionGuard below). Nothing is deleted,
-           so this is one line to reverse. -->
-      <div class="row"><label>engine</label><select data-p="43" id="engineSel">
+      <!-- ENGINE SELECTOR REMOVED (human, 2026-08-05) for the SAW-first
+           renovation; it returns when the engine expansion resumes. The
+           control is gone from the surface, NOT from the plugin: param id 43
+           still exists with its range and labels, spectra_core still runs,
+           state round-trips, host automation still reaches it, and
+           spectra_check stays in ./verify full. A patch saved as SPECTRA
+           still loads and plays — engineOptionGuard rebuilds a labelled
+           selector for it rather than stranding the patch behind a control
+           that no longer exists. Restoring the picker is this comment block. -->
+      <div class="row" id="engineRow" style="display:none"><label>engine</label><select data-p="43" id="engineSel">
         <option value="0">SAW</option>
       </select><output></output></div>
       <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1"><output>7</output></div>
@@ -1059,9 +1061,15 @@ function drawNotes(s) {
    engine ever reads back as SPECTRA the option is put back and labelled — the
    patch keeps working and the user can see why the option is there. */
 function engineOptionGuard(v) {
-  const sel = $('#engineSel');
-  if (!sel || v < 0.5) return;
-  if (!sel.querySelector('option[value="1"]')) {
+  const sel = $('#engineSel'), row = $('#engineRow');
+  if (!sel || !row) return;
+  const legacy = v >= 0.5;
+  // The picker is hidden for the SAW-first renovation, but a patch that was
+  // SAVED as SPECTRA must never become unreachable — it would play SPECTRA
+  // with no visible way back. When one loads, the row reappears with the
+  // option and says why.
+  row.style.display = legacy ? '' : 'none';
+  if (legacy && !sel.querySelector('option[value="1"]')) {
     const o = document.createElement('option');
     o.value = '1'; o.textContent = 'SPECTRA (legacy patch)';
     sel.appendChild(o);
