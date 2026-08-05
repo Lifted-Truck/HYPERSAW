@@ -1248,8 +1248,19 @@ parity after):
    Armed per a selector, and the edit flash is the TARGET corner's color — where the edit
    landed is answered by sight; (e) **copy-from shipped**: arm a corner in the legend,
    copy any other corner's preset into it. Remaining: (f) cross-engine blending needs the
-   real engines (deferred to fold time); **(g) mod-matrix collisions — the brief requires
-   capturing the human's ideas BEFORE designing; this is the session, ideas requested.**
+   real engines (deferred to fold time). **(g) RULED (human, 2026-08-05): mod-matrix
+   collisions resolve as "blend depths on agreement, flip on topology changes"** — where
+   two corners share a routing's source and destination, the DEPTH morphs continuously
+   like any continuous param; where the topology itself differs (different source,
+   destination, or a routing that exists in one corner and not the other), the routing
+   FLIPS through the same quantum machinery as the discrete params. Convergent with the
+   agent's proposal — arrived at independently, which is the strongest ratification the
+   process produces. Design can now proceed at fold time. **Also added same day (human):
+   CAPTURE — arm a corner and overwrite it with the current resolved settings, so a
+   mixture found by ear on the pad becomes a corner you can morph back to.** Continuous
+   params capture their blended value; discrete params capture the owning corner's value.
+   Verified: centre-pad mixture cutoff 2017 (corners 6500/700/1400/2600) captured into
+   the armed corner exactly.
    (exists; STAYS gitignored for now — human ruling 2026-07-30,
    revisit once the lab has settled). NEW INTERFACE CONCEPT to prototype there —
    **corner colors**: each morph corner owns a color; every control tinted by the
