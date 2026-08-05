@@ -8,6 +8,44 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## STRATEGIC PIVOT — SAW-first renovation (human, 2026-08-05)
+
+Human: *"I would actually like to remove spectra from the VST for now (at least from the
+UI for new patches) while we renovate the interface with the new pages and the morph and
+the mod matrix and the full suite of FX, etc., and just focus on getting multiple
+oscillators and the morph and the mods right for the SAW engine which is, frankly, the
+most broadly functional engine as it stands."*
+
+**Done today, minimally and reversibly:** the SPECTRA option is hidden from the engine
+selector for NEW patches. Nothing was deleted — param id 43 still exists, `spectra_core`
+still runs, state still round-trips, host automation still reaches it, and
+`spectra_check` stays in `./verify full` (all ten chains green, parity 147/147). A patch
+saved as SPECTRA **puts the option back, labelled "SPECTRA (legacy patch)"**, so old work
+stays loadable and visibly explains itself. Reversing the hide is one line.
+
+**The new order of operations.** Interface renovation first, on SAW only:
+1. **Layout lab** — resume the IA audition; it is the next step (human).
+2. **Multi-oscillator** — the open ADR (B11). The layout lab already stages the question.
+3. **Morph** — feature-complete in its own lab; needs a page and the fold path.
+4. **Mod matrix** — design accepted (ADR-053), right-click access queued (B8), no page yet.
+5. **Full FX suite** — rack exists; reverb/delay slots queued (B2).
+
+**Consequence for the register:** SPECTRA-facing items are now *behind* the renovation.
+B5 (ADR-037 shared voice path) and the SPECTRA parity-audit gaps (MPE per-note bend,
+mono/glide for SPECTRA) are **not cancelled but deprioritised** — they only matter when
+SPECTRA returns to the UI. The SPECTRA lab's findings (K taper, cloud spacing, lock wave)
+stay recorded for that return.
+
+**Intelligent-randomness ruling (human, same message):** *"Some kind of automatic
+conditional rulesets could be applied, but likely these are more cases for hand-tailoring
+the distributions for those parameters."* So the resolution leans **hand-tailored
+per-parameter distributions**, not an automatic constraint solver — which also fits the
+territory-authorship tools already built (corner weight + pin are exactly hand-tailoring).
+The guard case (`lfoDest` off making rate/depth inaudible) may still deserve a mechanical
+rule since it is logic rather than taste; everything else is authored. Human also noted
+the analogous collision they had in mind: *double ring modulators on two different FX
+slots*.
+
 ## OPEN WORK REGISTER (reconciled 2026-08-03)
 
 **Why this exists.** ROADMAP is a narrative record — excellent for *why* a decision was
