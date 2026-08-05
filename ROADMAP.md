@@ -39,6 +39,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B3 | **Modulation lab → golden + matrix** | **deliberately blocked**: rotor axes still moving, a golden measured now would churn (and its ACCEPTANCE rows are protected-path) |
 | B4 | **E1 remainder** — SWARM-FX GUI + L0-17/18 | cores parity-proven, shell incomplete |
 | B5 | **ADR-037 follow-up** — shared voice path behind a switch, for an A/B against the frozen cores | ruling done, follow-up open |
+| B14 | **COOPERATOR** — Kuramoto-FM engine candidate (ratified 2026-08-05: name, BOTH architectures, full force system) | lab BUILT (`docs/design/cooperator-lab.html`); n:m edges queued as increment 2 |
 | B6 | **Lab campaign 3** — SPECTRA expansion · swarm filters · quantum morph | **SPECTRA lab BUILT 2026-08-04** (findings below); **swarm-filters lab BUILT 2026-08-04** (`docs/design/filter-lab.html`, findings below); SPECTRA + quantum morph not yet built |
 | B7 | **Lab-visual fold backlog** — bend step-response · width scope+cliffs · reverb ER/tail · ensemble raster | per the convention below; bend ships with A1 |
 | B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
@@ -57,6 +58,48 @@ below remain the evidence.** Update it in the same change that changes an item's
 - **Prune merged branches** — 91 local branches deleted 2026-08-03 after verifying every
   one was fully contained in `main` (no stashes, no dirty files, no remote-only commits).
   95 remote branches remain on GitHub.
+
+## COOPERATOR — Kuramoto FM, engine candidate (ratified 2026-08-05)
+
+Human ruling on the FM proposal: **both architectures** (CLOUD and NETWORK), **full force
+system from day one**, name **COOPERATOR**. Lab built: `docs/design/cooperator-lab.html`
+(tracked like the campaign labs, not gitignored). Breaks the saw mandate knowingly — an
+ADR-045 (Γ,W) kernel argument plus an explicit mandate line is owed AT FOLD TIME, same
+shape as the swarmalator's path; no SPEC document until the audition says it survives.
+
+**The premise** (from the design discussion): FM is already phase coupling — strong,
+unidirectional, dumb; Kuramoto is weak, mutual, self-correcting. And FM makes the physics
+MORE audible than the saw bank: every cent of ratio error sprays enharmonic sidebands, so
+drift→lock is a dramatic timbral event rather than subtle chorus.
+
+**Measured at birth (all in the lab, in-browser):**
+- **Ratio gravity is the headline and it works**: modulator ratio set to 1.48, gravity on →
+  mean error to the just lattice **23.2 ¢ → 0.0 ¢ in 2 s** — captured to 3/2 exactly, and
+  capture acts on the HOME so drift orbits the captured ratio instead of escaping it.
+- **Cloud lock**: R **0.394 (K=0) → 0.933 (K=0.5) → 0.941 (K=1)** at 12 ¢ spread; the
+  critical transition sits between K 0.25 and 0.5. At 50 ¢ spread lock is PARTIAL
+  (R 0.803) — by design, the coupling ceiling (40 ¢ at K=1) is commensurate with the
+  spread knob so over-spread is an audible regime, not a bug.
+- **Bounded chaos**: 2–3 s of the worst case (all 12 edges at 1.0, edge law full FM,
+  index 8, two notes) stays finite with **zero** watchdog resets — tanh + the clamp hold
+  it without the safety net firing.
+- **Carrier participation in network mode is real and bounded**: Kuramoto edges into op 1
+  bend the note ≤ 33.5 ¢ measured (clamp ±80) — documented in the lab, zero op 1's row to
+  silence it.
+
+**Two of my bugs fixed before shipping, both caught by measuring:** the first coupling
+implementation added its correction to state the next tick overwrote (R flat 0.394→0.395
+across the whole K range — a dead knob), and was ~170× too weak to cancel the detune it
+fights; rewritten as fresh-per-tick frequency offsets with a ceiling expressed in CENTS.
+And the network carrier's `lCur` was never rebuilt, so coupling would have random-walked
+the note's pitch.
+
+**Honest limit, queued as increment 2:** network R is low (0.2–0.3) because 1:1 phase
+pull cannot lock ops at different ratios — true cross-ratio locking needs **n:m edges**
+(sin(n·θj − m·θi), Arnold tongues). Stated in the lab rather than faked.
+
+**Open (human):** which architecture survives (or both); does R→index earn its place;
+n:m edges as increment 2; fold path (engine selector, SAW byte-frozen) if the ear says yes.
 
 ## SPECTRA feature-parity audit (human direction, 2026-08-05)
 
@@ -172,6 +215,16 @@ mechanism (cascade) already reorders the spectrum, but it fires once and is over
   why SAW feels alive. Each partial gets its own slow rate. Measured −8.4 ¢ of movement.
 - **R → tone** — coupling made audible in TIMBRE rather than only in beating; a partial
   lifts or ducks as its cloud locks. Measured peak 0.496 → 0.737 (lift) / 0.366 (duck).
+
+**NaN at cloud 7 — root-caused and fixed (human report, 2026-08-05).** Not cloud-7-specific:
+the liveliness rewrite of `rebuild()` dropped its tail responsibility — the loop resizing
+LIVE notes' arrays — so growing partials or cloud mid-note indexed past the old `vf`/`phase`
+arrays; typed-array OOB reads return `undefined`, and `undefined/sr` is NaN from there on.
+Reproduced by simulated slider abuse (clean in 9 static configs, NaN at block 52 under
+live dragging), fixed by restoring the resize (preserving surviving phases so a drag does
+not restrike the note), and verified clean over 3000 blocks of the same abuse with an
+ADR-032-style watchdog now in place that never fired. *Same lesson as L0023: a rewrite
+must diff the responsibilities the old code carried, not just the ones being changed.*
 
 **Open (human):** brightness direction (raise partial count / re-tilt, vs commit to dark);
 whether cloud spacing becomes a real parameter; whether cascade/dissolve get promoted in
