@@ -8,6 +8,106 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## STANDING CONVENTION — corner colour is global, and it means ONE thing (human, 2026-08-05)
+
+Human: *"I want to make sure the color mapping (corners to parameters) stays consistent
+across the whole UI so it's always clear which parameters are owned by which corner. The
+osc page, when morph is somewhere intermediary, will have each parameter colored (and
+glyphed) according to its source."*
+
+**The rule.** The four corner hues + glyphs (◆ ▲ ● ■) are a **global vocabulary**, not a
+morph-page decoration. Any parameter anywhere in the interface that is currently OWNED by
+a morph corner is tinted and glyphed by that corner — the OSC page, the FX rack, the
+envelope tab, everywhere. Ownership is answerable on sight from any page, without
+navigating to the morph.
+
+**Consequences that fall out of it, and are the reason to write it down now rather than
+discover them at fold time:**
+- **No other feature may claim those four hues** for an unrelated meaning. The colour is
+  spent; a future "engine colour" or "MPE colour" must use a different channel (border
+  style, icon, brightness). This is the kind of decision that is free now and expensive
+  after three pages ship.
+- **Glyph rides with colour everywhere**, per the already-ratified pairing — so the
+  vocabulary survives colour-blindness and small controls on every page, not just the
+  morph.
+- **A parameter with no corner owner needs a defined neutral** (currently: no tint). That
+  includes every parameter when the morph is disabled entirely, which must not read as a
+  bug.
+- The morph lab's **tint mode** (Dominant vs Mixture) is now a GLOBAL setting, not a
+  morph-page preference, since it changes how the whole interface reads.
+
+## MOD SCOPE — corner-owned vs system-wide (human direction, 2026-08-05)
+
+Human: *"Different mods will clearly have to have different domains/priorities, and should
+probably be colored to show it. Sometimes a mod belongs to a corner, sometimes to the whole
+system. These will need to coexist elegantly."*
+
+Recorded as the design frame for the reopened mod lab. A modulation routing has a **scope**:
+- **Corner-owned** — the routing belongs to one corner's patch. It is subject to the morph:
+  its depth blends where corners agree and its topology flips where they differ (the (g)
+  ruling). It carries that corner's colour and glyph.
+- **System-wide** — the routing belongs to the instrument, not to any patch corner. It
+  survives every flip and every reshuffle untouched, and reads in a neutral colour.
+
+**Why the distinction is load-bearing:** a performance macro (mod wheel → filter) that
+vanished because the morph flipped to a corner that never defined it would be a bug, not a
+feature — whereas a patch-defining routing that *didn't* change with the patch would make
+the morph a lie. Both failure modes are real, so scope has to be explicit rather than
+implied. The colour is the whole legibility mechanism: corner-tinted routings move with
+the morph, neutral ones do not.
+
+**Open for the lab:** whether scope is per-routing or per-source; whether a corner-owned
+routing whose corner currently owns nothing is silent or falls back; and the priority rule
+when a corner-owned and a system-wide routing target the same destination (sum, or does
+one win).
+
+## FLIP-BOUNDARY CHATTER — the question restated concretely (2026-08-05)
+
+The human asked what this means, so it is restated here in full rather than left as jargon.
+
+A discrete parameter (filter type, wave, routing topology) is owned by whichever corner
+wins at your current field position. Near a boundary that win is by a hair. **Route any
+modulator to the morph X/Y position and it will sweep you across that boundary
+repeatedly** — every crossing is an instant discrete flip. At 0.1 Hz that is a dramatic
+slow switch; at 5 Hz it is ten filter-type changes a second, which is a stutter. And the
+smaller the win margin, the smaller the modulation depth needed to cause it — so the
+artifact appears exactly where the morph is most delicately balanced.
+
+**It may be a feature** (rhythmic glitching is a legitimate sound) but it must be a choice.
+**Two existing controls already answer part of it, which is worth noticing before building
+anything new:** `flip glide` (8 ms crossfade) softens each flip, and `flip timing → next
+note` converts continuous chatter into at most one flip per note — a strong answer, since
+it makes the artifact musical by construction. **The missing piece is hysteresis**: a
+deadband so that crossing back requires a margin, not a hair. Nothing in the lab implements
+that yet, and it is the natural third control.
+
+## ADDITIVE-SYNTH RESEARCH BRIEF — for the SPECTRA return (human, 2026-08-05)
+
+Human: *"let's look through the Loom II documentation (and any other commercial additive
+synths) to find how they managed to add modern dynamism to their additive synth so we can
+take inspiration."* Roadmapped, NOT run now — SPECTRA is deferred behind the SAW-first
+renovation, and research whose findings cannot be acted on for weeks goes stale.
+
+**The question to answer** (sharper than "what do they do"): SPECTRA measured as *dark and
+static* — centroid 562 Hz vs SAW's 2449, and mean R pinned at 0.96 within a second of the
+attack. Both are additive's classic failure modes. So: **what do shipping additive synths
+do about staticness specifically?**
+
+**Targets:** Air Loom II (the human's lead), and for contrast the other live approaches —
+Razor, Harmor, Alchemy's additive mode, Iris/Chromaphone-adjacent resonator hybrids, and
+the historical Kawai K5000 / Kyma lineage.
+
+**What to extract, per product:** (1) the *animation* mechanism — per-partial envelopes,
+spectral morphing, partial-index-dependent LFOs, noise/formant layers; (2) how brightness
+is reached without unbounded partial counts (band-limited spectra, resynthesis, filter
+layers on top); (3) which controls are exposed vs derived, i.e. how they avoid 400 partial
+knobs; (4) explicitly, what they DON'T do — the absence of coupling physics is our claimed
+differentiator and it should be verified rather than assumed.
+
+**Convention reminder** (ratified earlier): factual naming is fine in process docs;
+comparative not imitative verbs; never commit competitor-rendered audio, presets or
+captured data; SPEC.md stays competitor-free.
+
 ## RESURFACED — the other quantum thread, and where it now converges (2026-08-05)
 
 Human: *"buried somewhere in our documentation is a conversation we'd had about a
