@@ -8,6 +8,87 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## RESURFACED — the other quantum thread, and where it now converges (2026-08-05)
+
+Human: *"buried somewhere in our documentation is a conversation we'd had about a
+different kind of quantum behavior; let's resurface that."* Found — it is **ADR-052**,
+`docs/proposals/2026-07-19-kuramoto-entangled-mods.md`, accepted in DIRECTION with phases
+gating individually. Distinct from the quantum MORPH (which is Gumbel-max preset
+flipping); this one borrows the *structure* of entangled systems for coupling:
+
+- **Phase A — observable extraction.** Publish the swarm's own emergent quantities as a
+  mod-source bus: `R`, `ψ`, `drift` (dψ/dt co-rotating), `direction` (signed, hysteretic),
+  `R₂`, per-voice `lock_ratio`, and `slip` events (θᵢ−ψ crossing ±2π). ~70 % are already
+  computed every control tick as viz readouts; the new work is the *bus* (unwrap,
+  smoothing, slip events) on the existing 2756 Hz tick.
+- **Phase B — coherence budget.** A conserved [0,2] budget makes a second bank's
+  *effective K* — not its gain — anticorrelate with the first bank's R. This IS the
+  cross-coupled multi-oscillator variant.
+- **Phase C — membership spinors.** Per-voice (a,b) ∈ ℂ², equal-power two-path render,
+  phase carried across so a migrated voice beats against its new ensemble. C.1 stochastic
+  tunneling, C.2 Pareto blinking (quantum-dot statistics — long stable stretches punctuated
+  by chatter), C.3 coherent Rabi.
+- **Phase D — measurement bus.** Slip/note/transient events collapse spinors by Born rule,
+  then relax back.
+
+Honest framing preserved from the ADR: classical coupled oscillators cannot literally
+entangle — these are structural analogues, and that honesty stays in README/PRIOR-ART.
+
+**Why it resurfaces NOW rather than as trivia.** Three live threads converge on it:
+1. **Multi-oscillator** (the current renovation target) was ALREADY specced to carry "an
+   initial concept PROPOSAL for quantum interference between banks — how superposed banks
+   interfere rather than merely sum," with ADR-052 Phase C named as the nearest precedent.
+   The multi-osc work cannot be designed without answering it.
+2. **Phase B is literally the cross-coupled multi-osc variant** — so "how do two swarm
+   banks relate" already has a proposed answer on file.
+3. **Phase A is the source side of the mod matrix** the human just asked to reopen.
+
+**MORPH × MOD — already has a recorded position, and it answers the human's worry.**
+ROADMAP already states: the quantum morph is the MACRO/preset layer, the Kuramoto-LFO
+matrix is the CONTINUOUS layer, and *"the two compose: modulate where you stand in the
+morph field"* — i.e. field position (x, y), temperature, coupling and the reshuffle
+trigger are automatable macros and natural mod DESTINATIONS. **Confirmed gap:**
+`mod-lab.html` (1145 lines) contains **zero** morph references — its destinations are
+`K, Kboost, detune, cutoff, level, choDep, phDep`. So the composition is designed on paper
+and entirely unbuilt, which is exactly the human's instinct that "the mods may interact
+strangely with the morph." Specific unresolved collisions to work in the reopened lab:
+morph flips are DISCRETE and instant while mod is continuous (what does modulating toward
+a flip boundary sound like — chatter at the edge?); (g)'s ruling says depth blends and
+topology flips, so a mod routing that IS morphed changes shape mid-modulation; and the
+morph's own reshuffle can re-own a parameter a mod is actively driving.
+
+## ATTRACTOR-BASIN SEARCH — abstract direction, recorded (human, 2026-08-05)
+
+Human: *"eventually doing a deterministic sweep of different feature sets and searching
+for attractor basins. Some kind of gradient descent system for finding oases of coherence
+in parameter combinations that tend toward incoherence at most settings. Maybe this could
+simplify the cooperator and other future engines and replace the complex interface."*
+
+Recorded as a research direction, not a queue item. **The observation that makes it
+tractable: this project already computes its own coherence scalar.** R (the order
+parameter) is exactly "how coherent is this configuration", it is already produced every
+control tick by every engine, and ADR-052 Phase A proposes publishing it. So a search has
+a ready-made objective function without inventing a perceptual metric — which is normally
+the hard part of automated patch search. Candidate objectives beyond R: slip rate (peaks
+near K_c — the interesting edge), R-variance over time (an oasis that MOVES is more
+musical than a static one), and the COOPERATOR ratio-error measure (distance to the just
+lattice, already implemented).
+
+**Why it is a strong fit for COOPERATOR specifically:** the human's verdict there was
+"too many complicated novelties, hard to control." A basin search inverts that problem —
+instead of exposing eleven controls and asking the user to find the good regions, find the
+good regions offline and expose *those* as the interface. That is a genuinely different
+answer to the complexity problem than "simplify the panel."
+
+**Honest caveats before anyone builds it:** (1) R measures coherence, not *musicality* —
+R = 1 is a locked, possibly boring drone, so maximising R naively finds silence-adjacent
+attractors; the objective probably wants a band, not a maximum. (2) A deterministic sweep
+of an 11-D space is combinatorially hopeless — this needs gradient descent, or coarse
+sampling plus local refinement, and the parameter space is not smooth (phase transitions
+are knees, as the K measurements repeatedly showed). (3) Verification would need the
+oracle discipline this project already has: a found basin must be reproducible from a
+seed, and "it sounded good" is not the gate.
+
 ## STRATEGIC PIVOT — SAW-first renovation (human, 2026-08-05)
 
 Human: *"I would actually like to remove spectra from the VST for now (at least from the
@@ -27,6 +108,9 @@ stays loadable and visibly explains itself. Reversing the hide is one line.
 1. **Layout lab** — resume the IA audition; it is the next step (human).
 2. **Multi-oscillator** — the open ADR (B11). The layout lab already stages the question.
 3. **Morph** — feature-complete in its own lab; needs a page and the fold path.
+   **RULED (human, 2026-08-05): MAIN gets its own compact morph XY**, with the full
+   editor (territory, capture, copy-from, tint/glyph) on the morph page. This closes the
+   layout lab's open question "morph pad (compact) — full editor on its own page?".
 4. **Mod matrix** — design accepted (ADR-053), right-click access queued (B8), no page yet.
 5. **Full FX suite** — rack exists; reverb/delay slots queued (B2).
 
