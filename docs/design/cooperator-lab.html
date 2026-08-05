@@ -330,7 +330,7 @@ const eng = new Cooperator(ctx.sampleRate);
 const cc = $('circle'), ccx = cc.getContext('2d');
 const rh = $('rhist'), rhx = rh.getContext('2d');
 const spc = $('spec'), spx = spc.getContext('2d');
-const rHist = new Float32Array(152); let rW = 0;
+const rHist = new Float32Array(152); let rW = 0, rSmooth = 0;
 const outRing = new Float32Array(4096); let ringW = 0;
 const pressed = new Map();
 
@@ -463,7 +463,13 @@ function draw() {
       i ? rhx.lineTo(i, y) : rhx.moveTo(i, y);
     }
     rhx.stroke();
-    $('m_R').textContent = nt.R.toFixed(3);
+    // The meter shows a ~300 ms average, not the instantaneous R. With drift
+    // on, raw R fluctuates hard (measured 0.661 at K=0.2 and 0.163 at K=0.4 in
+    // adjacent reads) — a number that jumpy reads as broken even when the
+    // trend is a clean 0.06 -> 0.96 sweep. The history trace stays RAW so the
+    // fluctuation itself — which is real physics — is still visible.
+    rSmooth += (nt.R - rSmooth) * 0.15;
+    $('m_R').innerHTML = '<span class="' + (rSmooth > 0.8 ? 'good' : '') + '">' + rSmooth.toFixed(3) + '</span>';
     // ratio error vs the just lattice
     const nU2 = eng.unitCount();
     let acc = 0, cnt = 0;
