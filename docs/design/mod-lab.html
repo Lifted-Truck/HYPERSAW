@@ -451,9 +451,19 @@ class KuroChorus {
         const target = Math.max(2, (p.base + dep * lfo[t]) * sr);
         if (!this.primed) this.dly[t] = target;
         this.dly[t] += c * (target - this.dly[t]);
+        // WRAP, ROBUSTLY (crash fix 2026-08-05). `while (rd < 0) rd += len` looks
+        // safe and is not: heavy choDep modulation drives the target delay
+        // NEGATIVE, so it pins at the 2-sample floor, and then `rd` is a tiny
+        // NEGATIVE number like -2e-14. Adding len gives 8192 - 2e-14, which is
+        // below the ulp of 8192 (~1.8e-12) and therefore rounds to EXACTLY len.
+        // `line[8192]` is undefined, undefined arithmetic is NaN, and the NaN is
+        // then written back into the delay line — one sample poisons the lab
+        // permanently. Measured at the failure: w = 0, dly[0] = 2.0000000000000195.
         let rd = this.w - this.dly[t];
-        while (rd < 0) rd += len;
-        const i0 = rd | 0, frac = rd - i0, i1 = (i0 + 1) % len;
+        rd -= Math.floor(rd / len) * len;          // true modulo for any real
+        let i0 = rd | 0;
+        if (i0 >= len) i0 -= len;                  // the exactly-len case
+        const frac = rd - i0, i1 = i0 + 1 >= len ? 0 : i0 + 1;
         const v = this.line[i0] + (this.line[i1] - this.line[i0]) * frac;
         wetL += v * this.tapL[t]; wetR += v * this.tapR[t]; wetM += v;
       }
@@ -737,6 +747,22 @@ class ModLab {
       this.synth.render(outL, outR, this.mods, off, cnt);
       this.chorus.process(outL, outR, off, cnt, this.choSwarm.lfo, this.choSwarm.p.n, this.mods.cho);
       this.phaser.process(outL, outR, off, cnt, this.phSwarm.lfo, this.phSwarm.p.n, this.mods.ph);
+      // NaN WATCHDOG (ADR-032 pattern, as in the spectra and cooperator labs).
+      // A non-finite sample otherwise persists forever: it is stored in the
+      // delay lines and the swarm phases, so ONE blow-up silences the lab
+      // until reload and every later reading is poisoned. This is a
+      // MITIGATION — the human's crash is not yet root-caused (see the trace)
+      // — but it converts a dead page into one glitch plus a visible counter.
+      for (let i = off; i < off + cnt; i++) {
+        if (!isFinite(outL[i]) || !isFinite(outR[i])) {
+          this.nanResets = (this.nanResets || 0) + 1;
+          this.chorus.line.fill(0); this.chorus.dly.fill(0); this.chorus.primed = 0;
+          this.phaser.reset && this.phaser.reset();
+          for (const sw of this.synth.sw) { sw.env = 0; sw.gate = 0; }
+          for (let j = off; j < off + cnt; j++) { outL[j] = 0; outR[j] = 0; }
+          break;
+        }
+      }
     }
   }
 }
