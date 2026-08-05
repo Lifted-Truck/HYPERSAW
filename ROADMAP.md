@@ -42,6 +42,51 @@ or per-source; what a corner-owned routing does when its corner owns nothing; an
 priority rule when a corner-owned and a system-wide routing hit the same destination
 (currently they simply sum).
 
+## FULL MOD-MATRIX SWEEP — the crash fix was half a fix (2026-08-05)
+
+Human ask after the chorus crash: *"run a full deterministic probe of all mod connections
+to make sure there aren't other similar issues out there."* Built as
+`tools/labharness/modlab_sweep.mjs` — all **12 sources × 9 destinations × 2 polarities =
+216 routings**, each from a FRESH engine, checked for non-finite output, watchdog fires,
+level blow-ups, and dead routings.
+
+**Finding 1 — the intermittent loud transients were the SAME bug, not a second one.**
+The crash fix wrapped the delay-line read INDEX (`if (i0 >= len) i0 -= len`) but still
+derived `frac` from the un-wrapped `rd`. So the exactly-`len` case no longer produced a
+NaN — it produced `i0 = 0` with **`frac = 8192`**, and the interpolator extrapolated by
+8192×. Captured live at the failing sample: two neighbours of `-0.1359` and `-0.1321`
+gave `v = 30.7`, and the stage output hit **8.99 against a synth peak of 0.49**. Fixed by
+wrapping `rd` itself before it is used for either purpose, so index and fraction can never
+disagree. All 6 level blow-ups (every one a `choDep` routing) went to **zero**.
+
+**Finding 2 — the same bug class exists in shipping C++, with worse consequences.**
+`src/time_core.h` has four fractional-delay reads that wrap `i1` but never `i0`; a `rp`
+of `-1e-13` becomes `kBuf - 1e-13`, which is inside the ulp of `kBuf` (2.9e-11 at 1<<17)
+and rounds to exactly `kBuf`. In JS that is a NaN; in C++ it is an **out-of-bounds read on
+the audio thread**. Guarded at all four sites; `./verify full` GREEN, worst time parity
+rms 5.6e-12 (bar: 1e-6), so the guard is inert in normal operation as intended.
+`src/fx_rack.h` was checked and is safe — its comb delay is integer and `newDly` is
+clamped to `[2, len-1]`, so the modulo numerator cannot go negative.
+
+**Finding 3 — one genuinely dead routing, and it is a design question, not a bug.**
+`R → Kboost` at positive depth is **exactly zero output**, bit-identical to no routing.
+Two mechanisms compose: `Kboost` is half-wave rectified (`kb = 8 * Math.max(0, kbMod)`)
+and the `R` source is mapped bipolar (`R * 2 - 1`). At the lab's default rotor coupling
+the swarm never locks — max R measured **0.334** — so the source is always negative and
+the rectifier zeroes it. It revives exactly at the phase-transition knee: dead at rotor
+K=0.35, alive from K=1 (max R 0.996) or at detune 0.05 (max R 0.984). The code comment
+already anticipated the uni-vs-bipolar question; the sweep gives it teeth — below the knee
+it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
+rectifier. **Needs a human ruling (A9), not a unilateral fix.**
+
+**Calibration note (L0016 again).** The sweep's first run reported 53 dead routings and
+every single one was my bench, not the lab: K5–K8 are hard-zeroed above the rotor's
+oscillator count (the lab's own UI hides those rows), cutoff defaulted to fully open so a
+positive cutoff mod clamped instantly, and morphX/morphY are inert BY DESIGN when every
+scope is system-wide — in this lab morph position gates scope, it does not blend corner
+parameters. The bench now configures each destination to have somewhere to go, so a dead
+reading means something.
+
 ## STANDING CONVENTION — corner colour is global, and it means ONE thing (human, 2026-08-05)
 
 Human: *"I want to make sure the color mapping (corners to parameters) stays consistent
@@ -285,6 +330,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A6 | **SPEC citation amendment** — protected path, awaiting approval | § Timbre-space research |
 | A7 | **Law/dist widening** — state compatibility, scope, and which core-only params to expose | § Open questions for the human (4 sub-items) |
 | A8 | **Phase 2/3 formal gate ratification** — shipped and evidenced, never formally closed | § Phase 2 / Phase 3 gates |
+| A9 | **Mod source polarity — uni vs bipolar, per route** — `R → Kboost` at +depth is measurably dead (R never exceeds 0.334 below the coupling knee; Kboost is half-wave rectified). Ruling needed: per-route unipolar/bipolar setting, or unrectified Kboost, or leave as physics | § Full mod-matrix sweep |
 
 ### B · Queued build work
 
@@ -304,6 +350,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B11 | **Multi-oscillator ADR** (layout-lab IA) | open design decision |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
+| B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |
 
 ### C · Closed during this reconciliation
 - **Divergence ADRs** (root-pivot topology · pan default image · saw retarget) — each is
