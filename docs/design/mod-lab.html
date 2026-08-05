@@ -737,6 +737,22 @@ class ModLab {
       this.synth.render(outL, outR, this.mods, off, cnt);
       this.chorus.process(outL, outR, off, cnt, this.choSwarm.lfo, this.choSwarm.p.n, this.mods.cho);
       this.phaser.process(outL, outR, off, cnt, this.phSwarm.lfo, this.phSwarm.p.n, this.mods.ph);
+      // NaN WATCHDOG (ADR-032 pattern, as in the spectra and cooperator labs).
+      // A non-finite sample otherwise persists forever: it is stored in the
+      // delay lines and the swarm phases, so ONE blow-up silences the lab
+      // until reload and every later reading is poisoned. This is a
+      // MITIGATION — the human's crash is not yet root-caused (see the trace)
+      // — but it converts a dead page into one glitch plus a visible counter.
+      for (let i = off; i < off + cnt; i++) {
+        if (!isFinite(outL[i]) || !isFinite(outR[i])) {
+          this.nanResets = (this.nanResets || 0) + 1;
+          this.chorus.line.fill(0); this.chorus.dly.fill(0); this.chorus.primed = 0;
+          this.phaser.reset && this.phaser.reset();
+          for (const sw of this.synth.sw) { sw.env = 0; sw.gate = 0; }
+          for (let j = off; j < off + cnt; j++) { outL[j] = 0; outR[j] = 0; }
+          break;
+        }
+      }
     }
   }
 }
