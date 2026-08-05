@@ -58,6 +58,44 @@ below remain the evidence.** Update it in the same change that changes an item's
   one was fully contained in `main` (no stashes, no dirty files, no remote-only commits).
   95 remote branches remain on GitHub.
 
+## SPECTRA feature-parity audit (human direction, 2026-08-05)
+
+Human: *"make sure all the feasible decisions from across the envelope and pitch bend
+(and obviously FX) modules work with this engine too."* Audited against the shell and
+both cores rather than recalled — the gaps below cite where each one lives.
+
+**Already works with SPECTRA (no action):**
+- **FX rack, entirely** — bus-side post-oscillator, engine-blind by construction; the
+  comb's note feed fires at the common note-on point for both engines (ADR-071), and the
+  new per-slot tone (ADR-080) rides the same path.
+- **Global pitch suite** — octave/semi/fine/pitch (ids 35–38) reach SPECTRA through its
+  `tune` factor (ADR-057). A future WHEEL-lane bend inertia folded at this seam is
+  engine-agnostic for free.
+- **Its own ADSR** (ids 65–68, ADR-055) with its own reference constants.
+- Shared coupling surface: K / onset / dissolve / seed / vol / retrig / width.
+
+**Feasible and cheap (queue):**
+- **MPE per-note bend.** SPECTRA has no per-voice `noteTune`; the shell comments the gap
+  explicitly (`hypersaw_clap.cpp` NOTE_ON path: "No MPE bend re-apply here — SpectraCore
+  has no noteTune"). The fix is the exact ADR-036 pattern: a per-swarm factor,
+  multiplicatively inert at 1.0, so parity holds by construction. **This is the
+  prerequisite for the bend-inertia fold (A1) reaching SPECTRA's per-note lane.**
+
+**Feasible, medium (queue behind a ruling):**
+- **Mono / legato / glide + poly glide.** The mono held-stack and `retargetNote` live in
+  the shell + SAW core only (`monoSlot` → `core.retargetNote`, no spectra branch).
+  SPECTRA needs a `retargetNote` + an `f0cur` glide slew — straightforward, inert at
+  glide 0, but it touches note lifecycle, so it ships with its own notefuzz coverage.
+
+**Different concept, needs design rather than porting (do NOT copy blindly):**
+- **Per-voice envelopes + scatter (ADR-077/078).** SAW's "voice" is a swarm member;
+  SPECTRA's nearest analog is per-PARTIAL (or per-cloud-voice) envelopes. But SPECTRA
+  already owns a better-fitting version of onset scatter: **cascade IS per-partial onset
+  staggering**, produced by the physics instead of drawn from a jitter distribution. The
+  liveliness increment (lock wave / partial drift / R→tone, PR #187) is the
+  SPECTRA-native answer to what ADR-077/078 did for SAW. Recommendation: audition those
+  first; only design per-partial ADSR scatter if the ear still wants it after.
+
 ## SPECTRA lab — BUILT, and the brief's premise was only half right (2026-08-04)
 
 `docs/design/spectra-lab.html`. Campaign 3 item 1 asked to *"make the engine worthwhile —
