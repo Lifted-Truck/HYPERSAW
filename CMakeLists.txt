@@ -147,6 +147,13 @@ endif()
 # Session-persistence oracle: drives the impl through the CLAP params/state
 # extensions with a stub host (save -> fresh instance -> load -> identical
 # values AND identical audio).
+# Oscillator preset tier (B20): format + slot-agnosticism.
+add_executable(preset_check tools/preset_check.cpp)
+target_include_directories(preset_check PRIVATE src)
+if(NOT MSVC)
+  target_compile_options(preset_check PRIVATE -O2)
+endif()
+
 add_executable(state_check tools/state_check.cpp)
 target_link_libraries(state_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)

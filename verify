@@ -135,6 +135,13 @@ full() {
   # Statically linked like state_check; no goldens. (Was built but ungated.)
   "$build_dir/notefuzz_check" || return 1
 
+  # Oscillator preset tier (B20, 2026-08-06): the format is slot-AGNOSTIC and
+  # globals never travel. Both are load-bearing — a preset that embedded its
+  # origin slot would pass a naive round-trip and fail the first time anyone
+  # copied oscillator 1 to 2, and one that carried the FX rack would silently
+  # redecorate the patch it was dropped into.
+  "$build_dir/preset_check" || return 1
+
   # Waveform-shape oracle (2026-08-01, human-gated): closed-form invariants at
   # K=0 — slope-sum bound, no up-jumps (never wrap-masked), no gradual falls,
   # linearity. Calibrated: clean saw passes, planted up-jump must fire.
