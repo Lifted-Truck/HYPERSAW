@@ -147,6 +147,14 @@ endif()
 # Session-persistence oracle: drives the impl through the CLAP params/state
 # extensions with a stub host (save -> fresh instance -> load -> identical
 # values AND identical audio).
+# Real-time safety oracle: the audio thread must not allocate (charter rule,
+# previously enforced only by review).
+add_executable(rtsafety_probe tools/rtsafety_probe.cpp)
+target_link_libraries(rtsafety_probe PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(rtsafety_probe PRIVATE -O2)
+endif()
+
 add_executable(state_check tools/state_check.cpp)
 target_link_libraries(state_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
