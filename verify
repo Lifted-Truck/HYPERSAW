@@ -135,6 +135,14 @@ full() {
   # Statically linked like state_check; no goldens. (Was built but ungated.)
   "$build_dir/notefuzz_check" || return 1
 
+  # REAL-TIME SAFETY (2026-08-06): the audio thread must not allocate. The
+  # charter has always said so; nothing enforced it, and an allocation in
+  # process() is invisible to every other oracle because the AUDIO IS STILL
+  # CORRECT — it only shows up as a click on someone else's machine. Counting
+  # operator new/delete inside the process() window makes it deterministic.
+  # Calibrated: a planted (non-elidable) allocation gives 320 hits and exit 1.
+  "$build_dir/rtsafety_probe" || return 1
+
   # Waveform-shape oracle (2026-08-01, human-gated): closed-form invariants at
   # K=0 — slope-sum bound, no up-jumps (never wrap-masked), no gradual falls,
   # linearity. Calibrated: clean saw passes, planted up-jump must fire.
