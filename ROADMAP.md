@@ -79,6 +79,26 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## NOTE — CI red on PR #212 was a GitHub outage, not this change (2026-08-06)
+
+Recorded so the history is not misread later. PR #212's checks showed FAILING while GitHub
+Actions was in a **major outage** (incident `qcvjkzcs7j74`, opened 15:22:49 UTC).
+
+The evidence that it was external, not ours:
+- the jobs' conclusion was **`cancelled` with `steps: []`** — they never executed a single step;
+- a Linux `verify fast` and a Windows CMake build, sharing no code path, died at the **same
+  instant**, exactly 15m01s after starting;
+- one run sat **28 minutes** between `created_at` and `run_started_at` waiting for a runner;
+- `gh pr checks` renders anything non-success as "fail", which is what made a cancellation look
+  like a broken gate;
+- a fresh clone of the branch ran `./verify fast` to exit 0 locally, and `./verify full` was
+  green across all oracle chains.
+
+**Recovery was uneven:** once mitigations landed, *freshly triggered* runs got runners
+instantly (PR #213: zero queue delay, `verify-fast` in 8 s), while *re-runs* of jobs created
+during the outage stayed queued indefinitely. So the working move during an Actions incident is
+to push a new commit rather than hit re-run.
+
 ## SWARMALATOR IS SAW + TWO TERMS — the human was right (measured, 2026-08-06)
 
 Human: *"isn't it essentially the same thing as SAW but extended to give space and phase a
