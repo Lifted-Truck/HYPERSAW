@@ -79,6 +79,35 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## ADR-082 INCREMENT 2 SHIPPED — the second oscillator (2026-08-06)
+
+`kNumOsc = 2`. `cores[kMaxOsc]` with `core` kept as a reference to oscillator 0 (the 52
+existing call sites are untouched); params route by oscillator, notes fan out, oscillators
+1..N-1 sum into the output. **Higher oscillators default to silent** — `vol = 0` in both the
+constructed state and the reported defaults, so parity is untouched and no existing patch
+changes.
+
+Measured directly on the cores: osc1 at `vol = 0` sums to **0.08775**, bit-identical to
+osc0 alone; at `vol = 0.4` with matched detune, **0.17551** (exactly 2×, correlated); at detune
+0.85, **0.13621** (below 2×, decorrelated). Silent, audible, independent.
+
+`./verify full` GREEN at 2 oscillators: parity **147/147 worst 4.262e-09**, unchanged.
+
+**Two bugs found, both the same shape — the write path routed, the read path forgotten:**
+
+1. **`readParam` still read oscillator 0**, so `state_save` wrote every `o<k>.` key from
+   oscillator 0's values. `state_check`'s "every param round-trips exactly" **passed anyway**,
+   because it compares two reads through the same broken accessor — two wrong reads agreed.
+   Only the *audio* comparison caught it. **An oracle that reads through the code it tests
+   cannot see a symmetric fault in it**; the audio check works because it bypasses the accessor.
+2. **Audible output was conditional on a heap buffer** — the first version summed through a
+   `std::vector` scratch sized at `activate()` and skipped the oscillator when it was too
+   small, i.e. a voice could vanish silently. Now a chunk loop over a fixed stack buffer.
+
+Found by **bisection**, not by reading: cutting only the note fan-out turned `state_check`
+green, which located the fault in note handling. Two earlier hypotheses were wrong and were
+dropped on evidence.
+
 ## ADR-082 AMENDMENT 1 — the id scheme was full on day one (2026-08-06)
 
 Caught while **starting** increment 2, before anything was built on it. Two defects in the
@@ -896,7 +925,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
 | B9 | **Pan motion speed + bipolar position weighting** (subsumes `motionCenter`) | requested 2026-07-31 |
 | B10 | **Slider units/naming pass** + feature-by-feature visual breakdown for docs | deferred until the interface settles |
-| B11 | **Multi-oscillator ADR** (layout-lab IA) | **ADR-082 RATIFIED 2026-08-06 (2 slots); increment 1 SHIPPED inert** — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
+| B11 | **Multi-oscillator** | **ADR-082 RATIFIED (2 slots); Amendment 1 (stride 1000); increments 1 AND 2 SHIPPED** — `kNumOsc = 2`, second core summing, silent by default, parity 147/147 unchanged. Remaining: GUI (osc page) + B20 preset tiers — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
 | B18 | **ADR-082 increment 2 blockers** — (a) state version gate WIDENED + ratified 2026-08-06 (accepts 1 or 2, still red on unknown). (b) min-spec CPU measurement STILL OPEN before 2 oscillators ship | § ADR-082 increment 1 |
 | B19 | **Glide/travel module** — **CORE + ORACLE SHIPPED 2026-08-06** (`src/glide_core.h`, `glide_check` in `./verify full`, parity 11/11 worst 3.5e-08, not yet in the audio path). Remaining: shell integration — destination mapping onto the 7 existing glide params (11/33/34/70/75/89/90), which wants ADR-082-level care since ids are append-only | § Glide core ported |
 | B20 | **Three preset tiers** — oscillator tier nearly free via ADR-082's `o<k>.` keys; corner tier UNBLOCKED (A11 ruled global) | § Layout: glide + preset tiers |

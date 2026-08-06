@@ -265,9 +265,13 @@ constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 // so 100 resolves to oscillator 1 / base 0 and is never found. 1000 leaves 900
 // free slots and costs nothing to adopt today, because increment 1 shipped at
 // kNumOsc == 1 and no id >= 100 has ever been exposed to a host.
+// Chunk the extra oscillators' render through a fixed stack buffer. Small
+// enough to be free on the stack, large enough that the loop overhead is
+// irrelevant against a render of the same length.
+constexpr int kMixChunk = 256;
 constexpr uint32_t kOscStride = 1000;
 constexpr uint32_t kMaxOsc = 2;   // ratified 2026-08-06; 2000-2999 stays free for a third
-constexpr uint32_t kNumOsc = 1;   // increment 1: mechanism only, nothing audible changes
+constexpr uint32_t kNumOsc = 2;   // ADR-082 increment 2: the ratified slot count
 static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified range");
 
 /* GLOBAL params — one instance no matter how many oscillators exist. Everything
@@ -357,7 +361,20 @@ struct Plugin
   clap_plugin_t plugin{};
   const clap_host_t *host = nullptr;
   const clap_host_params_t *hostParams = nullptr;
-  hypersaw::SwarmCore core{44100.0};
+  // ADR-082 increment 2: N SAW cores. `core` stays a reference to oscillator 0
+  // so the 52 existing call sites keep meaning exactly what they meant — this
+  // change adds an oscillator, it does not rewrite the first one.
+  hypersaw::SwarmCore cores[kMaxOsc] = {hypersaw::SwarmCore{44100.0},
+                                        hypersaw::SwarmCore{44100.0}};
+  hypersaw::SwarmCore &core = cores[0];
+  // constructed state matches the reported default above
+  struct SilenceHigherOscillators
+  {
+    explicit SilenceHigherOscillators(hypersaw::SwarmCore *c)
+    {
+      for (uint32_t k = 1; k < kNumOsc; k++) c[k].setParam("vol", 0.0);
+    }
+  } silenceHigher{cores};
   hypersaw::SpectraCore spectra{44100.0};
   hypersaw::FxRack rack;  // ADR-054 internal FX rack (post-oscillator)
   double engineSel = 0;  // 0 SAW, 1 SPECTRA (ADR-037; shell dispatch)
@@ -969,7 +986,10 @@ struct Plugin
       // Width: the SAW core calls it "width", SPECTRA calls it "swidth" — same
       // stereo-spread control, so one slider (id 14) drives both.
       if (id == 14) spectra.setParam("swidth", applied);
-      core.setParam(d->coreKey, applied);
+      // ADR-082: ids in a higher block address that oscillator's core. Osc 0
+      // keeps every id it had, so this line is unchanged for existing patches.
+      const uint32_t osc = oscOfId(id);
+      if (osc < kNumOsc) cores[osc].setParam(d->coreKey, applied);
       spectra.setParam(d->coreKey, applied);  // shared-name knobs mirror; unknown keys no-op
     }
   }
@@ -1001,7 +1021,15 @@ struct Plugin
         return ((d->id - 57) & 1) == 0 ? (double)rack.getType(slot) : rack.getAmount(slot);
       }
       if (d->id >= 96 && d->id <= 99) return rack.getTone((int)(d->id - 96));
-      return core.getParam(d->coreKey);
+      // ADR-082: read from the oscillator the id addresses. applyParam was
+      // routed by oscillator and this was not, so state_save wrote every
+      // `o<k>.` key by reading OSCILLATOR 0 — and state_check's
+      // "every param round-trips exactly" passed anyway, because it compares
+      // two reads through the same broken accessor. Only the audio comparison
+      // caught it. Write path and read path must be routed together.
+      const uint32_t osc = oscOfId(id);
+      return osc < kNumOsc ? cores[osc].getParam(d->coreKey)
+                           : core.getParam(d->coreKey);
     }
     return 0;
   }
@@ -1048,12 +1076,14 @@ struct Plugin
         else
         {
           core.noteOff(n->key);
+          for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOff(n->key);
         }
       }
     }
     else
     {
       core.noteOff(n->key);
+      for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOff(n->key);
     }
   }
 
@@ -1143,6 +1173,7 @@ struct Plugin
             if (monoSlot >= 0 && core.swarmAt(monoSlot).gate)
               core.noteOff(core.swarmAt(monoSlot).midi);
             monoSlot = core.noteOn(n->key, freq);
+            for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOn(n->key, freq);
           }
           retireTag(monoSlot);
           tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};
@@ -1151,6 +1182,7 @@ struct Plugin
         else
         {
           const int slot = core.noteOn(n->key, freq);
+          for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOn(n->key, freq);
           retireTag(slot);
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
           struck = slot;
@@ -1254,7 +1286,36 @@ struct Plugin
       if (spectraMode())
         spectra.render(outL + frame, outR + frame, (int)(until - frame));
       else
-        core.render(outL + frame, outR + frame, (int)(until - frame));
+      {
+        const int n = (int)(until - frame);
+        core.render(outL + frame, outR + frame, n);
+        // Oscillators 1..N-1 render into a FIXED STACK buffer, in chunks, and
+        // sum. At their default vol = 0 they add exact zeros, so a patch that
+        // never touches them is bit-identical to a one-oscillator build — which
+        // is what keeps the 147 parity goldens green.
+        //
+        // Stack, not a heap scratch. The first version sized a std::vector at
+        // activate() and skipped the oscillator when the buffer was too small;
+        // that made AUDIBLE OUTPUT conditional on activate() having run, so a
+        // restored instance silently lost oscillator 1 (state_check caught it:
+        // "restored instance renders bit-identical audio" went red). A chunk
+        // loop over a fixed buffer cannot allocate, cannot depend on block
+        // size, and cannot silently drop a voice.
+        for (uint32_t k = 1; k < kNumOsc; k++)
+        {
+          float tL[kMixChunk], tR[kMixChunk];
+          for (int off = 0; off < n; off += kMixChunk)
+          {
+            const int m = n - off < kMixChunk ? n - off : kMixChunk;
+            cores[k].render(tL, tR, m);
+            for (int i = 0; i < m; i++)
+            {
+              outL[frame + off + i] += tL[i];
+              outR[frame + off + i] += tR[i];
+            }
+          }
+        }
+      }
       frame = until;
     }
 
@@ -1339,10 +1400,13 @@ bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
   pl->sampleRate = sr;
   // Recreate the core at the host rate, preserving params (constructor cost
   // is trivial; activate is main-thread and never concurrent with process).
-  hypersaw::Params saved = pl->core.p;
-  pl->core = hypersaw::SwarmCore(sr);
-  pl->core.p = saved;
-  pl->core.setParam("seed", saved.seed);  // re-trigger rebuild() with saved state
+  for (uint32_t k = 0; k < kNumOsc; k++)
+  {
+    hypersaw::Params saved = pl->cores[k].p;
+    pl->cores[k] = hypersaw::SwarmCore(sr);
+    pl->cores[k].p = saved;
+    pl->cores[k].setParam("seed", saved.seed);  // re-trigger rebuild() with saved state
+  }
   hypersaw::SpectraCore::SParams sp = pl->spectra.p;
   pl->spectra = hypersaw::SpectraCore(sr);
   pl->spectra.p = sp;
@@ -1445,7 +1509,11 @@ bool params_get_info(const clap_plugin_t *, uint32_t index, clap_param_info_t *i
                 osc == 0 ? "" : (osc == 1 ? "Osc 2" : "Osc 3"));
   info->min_value = d.minV;
   info->max_value = d.maxV;
-  info->default_value = d.defV;
+  // Oscillators above the first default to SILENT (vol = 0). Without this the
+  // second oscillator would sound the instant kNumOsc rose, changing every
+  // existing patch — a host "reset to defaults" must give silence too, not
+  // just our constructor.
+  info->default_value = (osc > 0 && d.id == 17) ? 0.0 : d.defV;
   return true;
 }
 
