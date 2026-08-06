@@ -113,9 +113,34 @@ window (a damping problem, not a quantiser one), and correctly does **nothing** 
 deliberate vibrato — that motion is supposed to step. It is a fix for one artefact, not a
 general smoother.
 
-**Still open in A1:** which laws reach which destinations (note pitch / bend / mod wheel / MPE),
-and the default law. Scale SOURCE for quantise remains the deferred Tonality brief; chromatic
-plus a scale selector is the interim (B21).
+### Default law: CONSTANT RATE (ruled 2026-08-06)
+
+Law 2. The roundup's clearest playability difference is the vibrato column — constant rate keeps
+**93%** of a 5 Hz wheel wobble where constant time keeps **33%** — and a fixed ¢/s is a quantity
+a player can predict, where "120 ms" means a different speed for every interval. Applied to the
+lab default (`P.model`), and the `<select>`'s `selected` attribute moved with it: it still said
+`3` while the model ran `2`, which would have shown "lag" in the UI while constant rate was
+running. Law 5's option is labelled CUT rather than deleted — the lab is a workshop and the
+evidence should stay re-measurable.
+
+### STILL OPEN in A1 — the destination matrix
+
+Four things in the instrument can travel: **note pitch** (portamento), the **bend wheel**, the
+**mod wheel**, and **MPE per-note bend**. Today the lab shares ONE law across whichever lanes
+`applyTo` enables (bend only / note only / both). The open question is whether each destination
+picks its own law, and it matters because they want different things: note pitch wants constant
+rate; a bend wheel arguably wants spring, so a flick has physical mass; a mod wheel wants lag,
+because overshoot on a filter sweep is just wrong.
+
+**Recommendation: per-destination law selectors**, defaulting to constant rate on note pitch and
+*off* on the other three, so nothing is inertial until asked for. Glide is a module precisely
+BECAUSE it has destinations — one shared law would collapse it back to a knob, which is the
+thing the human said it had outgrown. Cost is four selectors instead of one; the middle option
+(grouping {note pitch} · {bend + MPE} · {mod wheel}) is recorded as the fallback if four reads
+as too many.
+
+Scale SOURCE for quantise remains the deferred Tonality brief; chromatic plus a scale selector
+is the interim (B21).
 
 ### State version gate widened (ratified)
 

@@ -49,10 +49,10 @@
     <div class="row"><label>model</label><select id="model">
       <option value="0">0 · off (instant — the baseline)</option>
       <option value="1">1 · constant time (portamento — fixed duration)</option>
-      <option value="2">2 · constant rate (fixed ¢/s)</option>
-      <option value="3" selected>3 · lag (one-pole — never quite arrives)</option>
+      <option value="2" selected>2 · constant rate (fixed ¢/s) — DEFAULT</option>
+      <option value="3">3 · lag (one-pole — never quite arrives)</option>
       <option value="4">4 · spring (true inertia — overshoots)</option>
-      <option value="5">5 · lag → constant rate (series)</option>
+      <option value="5">5 · lag → constant rate (series) — CUT, not shipping</option>
     </select></div>
     <div class="row"><label>glide time</label><input type="range" id="gtime" min="5" max="1500" step="5" value="120"><output id="gtime_o"></output></div>
     <div class="row"><label>glide rate</label><input type="range" id="rate" min="0.5" max="200" step="0.5" value="24"><output id="rate_o"></output></div>
@@ -140,7 +140,10 @@ function gaussFrom(rng) {
 // Shared parameter block: the offline meters and the live audio read the SAME
 // object, so a measured number can never describe a different setting than the
 // one you are hearing.
-const P = { model: 3, gtime: 120, rate: 24, tau: 60, springF: 4, damp: 0.6,
+// DEFAULT LAW = 2, constant rate (human ruling 2026-08-06). It keeps 93% of a
+// 5 Hz wheel vibrato where constant time keeps 33% — the roundup's clearest
+// playability difference — and its ¢/s is a number a player can predict.
+const P = { model: 2, gtime: 120, rate: 24, tau: 60, springF: 4, damp: 0.6,
             distOver: 1, retMul: 1, applyTo: 1, bendRange: 2, wobF: 5, mpe: false,
             // scale quantise: 0 off / 1 chromatic / 2 scale; qhyst in cents
             quant: 0, qhyst: 8, scaleRoot: 0,
