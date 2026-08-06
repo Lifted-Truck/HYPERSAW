@@ -79,6 +79,33 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## GLIDE CORE PORTED — laws 1-4 + quantise, with a trajectory oracle (2026-08-06)
+
+A1 was fully ruled, so B19 became buildable. Increment 1 follows the swarmalator order: **core
+and oracle first, shell integration separately.**
+
+`src/glide_core.h` holds the four ratified laws and the quantise modifier, transcribed from
+bend-lab's `Inertia`. **Law 5 is absent rather than commented out** — the ruling cut it, and
+dead code invites resurrecting a control the measurement already rejected.
+
+`glide_check` is green on 11/11 scenarios, worst parity RMS **3.51e-08** (bar 1e-6). The
+behavioural anchors matter more than the parity: written from JS measurements taken days
+earlier, the C++ port reproduces them independently — spring overshoot **+18.8¢** (JS: 18.8¢),
+constant rate **+0.0¢**, hysteresis at a boundary **15 → 3 flips** (JS: 15 → 3). Parity alone
+only proves the port matches a recording; the anchors pin the *character* each law was chosen
+for, so a refactor that keeps parity to a stale golden still trips.
+
+**Not in the audio path.** No param ids, no state keys, no GUI — which is why `parity_check`
+is still 147/147 at the identical worst error. Nothing calls it yet.
+
+**`./verify full` gained the chain — a protected-path edit, flagged for ratification.** It is
+additive and follows the pattern of every prior core port (force, spectra, filter, notch,
+swarmalator, time).
+
+**Shell integration needs decisions A1 did not cover:** how the four destinations map onto the
+seven existing glide params (11 inertia, 33 glide, 34 legato, 70 inertiaCurve, 75 freqGlide,
+89 polyGlide, 90 glideMode), and whether those are superseded or re-pointed. Append-only ids
+mean that wants ADR-082-level care rather than an improvised mapping.
 ## NOTE — CI red on PR #212 was a GitHub outage, not this change (2026-08-06)
 
 Recorded so the history is not misread later. PR #212's checks showed FAILING while GitHub
@@ -951,7 +978,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B10 | **Slider units/naming pass** + feature-by-feature visual breakdown for docs | deferred until the interface settles |
 | B11 | **Multi-oscillator ADR** (layout-lab IA) | **ADR-082 RATIFIED 2026-08-06 (2 slots); increment 1 SHIPPED inert** — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
 | B18 | **ADR-082 increment 2 blockers** — (a) state version gate WIDENED + ratified 2026-08-06 (accepts 1 or 2, still red on unknown). (b) min-spec CPU measurement STILL OPEN before 2 oscillators ship | § ADR-082 increment 1 |
-| B19 | **Glide/travel module** — 5 travel laws × 4 destinations; 7 shipped params (11/33/34/70/75/89/90) currently homeless. Proposed on MOD; placement open; laws gated by A1 | § Layout: glide + preset tiers |
+| B19 | **Glide/travel module** — **CORE + ORACLE SHIPPED 2026-08-06** (`src/glide_core.h`, `glide_check` in `./verify full`, parity 11/11 worst 3.5e-08, not yet in the audio path). Remaining: shell integration — destination mapping onto the 7 existing glide params (11/33/34/70/75/89/90), which wants ADR-082-level care since ids are append-only | § Glide core ported |
 | B20 | **Three preset tiers** — oscillator tier nearly free via ADR-082's `o<k>.` keys; corner tier UNBLOCKED (A11 ruled global) | § Layout: glide + preset tiers |
 | B21 | **Step glide (note/scale-quantized)** — a sixth travel law with an autotune character; workshop in bend-lab and measure like the other five. Needs a scale source (Tonality brief); interim chromatic + scale selector | § Glide module |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
