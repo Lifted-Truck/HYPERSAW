@@ -469,7 +469,7 @@ Human: *"the per voice envelope should go in the envelope tab. Maybe also the sc
 
 **Why a visual at all:** the standing convention recorded the same day — lab visuals ship with the feature they explain. Horizontal offset between traces *is* onset scatter; differing slopes *are* attack/release scatter. A numeric readout accompanies it, so the effect is legible without playing a note.
 
-## ADR-082 · Multi-oscillator architecture: param-id namespace, CPU budget, per-osc state — PROPOSED (needs ratification before any GUI work)
+## ADR-082 · Multi-oscillator architecture: param-id namespace, CPU budget, per-osc state — ACCEPTED (ratified 2026-08-06: **2 oscillator slots**)
 
 **Why this blocks the interface renovation.** The layout lab's own Decision 2 says it: 2-3 full
 oscillators is not a GUI change, it is N core instances with per-osc params, per-osc state,
@@ -535,6 +535,45 @@ oscillators at defaults, i.e. silent). "Copy osc 1 -> osc 2" becomes a key-prefi
 2. A second oscillator behind the existing `balance` param - thin, no GUI.
 3. GUI: osc page with per-parameter corner colouring and glyphs (the standing convention).
 
-**Open for the human:** how many slots (2 or 3); whether the sub-oscillator block (52-55) and
-`balance` (56) are superseded by real oscillators or kept; and whether oversampling stays
-global or becomes per-osc (per-osc is more flexible and multiplies the CPU question).
+### Ratification (human, 2026-08-06)
+
+**Two oscillator slots**, on the reasoning that SAW alone does not need three. Ids therefore
+occupy 1-99 (osc 0) and 100-199 (osc 1); the 200-299 block stays unallocated and available if a
+third slot is ever wanted.
+
+**CORRECTION — the sub/balance question was withdrawn, because it rested on a false premise.**
+The ADR asked whether the sub-oscillator block (52-55) and `balance` (56) are "superseded by
+real oscillators". Checking the code rather than the layout lab's prose:
+- **`balance` (56) is not an oscillator mixer.** It is the two-cluster A/B *coupling* balance
+  inside the SAW swarm — `kB = 1 - 2*balance` (ADR-051) — an intra-swarm parameter.
+- **The sub (52-55) is SPECTRA-only**; it exists in `spectra_core.h` and `swarm_core.h` has no
+  sub at all.
+
+Neither is superseded by anything. Both are ordinary **per-oscillator** parameters and get
+blocks like every other per-osc param (osc 1: 152-156). No deprecation, no deletion, no
+decision required. The question came from the layout lab's shorthand ("ONE engine select + A/B
+balance + sub") being read as an architecture description when it was a sketch.
+
+**Oversampling stays GLOBAL** (param 88). With two slots the derated estimate is ~20% at 1x and
+~50% at 2x — the latter sits exactly on the E-6 budget line, so making oversampling per-osc
+would multiply the one number already at its limit for no expressive gain. The min-spec
+measurement required before increment 2 stands.
+
+### Per-osc / global split (the part that is baked in forever)
+
+Everything not listed here is **per-oscillator**. GLOBAL params, by group:
+
+| group | ids |
+|---|---|
+| output & image | 14 width, 15 mono, 17 vol, 40 bassMono, 41 bassMonoHz |
+| amp envelope | 19 attack, 20 decay, 21 sustain, 22 release |
+| voice & glide | 32 voiceMono, 33 glide, 34 voiceLegato, 38 pitchBend, 75 freqGlide, 89 polyGlide, 90 glideMode, 11 inertia, 70 inertiaCurve |
+| FX rack | 57-64, 96-99 |
+| global misc | 23 beatMult, 88 oversample |
+
+**Three entries are judgement calls, flagged rather than buried** — if any is wrong it is wrong
+permanently: (a) **amp envelope 19-22 global** — conventional (the *voice* has an amp envelope,
+not each oscillator), and SPECTRA already has its own env at 65-68; (b) **transpose 35 octave /
+36 semi / 37 fineCents per-osc** — this is much of the point of a second oscillator (an octave
+down replaces what a sub would do), so they move into the per-osc class; (c) **18 retrig and 74
+keepPhase per-osc** — phase behaviour is a property of the oscillator, not the note.
