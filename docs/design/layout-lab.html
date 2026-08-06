@@ -232,6 +232,28 @@
           <div class="mock">no lab, no spec — needs its own audition before it earns a page slot</div></div>
       </div>
       <div class="col">
+        <div class="sec"><h2>Glide / travel <span class="q">(human 2026-08-06: "needs to be its own module since the inertia update")</span></h2>
+          <div class="mock">One <code>glide</code> knob no longer describes this. The bend lab
+            settled <b>five travel laws</b> that do not sound alike — <b>constant time</b>
+            (same duration near or far) · <b>constant rate</b> (fixed &cent;/s, so distance sets
+            duration) · <b>lag</b> (asymptotic, never technically arrives) · <b>spring</b> (true
+            inertia — overshoots and rings) · <b>lag &rarr; constant rate</b> (series) — each with
+            its own parameters, plus dist&rarr;overshoot, return&nbsp;&times; and &zeta;.</div>
+          <div class="knobrow" style="margin-top:5px"><span>law &#9662;</span><span>glide time</span>
+            <span>rate &cent;/s</span><span>lag &tau;</span><span>spring f</span><span>&zeta;</span>
+            <span class="new">dist&rarr;overshoot</span><span class="new">return &times;</span></div>
+          <div class="mock" style="margin-top:5px"><b>It is a module because it has DESTINATIONS,
+            not one target</b>: note pitch · bend wheel · mod wheel · MPE per-note bend — each
+            able to take a different law. That is a small matrix, which is why it belongs beside
+            the mod matrix rather than as a knob on a voice panel.
+            <br><b>Shipped today:</b> ids 33 glide, 34 legato, 75 freqGlide, 89 polyGlide,
+            90 glideMode, 11 inertia, 70 inertiaCurve &mdash; already 7 params scattered across
+            two clusters, which is the symptom.
+            <br><b>Open:</b> does it live here on MOD (control-shaping, same family as LFOs and
+            envelopes), get its own page, or sit on MAIN with only a compact readout? Proposed:
+            here, with a one-line state readout on MAIN, since it is set-and-forget more often
+            than it is performed. Fold decision A1 still governs which laws actually ship.</div>
+        </div>
         <div class="sec"><h2>Mod matrix</h2>
           <div class="viz tall">source × destination grid (mod-lab's drag-editable matrix)</div>
           <div class="mock">emergent sources (R, σ, slip) join as rows — the roadmap's "FX driven by the synth's own observables"</div></div>
@@ -253,7 +275,7 @@
 <div class="decisions">
   <h2>Decision 1 — page count &amp; names (this mock proposes 5)</h2>
   <div class="mock">MAIN (play) · OSC (per-oscillator deep edit) · SPACE (image + FX) · MOD · MORPH. Alternatives: fold MORPH into MAIN (4 pages); split FX from SPACE (6). Fewer pages beats more — a page must earn its tab by being a place you <i>stay</i>, not a drawer you fetch from. Right-click any knob → mod-assign + reset + units; ⚙ menu holds global prefs (bass-mono default, MPE, tuning). </div>
-  <h2>Decision 2 — the multi-oscillator architecture <span class="q">(ADR-082 now PROPOSED — awaiting ratification)</span></h2>
+  <h2>Decision 2 — the multi-oscillator architecture <span class="q">(ANSWERED — ADR-082 ratified 2026-08-06: 2 slots; increment 1 shipped inert)</span></h2>
   <div class="mock"><b>Answered as a proposal 2026-08-06 (ADR-082).</b> Id scheme:
     <code>id(P, osc k) = id(P, osc 0) + 100k</code> — osc 0 keeps every id it has, so all existing
     sessions and automation survive; osc 1 takes 100–199, osc 2 takes 200–299, and the gaps where
@@ -282,6 +304,29 @@
   </table>
   <h2>Decision 4 — human-readable units pass (roadmapped, not rushed)</h2>
   <div class="mock">Trigger example: core detune 0.20 ≙ gaussian σ 8¢, which no one can know from a 0–1 knob. Display-only pass over all 86 params: cents/ms/Hz/semitones where physical, σ vs range named honestly, dev-only params hidden. CLAP ids and stored values do NOT change — only value_to_text and GUI outputs — so every session and automation lane survives. Pairs with the naming pass the human already flagged (2026-07-30).</div>
+  <h2>Decision 5 — three preset tiers <span class="q">(human 2026-08-06)</span></h2>
+  <div class="mock"><b>Global &middot; morph corner &middot; oscillator.</b> The bottom tier is
+    nearly free already: ADR-082 gives every per-oscillator param the state key
+    <code>o&lt;k&gt;.name</code>, so an <b>oscillator preset is exactly the subset of state keys
+    carrying one prefix</b> — saving one is a filter, loading it into another slot is a prefix
+    rewrite, and "copy osc 1 &rarr; osc 2" needs no new format at all. That was not designed for
+    presets; it falls out of the id scheme, which is a good sign the scheme is the right shape.
+    <br><br><b>The corner tier needs a ruling first.</b> A morph corner holds a value for every
+    parameter it owns — but <i>which</i> parameters? Two readings, and they are not
+    interchangeable:
+    <br>&nbsp;&nbsp;<b>(a) corners are global</b> — one corner spans both oscillators, so a
+    corner preset is a whole-instrument snapshot minus the globals. Four corner-sets total.
+    Simple; a corner cannot morph the oscillators independently.
+    <br>&nbsp;&nbsp;<b>(b) corners are per-oscillator</b> — each oscillator owns its own four
+    corners, so corner &times; oscillator is a 2&times;4 grid of value sets. Far more expressive
+    (osc 1 morphs while osc 2 holds), and doubles the authoring surface plus every "which corner
+    am I editing" affordance.
+    <br><br>Ask (a)/(b) before building either, because the preset FORMAT differs: under (a) a
+    corner preset contains per-osc blocks; under (b) it belongs <i>inside</i> one. Getting this
+    backwards means rewriting saved presets, which is the one thing a preset format may not do.
+    <br><br><b>Also open:</b> what a global preset does to per-corner mod depths (A10 gave every
+    morph-owned matrix cell four), and whether an oscillator preset carries its corner values
+    with it or lands flat into the current corner.</div>
 </div>
 
 <script>

@@ -79,6 +79,57 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## LAYOUT: GLIDE BECOMES A MODULE + THREE PRESET TIERS (human, 2026-08-06)
+
+Two additions to the interface renovation, both recorded in `docs/design/layout-lab.html`.
+
+### Glide is a module now, not a knob
+
+Human: *"glide now needs to be its own module since the inertia update."* Correct, and the
+evidence is already in the repo. The bend lab settled **five travel laws** that do not sound
+alike — constant time · constant rate · lag · spring (true inertia, overshoots) · lag→constant
+rate — each with its own parameters plus dist→overshoot, return ×, and ζ. And it has
+**destinations, not a target**: note pitch, bend wheel, mod wheel, MPE per-note bend, each able
+to take a different law. That is a small matrix.
+
+The symptom is already visible in the shipped param list: ids **33 glide, 34 legato, 75
+freqGlide, 89 polyGlide, 90 glideMode, 11 inertia, 70 inertiaCurve** — seven params spread
+across two clusters with no home.
+
+**Proposed placement: the MOD page**, beside the mod matrix, because it shapes control motion
+(same family as LFOs and envelopes) and is set-and-forget more often than performed; a one-line
+state readout goes on MAIN. Alternatives — its own page, or living on MAIN — are recorded as
+open. Which laws actually ship is still governed by fold decision **A1**.
+
+### Three preset tiers: global · morph corner · oscillator
+
+Human: *"Oscillators themselves should have their own presets as well (so three levels of
+preset: global, morph corner, and oscillator)."*
+
+**The oscillator tier is nearly free.** ADR-082 gives every per-oscillator param the state key
+`o<k>.name`, so an oscillator preset is exactly *the subset of state keys carrying one prefix* —
+saving is a filter, loading into another slot is a prefix rewrite, and "copy osc 1 → osc 2"
+needs no new format. That was not designed for presets; it falls out of the id scheme, which is
+some evidence the scheme is the right shape.
+
+**The corner tier needs a ruling before anything is built (A11).** A morph corner holds a value
+for every parameter it owns — but which parameters?
+
+- **(a) corners are global** — one corner spans both oscillators; a corner preset is a
+  whole-instrument snapshot minus the globals. Four corner-sets. Simple, but a corner cannot
+  morph the oscillators independently.
+- **(b) corners are per-oscillator** — each oscillator owns four corners, so corner × oscillator
+  is a 2×4 grid. Far more expressive (osc 1 morphs while osc 2 holds) at double the authoring
+  surface and every "which corner am I editing" affordance.
+
+This must be answered **before** either preset tier is implemented, because the FORMAT differs:
+under (a) a corner preset contains per-osc blocks, under (b) it lives inside one. Getting it
+backwards means rewriting saved presets — the one thing a preset format may not do.
+
+Also open: what a global preset does to per-corner mod depths (A10 gave every morph-owned
+matrix cell four), and whether an oscillator preset carries its corner values with it or lands
+flat into the current corner.
+
 ## GATE ADDED — labs must survive loading (human-approved, 2026-08-06)
 
 `./verify fast` now runs `tools/labharness/lab_load_check.mjs`: every lab HTML's
@@ -581,6 +632,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A8 | **Phase 2/3 formal gate ratification** — shipped and evidenced, never formally closed | § Phase 2 / Phase 3 gates |
 | A9 | **Mod source polarity** — ANSWERED 2026-08-05 by the reachability probe: zero routings fully unreachable, two half-unreachable (`R → Kboost`, `ENV → Kboost`), now marked in the matrix rather than rejected. Only residual question if you want it: should `Kboost` stop being half-wave rectified | § Rejected routings |
 | A10 | **Morph-owned routing semantics** — RULED 2026-08-06: **per-corner depths per cell**. Each morph-owned cell holds four depths; a flip swaps which is live. Implemented + measured | § Morph-owned = per-corner depths |
+| A11 | **Are morph corners global or per-oscillator?** — blocks BOTH the corner and oscillator preset tiers, because the preset format differs between the readings and a format change means rewriting saved presets | § Layout: glide + preset tiers |
 
 ### B · Queued build work
 
@@ -599,6 +651,8 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B10 | **Slider units/naming pass** + feature-by-feature visual breakdown for docs | deferred until the interface settles |
 | B11 | **Multi-oscillator ADR** (layout-lab IA) | **ADR-082 RATIFIED 2026-08-06 (2 slots); increment 1 SHIPPED inert** — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
 | B18 | **ADR-082 increment 2 blockers** — (a) `tools/state_check.cpp:222` pins the state header to `hypersaw-state 1`; version 2 needs the assertion widened, which is a GATE CHANGE needing a human decision. (b) the min-spec CPU measurement ADR-082 requires before 2 oscillators ship | § ADR-082 increment 1 |
+| B19 | **Glide/travel module** — 5 travel laws × 4 destinations; 7 shipped params (11/33/34/70/75/89/90) currently homeless. Proposed on MOD; placement open; laws gated by A1 | § Layout: glide + preset tiers |
+| B20 | **Three preset tiers** — oscillator tier nearly free via ADR-082's `o<k>.` keys; corner tier blocked on A11 | § Layout: glide + preset tiers |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |
