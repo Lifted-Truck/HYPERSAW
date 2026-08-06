@@ -227,6 +227,13 @@ endif()
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
 # CPU bench against the E-6 envelope — runs the real SwarmCore so a min-spec
 # number can replace ADR-082's derate ESTIMATE.
+# Travel-law trajectory oracle (A1 fold): parity vs bend-lab's Inertia.
+add_executable(glide_check tools/glide_check.cpp)
+target_include_directories(glide_check PRIVATE src)
+if(NOT MSVC)
+  target_compile_options(glide_check PRIVATE -O2)
+endif()
+
 add_executable(cpu_bench tools/cpu_bench.cpp)
 target_include_directories(cpu_bench PRIVATE src)
 if(NOT MSVC)

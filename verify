@@ -171,6 +171,15 @@ full() {
   node tools/golden/gen_swarmalator_goldens.mjs > /dev/null || return 1
   "$build_dir/swarmalator_check" "$(dirname "$build_dir")/build-golden/swarmalator" || return 1
 
+  # Travel-law oracle (A1 fold, ratified 2026-08-06): trajectory goldens from
+  # bend-lab's Inertia (sliced live from the HTML) -> glide_check (parity at the
+  # L0-1 bar + the behavioural anchors the roundup measured). The core is NOT in
+  # the audio path yet — this gates the port so shell integration lands on
+  # proven ground, the same order the swarmalator port used.
+  node tools/golden/gen_glide_goldens.mjs --selfcheck || return 1
+  node tools/golden/gen_glide_goldens.mjs > /dev/null || return 1
+  "$build_dir/glide_check" "$(dirname "$build_dir")/build-golden/glide" || return 1
+
   # Track E2 time-engine oracle: echo+room goldens (JS TimeLab live from
   # swarmtime.html, noise=0) -> time_check (L0-1 parity + L0-19/20/21).
   node tools/golden/gen_time_goldens.mjs --selfcheck || return 1
