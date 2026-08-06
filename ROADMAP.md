@@ -79,6 +79,56 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## MORPH CORNERS ARE GLOBAL (A11 ruled, 2026-08-06)
+
+Human: *"I was thinking the morph would encompass all parameters of all oscillators. Maybe this
+is too big of a thing, but it's my dream."*
+
+**Ruled: reading (a) — corners are global.** One corner holds a value for every per-oscillator
+parameter of *both* oscillators; four corner-sets total.
+
+**Worth stating plainly, because the human framed it as the ambitious option: it is the
+CHEAPER of the two.** Reading (b) (each oscillator owning its own four corners) is the
+expensive one — a 2×4 grid of value sets, double the authoring surface, and a "which corner of
+which oscillator am I editing" affordance on every control. Global corners are one grid, one
+set of corner chips, one reshuffle. The dream is the simpler build.
+
+**Consequences now settled:**
+- A corner preset is a whole-instrument snapshot of the per-osc params across both oscillators.
+- Under ADR-082's key scheme that is every `o<k>.`-prefixed key plus osc 0's per-osc keys —
+  i.e. the state file minus the globals. No new format needed.
+- Oscillators cannot morph independently. That is the accepted cost; if it is ever wanted, it
+  is reading (b) and a format change, so it would need its own ADR.
+
+**Still open (smaller):** whether the GLOBAL params (FX rack, output, glide) join the morph.
+The human's phrasing was "all parameters of all *oscillators*", which reads as no — and there
+is a reason to keep it that way: morphing FX type or master volume is exactly where the
+parameter-collision problems live (the "two ring modulators on different FX slots" case).
+Recorded rather than assumed.
+
+## GLIDE MODULE — the shape visualizer is REQUIRED, and a step-glide idea (human, 2026-08-06)
+
+**The shape visualizer ships WITH the module, not after it.** Human: *"I want to make sure the
+shape visualizer is included in the module. It's crucial for understanding/predicting the
+inertial character."* This is the standing lab-visual convention (B7) applied to a case where
+it is load-bearing rather than decorative: the five travel laws differ in ways the parameter
+names actively hide — see the roundup, where law 3 and law 5 produce identical lag/settle/
+vibrato figures and different curves. A user choosing between them from a dropdown, with no
+curve, is choosing blind.
+
+**New idea to workshop in the lab: note- and scale-quantized STEP GLIDE.** Instead of a
+continuous travel, the pitch moves in quantized steps toward the target — snapping to scale
+degrees or semitones on the way — for an autotune-like character. Notes:
+- It is a sixth travel law, not a modifier: it changes *what* the trajectory is, not how fast.
+- It needs the scale/tuning source the instrument does not yet have a home for (the Tonality
+  sibling brief, deferred since Phase 3). Interim: chromatic + a simple scale selector.
+- The visualizer earns its keep here immediately — a stepped trajectory is unreadable from
+  numbers.
+- Workshop in `bend-lab.html` first (human: *"might be worth workshopping in the lab again"*),
+  measured like the other five, before any fold decision.
+
+Queued as **B21**; the fold decision for all six laws remains **A1**.
+
 ## LAYOUT: GLIDE BECOMES A MODULE + THREE PRESET TIERS (human, 2026-08-06)
 
 Two additions to the interface renovation, both recorded in `docs/design/layout-lab.html`.
@@ -632,7 +682,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A8 | **Phase 2/3 formal gate ratification** — shipped and evidenced, never formally closed | § Phase 2 / Phase 3 gates |
 | A9 | **Mod source polarity** — ANSWERED 2026-08-05 by the reachability probe: zero routings fully unreachable, two half-unreachable (`R → Kboost`, `ENV → Kboost`), now marked in the matrix rather than rejected. Only residual question if you want it: should `Kboost` stop being half-wave rectified | § Rejected routings |
 | A10 | **Morph-owned routing semantics** — RULED 2026-08-06: **per-corner depths per cell**. Each morph-owned cell holds four depths; a flip swaps which is live. Implemented + measured | § Morph-owned = per-corner depths |
-| A11 | **Are morph corners global or per-oscillator?** — blocks BOTH the corner and oscillator preset tiers, because the preset format differs between the readings and a format change means rewriting saved presets | § Layout: glide + preset tiers |
+| A11 | **Morph corner scope** — RULED 2026-08-06: **global** — one corner holds every per-oscillator parameter of *both* oscillators. Unblocks B20 | § Morph corners are global |
 
 ### B · Queued build work
 
@@ -652,7 +702,8 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B11 | **Multi-oscillator ADR** (layout-lab IA) | **ADR-082 RATIFIED 2026-08-06 (2 slots); increment 1 SHIPPED inert** — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
 | B18 | **ADR-082 increment 2 blockers** — (a) `tools/state_check.cpp:222` pins the state header to `hypersaw-state 1`; version 2 needs the assertion widened, which is a GATE CHANGE needing a human decision. (b) the min-spec CPU measurement ADR-082 requires before 2 oscillators ship | § ADR-082 increment 1 |
 | B19 | **Glide/travel module** — 5 travel laws × 4 destinations; 7 shipped params (11/33/34/70/75/89/90) currently homeless. Proposed on MOD; placement open; laws gated by A1 | § Layout: glide + preset tiers |
-| B20 | **Three preset tiers** — oscillator tier nearly free via ADR-082's `o<k>.` keys; corner tier blocked on A11 | § Layout: glide + preset tiers |
+| B20 | **Three preset tiers** — oscillator tier nearly free via ADR-082's `o<k>.` keys; corner tier UNBLOCKED (A11 ruled global) | § Layout: glide + preset tiers |
+| B21 | **Step glide (note/scale-quantized)** — a sixth travel law with an autotune character; workshop in bend-lab and measure like the other five. Needs a scale source (Tonality brief); interim chromatic + scale selector | § Glide module |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |
