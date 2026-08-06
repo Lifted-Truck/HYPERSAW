@@ -31,6 +31,14 @@
   table.mtx input.hot { border-color:var(--amber); color:var(--amber); }
   /* half the depth knob is inert (unipolar source into a rectified
      destination). Hatched, not hidden: the routing still works one way. */
+  /* A10: the four per-corner depths of a morph-owned cell. The live one is
+     lit; the rest are dim. Four numbers is the smallest honest display -- a
+     single number would hide three quarters of the routing. */
+  table.mtx .quad { display:none; gap:2px; justify-content:space-between; font-size:7.5px;
+    line-height:1.1; margin-top:1px; letter-spacing:-0.2px; }
+  table.mtx .quad.on { display:flex; }
+  table.mtx .quad span { opacity:.32; }
+  table.mtx .quad span.live { opacity:1; font-weight:bold; text-decoration:underline; }
   table.mtx input.halfdead {
     background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,90,90,.22) 3px 6px);
   }
@@ -634,6 +642,14 @@ class ModLab {
     //   -2 morph-owned — FLIPS: live only while its drawn owner holds the slot
     this.scope = SOURCES.map(() => DESTS.map(() => -1));
     this.owner = SOURCES.map(() => DESTS.map(() => 0));
+    // PER-CORNER DEPTHS (human ruling A10, 2026-08-06). Only morph-owned cells
+    // (scope -2) read this: each corner holds its OWN depth, and a flip swaps
+    // which one is live. That is the reading where morph-ownership does
+    // something corner-ownership cannot -- previously the -2 gate was
+    // `owner === 0`, a hard-coded index that left the routing dead on 6-71% of
+    // the field depending purely on the reshuffle seed. system-wide and
+    // corner-owned cells are untouched and still read `depth`.
+    this.cdepth = SOURCES.map(() => DESTS.map(() => [0, 0, 0, 0]));
     this.mxBase = 0.5; this.myBase = 0.5; this.mx = 0.5; this.my = 0.5;
     this.temp = 1;
     this.hyst = 0.12;          // flip deadband — the control that was missing
@@ -664,6 +680,18 @@ class ModLab {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const gum = () => -Math.log(-Math.log(Math.min(1 - 1e-9, Math.max(1e-9, rnd()))));
     this.gum = SOURCES.map(() => DESTS.map(() => [gum(), gum(), gum(), gum()]));
+  }
+  // The live depth of a routing right now. Morph-owned cells resolve through
+  // the current owner's slot; everything else is the plain single depth. One
+  // function so the audio path and the per-note Kboost divert cannot disagree.
+  setRouteDepth(si, di, v) {
+    if (this.scope[si][di] === -2) this.cdepth[si][di][this.owner[si][di]] = v;
+    else this.depth[si][di] = v;
+  }
+  effDepth(si, di) {
+    return this.scope[si][di] === -2
+      ? this.cdepth[si][di][this.owner[si][di]]
+      : this.depth[si][di];
   }
   // Which corner owns each morph-owned routing at the current field position.
   // HYSTERESIS is the answer to flip chatter: a challenger must beat the
@@ -736,7 +764,6 @@ class ModLab {
     const SCALE = { K: 1.0, Kboost: 1.0, detune: 0.5, cutoff: 1.0, level: 0.6, choDep: 1.0, phDep: 1.0 };
     const out = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0, ph: 0, mx: 0, my: 0 };
     for (let si = 0; si < SOURCES.length; si++) {
-      const d = this.depth[si];
       // finding #2: with per-note ON, the ENV source's Kboost route is
       // evaluated PER NOTE inside the swarm (each note's own env instance),
       // not here — the global path would re-surge every sounding note on
@@ -751,19 +778,24 @@ class ModLab {
         if (sc === -1) return 1;
         const x = Math.max(0, Math.min(1, this.mx)), y = Math.max(0, Math.min(1, this.my));
         const w = [(1 - x) * (1 - y), x * (1 - y), (1 - x) * y, x * y];
-        return sc === -2 ? (this.owner[si][di] === 0 ? 1 : 0) : w[sc]; };
-      if (d[0]) out.k += d[0] * s[si] * SCALE.K * gd(0);
-      if (d[1] && !perNoteDiverted) out.kb += d[1] * s[si] * SCALE.Kboost * gd(1);
-      if (d[2]) out.det += d[2] * s[si] * SCALE.detune * gd(2);
-      if (d[3]) out.cut += d[3] * s[si] * SCALE.cutoff * gd(3);
-      if (d[4]) out.amp += d[4] * s[si] * SCALE.level * gd(4);
-      if (d[5]) out.cho += d[5] * s[si] * SCALE.choDep * gd(5);
-      if (d[6]) out.ph += d[6] * s[si] * SCALE.phDep * gd(6);
+        // A10: owning a routing MAKES IT LIVE. The flip changes which corner's
+        // depth is used (see effDepth), not whether the routing exists at all.
+        return sc === -2 ? 1 : w[sc]; };
+      const dp = di => this.effDepth(si, di);
+      const e0 = dp(0), e1 = dp(1), e2 = dp(2), e3 = dp(3), e4 = dp(4),
+            e5 = dp(5), e6 = dp(6), e7 = dp(D_MORPHX), e8 = dp(D_MORPHY);
+      if (e0) out.k += e0 * s[si] * SCALE.K * gd(0);
+      if (e1 && !perNoteDiverted) out.kb += e1 * s[si] * SCALE.Kboost * gd(1);
+      if (e2) out.det += e2 * s[si] * SCALE.detune * gd(2);
+      if (e3) out.cut += e3 * s[si] * SCALE.cutoff * gd(3);
+      if (e4) out.amp += e4 * s[si] * SCALE.level * gd(4);
+      if (e5) out.cho += e5 * s[si] * SCALE.choDep * gd(5);
+      if (e6) out.ph += e6 * s[si] * SCALE.phDep * gd(6);
       // THE COMPOSITION: modulating where you stand in the morph field.
-      if (d[D_MORPHX]) out.mx += d[D_MORPHX] * s[si] * gd(D_MORPHX) * 0.5;
-      if (d[D_MORPHY]) out.my += d[D_MORPHY] * s[si] * gd(D_MORPHY) * 0.5;
+      if (e7) out.mx += e7 * s[si] * gd(D_MORPHX) * 0.5;
+      if (e8) out.my += e8 * s[si] * gd(D_MORPHY) * 0.5;
     }
-    this.synth.perNoteKb = this.envPerNote ? this.depth[SRC_ENV][1] * SCALE.Kboost : 0;
+    this.synth.perNoteKb = this.envPerNote ? this.effDepth(SRC_ENV, 1) * SCALE.Kboost : 0;
     // feed the modulated field position back — this is the loop that makes
     // flip chatter possible at all, and it is the point of the experiment
     this.mx = this.mxBase + out.mx;
@@ -883,10 +915,12 @@ class ModLab {
       Measured across the field: rms 0.077&hellip;0.106, peak 0.251&hellip;0.494 (corner C quietest, D loudest).
       <b>+ self-drive</b> adds LFOB→morphX so the field sweeps itself — watch flips/s and pull
       hysteresis to 0 to hear the chatter it prevents.
-      <b>Known-open:</b> the K1→K cell is <i>morph-owned</i>, and morph-owned routings are
-      currently live only where the draw hands them to corner 0 — 6%, 18% or 71% of the field
-      depending purely on the reshuffle seed. Reshuffle if it seems to do nothing; the ruling
-      is pending (see ROADMAP).</div>
+      The K1→K cell is <b>morph-owned</b>: it carries <i>four</i> depths, one per corner
+      (A +0.8 locks · B −0.8 splays · C 0 silent · D +0.4 pulls gently), shown as the four
+      tinted numbers under the cell with the live one lit. Crossing a boundary <b>swaps which
+      one applies</b> — the flip changes the routing's character, not whether it exists.
+      Typing in a morph-owned cell edits the <i>current owner's</i> value, so move the field
+      to author each corner.</div>
     <div class="meter">flips/s: <b id="m_flip">0</b> <span id="m_chat"></span></div>
     <div class="hint">Drag the field, or route a source to <b>morphX / morphY</b> in the matrix and let a modulator drive it. <b>This is the collision made audible:</b> a morph-owned routing flips the instant the field crosses a boundary, so an LFO on morphX crossing one repeatedly produces a stutter — watch flips/s climb. <b>Hysteresis</b> is the fix that was missing: a challenger must beat the incumbent by a margin, so a hair-width crossing no longer flips. At 0 you get the raw chatter; the flip counter is the evidence either way.</div>
   </div>
@@ -1078,7 +1112,11 @@ function loadMorphDemo(drift) {
     for (let di = 0; di < DESTS.length; di++) { setDepth(si, di, 0); lab.scope[si][di] = -1; }
   [['sCut', 0.55], ['sK', 0.15], ['aRate', 0.30], ['bRate', 0.85],
    ['cMix', 0.55], ['pMix', 0.5], ['cLink', 0.5], ['phLink', 0.5],
-   ['mHyst', 0.12], ['mTemp', 1]].forEach(([id, v]) => slide(id, v));
+   // temp 0.5, measured: at <=0.5 the corner you STAND ON always owns the
+   // routing (100% over 4 corners x 6 seeds), at 1.0 it is 88% and at 2.0 only
+   // 58% — i.e. temperature dials between "field position decides" and "random
+   // territory decides". The demo wants legible, so 0.5.
+   ['mHyst', 0.12], ['mTemp', 0.5]].forEach(([id, v]) => slide(id, v));
   const D = n => DESTS.indexOf(n);
   const route = (si, dn, v, sc) => { setDepth(si, D(dn), v); lab.scope[si][D(dn)] = sc; };
   route(SRC_LFOA, 'cutoff', -0.9, 0);    // A  top-left      slow filter sweep
@@ -1086,7 +1124,12 @@ function loadMorphDemo(drift) {
   route(SRC_LFOB, 'choDep', +0.8, 2);    // C  bottom-left   chorus swell
   route(3,        'phDep',  +0.9, 3);    // D  bottom-right  K4 phaser motion
   route(SRC_ENV,  'Kboost', +0.64, -1);  // system-wide: survives every flip
-  route(0,        'K',      +0.7, -2);   // morph-owned (see the known-open note)
+  // A10 made concrete: K1->K is morph-owned and each corner holds a DIFFERENT
+  // depth, so crossing a boundary swaps the coupling character rather than
+  // switching the routing on and off. A +0.8 locks, B -0.8 splays, C is silent,
+  // D +0.4 is a gentle pull -- four instruments from one cell.
+  route(0,        'K',      +0.8, -2);
+  lab.cdepth[0][DESTS.indexOf('K')] = [0.8, -0.8, 0, 0.4];
   if (drift) route(SRC_LFOB, 'morphX', +0.35, -1);   // the composition: mod the field itself
   lab.mxBase = 0.5; lab.myBase = 0.5;
   repaintScopes();
@@ -1132,7 +1175,7 @@ let repaintScopes = () => {};
   let html = '<tr><th></th>' + DESTS.map(d => `<th>${d}</th>`).join('') + '</tr>';
   SOURCES.forEach((s, si) => {
     html += `<tr data-src="${si}"><th class="src" style="color:${SRC_COL[si]}"><span class="dot" style="background:${SRC_COL[si]}"></span>${s}</th>` + DESTS.map((d, di) =>
-      `<td><input data-s="${si}" data-d="${di}" value="0"><div class="scopechip" data-s="${si}" data-d="${di}" title="scope: click to cycle system-wide -> A/B/C/D -> morph-owned">sys</div></td>`).join('') + '</tr>';
+      `<td><input data-s="${si}" data-d="${di}" value="0"><div class="scopechip" data-s="${si}" data-d="${di}" title="scope: click to cycle system-wide -> A/B/C/D -> morph-owned">sys</div><div class="quad" data-s="${si}" data-d="${di}"></div></td>`).join('') + '</tr>';
   });
   mtx.innerHTML = html;
   // SCOPE chips. Colour IS the legibility mechanism (human ruling): a
@@ -1157,7 +1200,15 @@ let repaintScopes = () => {};
       // cycle: system-wide -> A -> B -> C -> D -> morph-owned -> system-wide
       const order = [-1, 0, 1, 2, 3, -2];
       const cur = order.indexOf(lab.scope[si][di]);
+      const was = lab.scope[si][di];
       lab.scope[si][di] = order[(cur + 1) % order.length];
+      // seed all four corners from the single depth on the way IN, and collapse
+      // back to the live corner's value on the way OUT — so cycling scope never
+      // silently zeroes a routing you had already dialled in.
+      if (lab.scope[si][di] === -2 && was !== -2)
+        lab.cdepth[si][di].fill(lab.depth[si][di]);
+      else if (was === -2 && lab.scope[si][di] !== -2)
+        lab.depth[si][di] = lab.cdepth[si][di][lab.owner[si][di]];
       paintScope(el);
     });
   });
@@ -1165,7 +1216,9 @@ let repaintScopes = () => {};
     const v = Math.max(-1, Math.min(1, parseFloat(inp.value) || 0));
     inp.value = v ? v.toFixed(2) : '0';
     inp.classList.toggle('hot', v !== 0);
-    lab.depth[+inp.dataset.s][+inp.dataset.d] = v;
+    // through the lab so morph-owned cells land in the LIVE corner's slot —
+    // writing lab.depth here would edit a value nothing reads.
+    lab.setRouteDepth(+inp.dataset.s, +inp.dataset.d, v);
   };
   mtx.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('change', () => commit(inp));
@@ -1208,7 +1261,10 @@ function rebuildMatrixRows() {
   for (let i = 0; i < MAXK; i++) $('kRow' + i).style.display = i < n ? '' : 'none';
 }
 function setDepth(si, di, v) {
-  lab.depth[si][di] = v;
+  // A10: on a morph-owned cell you are editing the CURRENT OWNER's value —
+  // the same "edit routing = Owner" convention as the quantum-morph lab. Move
+  // the field to a different corner to author that corner's version.
+  lab.setRouteDepth(si, di, v);
   const inp = mtx.querySelector(`input[data-s="${si}"][data-d="${di}"]`);
   inp.value = v ? v.toFixed(2) : '0'; inp.classList.toggle('hot', v !== 0);
 }
@@ -1364,8 +1420,29 @@ function paintPolarity() {
   }
   for (let i = 0; i < SOURCES.length; i++) { lab.srcLo[i] = probe.srcLo[i]; lab.srcHi[i] = probe.srcHi[i]; }
 }
+function paintQuads() {
+  document.querySelectorAll('#mtx .quad').forEach(el => {
+    const si = +el.dataset.s, di = +el.dataset.d;
+    const on = lab.scope[si][di] === -2;
+    el.classList.toggle('on', on);
+    if (!on) { if (el.firstChild) el.textContent = ''; return; }
+    const cd = lab.cdepth[si][di], own = lab.owner[si][di];
+    // the box shows whichever corner is live, so a flip is visible in the
+    // number too — but never stomp a field the user is currently editing
+    const inp = document.querySelector(`#mtx input[data-s="${si}"][data-d="${di}"]`);
+    if (inp && document.activeElement !== inp) {
+      const lv = cd[own];
+      const txt = lv ? lv.toFixed(2) : '0';
+      if (inp.value !== txt) { inp.value = txt; inp.classList.toggle('hot', lv !== 0); }
+    }
+    el.innerHTML = cd.map((v, k) =>
+      `<span class="${k === own ? 'live' : ''}" style="color:${CORNERS[k].color}">` +
+      `${v === 0 ? '0' : v.toFixed(1)}</span>`).join('');
+  });
+}
 function draw() {
   paintPolarity();
+  paintQuads();
   drawMorphField();
   requestAnimationFrame(draw);
   /* rotor circle */
