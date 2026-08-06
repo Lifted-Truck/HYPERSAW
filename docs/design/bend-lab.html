@@ -141,7 +141,10 @@ function gaussFrom(rng) {
 // object, so a measured number can never describe a different setting than the
 // one you are hearing.
 const P = { model: 3, gtime: 120, rate: 24, tau: 60, springF: 4, damp: 0.6,
-            distOver: 1, retMul: 1, applyTo: 1, bendRange: 2, wobF: 5, mpe: false };
+            distOver: 1, retMul: 1, applyTo: 1, bendRange: 2, wobF: 5, mpe: false,
+            // scale quantise: 0 off / 1 chromatic / 2 scale; qhyst in cents
+            quant: 0, qhyst: 8, scaleRoot: 0,
+            scaleMask: [1,0,1,0,1,1,0,1,0,1,0,1] };   // major
 
 // Overshoot fraction of a second-order step response, and its inverse. Both
 // closed form: os = exp(-pi*z/sqrt(1-z^2)). The inverse is what lets "how far
@@ -159,7 +162,8 @@ const zetaFromOs = os => { const l = Math.log(Math.min(0.95, Math.max(1e-4, os))
 // here; per-tick constants are never hand-written (ADR-009).
 class Inertia {
   constructor(rate, lane) { this.sr = rate; this.lane = lane; this.x = 0; this.v = 0; this.y = 0; this.D = 0; }
-  reset(v) { this.x = v; this.v = 0; this.y = v; this.D = 0; }
+  reset(v) { this.x = v; this.v = 0; this.y = v; this.D = 0;
+            this.q = v; this.qStep = undefined; this.qFlips = 0; }
   step(t, p) {
     const dt = 1 / this.sr;
     // Move distance, peak-held since the last arrival. Constant-time glide
@@ -225,7 +229,45 @@ class Inertia {
         this.x += Math.max(-s, Math.min(s, d)); break;
       }
     }
-    return this.x;
+    return this.quantise(p);
+  }
+  /* ---- SCALE QUANTISE (human proposal 2026-08-06) ------------------------
+     Deliberately a MODIFIER, not a sixth law: the law's dynamics run
+     untouched on `x` and only the EMITTED pitch snaps. That composes — spring
+     + quantise is an overshooting autotune wobble, constant-rate + quantise is
+     a stepped portamento — where a sixth law would have been one behaviour.
+
+     HYSTERESIS, and what it does and does NOT fix (measured 2026-08-06 — the
+     first version of this comment claimed it was simply "not optional", and
+     the measurement disagreed):
+       * a spring PARKED ON a step boundary chatters, and hysteresis fixes it:
+         15 -> 3 step changes at zeta 0.5 with 8 cents of stickiness.
+       * it stops helping once the ringing dwarfs the window (zeta 0.08:
+         20 -> 18) -- that is a damping problem, not a quantiser problem.
+       * it does NOTHING to a deliberate wide vibrato (+-60 cents: 20 changes
+         at every setting) and SHOULD not: that motion is meant to step.
+     So hysteresis is a fix for one specific artefact, not a general smoother. */
+  quantise(p) {
+    const q = p.quant | 0;
+    if (!q) { this.q = this.x; return this.x; }
+    const semis = this.x;                       // lane units are semitones
+    let best = Math.round(semis), bestD = Infinity;
+    if (q === 2 && p.scaleMask) {
+      // nearest allowed scale degree, searching a couple of octaves either way
+      const root = p.scaleRoot || 0;
+      for (let c = Math.floor(semis) - 12; c <= Math.ceil(semis) + 12; c++)
+        if (p.scaleMask[((c - root) % 12 + 12) % 12]) {
+          const d = Math.abs(c - semis);
+          if (d < bestD) { bestD = d; best = c; }
+        }
+    }
+    // stick to the previous step until the new one wins by qh cents
+    const hyst = Math.max(0, p.qhyst || 0) / 100;
+    if (this.qStep !== undefined && best !== this.qStep &&
+        Math.abs(semis - this.qStep) - Math.abs(semis - best) < hyst) best = this.qStep;
+    if (best !== this.qStep) { this.qStep = best; this.qFlips = (this.qFlips || 0) + 1; }
+    this.q = best;
+    return best;
   }
 }
 

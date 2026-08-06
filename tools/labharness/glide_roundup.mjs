@@ -63,7 +63,7 @@ const LAWS = [
   { id: 2, name: 'constant rate',  blurb: 'Fixed cents/second, so distance sets the duration. A wide leap genuinely takes longer.' },
   { id: 3, name: 'lag',            blurb: 'One-pole, asymptotic. Never technically arrives, so it has no glide TIME at all — only a time constant.' },
   { id: 4, name: 'spring',         blurb: 'True inertia: a mass that overshoots and rings, because motion does not stop when the force does.' },
-  { id: 5, name: 'lag → const rate', blurb: 'Series: a soft departure into a fixed-rate traverse. The compromise law.' },
+  { id: 5, name: 'lag → const rate', ship: false, blurb: 'Series: a soft departure into a fixed-rate traverse. NOT SHIPPING (human ruling 2026-08-06) — it is the closest pair to law 3 and adds a control without adding a behaviour.' },
 ];
 
 const rows = LAWS.map(L => {
@@ -124,6 +124,9 @@ td:first-child,th:first-child{text-align:left}th{color:#7f8899;font-weight:norma
 .k{color:#7f8899}b.v{color:#cdd6e4;font-weight:normal}
 </style></head><body>
 <h1>Glide travel laws — the roundup</h1>
+<div class="note" style="border-left:2px solid #7ae582;padding-left:8px;margin-bottom:8px">
+<b>Fold ruling 2026-08-06:</b> laws <b>1&ndash;4 ship</b>; law&nbsp;5 does not. Scale quantise ships as a
+<b>modifier on all four</b> rather than as a sixth law &mdash; see the section at the end.</div>
 <div class="note">Every law measured from <b>bend-lab.html's own <code>Inertia</code> class</b>,
 evaluated headlessly — not reimplemented, so this table describes the synth you actually
 auditioned. Step: a <b>&#177;${rows[0].s.A} semitone</b> jump (bendRange is in semitones) held 600&#160;ms then released,
@@ -134,7 +137,7 @@ goes · <b>settle</b> = last moment outside &#177;5&#162; ("never" = asymptotic,
 ${P.wobF}&#160;Hz wheel wobble that survives, the price of inertia.</div>
 
 ${rows.map(r => `<div class="law"><div>${curve(r)}</div><div>
-  <h3>${r.id} &middot; ${r.name}</h3>
+  <h3>${r.id} &middot; ${r.name}${r.ship === false ? ' <span style="color:#ff5a5a;font-size:11px">— NOT SHIPPING</span>' : ''}</h3>
   <div class="note" style="max-width:560px">${r.blurb}</div>
   <div style="margin-top:6px;font-size:12px">
     <span class="k">lag&#8202;50</span> <b class="v">${fmt(r.m.lag50, ' ms')}</b> &nbsp;&middot;&nbsp;
@@ -180,6 +183,24 @@ ${rows.map(r => `<tr><td>${r.id} · ${r.name}</td><td>${fmt(r.m.lag50, ' ms')}</
 <div class="note">Measured at the lab's current defaults (glide ${P.gtime}&#160;ms · rate ${P.rate}&#162;/s ·
 &#964; ${P.tau}&#160;ms · spring ${P.springF}&#160;Hz · &#950; ${P.damp}). Each law has its own knobs, so these are
 one honest operating point apiece, not a ranking.</div>
+<h2>Scale quantise — a modifier, not a sixth law</h2>
+<div class="note">Applied to the <i>emitted</i> pitch while the law's dynamics run untouched
+underneath, so it composes with all four: spring + quantise is an overshooting autotune wobble,
+constant-rate + quantise a stepped portamento. As a sixth law it would have been one behaviour;
+as a modifier it is four.
+<br><br><b>Hysteresis fixes one specific artefact, and it is worth knowing which.</b> A step
+change is the output jumping to a new quantised degree; too many means chatter.
+<table style="margin-top:6px">
+<tr><th>case</th><th>hysteresis 0&#162;</th><th>8&#162;</th><th>25&#162;</th></tr>
+<tr><td>spring parked ON a boundary, &#950; 0.5</td><td style="color:#ff5a5a">15</td><td style="color:#7ae582">3</td><td style="color:#7ae582">3</td></tr>
+<tr><td>&#950; 0.2</td><td style="color:#ff5a5a">17</td><td>7</td><td>5</td></tr>
+<tr><td>&#950; 0.08 (heavy ringing)</td><td>20</td><td>18</td><td>13</td></tr>
+<tr><td>deliberate &#177;60&#162; vibrato at 5&#160;Hz</td><td>20</td><td>20</td><td>20</td></tr></table>
+Hysteresis rescues the parked-on-a-boundary case (15&rarr;3), stops helping once the ringing
+dwarfs the window (a damping problem, not a quantiser one), and correctly does <i>nothing</i> to
+a wide deliberate vibrato &mdash; that motion is <i>supposed</i> to step. The first draft of this
+note claimed hysteresis was simply "not optional"; the measurement disagreed and the claim was
+narrowed.</div>
 </body></html>`;
 writeFileSync(resolve(root, 'docs/reports/2026-08-06-glide-law-roundup.html'), doc);
 console.log('laws measured:');
