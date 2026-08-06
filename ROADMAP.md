@@ -79,6 +79,53 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## KURO-SYNCED FX — a module CLASS, not two special effects (human, 2026-08-06)
+
+Human: *"the chorus and phaser are going to be FX modules; they have special behavior since
+they can sync to the global kuro LFO, but maybe there are other FX modules that will apply to
+as well."*
+
+**Recorded as the durable design fact:** chorus and phaser are destined for FX slots, and their
+Kuro sync is **not a quirk of those two effects** — it is a property they happen to be the
+first to use. Treat it as a module class with a shared contract, or it will be reimplemented
+per-effect and drift.
+
+**What makes an FX eligible.** Exactly one structural property: *N parallel elements whose
+parameters can be steered independently*. The chorus has N delay taps, the phaser has N allpass
+stages — and a swarm of coupled LFOs steering them is what turns "N detuned copies" into a
+coherence axis. K controls how the elements move **relative to each other**, which is the same
+thesis as the oscillator engine, in a different domain.
+
+**The candidates are already structured for it** — every effects core has a band/line count and
+a loop over parallel elements:
+
+| core | parallel elements | max |
+|---|---|---|
+| `time_core.h` | echo lines / room FDN lines (`p.nb`, `tSm[i]` per line) | 12 |
+| `filter_core.h` | per-band filters (`p.nb`) | 24 |
+| `notch_core.h` | notches (`p.nb`) | 12 |
+| `fx_rack.h` | comb lines (`combs`, already per-line retune + gain) | — |
+
+Reverb is the most interesting untried one: modulating FDN delay lines is standard practice,
+but doing it with a *coupled* swarm rather than independent LFOs is precisely the instrument's
+argument — and the ER/tail split (ADR from the orchestral research) already gives it two
+element groups that could sync differently.
+
+**The shared interface is the `link` parameter**, which is what makes the distinction *global
+sync vs independent motion* rather than just "an LFO per effect": each FX swarm points at the
+master rotor and `link` sets how strongly it is pulled toward it. `link = 0` is an independent
+swarm, `link = 1` is welded to the global Kuro. **Status: lab-only.** `link` exists in
+`mod-lab.html`'s `KuroSwarm` and in the effects labs; **no C++ core has it yet** (verified:
+`grep -n link src/*.h` returns nothing). So the contract can still be designed rather than
+retrofitted — which is the cheap moment to do it.
+
+**Open, and worth an ADR before the second module is built:** whether every Kuro-synced FX
+shares ONE swarm or owns its own with a link strength (the labs currently do the latter —
+`choSwarm` and `phSwarm` are separate, each with `master = rotor`); whether `link` is per-FX or
+per-element-group; and how this composes with the mod matrix, since `choDep` / `phDep` are
+already matrix destinations and a second control path into the same parameter is exactly the
+collision class that produced the chorus crash. Queued as **B17**.
+
 ## LAB BRIEF — modulator editor (LFO + envelope), queued (human, 2026-08-06)
 
 Human: *"modern synths all have robust LFO and envelope editors. Could we please roadmap a lab
@@ -480,6 +527,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |
 | B16 | **Modulator editor lab (LFO + envelope)** — queued 2026-08-06; absorbs reverse-saw shape, the two S&H kinds, double-click reset, ownership tier, per-route polarity | § Lab brief — modulator editor |
+| B17 | **Kuro-synced FX module contract (ADR candidate)** — chorus/phaser are the first two of a CLASS (any FX with N steerable parallel elements: time/filter/notch cores + fx_rack combs all qualify). Design the `link` contract before the second module lands; `link` is lab-only today, no C++ core has it | § Kuro-synced FX |
 
 ### C · Closed during this reconciliation
 - **Divergence ADRs** (root-pivot topology · pan default image · saw retarget) — each is
