@@ -79,6 +79,58 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## CPU BENCH BUILT — the min-spec question is now HARDWARE, not method (2026-08-06)
+
+`tools/cpu_bench.cpp` (target `cpu_bench`) runs the **real `SwarmCore`**, not a model of it, and
+reports % of one core against the E-6 envelope (44.1 kHz, 128-sample buffer, budget 50%).
+Deterministic: fixed seed, fixed note order, a warm-up pass outside the timer, no wall-clock in
+the render path.
+
+**Measured on this machine (Apple M3, Release −O3):**
+
+| load | % of one core | ×realtime |
+|---|---|---|
+| 7 voices × 8 notes (56 osc) — default patch | **1.60%** | 62.5× |
+| 14 voices × 8 notes (112 osc) — two oscillators' worth | **2.98%** | 33.5× |
+
+Scaling is near-linear (1.86× for 2× the voices), which is the assumption ADR-082's table rests
+on — now checked rather than assumed. At the ×4 min-spec derate that is ~11.9% for two
+oscillators at 1×, comfortably inside the 50% budget and *better* than the ADR's estimate.
+
+**What remains is not a method problem, it is a hardware problem.** The E-6 envelope defines
+min-spec as an Apple M1 base / 4-core 2018-class Intel ultrabook / Windows x64 AVX2. This
+machine is an M3. Options, for the human:
+- **(a)** run `cpu_bench` on an M1 or an older Intel laptop if one is reachable — the direct answer;
+- **(b)** use the CI runners (`windows-latest` / `ubuntu-latest`) as a real x86 proxy — honest
+  about being a cloud VM with variable neighbours, so a floor rather than a spec number;
+- **(c)** accept the ×4 derate as a recorded, human-accepted residual — the precedent is the
+  Phase 0 gate's Reaper/Bitwig deferral, which was accepted for the same reason (no hardware).
+
+The derate is doing real work in ADR-082's conclusion ("3 oscillators + 2× oversampling is over
+budget"), so it is worth one of (a)/(b) rather than (c) — but at two ratified slots the margin
+is now large enough that this no longer blocks increment 2 on its own.
+
+## A2 SWARMALATOR — the agreed audition path was removed by a later ruling (2026-08-06)
+
+Flagging a queue item that a later decision silently invalidated. A2 has been waiting on "the
+human's listen before shell integration", and the recorded path (human direction 2026-07-20)
+was: *hear it first as a nondestructive parallel engine — engine-select, SAW byte-frozen*.
+
+**That path no longer exists.** The SAW-first pivot (2026-08-05) removed the engine selector
+from the GUI for new patches. So the plan of record for auditioning the swarmalator was
+cancelled by a ruling made two weeks later, and nothing connected the two.
+
+Options, cheapest first:
+- **(a)** listen in the prototype: `swarmalator.html` is present and loads clean — zero work,
+  available right now, and it IS the reference the core is bit-exact against;
+- **(b)** re-expose the engine selector behind a dev flag for an in-DAW audition;
+- **(c)** defer A2 until the interface renovation reaches the engine-expansion phase, when the
+  selector returns anyway.
+
+(a) is enough to answer the actual question ("is this worth shipping?"), because the C++ core is
+proven bit-identical to that prototype — `swarmalator_check` renders stereo parity RMS 0.0 on
+9/9 scenarios. Listening to the prototype IS listening to the engine.
+
 ## GLIDE FOLD RULED + STATE GATE WIDENED (human, 2026-08-06)
 
 ### A1 (partial): laws 1-4 ship, law 5 does not, quantise is a MODIFIER
@@ -123,7 +175,22 @@ lab default (`P.model`), and the `<select>`'s `selected` attribute moved with it
 running. Law 5's option is labelled CUT rather than deleted — the lab is a workshop and the
 evidence should stay re-measurable.
 
-### STILL OPEN in A1 — the destination matrix
+### Destination matrix RULED (2026-08-06) — own law each, shared by default
+
+Human: *"each should get its own law, but the default should be that they share a law."*
+
+So: **four per-destination law selectors, linked by default.** One control sets all four; unlink
+a destination to give it its own. This is the same shape as the FX rack's `link` (ADR/B17) —
+the instrument now uses "one value, breakable per instance" in two places, which is worth
+keeping consistent in the UI rather than inventing a second idiom.
+
+Why it is the right default: a player who never opens the module gets coherent behaviour
+everywhere, and the expressive case (spring on the bend wheel, lag on the mod wheel, constant
+rate on note pitch) is one click away rather than four decisions deep. **A1 is now fully ruled**
+— laws 1–4, constant rate default, quantise as a modifier, per-destination with link. The glide
+spec is complete and B19 is buildable.
+
+### Superseded — the open question this replaces
 
 Four things in the instrument can travel: **note pitch** (portamento), the **bend wheel**, the
 **mod wheel**, and **MPE per-note bend**. Today the lab shares ONE law across whichever lanes
@@ -132,8 +199,10 @@ picks its own law, and it matters because they want different things: note pitch
 rate; a bend wheel arguably wants spring, so a flick has physical mass; a mod wheel wants lag,
 because overshoot on a filter sweep is just wrong.
 
-**Recommendation: per-destination law selectors**, defaulting to constant rate on note pitch and
-*off* on the other three, so nothing is inertial until asked for. Glide is a module precisely
+**(Recommendation as written before the ruling — kept for the record.)** Per-destination law
+selectors, defaulting to constant rate on note pitch and *off* on the other three. The human
+ruled a linked default instead, which is better: it makes the simple case coherent rather than
+mostly-disabled. Glide is a module precisely
 BECAUSE it has destinations — one shared law would collapse it back to a knob, which is the
 thing the human said it had outgrown. Cost is four selectors instead of one; the middle option
 (grouping {note pitch} · {bend + MPE} · {mod wheel}) is recorded as the fallback if four reads
@@ -745,7 +814,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 
 | # | Item | Where |
 |---|---|---|
-| A1 | **Bend inertia fold** — which travel law; flat vs distance-keyed; bend lane / note pitch / both; does it reach MPE | § Pitch-bend inertia; `docs/design/bend-lab.html` |
+| A1 | **Bend inertia fold** — FULLY RULED 2026-08-06: laws 1–4 (5 cut), constant-rate default, quantise as a modifier, per-destination laws linked by default. B19 buildable | § Pitch-bend inertia; `docs/design/bend-lab.html` |
 | A2 | **Swarmalator** — listen before shell integration (core + oracle done, bit-exact) | § Experimental engines |
 | A3 | **Shape lab fold** — mandate rulings: fold mode and carrier purity both leave saw territory deliberately | § Lab campaign 2 item 6 |
 | A4 | **ITD max 0.6 → 0.3** — proposed on measurement (metrics saturate above 0.15 ms); wants an ear A/B first | § Open questions 2026-08-03 #1 |

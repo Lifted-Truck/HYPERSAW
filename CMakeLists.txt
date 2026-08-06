@@ -225,6 +225,14 @@ if(NOT MSVC)
 endif()
 
 # ADR-006 spike benchmark (host-side tool, not shipped): bank vs iFFT renderer.
+# CPU bench against the E-6 envelope — runs the real SwarmCore so a min-spec
+# number can replace ADR-082's derate ESTIMATE.
+add_executable(cpu_bench tools/cpu_bench.cpp)
+target_include_directories(cpu_bench PRIVATE src)
+if(NOT MSVC)
+  target_compile_options(cpu_bench PRIVATE -O3)
+endif()
+
 add_executable(renderer_bench tools/renderer_bench.cpp)
 if(NOT MSVC)
   target_compile_options(renderer_bench PRIVATE -O3)
