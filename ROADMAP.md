@@ -79,6 +79,54 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## GLIDE FOLD RULED + STATE GATE WIDENED (human, 2026-08-06)
+
+### A1 (partial): laws 1-4 ship, law 5 does not, quantise is a MODIFIER
+
+Human: *"include all the travel laws minus 5, plus my new proposed one(s) (note/scale
+quantized) — or this can be a setting attached to all of the others."*
+
+**Law 5 (lag → constant rate) is cut.** The roundup measured it as the closest pair to law 3:
+every headline metric rounds identical and the curves diverge by only 8.70 cents. It added a
+control without adding a behaviour.
+
+**Scale quantise ships as a MODIFIER on all four laws, not as a sixth law** — taking the second
+half of the human's own suggestion, because it is strictly better: applied to the *emitted*
+pitch while the law's dynamics run untouched underneath, it composes. Spring + quantise is an
+overshooting autotune wobble; constant-rate + quantise is a stepped portamento. As a sixth law
+it would have been one behaviour; as a modifier it is four, for one control instead of a whole
+trajectory type. Built in `bend-lab.html` (`Inertia.quantise`) with off / chromatic / scale.
+
+**Hysteresis: what it fixes, measured — and a claim I had to narrow.** The first version of the
+code comment asserted hysteresis was "not optional". The measurement disagreed, so the claim
+was narrowed to what the data supports (step changes over a 2 s window):
+
+| case | 0¢ | 8¢ | 25¢ |
+|---|---|---|---|
+| spring parked ON a step boundary, ζ 0.5 | **15** | **3** | 3 |
+| ζ 0.2 | 17 | 7 | 5 |
+| ζ 0.08 (heavy ringing) | 20 | 18 | 13 |
+| deliberate ±60¢ vibrato at 5 Hz | 20 | 20 | 20 |
+
+Hysteresis rescues the parked-on-a-boundary case, stops helping once the ringing dwarfs the
+window (a damping problem, not a quantiser one), and correctly does **nothing** to a wide
+deliberate vibrato — that motion is supposed to step. It is a fix for one artefact, not a
+general smoother.
+
+**Still open in A1:** which laws reach which destinations (note pitch / bend / mod wheel / MPE),
+and the default law. Scale SOURCE for quantise remains the deferred Tonality brief; chromatic
+plus a scale selector is the interim (B21).
+
+### State version gate widened (ratified)
+
+`tools/state_check.cpp:222` now accepts `hypersaw-state 1` **or** `2`, unblocking ADR-082
+increment 2. **Human-ratified 2026-08-06**, recorded here per the charter's rule that gates
+change only on an explicit decision. Calibrated: it still goes RED on an unknown version
+(planted version 9 → 4 failures), so it is a widened gate, not a removed one.
+
+B18's remaining half — the **min-spec CPU measurement** ADR-082 requires before two oscillators
+ship — is still open.
+
 ## MORPH CORNERS ARE GLOBAL (A11 ruled, 2026-08-06)
 
 Human: *"I was thinking the morph would encompass all parameters of all oscillators. Maybe this
@@ -700,7 +748,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B9 | **Pan motion speed + bipolar position weighting** (subsumes `motionCenter`) | requested 2026-07-31 |
 | B10 | **Slider units/naming pass** + feature-by-feature visual breakdown for docs | deferred until the interface settles |
 | B11 | **Multi-oscillator ADR** (layout-lab IA) | **ADR-082 RATIFIED 2026-08-06 (2 slots); increment 1 SHIPPED inert** — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
-| B18 | **ADR-082 increment 2 blockers** — (a) `tools/state_check.cpp:222` pins the state header to `hypersaw-state 1`; version 2 needs the assertion widened, which is a GATE CHANGE needing a human decision. (b) the min-spec CPU measurement ADR-082 requires before 2 oscillators ship | § ADR-082 increment 1 |
+| B18 | **ADR-082 increment 2 blockers** — (a) state version gate WIDENED + ratified 2026-08-06 (accepts 1 or 2, still red on unknown). (b) min-spec CPU measurement STILL OPEN before 2 oscillators ship | § ADR-082 increment 1 |
 | B19 | **Glide/travel module** — 5 travel laws × 4 destinations; 7 shipped params (11/33/34/70/75/89/90) currently homeless. Proposed on MOD; placement open; laws gated by A1 | § Layout: glide + preset tiers |
 | B20 | **Three preset tiers** — oscillator tier nearly free via ADR-082's `o<k>.` keys; corner tier UNBLOCKED (A11 ruled global) | § Layout: glide + preset tiers |
 | B21 | **Step glide (note/scale-quantized)** — a sixth travel law with an autotune character; workshop in bend-lab and measure like the other five. Needs a scale source (Tonality brief); interim chromatic + scale selector | § Glide module |

@@ -219,7 +219,15 @@ int main()
   saved.s.ctx = &saved;
   saved.s.write = ostr_write;
   check(state->save(a, &saved.s), "state save succeeds");
-  check(saved.data.rfind("hypersaw-state 1\n", 0) == 0, "state blob is versioned");
+  // ADR-082: version 2 adds the `o<k>.` per-oscillator key namespace. Both are
+  // valid — a 1-oscillator build still emits version 1, and version 1 blobs
+  // remain loadable — so the gate accepts either rather than pinning the one
+  // that happened to exist first. WIDENED WITH HUMAN RATIFICATION 2026-08-06
+  // (recorded in ROADMAP); it is still a gate, not a formality: an unversioned
+  // or unknown-version blob must fail.
+  check(saved.data.rfind("hypersaw-state 1\n", 0) == 0 ||
+            saved.data.rfind("hypersaw-state 2\n", 0) == 0,
+        "state blob is versioned (1 or 2)");
 
   // Fresh instance, load, compare every value exactly.
   const clap_plugin_t *b = makePlugin();
