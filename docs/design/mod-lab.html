@@ -29,6 +29,11 @@
   table.mtx td { padding:1px; }
   table.mtx input { width:44px; background:#0d1016; color:var(--text); border:1px solid var(--line); font:inherit; font-size:10px; text-align:center; padding:2px 1px; }
   table.mtx input.hot { border-color:var(--amber); color:var(--amber); }
+  /* half the depth knob is inert (unipolar source into a rectified
+     destination). Hatched, not hidden: the routing still works one way. */
+  table.mtx input.halfdead {
+    background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,90,90,.22) 3px 6px);
+  }
   .scopechip { font-size:8px; text-align:center; border:1px solid; border-radius:2px;
                margin-top:1px; cursor:pointer; padding:0 1px; letter-spacing:.02em; user-select:none; }
   .scopechip:hover { filter:brightness(1.4); }
@@ -586,6 +591,21 @@ const SRC_R = 8, SRC_LFOA = 9, SRC_LFOB = 10, SRC_ENV = 11;
 // morph therefore moves with them — including discrete flips, which is where
 // the chatter problem lives.
 const DESTS = ['K', 'Kboost', 'detune', 'cutoff', 'level', 'choDep', 'phDep', 'morphX', 'morphY'];
+// RECTIFIED destinations: which sign of contribution the destination can accept
+// at all. Kboost is the only one -- `kb = 8 * Math.max(0, kbMod)` throws the
+// whole negative half away. Declared rather than derived because deriving it
+// costs a probe render per cell; kept beside DESTS so the two cannot drift.
+//
+// WHY THIS TABLE EXISTS (reachability probe, 2026-08-05). Measured source
+// excursions at default rotor settings: K1..K8/LFOA/LFOB are bipolar, but
+// R runs -1.0000..-0.3322 (NEGATIVE-only -- it is R*2-1 and R never reaches
+// 0.5 below the coupling knee) and ENV runs 0.0363..1.0000 (POSITIVE-only).
+// A unipolar source into a rectified destination silently loses half its knob:
+// R->Kboost is inert at POSITIVE depth, ENV->Kboost inert at NEGATIVE depth.
+// Neither is a bug -- ENV->Kboost is the onset A/B's own routing -- so the lab
+// MARKS the dead half rather than rejecting the pair, which would also remove
+// the half that works. Zero routings measured fully unreachable.
+const DEST_RECT = { Kboost: +1 };
 const D_MORPHX = 7, D_MORPHY = 8;
 class ModLab {
   constructor(sr) {
@@ -623,6 +643,9 @@ class ModLab {
     this.mods = { k: 0, kb: 0, det: 0, cut: 0, amp: 0, cho: 0, ph: 0 };
     this.tick = 0;
     this.srcVal = new Float64Array(SOURCES.length);
+    // running excursion per source, for the polarity markers
+    this.srcLo = new Float64Array(SOURCES.length).fill(Infinity);
+    this.srcHi = new Float64Array(SOURCES.length).fill(-Infinity);
   }
   noteOn(midi, f) {
     const s = this.synth.noteOn(midi, f);
@@ -695,6 +718,13 @@ class ModLab {
     // matrix must answer with a per-route setting, not a hard-coded map.
     s[SRC_R] = this.rotor.R * 2 - 1;
     s[SRC_LFOA] = a; s[SRC_LFOB] = b; s[SRC_ENV] = e;
+    // Observed excursion drives the polarity markers. Measured, not assumed:
+    // R's range depends on whether the swarm is above its coupling knee, so a
+    // hard-coded "R is negative-only" would be a lie the moment K rises.
+    for (let i = 0; i < SOURCES.length; i++) {
+      if (s[i] < this.srcLo[i]) this.srcLo[i] = s[i];
+      if (s[i] > this.srcHi[i]) this.srcHi[i] = s[i];
+    }
     // matrix: dest scales chosen so depth 1 spans the musically-full range
     // Kboost is COUPLING-DOMAIN (units of the onset-lock Kenv, x8 applied in
     // the swarm): the generic K destination saturates at km(K=1)=4 while
@@ -1236,7 +1266,53 @@ function drawEnv(cx, w, h, p, v, colour) {
 }
 const scopeHist = Array.from({length: SOURCES.length}, () => []);
 const kHist = [];
+/* POLARITY MARKERS. A cell earns one when its source has so far only ever gone
+   one way and its destination rectifies the other way -- that half of the depth
+   knob is inert, silently. Recomputed from the LIVE excursion, so raising rotor
+   K past the coupling knee (R crosses 0.5, the source turns bipolar) clears the
+   R->Kboost marker on its own rather than leaving a stale warning behind. */
+function paintPolarity() {
+  for (let di = 0; di < DESTS.length; di++) {
+    const rect = DEST_RECT[DESTS[di]];
+    if (!rect) continue;
+    for (let si = 0; si < SOURCES.length; si++) {
+      const lo = lab.srcLo[si], hi = lab.srcHi[si];
+      if (!isFinite(lo) || !isFinite(hi)) continue;
+      // A source that has not MOVED is unknown, not unipolar. Without this the
+      // markers fire on every K row above the rotor's oscillator count (hard
+      // zeroed) and on ENV before its first note -- and ENV->Kboost is the
+      // onset A/B's own routing, so marking it would be an outright lie.
+      if (hi - lo < 1e-9) continue;
+      // inert depth sign = the one whose product with the source can only land
+      // on the side the destination throws away
+      const dead = hi <= 1e-9 ? +1 : lo >= -1e-9 ? -1 : 0;
+      const inp = mtx.querySelector(`input[data-s="${si}"][data-d="${di}"]`);
+      if (!inp) continue;
+      inp.classList.toggle('halfdead', dead !== 0);
+      inp.title = dead === 0 ? ''
+        : `${SOURCES[si]} has stayed ${dead > 0 ? 'NEGATIVE' : 'POSITIVE'}-only `
+        + `(${lo.toFixed(3)}..${hi.toFixed(3)}) and ${DESTS[di]} is half-wave rectified, `
+        + `so ${dead > 0 ? 'POSITIVE' : 'NEGATIVE'} depth here does nothing. `
+        + `The other half works.`;
+    }
+  }
+}
+/* Seed the excursions from a THROWAWAY lab ticked for ~1 s of control rate, so
+   the markers are correct on a fresh page instead of only after you have
+   already played something. A separate instance on purpose: ticking the live
+   lab to measure it would advance its rotor/LFO/env state and break the
+   deterministic start the spec pins. */
+{
+  const probe = new ModLab(ctx.sampleRate);   // NB: no bare `SR` in this scope
+  probe.rotor.setParam('n', MAXK);            // exercise every K source, not just the live n
+  probe.noteOn(45, 220);                      // ...and the envelope, which is flat until a note
+  for (let i = 0; i < Math.round(ctx.sampleRate / TICK); i++) {
+    probe.controlTick(); probe.rotor.advance(TICK);
+  }
+  for (let i = 0; i < SOURCES.length; i++) { lab.srcLo[i] = probe.srcLo[i]; lab.srcHi[i] = probe.srcHi[i]; }
+}
 function draw() {
+  paintPolarity();
   drawMorphField();
   requestAnimationFrame(draw);
   /* rotor circle */

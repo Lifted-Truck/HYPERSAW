@@ -79,6 +79,43 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+### Rejected routings — asked for, and the measurement says there is nothing to reject yet
+
+Human, 2026-08-05: *"Maybe there are some routings we explicitly reject, like R → Kboost."*
+Built `tools/labharness/modlab_reach.mjs` to find the rule behind that instinct rather than
+hand-maintain a list (a list rots; a rule does not). It measures each source's ACTUAL
+excursion and each routing's response either side of zero depth:
+
+| source | observed range | polarity |
+|---|---|---|
+| K1–K8, LFOA, LFOB | −1.0000 … 1.0000 | bipolar |
+| **R** | −1.0000 … **−0.3322** | **negative-only** (it is `R*2−1`, and R never reaches 0.5 below the coupling knee) |
+| **ENV** | **0.0363** … 1.0000 | **positive-only** |
+
+`Kboost` is the **only** rectified destination (`8 * max(0, kbMod)`). Result: **zero routings
+are fully unreachable**, and exactly two are half-unreachable — `R → Kboost` (positive depth
+inert) and `ENV → Kboost` (negative depth inert). They are the same phenomenon mirrored.
+
+**So a reject-list would be wrong here, and the reason matters.** `R → Kboost` works fine at
+*negative* depth, and above the coupling knee it works at positive depth too — the sweep
+measured it alive at rotor K=1 (max R 0.996) and at detune 0.05 (max R 0.984). Its mirror,
+`ENV → Kboost`, is the routing the lab's own onset A/B deliberately uses. Rejecting the pair
+would delete capability that works to suppress a half that doesn't.
+
+**Built instead: polarity markers.** A matrix cell is hatched when its source has so far only
+gone one way and its destination rectifies the other way, with a tooltip naming the observed
+range and which half of the knob is inert. Computed from the LIVE excursion, so raising rotor
+K past the knee clears the `R → Kboost` marker on its own instead of leaving a stale warning.
+Seeded at load from a throwaway probe instance (a separate lab, ticked 1 s — ticking the live
+one would advance its rotor/LFO/env and break the deterministic start the spec pins), so the
+markers are right on a fresh page rather than only after you have already been bitten.
+
+**The rejection mechanism itself is NOT built** — with zero fully-dead routings it would be an
+empty abstraction, which the charter's "reduce, never invent" forbids. If a genuinely
+incoherent pair appears (a new rectified destination, or a source that cannot leave one sign),
+the marker logic is where it goes. Register item **A9** is answered by this: no ruling needed
+unless you want `Kboost` unrectified, which is a separate question.
+
 **Calibration note (L0016 again).** The sweep's first run reported 53 dead routings and
 every single one was my bench, not the lab: K5–K8 are hard-zeroed above the rotor's
 oscillator count (the lab's own UI hides those rows), cutoff defaulted to fully open so a
@@ -330,7 +367,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A6 | **SPEC citation amendment** — protected path, awaiting approval | § Timbre-space research |
 | A7 | **Law/dist widening** — state compatibility, scope, and which core-only params to expose | § Open questions for the human (4 sub-items) |
 | A8 | **Phase 2/3 formal gate ratification** — shipped and evidenced, never formally closed | § Phase 2 / Phase 3 gates |
-| A9 | **Mod source polarity — uni vs bipolar, per route** — `R → Kboost` at +depth is measurably dead (R never exceeds 0.334 below the coupling knee; Kboost is half-wave rectified). Ruling needed: per-route unipolar/bipolar setting, or unrectified Kboost, or leave as physics | § Full mod-matrix sweep |
+| A9 | **Mod source polarity** — ANSWERED 2026-08-05 by the reachability probe: zero routings fully unreachable, two half-unreachable (`R → Kboost`, `ENV → Kboost`), now marked in the matrix rather than rejected. Only residual question if you want it: should `Kboost` stop being half-wave rectified | § Rejected routings |
 
 ### B · Queued build work
 
@@ -430,6 +467,16 @@ lesson is about ORDER of assembly, not the physics.
 
 **Open (human):** which architecture survives (or both); does R→index earn its place;
 n:m edges as increment 2; fold path (engine selector, SAW byte-frozen) if the ear says yes.
+
+**When work resumes — build the WAVEFORM READOUT first (human, 2026-08-05):** *"more than
+any other engine, it needs a detailed waveform readout."* This is a build-order note, not a
+nice-to-have. The rest of the deferral verdict says pare COOPERATOR to one modulator and
+make it sound good before adding novelty — and the reason the lab's sounds were hard to
+judge is that FM's character lives in a waveform whose shape you cannot infer from a
+spectrum or an R meter. Every other engine here is auditioned against a swarm visual;
+COOPERATOR's equivalent is the wave itself, at enough time resolution to see the index
+envelope bite. Ship it BEFORE the pared-down engine, so increment 1 is auditioned with the
+instrument that can actually show what changed.
 
 ## SPECTRA feature-parity audit (human direction, 2026-08-05)
 
