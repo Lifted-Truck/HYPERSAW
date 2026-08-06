@@ -559,6 +559,43 @@ balance + sub") being read as an architecture description when it was a sketch.
 would multiply the one number already at its limit for no expressive gain. The min-spec
 measurement required before increment 2 stands.
 
+### Amendment 1 (2026-08-06) — stride 100 → 1000, and `vol` is per-oscillator
+
+Found while starting increment 2, before anything was built on the scheme. Both defects are
+in the ratified text above; both were free to fix at that moment and would have been permanent
+a week later.
+
+**(a) The stride is also the CAPACITY of oscillator 0's block — and it was full.** With stride
+100, osc 0 owns ids 1..99. The instrument has **99 params with zero free slots**. A new param
+would need id 100, and `findParam` computes `osc = id / kOscStride`, so id 100 resolves to
+oscillator 1 / base 0 and is **never found** — the param would not be cramped, it would be
+silently unreachable. Stride 100 therefore capped the instrument at 99 parameters *forever*,
+and it was already at the cap on the day it was ratified.
+
+**Stride is now 1000**: osc 0 = 1..999 (900 free slots), osc 1 = 1000..1999, osc 2 =
+2000..2999. Every existing id is unchanged. This costs nothing **only because increment 1
+shipped at `kNumOsc = 1`** — no id ≥ 100 has ever been exposed to a host, so no session,
+automation lane or patch can reference one. After the first 2-oscillator build ships, this
+amendment becomes impossible.
+
+**(b) `vol` (17) was misclassified as global.** It is the swarm's *own* output gain, computed
+inside `SwarmCore::render` (`gain = p.vol * 0.9 / n^normExp`), so it belongs to the oscillator.
+Leaving it global would give two oscillators one shared gain and **no way to balance them** —
+which is precisely the control increment 2 exists to provide. It is now per-oscillator. A
+patch-level master volume, if wanted, is a separate new param; the stride amendment leaves
+room for one.
+
+**How this was caught, since the process point generalises:** not by review of the ADR, but by
+starting to build the increment it authorised and finding there was no mixer. The
+`balance` (56) param that the original increment-2 sketch named as the place to hide a second
+oscillator is the two-cluster *coupling* balance (ADR-051), not a mixer — a correction already
+recorded in the ratification note. Following that thread is what exposed both defects. An ADR
+reads as complete right up until you try to execute it.
+
+**Verified:** `./verify full` GREEN at `kNumOsc = 1` (parity 147/147, worst 4.262e-09 —
+unchanged), and calibrated at `kNumOsc = 2` where `state_check` passes in full, including the
+version assertion and the `o1.` key round-trip.
+
 ### Per-osc / global split (the part that is baked in forever)
 
 Everything not listed here is **per-oscillator**. GLOBAL params, by group:

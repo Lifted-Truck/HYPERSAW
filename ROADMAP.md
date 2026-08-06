@@ -79,6 +79,33 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## ADR-082 AMENDMENT 1 — the id scheme was full on day one (2026-08-06)
+
+Caught while **starting** increment 2, before anything was built on it. Two defects in the
+ratified scheme, both free to fix at that moment and permanent a week later.
+
+**(a) Stride 100 capped the instrument at 99 parameters, forever — and it was already at 99.**
+The stride is also the capacity of oscillator 0's block. Measured: ids 1..99, **zero free slots
+below 100**. A new param would need id 100, and `findParam` computes `osc = id / kOscStride`,
+so 100 resolves to oscillator 1 / base 0 and is never found — silently unreachable, not merely
+cramped. **Stride is now 1000** (osc 0 = 1..999, osc 1 = 1000..1999, osc 2 = 2000..2999); every
+existing id unchanged. Free **only because increment 1 shipped at `kNumOsc = 1`**, so no id
+≥ 100 has ever reached a host. After the first 2-oscillator build ships this is impossible.
+
+**(b) `vol` (17) was misclassified as global.** It is the swarm's own output gain, computed
+inside `SwarmCore::render`. Left global, two oscillators share one gain and cannot be balanced
+— the very control increment 2 exists to add. Now per-oscillator; a patch-level master volume
+is a separate future param, for which the stride amendment leaves room.
+
+**The process point:** neither was found by re-reading the ADR. Both surfaced within minutes of
+trying to build the increment it authorised, by asking "what mixes the two oscillators?" and
+discovering the answer was nothing — `balance` (56) being the two-cluster *coupling* balance,
+not a mixer. An ADR reads as complete right up until you execute it, which is an argument for
+starting the walking skeleton early rather than perfecting the document.
+
+Verified: `./verify full` GREEN at `kNumOsc = 1` (parity 147/147, worst 4.262e-09, unchanged);
+calibrated at `kNumOsc = 2` with `state_check` fully green including the `o1.` round-trip.
+
 ## GLIDE CORE PORTED — laws 1-4 + quantise, with a trajectory oracle (2026-08-06)
 
 A1 was fully ruled, so B19 became buildable. Increment 1 follows the swarmalator order: **core

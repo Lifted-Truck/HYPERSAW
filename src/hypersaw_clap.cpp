@@ -257,8 +257,16 @@ constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
    state bytes are all bit-identical to before — which is exactly what makes
    the parity/state oracles a proof that the refactor is inert. Increment 2
    raises it to 2 (the ratified slot count) and adds the second core. */
-constexpr uint32_t kOscStride = 100;
-constexpr uint32_t kMaxOsc = 2;   // ratified 2026-08-06; 200-299 stays free for a third
+// STRIDE 1000, NOT 100 (amendment, 2026-08-06 — see ADR-082 Amendment 1).
+// The stride is also the CAPACITY of oscillator 0's block, and at stride 100
+// that block was ids 1..99 with ZERO free slots: the instrument already had 99
+// params, so it could never gain another one. A new param at id 100 is not
+// merely cramped, it is UNREACHABLE — findParam computes osc = id/kOscStride,
+// so 100 resolves to oscillator 1 / base 0 and is never found. 1000 leaves 900
+// free slots and costs nothing to adopt today, because increment 1 shipped at
+// kNumOsc == 1 and no id >= 100 has ever been exposed to a host.
+constexpr uint32_t kOscStride = 1000;
+constexpr uint32_t kMaxOsc = 2;   // ratified 2026-08-06; 2000-2999 stays free for a third
 constexpr uint32_t kNumOsc = 1;   // increment 1: mechanism only, nothing audible changes
 static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified range");
 
@@ -268,7 +276,12 @@ static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified 
    there rather than buried here, because a param in the wrong class is wrong
    permanently. */
 constexpr clap_id kGlobalIds[] = {
-    14, 15, 17, 40, 41,                          // output & image
+    14, 15, 40, 41,                              // output & image
+    // NB: 17 "vol" is NOT here. It is the swarm's own output gain, computed
+    // inside SwarmCore::render — so it is PER-OSCILLATOR, and it is what lets
+    // two oscillators be balanced against each other. A patch-level master
+    // volume, if wanted, is a separate new param (the stride-1000 amendment
+    // leaves room for one).
     19, 20, 21, 22,                              // amp envelope (voice-level, not per-osc)
     32, 33, 34, 38, 75, 89, 90, 11, 70,          // voice & glide behaviour
     57, 58, 59, 60, 61, 62, 63, 64, 96, 97, 98, 99,  // FX rack
