@@ -5,7 +5,12 @@
 <title>SWARM✱ layout lab — information architecture audition</title>
 <style>
   :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
-          --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --mag:#e05fd0; }
+          --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --mag:#e05fd0;
+          /* CORNER VOCABULARY — identical to mod-lab's CORNERS. Standing
+             convention (human, 2026-08-05): corner colour is global and means
+             ONE thing, so a parameter's hue tells you which corner it came from
+             no matter which page you are on. */
+          --cA:#f2b134; --cB:#ff4d6d; --cC:#4cc9f0; --cD:#7ae582; --cNeutral:#8b93a6; }
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace; padding:12px 16px 60px; }
   h1 { font-size:15px; margin-bottom:2px; }
@@ -41,6 +46,25 @@
   .knobrow { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11px; color:var(--dim); }
   .knobrow span { border:1px solid var(--line); border-radius:3px; padding:2px 6px; background:var(--bg); }
   .knobrow span.new { border-color:var(--amber); color:var(--amber); }
+  /* a parameter whose live value comes from a corner wears that corner's hue
+     AND glyph — hue alone fails for colour-blind users and in screenshots */
+  .knobrow span.srcA { border-color:var(--cA); color:var(--cA); }
+  .knobrow span.srcB { border-color:var(--cB); color:var(--cB); }
+  .knobrow span.srcC { border-color:var(--cC); color:var(--cC); }
+  .knobrow span.srcD { border-color:var(--cD); color:var(--cD); }
+  .knobrow span.mixed { border-color:var(--cNeutral); color:var(--cNeutral);
+    background:repeating-linear-gradient(135deg,transparent 0 3px,rgba(139,147,166,.18) 3px 6px); }
+  .knobrow span b { font-weight:normal; opacity:.85; margin-right:3px; }
+  .morphmini { display:flex; gap:10px; align-items:flex-start; }
+  .morphmini .pad { position:relative; width:96px; height:96px; flex:0 0 auto;
+    border:1px solid var(--line); border-radius:4px; background:var(--bg); }
+  .morphmini .cnr { position:absolute; font-size:11px; line-height:1; }
+  .morphmini .cnr.tl { left:4px; top:4px; color:var(--cA); }
+  .morphmini .cnr.tr { right:4px; top:4px; color:var(--cB); }
+  .morphmini .cnr.bl { left:4px; bottom:4px; color:var(--cC); }
+  .morphmini .cnr.br { right:4px; bottom:4px; color:var(--cD); }
+  .morphmini .dot { position:absolute; left:58%; top:38%; width:7px; height:7px;
+    margin:-3.5px 0 0 -3.5px; border-radius:50%; background:var(--fg); }
   .knobrow span.lab { border-color:var(--mag); color:var(--mag); }
   .viz { height:64px; border:1px dashed var(--line); border-radius:4px; display:flex; align-items:center;
          justify-content:center; color:var(--dim); font-size:11px; background:var(--bg); }
@@ -92,12 +116,12 @@
       <div class="col" style="flex:1.6">
         <div class="sec"><h2>Oscillators <span class="q">(the big architecture question — see decisions)</span></h2>
           <div class="oscstrip">
-            <div class="osc"><h3>OSC A <select><option>SAW</option><option>SPECTRA</option><option>SWARMALATOR?</option></select></h3>
+            <div class="osc"><h3>OSC A <span class="q">SAW</span></h3>
               <div class="lvl"><i style="width:72%"></i></div>
               <div class="mock">voices · detune · K · shape → <b>OSC page</b></div></div>
-            <div class="osc"><h3>OSC B <select><option>SPECTRA</option><option>SAW</option></select></h3>
+            <div class="osc"><h3>OSC B <span class="q">SAW</span></h3>
               <div class="lvl"><i style="width:45%"></i></div>
-              <div class="mock">independent engine + params</div></div>
+              <div class="mock">independent params, same engine (SAW-first)</div></div>
             <div class="osc"><h3>SUB <select><option>sine</option><option>saw</option></select></h3>
               <div class="lvl"><i style="width:30%"></i></div>
               <div class="mock">level · wave · octave (shipped ids 52–55)</div></div>
@@ -110,8 +134,15 @@
           <div class="knobrow"><span>A</span><span>D</span><span>S</span><span>R</span></div>
           <div class="mock">Env 1 hard-wired to level (the human's default suggestion) — deeper envs on MOD</div>
         </div>
-        <div class="sec"><h2>Quantum morph</h2>
-          <div class="viz" style="height:44px">morph pad (compact) — full editor on its own page?</div>
+        <div class="sec"><h2>Quantum morph <span class="q">(compact XY — human request 2026-08-05)</span></h2>
+          <div class="morphmini">
+            <div class="pad"><i class="dot"></i>
+              <b class="cnr tl">&#9670;</b><b class="cnr tr">&#9650;</b>
+              <b class="cnr bl">&#9679;</b><b class="cnr br">&#9632;</b></div>
+            <div class="mock">Drag = move the field. Corner glyph + hue are the SAME everywhere in the
+              UI (standing convention). Full authoring — territory, reshuffle, per-corner depths —
+              lives on the MORPH page; this is the play control, not the editor.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -121,6 +152,29 @@
   <!-- ============ PAGE: OSC ============ -->
   <div class="page" data-pg="OSC">
     <div class="mock" style="margin-bottom:8px">Per-oscillator editor — tab or selector chooses <b>A / B / SUB</b>; page contents swap to that osc's engine.</div>
+    <div class="sec"><h2>Provenance colouring <span class="q">(human request 2026-08-05 — the reason this page needs the morph vocabulary)</span></h2>
+      <div class="mock">With the morph parked at an intermediate position, <b>every parameter is
+        showing a value that came from somewhere</b>, and today the page gives you no way to know
+        where. So each control wears the hue <i>and glyph</i> of the corner its live value came
+        from — glyph as well as hue, because colour alone fails for colour-blind users and in
+        screenshots. Where corners <i>blend</i> rather than one winning, the chip is hatched
+        neutral: honest about there being no single source. The vocabulary is identical to the
+        mod lab's (◆ GLASS · ▲ GRIT · ● HOLLOW · ■ BLOOM), per the standing convention that
+        corner colour means one thing everywhere.</div>
+      <div class="knobrow" style="margin-top:6px">
+        <span class="srcA"><b>&#9670;</b>detune 0.31</span>
+        <span class="srcA"><b>&#9670;</b>K +0.42</span>
+        <span class="srcB"><b>&#9650;</b>shape 0.68</span>
+        <span class="srcD"><b>&#9632;</b>drift 22c</span>
+        <span class="mixed">voices 9 &mdash; blended</span>
+        <span class="mixed">dissolve 0.9s &mdash; blended</span>
+        <span>seed 1234</span><span>law &#9662;</span>
+      </div>
+      <div class="mock" style="margin-top:5px"><b>Unstyled chips are not morph-owned at all</b>
+        (seed, law) — a third state the eye needs, or "no colour" reads as "colour I cannot see".
+        <b>Open:</b> whether a blended chip should show the winning corner faintly, or stay
+        deliberately neutral so nobody reads a blend as a source.</div>
+    </div>
     <div class="cols">
       <div class="col">
         <div class="sec"><h2>The swarm (SAW engine)</h2>
@@ -142,7 +196,7 @@
           <div class="knobrow"><span>depth</span><span>walk rate</span><span class="new">drift mode ▾</span><span class="new">freq glide</span><span class="new">centre pin</span>
             <span class="lab">onset scatter (Vorberg α)</span><span class="lab">attack scatter</span><span class="lab">attack character ±</span></div>
           <div class="mock">the ensemble-lab timing stack folds here — the strongest-evidence feature not yet in the core</div></div>
-        <div class="sec"><h2>SPECTRA engine <span class="q">(shown when this osc = SPECTRA)</span></h2>
+        <div class="sec" style="opacity:.45"><h2>SPECTRA engine <span class="q">(SAW-first: hidden for new patches; shown only for legacy SPECTRA patches — engineOptionGuard)</span></h2>
           <div class="knobrow"><span>partials</span><span>amp tilt</span><span>stretch</span><span>cloud</span><span>cloud width</span><span>width tilt</span><span>cascade</span><span>transpose</span></div></div>
       </div>
     </div>
@@ -199,8 +253,17 @@
 <div class="decisions">
   <h2>Decision 1 — page count &amp; names (this mock proposes 5)</h2>
   <div class="mock">MAIN (play) · OSC (per-oscillator deep edit) · SPACE (image + FX) · MOD · MORPH. Alternatives: fold MORPH into MAIN (4 pages); split FX from SPACE (6). Fewer pages beats more — a page must earn its tab by being a place you <i>stay</i>, not a drawer you fetch from. Right-click any knob → mod-assign + reset + units; ⚙ menu holds global prefs (bass-mono default, MPE, tuning). </div>
-  <h2>Decision 2 — the multi-oscillator architecture (biggest item, needs an ADR before any GUI work)</h2>
-  <div class="mock">Today: ONE engine select + A/B balance + sub. The brief asks for 2–3 full oscillators, each independently SAW/SPECTRA/…. That is not a GUI change — it is N core instances with per-osc params, per-osc state, doubled CPU, and a param-id namespace design (per-osc id blocks? osc-index modifier?). Ids are append-only, so this must be designed ONCE, correctly. Recommendation: ADR first (id scheme + voice/CPU budget + per-osc preset format), then a thin 2-osc walking skeleton behind the existing balance param, then the GUI.</div>
+  <h2>Decision 2 — the multi-oscillator architecture <span class="q">(ADR-082 now PROPOSED — awaiting ratification)</span></h2>
+  <div class="mock"><b>Answered as a proposal 2026-08-06 (ADR-082).</b> Id scheme:
+    <code>id(P, osc k) = id(P, osc 0) + 100k</code> — osc 0 keeps every id it has, so all existing
+    sessions and automation survive; osc 1 takes 100–199, osc 2 takes 200–299, and the gaps where
+    a global's id would fall are left permanently unallocated as self-documentation. Measured
+    basis: 99 params, ids 1–99 with <i>no gaps</i>, ~70 of them per-oscillator. CPU falls out as a
+    real constraint — at the project's own ×4 min-spec derate, 3 oscillators <i>and</i> 2×
+    oversampling reaches ~75% against a 50% budget, so those two cannot both be unconditional.
+    Rejected: re-homing ids into clean blocks (impossible, append-only) and a single param set
+    with an edit-target selector (kills per-osc automation). <b>Superseded text follows.</b></div>
+  <div class="mock" style="opacity:.5">Today: ONE engine select + A/B balance + sub. The brief asks for 2–3 full oscillators, each independently SAW/SPECTRA/…. That is not a GUI change — it is N core instances with per-osc params, per-osc state, doubled CPU, and a param-id namespace design (per-osc id blocks? osc-index modifier?). Ids are append-only, so this must be designed ONCE, correctly. Recommendation: ADR first (id scheme + voice/CPU budget + per-osc preset format), then a thin 2-osc walking skeleton behind the existing balance param, then the GUI.</div>
   <h2>Decision 3 — which features still need their own lab first</h2>
   <table>
     <tr><th>feature</th><th>engine/DSP state</th><th>lab state</th><th>verdict</th></tr>

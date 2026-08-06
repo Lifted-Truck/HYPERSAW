@@ -597,7 +597,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B8 | **Mod matrix reachable by right-click on every parameter** | design accepted, not built |
 | B9 | **Pan motion speed + bipolar position weighting** (subsumes `motionCenter`) | requested 2026-07-31 |
 | B10 | **Slider units/naming pass** + feature-by-feature visual breakdown for docs | deferred until the interface settles |
-| B11 | **Multi-oscillator ADR** (layout-lab IA) | open design decision |
+| B11 | **Multi-oscillator ADR** (layout-lab IA) | **ADR-082 PROPOSED 2026-08-06** — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |

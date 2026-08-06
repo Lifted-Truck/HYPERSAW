@@ -468,3 +468,73 @@ Human: *"the per voice envelope should go in the envelope tab. Maybe also the sc
 **The display is fed by the ENGINE, not re-derived.** New viz fields `envOnsetMs/envAtkMs/envRelMs` publish, per voice, the times the core actually assigned — recovered from the one-pole coefficients it is using (`t = −1/(sr·ln(1−c))`). The scatter draws from the core's seeded RNG stream, so a JS reconstruction would be a **second implementation free to drift from the one you hear** — the display would eventually lie, and lie plausibly. Requires one new core array, `onsD0` (the initial onset delay, kept because `onsD` decrements to zero); viz-only bookkeeping, never read in the audio path, so parity is untouched.
 
 **Why a visual at all:** the standing convention recorded the same day — lab visuals ship with the feature they explain. Horizontal offset between traces *is* onset scatter; differing slopes *are* attack/release scatter. A numeric readout accompanies it, so the effect is legible without playing a note.
+
+## ADR-082 · Multi-oscillator architecture: param-id namespace, CPU budget, per-osc state — PROPOSED (needs ratification before any GUI work)
+
+**Why this blocks the interface renovation.** The layout lab's own Decision 2 says it: 2-3 full
+oscillators is not a GUI change, it is N core instances with per-osc params, per-osc state,
+multiplied CPU, and a param-id namespace. **CLAP ids are append-only**, so the namespace is
+designed once or lived with forever. Every other renovation item (osc page, morph page,
+per-parameter corner colouring) sits downstream of it.
+
+**Measured context.** 99 params today, ids **1..99, densely packed with no gaps**
+(`src/hypersaw_clap.cpp` `kParams[]`). Classifying them: roughly **70 are per-oscillator** —
+the entire swarm surface (n, dist, seed, detune, law, K, onset, dissolve, drift, topo, reach,
+mu, alpha, poles, grav, basin, the SPECTRA block 44-51, shape, tone, pan/spread/anchor 76-87,
+the scatter/env block 91-95) — and roughly **29 are global**: output/image (width, mono, vol,
+bassMono, bassMonoHz), voice & glide behaviour (voiceMono, glide, legato, polyGlide, glideMode,
+freqGlide, pitchBend, inertia, inertiaCurve), the FX rack (57-64, 96-99), tempo grid
+(beatMult), and oversample.
+
+### Decision 1 - id scheme: a fixed +100 stride per oscillator
+
+    id(P, osc k) = id(P, osc 0) + 100k
+
+Oscillator 0 **keeps every id it has today**, so all existing sessions, automation lanes and
+patches survive untouched. Oscillator 1 occupies 100-199, oscillator 2 occupies 200-299. Where
+a global param's id would fall inside a block, the slot is simply never allocated - the gaps
+are self-documenting evidence of which ids are global.
+
+*Rejected - re-homing all per-osc params into clean blocks.* Correct-looking and impossible:
+ids are append-only, so moving osc 0 breaks every saved session.
+
+*Rejected - one param set plus an "edit target" selector.* Cheap in the GUI and wrong for a
+plugin: automating oscillator 2's detune becomes impossible, because the lane's meaning depends
+on a selector position. Per-osc automation is table stakes.
+
+### Decision 2 - CPU budget, and a constraint that falls out of it
+
+Current measured cost is **2.5% of one core at 1x, 6.3% at 2x oversampling** (ADR-075, on this
+M3), against the **E-6 budget of 50% of one core on min-spec**. The voice loop scales linearly
+with oscillator count, so:
+
+| config | this M3 | x4 min-spec derate (the ADR-018 precedent) |
+|---|---|---|
+| 3 osc, 1x | ~7.5% | ~30% - inside |
+| 2 osc, 2x OS | ~12.6% | ~50% - at the line |
+| 3 osc, 2x OS | ~18.9% | **~75% - over budget** |
+
+**So "3 oscillators" and "2x oversampling" cannot both be unconditional.** Proposed: ship 3
+oscillator slots, keep oversampling opt-in and global, and **measure on real min-spec hardware
+before increment 2** rather than trusting a derate factor borrowed from a different workload.
+The derate is an estimate and this table is arithmetic on top of it - it is a reason to
+measure, not a verdict.
+
+### Decision 3 - per-osc state keys
+
+State is `hypersaw-state 1` followed by `coreKey=value` lines. Proposal: per-osc keys for
+k >= 1 gain an `o<k>.` prefix (`o1.detune=...`); **oscillator 0's keys are unchanged**, so every
+existing patch loads bit-identically and `state_check` stays green as the regression proof.
+Format bumps to `hypersaw-state 2` while still accepting `1` (absent `o1.`/`o2.` keys => those
+oscillators at defaults, i.e. silent). "Copy osc 1 -> osc 2" becomes a key-prefix rewrite.
+
+### Increments (the walking-skeleton order the layout lab recommends)
+
+1. Id scheme + state format land with **N = 1 still**, so nothing audible changes and the
+   parity/state oracles prove the refactor inert.
+2. A second oscillator behind the existing `balance` param - thin, no GUI.
+3. GUI: osc page with per-parameter corner colouring and glyphs (the standing convention).
+
+**Open for the human:** how many slots (2 or 3); whether the sub-oscillator block (52-55) and
+`balance` (56) are superseded by real oscillators or kept; and whether oversampling stays
+global or becomes per-osc (per-osc is more flexible and multiplies the CPU question).
