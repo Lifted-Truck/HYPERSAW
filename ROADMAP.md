@@ -79,6 +79,96 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## LAB BRIEF — modulator editor (LFO + envelope), queued (human, 2026-08-06)
+
+Human: *"modern synths all have robust LFO and envelope editors. Could we please roadmap a lab
+for that?"* Queued as **B16**, not built. This brief is the scope so a future session does not
+have to re-derive it.
+
+**The gap, stated plainly.** The modulators are the weakest surface in the instrument. The mod
+lab's LFOs are `ClassicLFO` with exactly three parameters (`rate`, `shape`, `retrig`) and the
+envelope is a plain ADSR. Every other subsystem here — the swarm, the FX rack, the morph — has
+had a lab and a measurement campaign; the modulators have had neither, which is why feature
+requests keep arriving against them one at a time.
+
+**Absorbs the outstanding modulator requests** (all still untouched from the 2026-08-05
+feedback message, and they belong together rather than as five separate patches):
+- **reverse-saw LFO shape** — trivial, but it is the tell that the shape set was never designed
+- **two S&H kinds**: a *global* S&H propagating one sampled value across every attached mod,
+  and a *per-mod* S&H that syncs to the Kuramoto timing at independent levels
+- **double-click to reset a mod value**
+- **ownership tier** — which mods have a baked-in tier vs a modifiable one (open: the human
+  flagged uncertainty about the framing itself, so the lab should make the question concrete
+  before answering it)
+- **polarity per route** — surfaced by the reachability probe: unipolar/bipolar is currently a
+  property of the SOURCE, not the route, which is what makes `R → Kboost` half-inert
+
+**What "modern" means here, concretely** — the survey the lab should run before building:
+multi-segment envelopes with per-segment curve (beyond DAHDSR), envelope-as-LFO (loopable),
+drawable/MSEG shapes, tempo sync with dotted/triplet divisions, per-voice vs global instances,
+unipolar/bipolar switching, and depth-per-destination rather than one depth per source.
+
+**The HYPERSAW-specific angle, which is the reason this is a lab and not a copy job.** Here the
+LFOs are *swarm voices* — K1–K8 are the rotor's oscillators, coupled, not independent. A
+conventional editor assumes independence; ours must express what the coupling does (lock,
+splay, drift) without hiding it behind a shape dropdown. Same for envelopes: the VST already
+has per-voice envelopes with scatter, so the editor must show the *distribution* an envelope
+produces across voices, not one curve. The existing scatter-varied envelope display in the
+Envelope tab is the seed for that.
+
+**Open before building:** whether the editor is one lab or two (LFO and envelope have different
+visual grammars); and whether it supersedes the mod lab's LFO panel or sits beside it.
+
+## MORPH DEMO PRESET — and the morph-owned gate is a placeholder (2026-08-06)
+
+Human: *"show me a preset that actually takes advantage of the morph panel so I can properly
+test it."* Built as two buttons in the morph cluster — **preset: four corners** and
+**+ self-drive**.
+
+**The preset was chosen by measurement, not taste.** Each corner owns a routing on a different
+axis so the corners cannot be confused by ear: A slow filter sweep (LFOA→cutoff −0.9),
+B detune motion (K2→detune +0.9), C chorus swell (LFOB→choDep +0.8), D phaser motion
+(K4→phDep +0.9), plus ENV→Kboost +0.64 **system-wide** to demonstrate the scope that survives
+every flip. Measured at the five field positions:
+
+| position | rms | peak | zero-crossings |
+|---|---|---|---|
+| A top-left | 0.0886 | 0.251 | 2017 |
+| B top-right | 0.0963 | 0.297 | 1920 |
+| C bottom-left | 0.0772 | 0.272 | 1929 |
+| D bottom-right | 0.1061 | **0.494** | 2007 |
+| centre | 0.0760 | 0.268 | 2103 |
+
+A preset whose corners measured identical would demonstrate nothing however good it sounded,
+so this table is the acceptance evidence, not decoration. **+ self-drive** adds LFOB→morphX
+so the field sweeps itself — the composition, with flips/s as the readout.
+
+**FINDING — morph-owned routings are mostly dead, by a hard-coded corner index.** `gd()` gates
+a morph-owned routing on `this.owner[si][di] === 0` — the literal corner 0 — while ownership is
+drawn *stochastically* by Gumbel-max over the field weights. At temperature 1 a log-weight gap
+of ~3.9 is routinely beaten by the random preference, so even standing exactly on corner A the
+owner can be corner 2 (measured). Result: a morph-owned routing is live on
+
+| reshuffle seed | fraction of the field where it is live |
+|---|---|
+| 1 | 18% |
+| 7 | **6%** |
+| 12345 | 71% |
+
+— i.e. whether the routing does anything at all is decided by a random draw against a
+hard-coded index. `routeGain()`'s own `-2` branch is meanwhile a no-op
+(`return w[owner] > 0 ? 1 : 1`, both arms 1), with a comment deferring to "owner gates
+elsewhere".
+
+**Why this is a design question and not a fix.** Ownership already *means* "the corner the
+field currently favours", so gating on it is circular — owning a routing should make it live,
+not conditional. The construct only earns its keep when a cell can hold **different depths per
+corner**, so that a flip switches between two versions rather than toggling one on and off.
+That is the same gap as the standing open question "what a corner-owned routing does when its
+corner owns nothing". **Not changed unilaterally** — raised as **A10**. The preset ships with
+the morph-owned cell included and the hint says plainly that it may appear to do nothing and
+why.
+
 ### Rejected routings — asked for, and the measurement says there is nothing to reject yet
 
 Human, 2026-08-05: *"Maybe there are some routings we explicitly reject, like R → Kboost."*
@@ -368,6 +458,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A7 | **Law/dist widening** — state compatibility, scope, and which core-only params to expose | § Open questions for the human (4 sub-items) |
 | A8 | **Phase 2/3 formal gate ratification** — shipped and evidenced, never formally closed | § Phase 2 / Phase 3 gates |
 | A9 | **Mod source polarity** — ANSWERED 2026-08-05 by the reachability probe: zero routings fully unreachable, two half-unreachable (`R → Kboost`, `ENV → Kboost`), now marked in the matrix rather than rejected. Only residual question if you want it: should `Kboost` stop being half-wave rectified | § Rejected routings |
+| A10 | **Morph-owned routing semantics** — the `-2` gate is a placeholder (`owner === 0`, a hard-coded corner index) so a morph-owned routing is live on 6–71% of the field depending on the reshuffle seed. Earning its keep needs per-corner depths per cell, so a flip switches versions instead of toggling one on/off | § Morph demo preset |
 
 ### B · Queued build work
 
@@ -388,6 +479,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |
+| B16 | **Modulator editor lab (LFO + envelope)** — queued 2026-08-06; absorbs reverse-saw shape, the two S&H kinds, double-click reset, ownership tier, per-route polarity | § Lab brief — modulator editor |
 
 ### C · Closed during this reconciliation
 - **Divergence ADRs** (root-pivot topology · pan default image · saw retarget) — each is
