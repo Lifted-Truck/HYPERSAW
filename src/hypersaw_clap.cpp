@@ -247,10 +247,68 @@ static const ParamDef kParams[] = {
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
+/* ---- ADR-082 multi-oscillator namespace (increment 1: mechanism only) -----
+   id(P, osc k) = id(P, osc 0) + 100k.  Oscillator 0 keeps every id it has, so
+   every existing session, automation lane and patch survives untouched. CLAP
+   ids are APPEND-ONLY: this mapping is designed once or lived with forever.
+
+   kNumOsc is 1 here ON PURPOSE. Increment 1 lands the id/state mechanism with
+   the oscillator count unchanged, so params_count(), the id list and the saved
+   state bytes are all bit-identical to before — which is exactly what makes
+   the parity/state oracles a proof that the refactor is inert. Increment 2
+   raises it to 2 (the ratified slot count) and adds the second core. */
+constexpr uint32_t kOscStride = 100;
+constexpr uint32_t kMaxOsc = 2;   // ratified 2026-08-06; 200-299 stays free for a third
+constexpr uint32_t kNumOsc = 1;   // increment 1: mechanism only, nothing audible changes
+static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified range");
+
+/* GLOBAL params — one instance no matter how many oscillators exist. Everything
+   NOT listed is per-oscillator. Itemised in ADR-082; the three judgement calls
+   (amp env global; transpose per-osc; retrig/keepPhase per-osc) are recorded
+   there rather than buried here, because a param in the wrong class is wrong
+   permanently. */
+constexpr clap_id kGlobalIds[] = {
+    14, 15, 17, 40, 41,                          // output & image
+    19, 20, 21, 22,                              // amp envelope (voice-level, not per-osc)
+    32, 33, 34, 38, 75, 89, 90, 11, 70,          // voice & glide behaviour
+    57, 58, 59, 60, 61, 62, 63, 64, 96, 97, 98, 99,  // FX rack
+    23, 88,                                      // tempo grid, oversampling
+};
+constexpr bool isGlobalId(clap_id id)
+{
+  for (clap_id g : kGlobalIds)
+    if (g == id) return true;
+  return false;
+}
+// How many of the 99 are per-oscillator — the size of each additional block.
+inline uint32_t perOscParamCount()
+{
+  uint32_t n = 0;
+  for (const auto &d : kParams)
+    if (!isGlobalId(d.id)) n++;
+  return n;
+}
+
+// Which oscillator an id addresses, and the osc-0 id it mirrors. Global ids
+// always resolve to oscillator 0 — they have no counterpart in the higher
+// blocks, which is why those slots are never allocated.
+inline uint32_t oscOfId(clap_id id) { return (uint32_t)id / kOscStride; }
+inline clap_id baseIdOf(clap_id id) { return (clap_id)((uint32_t)id % kOscStride); }
+
 const ParamDef *findParam(clap_id id)
 {
+  const uint32_t osc = oscOfId(id);
+  if (osc == 0)
+  {
+    for (const auto &d : kParams)
+      if (d.id == id) return &d;
+    return nullptr;
+  }
+  if (osc >= kNumOsc) return nullptr;          // block exists only up to kNumOsc
+  const clap_id base = baseIdOf(id);
+  if (isGlobalId(base)) return nullptr;        // globals have no per-osc mirror
   for (const auto &d : kParams)
-    if (d.id == id) return &d;
+    if (d.id == base) return &d;
   return nullptr;
 }
 
@@ -1336,18 +1394,42 @@ const clap_plugin_note_ports_t s_note_ports = {nports_count, nports_get};
 
 /* ---- params extension ---- */
 
-uint32_t params_count(const clap_plugin_t *) { return kNumParams; }
+// Osc 0 occupies indices [0, kNumParams) EXACTLY as before, so at kNumOsc == 1
+// the enumeration a host sees is unchanged, index for index and id for id.
+// Higher oscillators append their per-osc params after it.
+uint32_t params_count(const clap_plugin_t *)
+{
+  return kNumParams + (kNumOsc - 1) * perOscParamCount();
+}
 
 bool params_get_info(const clap_plugin_t *, uint32_t index, clap_param_info_t *info)
 {
-  if (index >= kNumParams) return false;
-  const ParamDef &d = kParams[index];
-  info->id = d.id;
+  uint32_t osc = 0;
+  const ParamDef *dp = nullptr;
+  if (index < kNumParams) { dp = &kParams[index]; }
+  else
+  {
+    uint32_t rest = index - kNumParams;
+    const uint32_t per = perOscParamCount();
+    if (per == 0) return false;
+    osc = 1 + rest / per;
+    if (osc >= kNumOsc) return false;
+    uint32_t want = rest % per;
+    for (const auto &d : kParams)
+      if (!isGlobalId(d.id) && want-- == 0) { dp = &d; break; }
+    if (!dp) return false;
+  }
+  const ParamDef &d = *dp;
+  info->id = (clap_id)(d.id + osc * kOscStride);
   info->flags = CLAP_PARAM_IS_AUTOMATABLE;
   if (d.stepped) info->flags |= CLAP_PARAM_IS_STEPPED;
   info->cookie = nullptr;
-  std::snprintf(info->name, sizeof(info->name), "%s", d.name);
-  std::snprintf(info->module, sizeof(info->module), "%s", "");
+  if (osc == 0)
+    std::snprintf(info->name, sizeof(info->name), "%s", d.name);
+  else
+    std::snprintf(info->name, sizeof(info->name), "Osc%u %s", osc + 1, d.name);
+  std::snprintf(info->module, sizeof(info->module), "%s",
+                osc == 0 ? "" : (osc == 1 ? "Osc 2" : "Osc 3"));
   info->min_value = d.minV;
   info->max_value = d.maxV;
   info->default_value = d.defV;
@@ -1465,13 +1547,25 @@ const clap_plugin_params_t s_params = {params_count, params_get_info, params_get
 
 bool state_save(const clap_plugin_t *p, const clap_ostream_t *stream)
 {
-  std::string blob = "hypersaw-state 1\n";
-  char line[64];
+  // ADR-082: oscillator 0's keys are UNCHANGED, so every existing patch keeps
+  // loading bit-identically and state_check stays the regression proof. Higher
+  // oscillators prefix `o<k>.`. At kNumOsc == 1 this emits exactly the old
+  // bytes, header included — which is the point of increment 1.
+  std::string blob = kNumOsc > 1 ? "hypersaw-state 2\n" : "hypersaw-state 1\n";
+  char line[80];
   for (const auto &d : kParams)
   {
     std::snprintf(line, sizeof(line), "%s=%.17g\n", d.coreKey, self(p)->readParam(d.id));
     blob += line;
   }
+  for (uint32_t k = 1; k < kNumOsc; k++)
+    for (const auto &d : kParams)
+    {
+      if (isGlobalId(d.id)) continue;
+      std::snprintf(line, sizeof(line), "o%u.%s=%.17g\n", k, d.coreKey,
+                    self(p)->readParam((clap_id)(d.id + k * kOscStride)));
+      blob += line;
+    }
   int64_t written = 0;
   while (written < (int64_t)blob.size())
   {
@@ -1490,7 +1584,12 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
   int64_t n;
   while ((n = stream->read(stream, buf, sizeof(buf))) > 0) blob.append(buf, (size_t)n);
   if (n < 0) return false;
-  if (blob.rfind("hypersaw-state 1\n", 0) != 0) return false;
+  // Version 2 adds `o<k>.` keys; version 1 is still accepted and simply leaves
+  // the higher oscillators at their defaults (i.e. silent) — forward and
+  // backward compatible, which append-only ids buy us for free.
+  const bool v1 = blob.rfind("hypersaw-state 1\n", 0) == 0;
+  const bool v2 = blob.rfind("hypersaw-state 2\n", 0) == 0;
+  if (!v1 && !v2) return false;
   size_t pos = blob.find('\n') + 1;
   auto *pl = self(p);
   while (pos < blob.size())
@@ -1501,8 +1600,26 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
     pos = eol == std::string::npos ? blob.size() : eol + 1;
     const size_t eq = line.find('=');
     if (eq == std::string::npos) continue;
-    const std::string key = line.substr(0, eq);
+    std::string key = line.substr(0, eq);
     const double val = std::atof(line.c_str() + eq + 1);
+    // ADR-082: split an `o<k>.` prefix off the key and resolve it to that
+    // oscillator's block. A prefix naming an oscillator this build does not
+    // have falls through to the existing unknown-key path (ignored), which is
+    // how a 2-osc patch stays loadable by a 1-osc build.
+    uint32_t keyOsc = 0;
+    if (key.size() > 2 && key[0] == 'o' && key.find('.') != std::string::npos)
+    {
+      const size_t dot = key.find('.');
+      bool digits = dot > 1;
+      for (size_t i = 1; i < dot && digits; i++) digits = key[i] >= '0' && key[i] <= '9';
+      if (digits)
+      {
+        keyOsc = (uint32_t)std::atoi(key.c_str() + 1);
+        key = key.substr(dot + 1);
+      }
+    }
+    if (keyOsc >= kNumOsc && keyOsc != 0) continue;   // block this build lacks
+    const clap_id idOff = (clap_id)(keyOsc * kOscStride);
     // Thread safety (2026-07-18): state_load is main-thread and MAY run while
     // the audio thread is in process() — a direct setParam would race
     // rebuild() against render(). Idle: apply directly (hosts read values
@@ -1514,7 +1631,8 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
       for (const auto &d : kParams)
         if (key == d.coreKey)
         {
-          pl->enqueueParam(d.id, val, 0);
+          if (keyOsc && isGlobalId(d.id)) break;   // globals have no per-osc mirror
+          pl->enqueueParam((clap_id)(d.id + idOff), val, 0);
           break;
         }
     }
@@ -1526,7 +1644,8 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
       for (const auto &d : kParams)
         if (key == d.coreKey)
         {
-          pl->applyParam(d.id, val);
+          if (keyOsc && isGlobalId(d.id)) break;   // globals have no per-osc mirror
+          pl->applyParam((clap_id)(d.id + idOff), val);
           known = true;
           break;
         }
