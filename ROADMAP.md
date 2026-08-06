@@ -79,6 +79,35 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## GATE ADDED — labs must survive loading (human-approved, 2026-08-06)
+
+`./verify fast` now runs `tools/labharness/lab_load_check.mjs`: every lab HTML's
+`<script>` blocks are executed in a `node:vm` context with stub DOM/audio globals, and any
+load-time throw fails the gate. **This is a gate STRENGTHENING and a protected-path change to
+`./verify`, made with explicit human approval** ("I'll follow your advice", 2026-08-06).
+
+**Why.** L0026 — a setup-time callback reaching forward to a `const` declared further down —
+has now happened **five times**, the fifth written by the agent that had just documented the
+trap. The browser swallows the throw, the rest of the script never runs, and the page still
+looks fine; the mod lab's entire matrix was missing for weeks that way. The lesson's own
+falsifier said the fix was tooling, not care. This is that tooling.
+
+**Calibrated before shipping**, since a gate is worthless until shown to fail on the bug it
+exists for. Both historical instances re-injected into the current mod lab: the `mtx` TDZ is
+caught (`Cannot access 'mtx' before initialization`), the bare-`SR` typo is caught
+(`SR is not defined`), an untouched control passes, and all 12 labs are green. The first
+injection attempt was itself faulty (it put the declaration back *above* the wiring, so
+nothing was reproduced and the checker "passed") — caught by asserting the injected offset.
+
+Deliberately NOT a static `no-use-before-define` scan: that over-flags every function declared
+early that references a later const, which is the common and correct case. Executing the file
+has a false-positive rate of zero by construction. One false positive did surface in the
+checker itself — a missing `Event` global made it blame `spectra-lab.html` — and was fixed
+before shipping.
+
+L0026 promoted **candidate → canonical**; falsifier restated to "a load-killing lab bug reaches
+review while the gate passes".
+
 ## KURO-SYNCED FX — a module CLASS, not two special effects (human, 2026-08-06)
 
 Human: *"the chorus and phaser are going to be FX modules; they have special behavior since

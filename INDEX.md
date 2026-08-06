@@ -28,4 +28,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0023] A param range widened without its UI control ships an INVISIBLE feature — no oracle sees it | interface, testing, oracle, gui, plugins, doctrine
 - [L0024] A result landing right at its threshold means the DETECTOR is wrong, not that the fix is marginal | measurement, oracle, epistemics, doctrine, cross-project
 - [L0025] A narrative decision log records WHY, not WHAT IS OPEN — keep a status index, updated atomically | docs, process, roadmap, doctrine, cross-project
-- [L0026] A setup-time callback reaching FORWARD into uninitialised state fails silently and totally (JS temporal dead zone) | javascript, gui, labs, debugging, tooling
+- [L0026] A setup-time callback reaching FORWARD into uninitialised state fails silently and totally (JS temporal dead zone) — 5 occurrences; now GATED by `./verify fast` lab load check | javascript, gui, labs, debugging, tooling

@@ -88,6 +88,21 @@ missing = idx - lib
 assert not missing, f"INDEX ids missing from LIBRARY: {missing}"
 PY
 
+  # Labs must SURVIVE LOADING (L0026, human-approved gate 2026-08-06). Five
+  # times a lab shipped with a setup-time call reaching a `const` declared
+  # further down; the browser swallows the throw, the rest of the script never
+  # runs, and the page still looks fine — the mod lab's whole matrix was gone
+  # for weeks that way. Executes each <script> under stub DOM globals, so what
+  # surfaces is real JS (TDZ, typos), not missing-canvas noise. Calibrated
+  # against both historical bugs re-injected; see the trace.
+  if command -v node >/dev/null; then
+    node tools/labharness/lab_load_check.mjs > /tmp/labload.$$ 2>&1 || {
+      echo "verify: lab load check FAILED" >&2; cat /tmp/labload.$$ >&2; ok=1; }
+    rm -f /tmp/labload.$$
+  else
+    echo "verify: node missing — lab load check SKIPPED" >&2
+  fi
+
   return $ok
 }
 
