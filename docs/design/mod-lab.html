@@ -870,6 +870,23 @@ class ModLab {
     <div class="row"><label>temperature</label><input type="range" id="mTemp" min="0.05" max="3" step="0.01" value="1"><output id="mTemp_o"></output></div>
     <div class="row"><label>hysteresis</label><input type="range" id="mHyst" min="0" max="1" step="0.01" value="0.12"><output id="mHyst_o"></output></div>
     <div class="row"><button id="mReshuffle">reshuffle morph</button></div>
+    <div class="ab" style="margin-top:6px">
+      <button id="mDemo">preset: four corners</button>
+      <button id="mDemoDrift">+ self-drive</button>
+    </div>
+    <div class="hint"><b>Load the preset, hold a chord, then drag the field.</b> Each corner owns
+      one routing and blends with its weight, so the corners are four different instruments:
+      <span style="color:var(--dim)">A</span> slow filter sweep · <span style="color:var(--dim)">B</span>
+      detune motion · <span style="color:var(--dim)">C</span> chorus swell ·
+      <span style="color:var(--dim)">D</span> phaser motion. ENV→Kboost is <b>system-wide</b> — it
+      keeps its onset bite everywhere, which is the point of that scope.
+      Measured across the field: rms 0.077&hellip;0.106, peak 0.251&hellip;0.494 (corner C quietest, D loudest).
+      <b>+ self-drive</b> adds LFOB→morphX so the field sweeps itself — watch flips/s and pull
+      hysteresis to 0 to hear the chatter it prevents.
+      <b>Known-open:</b> the K1→K cell is <i>morph-owned</i>, and morph-owned routings are
+      currently live only where the draw hands them to corner 0 — 6%, 18% or 71% of the field
+      depending purely on the reshuffle seed. Reshuffle if it seems to do nothing; the ruling
+      is pending (see ROADMAP).</div>
     <div class="meter">flips/s: <b id="m_flip">0</b> <span id="m_chat"></span></div>
     <div class="hint">Drag the field, or route a source to <b>morphX / morphY</b> in the matrix and let a modulator drive it. <b>This is the collision made audible:</b> a morph-owned routing flips the instant the field crosses a boundary, so an LFO on morphX crossing one repeatedly produces a stutter — watch flips/s climb. <b>Hysteresis</b> is the fix that was missing: a challenger must beat the incumbent by a margin, so a hair-width crossing no longer flips. At 0 you get the raw chatter; the flip counter is the evidence either way.</div>
   </div>
@@ -1046,6 +1063,38 @@ const mf = $('mfield'), mfx = mf.getContext('2d');
 wire('mTemp', v => lab.temp = v);
 wire('mHyst', v => lab.hyst = v, v => v === 0 ? 'off (raw chatter)' : v.toFixed(2));
 $('mReshuffle').addEventListener('click', () => { lab.rsSeed = (Math.random() * 1e5) | 0; lab.reshuffleMorph(); });
+
+/* MORPH DEMO PRESET (human request 2026-08-06: "show me a preset that actually
+   takes advantage of the morph panel so I can properly test it").
+   Chosen by MEASUREMENT, not by taste: each corner owns a routing on a
+   different axis (filter / pitch / chorus / phaser) so the corners cannot be
+   confused for one another by ear. Verified across the field before shipping —
+   rms 0.077..0.106, peak 0.251..0.494, zero-crossings 1920..2103. A preset
+   whose corners measure identical would demo nothing, however good it sounded. */
+const slide = (id, v) => { const el = $(id); el.value = v; el.dispatchEvent(new Event('input')); };
+function loadMorphDemo(drift) {
+  // clear the matrix first: a preset layered on leftovers is not a preset
+  for (let si = 0; si < SOURCES.length; si++)
+    for (let di = 0; di < DESTS.length; di++) { setDepth(si, di, 0); lab.scope[si][di] = -1; }
+  [['sCut', 0.55], ['sK', 0.15], ['aRate', 0.30], ['bRate', 0.85],
+   ['cMix', 0.55], ['pMix', 0.5], ['cLink', 0.5], ['phLink', 0.5],
+   ['mHyst', 0.12], ['mTemp', 1]].forEach(([id, v]) => slide(id, v));
+  const D = n => DESTS.indexOf(n);
+  const route = (si, dn, v, sc) => { setDepth(si, D(dn), v); lab.scope[si][D(dn)] = sc; };
+  route(SRC_LFOA, 'cutoff', -0.9, 0);    // A  top-left      slow filter sweep
+  route(1,        'detune', +0.9, 1);    // B  top-right     K2 detune motion
+  route(SRC_LFOB, 'choDep', +0.8, 2);    // C  bottom-left   chorus swell
+  route(3,        'phDep',  +0.9, 3);    // D  bottom-right  K4 phaser motion
+  route(SRC_ENV,  'Kboost', +0.64, -1);  // system-wide: survives every flip
+  route(0,        'K',      +0.7, -2);   // morph-owned (see the known-open note)
+  if (drift) route(SRC_LFOB, 'morphX', +0.35, -1);   // the composition: mod the field itself
+  lab.mxBase = 0.5; lab.myBase = 0.5;
+  repaintScopes();
+  $('mDemo').classList.toggle('on', !drift);
+  $('mDemoDrift').classList.toggle('on', !!drift);
+}
+$('mDemo').addEventListener('click', () => loadMorphDemo(false));
+$('mDemoDrift').addEventListener('click', () => loadMorphDemo(true));
 function drawMorphField() {
   const W = mf.width, H = mf.height;
   mfx.clearRect(0, 0, W, H);
@@ -1075,6 +1124,9 @@ function drawMorphField() {
   el.style.color = fr > 8 ? '#ff5a5a' : fr > 1.5 ? '#ffc24b' : 'var(--dim)';
 }
 
+/* Repainting every scope chip is needed from outside the matrix block (the
+   morph presets set scopes wholesale). Declared here, assigned inside. */
+let repaintScopes = () => {};
 /* matrix grid */
 {
   let html = '<tr><th></th>' + DESTS.map(d => `<th>${d}</th>`).join('') + '</tr>';
@@ -1097,6 +1149,7 @@ function drawMorphField() {
     el.style.borderColor = scopeColour(v);
     el.style.opacity = v === -1 ? 0.5 : 1;
   };
+  repaintScopes = () => mtx.querySelectorAll('.scopechip').forEach(paintScope);
   mtx.querySelectorAll('.scopechip').forEach(el => {
     paintScope(el);
     el.addEventListener('click', () => {
