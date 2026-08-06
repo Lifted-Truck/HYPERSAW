@@ -135,7 +135,14 @@ class TimeCore
       {
         const double d = std::min((double)kEBuf - 4, std::max(1.0, tSm[i]));
         double rp = ew - d;
+        // GUARD THE OTHER END OF THE WRAP (mod-lab sweep, 2026-08-05). `rp += kBuf`
+        // on a rp of -1e-13 yields kBuf - 1e-13, which is inside the ulp of kBuf
+        // (2.9e-11 at 1<<17) and rounds to EXACTLY kBuf -- so i0 indexes one past
+        // the end. In JS that produced a NaN and a 8192x interpolator
+        // extrapolation; here it is an out-of-bounds read on the audio thread.
+        // i1 was already wrapped; i0 never was.
         if (rp < 0) rp += kEBuf;
+        if (rp >= kEBuf) rp -= kEBuf;
         const int i0 = (int)rp;
         const double fr = rp - i0;
         const int i1 = (i0 + 1) % kEBuf;
@@ -157,6 +164,7 @@ class TimeCore
         const double d = std::min((double)kRBuf - 4, std::max(1.0, tSm[i]));
         double rp = rw - d;
         if (rp < 0) rp += kRBuf;
+        if (rp >= kRBuf) rp -= kRBuf;   // see the kEBuf note above
         const int i0 = (int)rp;
         const double fr = rp - i0;
         const int i1 = (i0 + 1) % kRBuf;
@@ -263,6 +271,7 @@ class TimeCore
           const double d = std::min((double)kEBuf - 4, std::max(1.0, tSm[i]));
           double rp = ew - d;
           if (rp < 0) rp += kEBuf;
+          if (rp >= kEBuf) rp -= kEBuf;   // see the kEBuf note above
           const int i0 = (int)rp;
           const double fr = rp - i0;
           const int i1 = (i0 + 1) % kEBuf;
@@ -288,6 +297,7 @@ class TimeCore
           const double d = std::min((double)kRBuf - 4, std::max(1.0, tSm[i]));
           double rp = rw - d;
           if (rp < 0) rp += kRBuf;
+          if (rp >= kRBuf) rp -= kRBuf;   // see the kEBuf note above
           const int i0 = (int)rp;
           const double fr = rp - i0;
           const int i1 = (i0 + 1) % kRBuf;

@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Full mod-matrix sweep — 2026-08-05</title><style>
+body{background:#0b0e13;color:#cdd6e4;font:13px/1.5 ui-monospace,Menlo,monospace;padding:20px;max-width:1100px}
+h1{font-size:16px}h2{font-size:13px;color:#5ff2e0;margin:20px 0 6px;text-transform:uppercase;letter-spacing:1px}
+table{border-collapse:collapse;font-size:12px;margin:8px 0}td,th{border:1px solid #2a3040;padding:4px 9px;text-align:right}
+td:first-child,th:first-child{text-align:left}th{color:#7f8899;font-weight:normal}
+.note{color:#7f8899;font-size:11.5px;max-width:980px}
+.hm td{text-align:center;min-width:52px}
+.hm .ok{color:#4a5568}.hm .hot{background:#4a1d1d;color:#ff8a8a;font-weight:bold}
+.hm .nan{background:#5a1010;color:#ff5a5a;font-weight:bold}
+.grid{display:flex;flex-wrap:wrap;gap:18px}
+.big{font-size:22px;color:#7ddf7d}.bad{font-size:22px;color:#ff5a5a}
+code{color:#ffc24b}</style></head><body>
+<h1>Full mod-matrix sweep — every routing in the mod lab</h1>
+<div class="note">12 sources × 9 destinations × 2 polarities = <b>216 routings</b>, each rendered from a
+FRESH engine for 200 blocks (~2.3 s) at note A2. Cell = the larger peak of the two polarities.
+Bench calibrated so every destination has somewhere to go: rotor n = 8, chorus/phaser mix 0.6,
+cutoff parked mid-range, one corner-scoped routing present.
+<b>The "before" grid is measured</b>, by patching the pre-fix <code>frac</code> logic back into an
+in-memory copy of the lab — not asserted.</div>
+
+<h2>Before → after</h2>
+<div class="grid">
+<div><div class="note">non-finite cells</div><div class="big">0 &rarr; <span class="big">0</span></div></div>
+<div><div class="note">level blow-up cells (&gt;12 dB over baseline)</div><div class="bad">5 &rarr; <span class="big">0</span></div></div>
+</div>
+
+<h2>Peak level per routing — pre-fix</h2>
+<div class="grid"><div><div class="note">before: index wrapped, frac not — baseline peak 0.336, hot threshold 1.35</div><table class="hm"><tr><th></th><th>K</th><th>Kboost</th><th>detune</th><th>cutoff</th><th>level</th><th>choDep</th><th>phDep</th><th>morphX</th><th>morphY</th></tr><tr><th>K1</th><td class="ok">0.32</td><td class="ok">0.42</td><td class="ok">0.32</td><td class="ok">0.35</td><td class="ok">0.61</td><td class="hot">3.51</td><td class="ok">0.31</td><td class="ok">0.30</td><td class="ok">0.30</td></tr><tr><th>K2</th><td class="ok">0.39</td><td class="ok">0.52</td><td class="ok">0.29</td><td class="ok">0.35</td><td class="ok">0.67</td><td class="ok">0.30</td><td class="ok">0.33</td><td class="ok">0.32</td><td class="ok">0.32</td></tr><tr><th>K3</th><td class="ok">0.39</td><td class="ok">0.43</td><td class="ok">0.27</td><td class="ok">0.34</td><td class="ok">0.53</td><td class="hot">6.87</td><td class="ok">0.39</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>K4</th><td class="ok">0.38</td><td class="ok">0.52</td><td class="ok">0.34</td><td class="ok">0.35</td><td class="ok">0.67</td><td class="ok">0.30</td><td class="ok">0.34</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>K5</th><td class="ok">0.41</td><td class="ok">0.49</td><td class="ok">0.27</td><td class="ok">0.34</td><td class="ok">0.49</td><td class="ok">0.27</td><td class="ok">0.37</td><td class="ok">0.33</td><td class="ok">0.33</td></tr><tr><th>K6</th><td class="ok">0.29</td><td class="ok">0.52</td><td class="ok">0.31</td><td class="ok">0.35</td><td class="ok">0.69</td><td class="ok">0.30</td><td class="ok">0.33</td><td class="ok">0.35</td><td class="ok">0.35</td></tr><tr><th>K7</th><td class="ok">0.24</td><td class="ok">0.52</td><td class="ok">0.30</td><td class="ok">0.35</td><td class="ok">0.70</td><td class="hot">4.30</td><td class="ok">0.33</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>K8</th><td class="ok">0.24</td><td class="ok">0.45</td><td class="ok">0.28</td><td class="ok">0.35</td><td class="ok">0.66</td><td class="ok">0.27</td><td class="ok">0.31</td><td class="ok">0.35</td><td class="ok">0.35</td></tr><tr><th>R</th><td class="ok">0.32</td><td class="ok">0.45</td><td class="ok">0.31</td><td class="ok">0.35</td><td class="ok">0.57</td><td class="ok">0.27</td><td class="ok">0.33</td><td class="ok">0.27</td><td class="ok">0.27</td></tr><tr><th>LFOA</th><td class="ok">0.31</td><td class="ok">0.45</td><td class="ok">0.28</td><td class="ok">0.35</td><td class="ok">0.70</td><td class="hot">6.87</td><td class="ok">0.31</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>LFOB</th><td class="ok">0.31</td><td class="ok">0.45</td><td class="ok">0.28</td><td class="ok">0.35</td><td class="ok">0.70</td><td class="hot">6.87</td><td class="ok">0.31</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>ENV</th><td class="ok">0.46</td><td class="ok">0.34</td><td class="ok">0.30</td><td class="ok">0.34</td><td class="ok">0.40</td><td class="ok">0.28</td><td class="ok">0.38</td><td class="ok">0.28</td><td class="ok">0.28</td></tr></table></div></div>
+<h2>Peak level per routing — after the frac fix</h2>
+<div class="grid"><div><div class="note">after: rd wrapped before either use — baseline peak 0.336, hot threshold 1.35</div><table class="hm"><tr><th></th><th>K</th><th>Kboost</th><th>detune</th><th>cutoff</th><th>level</th><th>choDep</th><th>phDep</th><th>morphX</th><th>morphY</th></tr><tr><th>K1</th><td class="ok">0.32</td><td class="ok">0.42</td><td class="ok">0.32</td><td class="ok">0.35</td><td class="ok">0.61</td><td class="ok">0.29</td><td class="ok">0.31</td><td class="ok">0.30</td><td class="ok">0.30</td></tr><tr><th>K2</th><td class="ok">0.39</td><td class="ok">0.52</td><td class="ok">0.29</td><td class="ok">0.35</td><td class="ok">0.67</td><td class="ok">0.30</td><td class="ok">0.33</td><td class="ok">0.32</td><td class="ok">0.32</td></tr><tr><th>K3</th><td class="ok">0.39</td><td class="ok">0.43</td><td class="ok">0.27</td><td class="ok">0.34</td><td class="ok">0.53</td><td class="ok">0.35</td><td class="ok">0.39</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>K4</th><td class="ok">0.38</td><td class="ok">0.52</td><td class="ok">0.34</td><td class="ok">0.35</td><td class="ok">0.67</td><td class="ok">0.30</td><td class="ok">0.34</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>K5</th><td class="ok">0.41</td><td class="ok">0.49</td><td class="ok">0.27</td><td class="ok">0.34</td><td class="ok">0.49</td><td class="ok">0.27</td><td class="ok">0.37</td><td class="ok">0.33</td><td class="ok">0.33</td></tr><tr><th>K6</th><td class="ok">0.29</td><td class="ok">0.52</td><td class="ok">0.31</td><td class="ok">0.35</td><td class="ok">0.69</td><td class="ok">0.30</td><td class="ok">0.33</td><td class="ok">0.35</td><td class="ok">0.35</td></tr><tr><th>K7</th><td class="ok">0.24</td><td class="ok">0.52</td><td class="ok">0.30</td><td class="ok">0.35</td><td class="ok">0.70</td><td class="ok">0.27</td><td class="ok">0.33</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>K8</th><td class="ok">0.24</td><td class="ok">0.45</td><td class="ok">0.28</td><td class="ok">0.35</td><td class="ok">0.66</td><td class="ok">0.27</td><td class="ok">0.31</td><td class="ok">0.35</td><td class="ok">0.35</td></tr><tr><th>R</th><td class="ok">0.32</td><td class="ok">0.45</td><td class="ok">0.31</td><td class="ok">0.35</td><td class="ok">0.57</td><td class="ok">0.27</td><td class="ok">0.33</td><td class="ok">0.27</td><td class="ok">0.27</td></tr><tr><th>LFOA</th><td class="ok">0.31</td><td class="ok">0.45</td><td class="ok">0.28</td><td class="ok">0.35</td><td class="ok">0.70</td><td class="ok">0.30</td><td class="ok">0.31</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>LFOB</th><td class="ok">0.31</td><td class="ok">0.45</td><td class="ok">0.28</td><td class="ok">0.35</td><td class="ok">0.70</td><td class="ok">0.30</td><td class="ok">0.31</td><td class="ok">0.34</td><td class="ok">0.34</td></tr><tr><th>ENV</th><td class="ok">0.46</td><td class="ok">0.34</td><td class="ok">0.30</td><td class="ok">0.34</td><td class="ok">0.40</td><td class="ok">0.28</td><td class="ok">0.38</td><td class="ok">0.28</td><td class="ok">0.28</td></tr></table></div></div>
+
+<h2>The defect</h2>
+<div class="note">The earlier crash fix guarded the read <b>index</b> but still derived <code>frac</code>
+from the un-wrapped <code>rd</code>. The exactly-<code>len</code> case then gave <code>i0 = 0</code> with
+<code>frac = 8192</code> — no NaN, but an 8192× interpolator extrapolation. Captured live at the
+failing sample of <code>K3 → choDep</code>: neighbours <code>-0.13589</code> and <code>-0.13212</code>
+produced <code>v = 30.73</code>, and the chorus stage output <b>8.99</b> against a synth peak of
+<b>0.49</b>. Every hot cell above is a <code>choDep</code> routing, which is what localized it.</div>
+
+<h2>Still open — one dead routing (design question, not a bug)</h2>
+<div class="note"><code>R → Kboost</code> at positive depth is bit-identical to no routing.
+<code>Kboost</code> is half-wave rectified (<code>8 * max(0, kbMod)</code>) and <code>R</code> is mapped
+bipolar (<code>R*2-1</code>); below the coupling knee the swarm never locks, so the source is always
+negative and the rectifier zeroes it. It revives exactly where R crosses 0.5:</div>
+<table><tr><th>rotor K</th><th>detune</th><th>max R</th><th>+1 depth</th></tr>
+<tr><td>0.35 (default)</td><td>0.3</td><td>0.334</td><td style="color:#ff5a5a">DEAD</td></tr>
+<tr><td>1.0</td><td>0.3</td><td>0.996</td><td style="color:#7ddf7d">alive</td></tr>
+<tr><td>0.35</td><td>0.05</td><td>0.984</td><td style="color:#7ddf7d">alive</td></tr></table>
+<div class="note">Raised as register item <b>A9</b> for a ruling — per-route unipolar/bipolar setting,
+unrectified Kboost, or leave it as physics — rather than fixed unilaterally.</div>
+</body></html>

@@ -459,10 +459,18 @@ class KuroChorus {
         // `line[8192]` is undefined, undefined arithmetic is NaN, and the NaN is
         // then written back into the delay line — one sample poisons the lab
         // permanently. Measured at the failure: w = 0, dly[0] = 2.0000000000000195.
+        //
+        // SECOND HALF OF THE SAME BUG (sweep, 2026-08-05). The first fix guarded
+        // the INDEX (`if (i0 >= len) i0 -= len`) but still derived frac from the
+        // un-wrapped rd, so the exactly-len case gave i0 = 0 with frac = 8192 —
+        // no NaN, but the interpolator EXTRAPOLATES 8192x: measured v = 30.7 from
+        // two neighbours of -0.136 and -0.132. That is the intermittent loud
+        // transient, not a separate defect. Wrap rd ITSELF, before it is used for
+        // either purpose, so index and fraction can never disagree.
         let rd = this.w - this.dly[t];
         rd -= Math.floor(rd / len) * len;          // true modulo for any real
-        let i0 = rd | 0;
-        if (i0 >= len) i0 -= len;                  // the exactly-len case
+        if (rd >= len) rd -= len;                  // rounded up to exactly len
+        const i0 = rd | 0;
         const frac = rd - i0, i1 = i0 + 1 >= len ? 0 : i0 + 1;
         const v = this.line[i0] + (this.line[i1] - this.line[i0]) * frac;
         wetL += v * this.tapL[t]; wetR += v * this.tapR[t]; wetM += v;
