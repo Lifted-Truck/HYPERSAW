@@ -124,9 +124,35 @@ is the same superset-with-inert-defaults discipline as ADR-021/025/042/063, so t
 well-worn precedent.
 
 **A2 is therefore not "listen, then integrate an engine"** — it is "listen, then decide whether
-the spatial coupling earns a slider in SAW". Listening to `swarmalator.html` answers it
-(the core is bit-exact against it: stereo parity RMS 0.0 on 9/9). Wants an ADR before the
-fold; the swarmalator core stays as the reference implementation either way.
+the spatial coupling earns a place in SAW". Listening to `swarmalator.html` answers it
+(the core is bit-exact against it: stereo parity RMS 0.0 on 9/9).
+
+### TABLED (human, 2026-08-06) — and a correction to the "slider" framing
+
+Human: *"I'm assuming the swarmalator behavior would have to be a toggle that switches on as an
+alternative to the existing SAW pan laws. Let's table it for now and revisit down the line. I
+don't think it's very high priority."*
+
+**Tabled — and the toggle observation corrects something this section got wrong.** The text
+above (and the PR that wrote it) called this a *blend slider*, inherited from the 2026-07-20
+sketch. That is not quite right, and the reason is structural: **pan cannot have two sources at
+once.** SAW derives each voice's pan from its static laws (pan layout, curve, scatter, invert,
+spread); the swarmalator derives it from the spatial state ξ. A voice's pan is one number — so
+turning ξ on means the pan laws stop determining it. There is no coherent midpoint where a
+voice is half-placed-by-layout and half-placed-by-dynamics.
+
+What CAN be continuous is the *depth* of the spatial motion once ξ owns pan (J and drift both
+rising from zero, per the measurement above: at J=0 **and** drift=0, ξ is frozen at its even
+initial spread — travel 0.000000 rad). So the honest shape is a **toggle** choosing which
+system owns pan, plus depth controls behind it — not a crossfade between two pan systems.
+
+That also makes the inert-default requirement cleaner: toggle off ⇒ the ξ path never executes
+⇒ all 147 parity goldens hold trivially, rather than needing a "slider at 0 is bit-exact"
+argument.
+
+**Priority: low, revisit later.** No ADR is written yet; when it is, it should specify a toggle
+with depth controls, not a blend. The swarmalator core stays as the reference implementation
+and its oracle keeps running in `./verify full` either way.
 
 ### Standalone CPU bench for a machine with no DAW
 
@@ -877,7 +903,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | # | Item | Where |
 |---|---|---|
 | A1 | **Bend inertia fold** — FULLY RULED 2026-08-06: laws 1–4 (5 cut), constant-rate default, quantise as a modifier, per-destination laws linked by default. B19 buildable | § Pitch-bend inertia; `docs/design/bend-lab.html` |
-| A2 | **Swarmalator** — RESHAPED 2026-08-06: measured as SAW's phase axis + two terms (reduces exactly at J=0 **and** drift=0), so the question is no longer "integrate an engine" but "does the spatial coupling earn a blend slider in SAW". Listen via `swarmalator.html`; wants an ADR before folding | § Swarmalator is SAW + two terms |
+| A2 | **Swarmalator** — **TABLED 2026-08-06 (human, low priority)**. Measured as SAW's phase axis + two terms (reduces exactly at J=0 **and** drift=0). Shape corrected: a **toggle** choosing which system owns pan (pan cannot have two sources), with depth controls behind it — not a blend slider. Revisit later | § Swarmalator is SAW + two terms |
 | A3 | **Shape lab fold** — mandate rulings: fold mode and carrier purity both leave saw territory deliberately | § Lab campaign 2 item 6 |
 | A4 | **ITD max 0.6 → 0.3** — proposed on measurement (metrics saturate above 0.15 ms); wants an ear A/B first | § Open questions 2026-08-03 #1 |
 | A5 | **AP freq 700 Hz** (super-width mode D) — arbitrary, never measured; A/B in the width lab and pin | § Open questions 2026-08-03 #2 |
