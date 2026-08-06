@@ -166,6 +166,52 @@ Envelope tab is the seed for that.
 **Open before building:** whether the editor is one lab or two (LFO and envelope have different
 visual grammars); and whether it supersedes the mod lab's LFO panel or sits beside it.
 
+## MORPH-OWNED = PER-CORNER DEPTHS (A10 ruled + built, 2026-08-06)
+
+**Ruling:** a morph-owned cell holds **four depths, one per corner**; a flip swaps which one is
+live. Chosen over territory-gating and over deleting scope −2 — it is the only reading where
+morph-ownership does something corner-ownership cannot.
+
+**Semantic change:** owning a routing now *makes it live* (`gd()` returns 1 for scope −2). The
+flip changes **which depth applies**, not whether the routing exists. That retires the old
+`owner === 0` gate, which left a morph-owned routing dead on 6–71% of the field depending
+purely on the reshuffle seed.
+
+**Measured** with the demo preset's `K1 → K` cell authored as A +0.8 · B −0.8 · C 0 · D +0.4:
+
+| position | rms | peak | mean K mod | owner |
+|---|---|---|---|---|
+| A top-left | 0.1042 | 0.431 | **+0.0528** | A (100%) |
+| B top-right | 0.0979 | 0.393 | **−0.0528** | B (100%) |
+| C bottom-left | 0.0772 | 0.272 | **0.0000** | C (100%) |
+| D bottom-right | 0.1106 | 0.540 | **+0.0264** | D (100%) |
+
+The mean K modulation is exactly proportional to each corner's authored depth
+(0.8 : −0.8 : 0 : 0.4 → 0.0528 : −0.0528 : 0 : 0.0264), which is the acceptance evidence.
+
+**Temperature characterised — it is the field-vs-territory dial.** How often the corner you are
+*standing on* actually owns the routing, over 4 corners × 6 reshuffle seeds:
+
+| temp | 0.15 | 0.25 | 0.35 | 0.5 | 1.0 | 2.0 |
+|---|---|---|---|---|---|---|
+| corner matches position | 100% | 100% | 100% | 100% | 88% | 58% |
+
+(25% would be pure chance.) The demo preset now ships at **0.5** so corners are legible; higher
+temperatures are the "random territory" regime the quantum-morph work is about. This was found
+because the first measurement put corner A's ownership at C — at temp 1.0 the draw wins.
+
+**UI:** four corner-tinted values under each morph-owned cell, live one lit; the box shows the
+live corner's value and follows the flip; typing edits the **current owner's** slot (the
+"edit = Owner" convention from the quantum-morph lab); cycling scope *into* morph-owned seeds
+all four from the single depth and *out* collapses to the live one, so scope changes never
+silently zero a routing.
+
+**Bug caught during the build, worth recording:** `commit()` — the handler for typing and
+dragging, i.e. the *actual* user path — wrote `lab.depth[...]` directly, bypassing the
+`setDepth` helper. Patching only `setDepth` would have shipped an editor whose typed values
+went into a field nothing reads. Both now route through one `lab.setRouteDepth()`. Same class
+as L0011: patching the programmatic path while the UI path diverges.
+
 ## MORPH DEMO PRESET — and the morph-owned gate is a placeholder (2026-08-06)
 
 Human: *"show me a preset that actually takes advantage of the morph panel so I can properly
@@ -505,7 +551,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A7 | **Law/dist widening** — state compatibility, scope, and which core-only params to expose | § Open questions for the human (4 sub-items) |
 | A8 | **Phase 2/3 formal gate ratification** — shipped and evidenced, never formally closed | § Phase 2 / Phase 3 gates |
 | A9 | **Mod source polarity** — ANSWERED 2026-08-05 by the reachability probe: zero routings fully unreachable, two half-unreachable (`R → Kboost`, `ENV → Kboost`), now marked in the matrix rather than rejected. Only residual question if you want it: should `Kboost` stop being half-wave rectified | § Rejected routings |
-| A10 | **Morph-owned routing semantics** — the `-2` gate is a placeholder (`owner === 0`, a hard-coded corner index) so a morph-owned routing is live on 6–71% of the field depending on the reshuffle seed. Earning its keep needs per-corner depths per cell, so a flip switches versions instead of toggling one on/off | § Morph demo preset |
+| A10 | **Morph-owned routing semantics** — RULED 2026-08-06: **per-corner depths per cell**. Each morph-owned cell holds four depths; a flip swaps which is live. Implemented + measured | § Morph-owned = per-corner depths |
 
 ### B · Queued build work
 
