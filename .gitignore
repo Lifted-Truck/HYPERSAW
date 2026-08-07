@@ -19,3 +19,6 @@ PRIVATE-NOTES.md
 # the plan). Un-ignore once the private names are aliased for tracking.
 docs/proposals/QM-*.md
 docs/design/quantum-morph-lab.html
+
+# prebuilt bench binary — rebuilt on demand, not tracked
+dist/cpu_bench

@@ -162,6 +162,113 @@ swarmalator, time).
 seven existing glide params (11 inertia, 33 glide, 34 legato, 70 inertiaCurve, 75 freqGlide,
 89 polyGlide, 90 glideMode), and whether those are superseded or re-pointed. Append-only ids
 mean that wants ADR-082-level care rather than an improvised mapping.
+## NOTE — CI red on PR #212 was a GitHub outage, not this change (2026-08-06)
+
+Recorded so the history is not misread later. PR #212's checks showed FAILING while GitHub
+Actions was in a **major outage** (incident `qcvjkzcs7j74`, opened 15:22:49 UTC).
+
+The evidence that it was external, not ours:
+- the jobs' conclusion was **`cancelled` with `steps: []`** — they never executed a single step;
+- a Linux `verify fast` and a Windows CMake build, sharing no code path, died at the **same
+  instant**, exactly 15m01s after starting;
+- one run sat **28 minutes** between `created_at` and `run_started_at` waiting for a runner;
+- `gh pr checks` renders anything non-success as "fail", which is what made a cancellation look
+  like a broken gate;
+- a fresh clone of the branch ran `./verify fast` to exit 0 locally, and `./verify full` was
+  green across all oracle chains.
+
+**Recovery was uneven:** once mitigations landed, *freshly triggered* runs got runners
+instantly (PR #213: zero queue delay, `verify-fast` in 8 s), while *re-runs* of jobs created
+during the outage stayed queued indefinitely. So the working move during an Actions incident is
+to push a new commit rather than hit re-run.
+
+## SWARMALATOR IS SAW + TWO TERMS — the human was right (measured, 2026-08-06)
+
+Human: *"isn't it essentially the same thing as SAW but extended to give space and phase a
+relationship? It doesn't feel different enough to be its own engine, hence the slider
+suggestion."*
+
+**Correct, and the code says so more precisely than the intuition did.** The header already
+states it — *"K = ordinary Kuramoto sync (phase axis == SAW when J=0)"* — and the coupling term
+is literally additive:
+
+    couple[i] = kSync + jBack        // jBack is proportional to p.J
+
+At `J = 0` the phase axis IS SAW's Kuramoto. But the **spatial** axis does not stop there:
+
+    xidot = nu[i] + p.J * jRate * 0.5 * (Rp*sPlus + Rm*sMinus)
+
+`nu[i]` is each voice's own rotation rate, seeded from **`drift`** — so at `J=0` the voices
+keep circling the stereo field. Measured spatial travel over ~1.16 s at K=0.6:
+
+| J | drift | spatial travel |
+|---|---|---|
+| 0.6 | 0.2 (defaults) | 0.637 rad |
+| 0 | 0.2 | 0.690 rad |
+| 0.6 | 0 | 0.468 rad |
+| **0** | **0** | **0.000000 rad — frozen, pan is static** |
+
+**So the reduction condition is BOTH `J = 0` and `drift = 0`** — one slider must drive two
+parameters, not one. (Note for whoever builds it: `p.nu` is the *unit count*, not a rate. A
+first probe set it to 0.5, rendered zero voices, and produced three identical rows that looked
+like a clean result. The parameter named like a rate is the array `nu[i]`, driven by `drift`.)
+
+**The stronger conclusion: it should not be an engine at all.** `SwarmalatorCore` has 9
+parameters; SAW has ~70 (distributions, detune laws, onset/dissolve, topology, octave spread,
+root anchor, drift modes, pan layout…). Keeping it as a separate engine forces a false choice
+between *spatial coupling* and *every law SAW has*. Since the phase axis is already SAW's, the
+right move is to fold **ξ (spatial state) and J (cross-coupling) into `swarm_core.h` as two
+extra terms**, exposed as the human's spatial-blend slider driving J and drift together:
+0 = today's SAW with its existing static pan, 1 = full swarmalator.
+
+**The one constraint that makes it safe:** at slider 0 the ξ path must be *inert* — SAW's
+existing pan layout/scatter/curve logic untouched — so all 147 parity goldens stay green. That
+is the same superset-with-inert-defaults discipline as ADR-021/025/042/063, so there is a
+well-worn precedent.
+
+**A2 is therefore not "listen, then integrate an engine"** — it is "listen, then decide whether
+the spatial coupling earns a place in SAW". Listening to `swarmalator.html` answers it
+(the core is bit-exact against it: stereo parity RMS 0.0 on 9/9).
+
+### TABLED (human, 2026-08-06) — and a correction to the "slider" framing
+
+Human: *"I'm assuming the swarmalator behavior would have to be a toggle that switches on as an
+alternative to the existing SAW pan laws. Let's table it for now and revisit down the line. I
+don't think it's very high priority."*
+
+**Tabled — and the toggle observation corrects something this section got wrong.** The text
+above (and the PR that wrote it) called this a *blend slider*, inherited from the 2026-07-20
+sketch. That is not quite right, and the reason is structural: **pan cannot have two sources at
+once.** SAW derives each voice's pan from its static laws (pan layout, curve, scatter, invert,
+spread); the swarmalator derives it from the spatial state ξ. A voice's pan is one number — so
+turning ξ on means the pan laws stop determining it. There is no coherent midpoint where a
+voice is half-placed-by-layout and half-placed-by-dynamics.
+
+What CAN be continuous is the *depth* of the spatial motion once ξ owns pan (J and drift both
+rising from zero, per the measurement above: at J=0 **and** drift=0, ξ is frozen at its even
+initial spread — travel 0.000000 rad). So the honest shape is a **toggle** choosing which
+system owns pan, plus depth controls behind it — not a crossfade between two pan systems.
+
+That also makes the inert-default requirement cleaner: toggle off ⇒ the ξ path never executes
+⇒ all 147 parity goldens hold trivially, rather than needing a "slider at 0 is bit-exact"
+argument.
+
+**Priority: low, revisit later.** No ADR is written yet; when it is, it should specify a toggle
+with depth controls, not a blend. The swarmalator core stays as the reference implementation
+and its oracle keeps running in `./verify full` either way.
+
+### Standalone CPU bench for a machine with no DAW
+
+`dist/` now carries a **universal (arm64 + x86_64) self-contained `cpu_bench`** plus
+`README-cpu-bench.md`: copy the file, run it in Terminal, read one number. No DAW, no Xcode, no
+install, nothing written or played. Build it with:
+
+    clang++ -std=c++20 -O3 -arch arm64 -arch x86_64 -I src tools/cpu_bench.cpp -o dist/cpu_bench
+    codesign --force -s - dist/cpu_bench
+
+The binary itself is gitignored (a 182 KB Mach-O does not belong in git); the recipe above is
+the tracked artifact. The README covers the quarantine flag, which is what will otherwise stop
+it opening on another Mac.
 
 ## CPU BENCH BUILT — the min-spec question is now HARDWARE, not method (2026-08-06)
 
@@ -899,7 +1006,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | # | Item | Where |
 |---|---|---|
 | A1 | **Bend inertia fold** — FULLY RULED 2026-08-06: laws 1–4 (5 cut), constant-rate default, quantise as a modifier, per-destination laws linked by default. B19 buildable | § Pitch-bend inertia; `docs/design/bend-lab.html` |
-| A2 | **Swarmalator** — listen before shell integration (core + oracle done, bit-exact) | § Experimental engines |
+| A2 | **Swarmalator** — **TABLED 2026-08-06 (human, low priority)**. Measured as SAW's phase axis + two terms (reduces exactly at J=0 **and** drift=0). Shape corrected: a **toggle** choosing which system owns pan (pan cannot have two sources), with depth controls behind it — not a blend slider. Revisit later | § Swarmalator is SAW + two terms |
 | A3 | **Shape lab fold** — mandate rulings: fold mode and carrier purity both leave saw territory deliberately | § Lab campaign 2 item 6 |
 | A4 | **ITD max 0.6 → 0.3** — proposed on measurement (metrics saturate above 0.15 ms); wants an ear A/B first | § Open questions 2026-08-03 #1 |
 | A5 | **AP freq 700 Hz** (super-width mode D) — arbitrary, never measured; A/B in the width lab and pin | § Open questions 2026-08-03 #2 |
