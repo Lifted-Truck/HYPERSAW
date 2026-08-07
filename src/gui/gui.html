@@ -60,9 +60,14 @@
   .scope, .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
   /* Oscillator switcher: only rendered when the build actually has more than
      one oscillator, so a 1-osc build shows no dead control. */
-  .mixstrips { display: flex; gap: 10px; }
-  .mixstrips .strip { flex: 1; background: var(--panel2); border: 1px solid var(--line);
-    border-radius: 3px; padding: 5px 8px; }
+  /* STACKED, not side-by-side (human screenshot 2026-08-07): the controls
+     area is a ~220px CSS multi-column layout, and columns do NOT clip
+     overflow — three flex strips totalled ~420px and the MASTER strip
+     painted straight over the FX rack in the neighbouring column. Vertical
+     is the only honest fit at this cluster width. */
+  .mixstrips { display: flex; flex-direction: column; gap: 6px; }
+  .mixstrips .strip { background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 3px; padding: 4px 8px; min-width: 0; }
   .mixstrips .strip b { font-size: 10px; color: var(--dim, #7f8899); letter-spacing: 1px; }
   .mixstrips .strip.master b { color: var(--text); }
   .oscSel { display: inline-flex; gap: 3px; margin-left: 8px; vertical-align: middle; }
