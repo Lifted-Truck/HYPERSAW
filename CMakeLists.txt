@@ -29,14 +29,24 @@ add_subdirectory(libs/clap-wrapper EXCLUDE_FROM_ALL)
 # find_package resolves the interpreter portably — bare `python3` is absent
 # from Windows CI runners' PATH (same trap family as L0003).
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+# HYPERSAW_GUI2: embed the greenfield multi-oscillator interface
+# (src/gui/gui2.html) instead of the original single-column layout. OFF by
+# default — the new interface is built up cluster by cluster on its own branch
+# (human direction 2026-08-07) and swaps in only when it reaches parity.
+option(HYPERSAW_GUI2 "Embed the experimental gui2.html interface" OFF)
+if(HYPERSAW_GUI2)
+  set(GUI_HTML_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/gui2.html)
+else()
+  set(GUI_HTML_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/gui.html)
+endif()
 set(GUI_HTML_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/gui_html.h)
 add_custom_command(
   OUTPUT ${GUI_HTML_HEADER}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/embed_file.py
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/gui.html ${GUI_HTML_HEADER} kGuiHtml
-  DEPENDS src/gui/gui.html tools/embed_file.py
-  COMMENT "Embedding gui.html")
+          ${GUI_HTML_SOURCE} ${GUI_HTML_HEADER} kGuiHtml
+  DEPENDS ${GUI_HTML_SOURCE} tools/embed_file.py
+  COMMENT "Embedding GUI: ${GUI_HTML_SOURCE}")
 
 # clap-first idiom (see libs/clap-wrapper/tests/clap-first-example): a static
 # impl lib carrying the factory, wrapped per-format by make_clapfirst_plugins.

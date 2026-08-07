@@ -79,6 +79,30 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## GUI2 — the greenfield interface, cluster by cluster (human, 2026-08-07)
+
+Human: *"start a branch to test a new interface and build it up a cluster of components at a
+time instead of trying to build backwards from the single-oscillator layout."*
+
+`src/gui/gui2.html`, behind a build switch: **`-DHYPERSAW_GUI2=ON`** embeds it in place of the
+original (default OFF — the shipped plugin is unchanged until parity). Rules of the file, in
+its header: the **plumbing ports verbatim** (effId / data-fixed / paintControl / setVizOsc —
+every bug in it was paid for once); the **layout starts clean** (grid pages, never CSS
+multi-columns, which cost two overlap bugs); a cluster appears **only when its engine surface
+is real** — SPACE/MOD/MORPH are visibly disabled tabs, not mocks.
+
+Increment 1: MAIN (XY, active-oscillator by construction) · MIX (both strips + master incl.
+global pitch) · OSC (swarm/coupling/pitch clusters with per-osc retargeting; the osc selector
+is one widget class mounted per page, all instances synced). Verified in-page: strip sends
+1035 fixed; OSC-page detune retargets 1004 after selecting OSC 2 *from a different page's
+selector*; XY follows. Embed verified by decoding the generated header (a `strings` check
+cannot see a hex byte array — the first attempt "proved" the switch broken with the wrong
+detector). `lab_load_check` now sweeps `src/gui/*.html` by default so gui2 can never
+load-fail silently.
+
+Next clusters, in the mixer-first order: viz (per-osc snapshot feed) · FX rack + routing
+(B23 lab first) · MOD (matrix fold) · MORPH.
+
 ## VIZ INTERMEDIARY + XY RETARGET + GLOBAL PITCH (human, 2026-08-07)
 
 Human: *"un-wire all the visuals from OSC 1 and create an intermediary layer that points all
