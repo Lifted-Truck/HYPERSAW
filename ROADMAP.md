@@ -79,6 +79,28 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## MOD MATRIX: DEPTH IS ITSELF A MOD TARGET (human, 2026-08-07)
+
+Human: *"I also want the mod matrix to expose the secondary mod target of modulation depth per
+mapping: it would be great, for instance, if I could have a high R value kick in a tempo-sync'd
+down-ramp sawtooth LFO on the osc volume or the filter cutoff."*
+
+Queued as **B26**. This is second-order modulation — each ROUTING's depth becomes a
+destination, so `R → (LFO → cutoff).depth` reads exactly as the example: the LFO is always
+running, and R fades its *grip* in and out. Notes for the design:
+
+- **The lab already has the scaffolding.** A routing is a cell with a depth; making depth
+  addressable means the destination list gains one entry per ACTIVE routing (per the standing
+  convention, surfaced only when the routing exists — not 108 phantom rows).
+- **It composes with scope**: a depth-of-depth routing should itself carry the corner/system
+  scope vocabulary, and A10's per-corner depths mean the target may be four values, not one —
+  the ruling needed is whether depth-of-depth addresses the *live* value or the whole cell.
+- **The example needs two other queued pieces**: a down-ramp saw (the reverse-saw LFO shape,
+  already absorbed into B16) and tempo sync (the same substitution q·step time and beatMult
+  use). Worth landing those with it so the motivating patch is buildable on day one.
+- **Chatter risk is known territory**: R crossing a threshold to enable a routing is the
+  flip-chatter problem the morph hysteresis already solved — reuse that, not a new mechanism.
+
 ## STEP-GLIDE TESTED IN THE LAB + B25 SCALING RULES (2026-08-07)
 
 ### Time-gated quantise is in the bend lab (the human's step-glide, testable now)
@@ -117,6 +139,82 @@ Hand-tailored per family, as anticipated. Three rules:
    pre-divided-headroom alternative warps the macro's feel for every other param and is worse.
 3. **Where a cap is taste rather than physics, widen the range instead of engineering around
    it.** `freqGlide`'s 0.1 s max is a taste cap. Widen + expose together, per L0023.
+
+## K vs LINK — two mechanisms, and they are not the two the question assumed (2026-08-07)
+
+Human: *"there might be a difference between the notion of a master K and sync'd Ks: syncing
+the K values preserves independent rates per cluster, while a master K forces them all into one
+frequency. Am I correct?"*
+
+**The instinct that there are two distinct mechanisms is right. The mapping is different, and
+the difference matters for B22's design.**
+
+**K is not a rate.** It is the *intra-swarm coupling strength* — `km = 4·K·|K|`, feeding a sync
+term and a splay term scaled by the swarm's own frequency spread (`swarm_core.h:1178-1188`).
+Within one swarm, raising K entrains its oscillators toward a common frequency; that is the
+Kuramoto transition the whole instrument is built on. But K only ever acts **inside** a swarm.
+
+So a **master K** — one knob driving several K *parameters* — does **not** force anything into
+one frequency across oscillators. It makes each swarm equally coherent *internally*, while the
+swarms remain at whatever pitches and rates their own detune gives them. Nothing couples across
+them, so nothing can pull them together.
+
+**The mechanism that does share timing already exists, and it is `link`.** A swarm may carry a
+`master` reference and a `link` amount: at 0 it is fully independent, at 1 its phases are
+entrained to the master swarm's mean phase (`mod-lab.html:91-93, 184`). That is genuine
+inter-swarm coupling — the FX swarms already use it to run "participating vs independent"
+against the main rotor.
+
+**So B22 is two controls, not one:**
+- **K link** — the *parameter* sharing the human asked for. One value, several K params;
+  breakable per oscillator/effect. Cheap, and purely a UI/parameter concern.
+- **Phase link** — the *dynamical* coupling. Already implemented for the FX swarms; extending
+  it to oscillators would let oscillator 2's swarm be entrained by oscillator 1's, which is a
+  real and much more interesting feature than sharing a number.
+
+Conflating them would have shipped a "master K" that users expected to lock oscillators
+together and that audibly does not. Worth an ADR before building, because they are separately
+useful and the naming has to distinguish them.
+
+**Recorded caveat on `link`'s taper:** a prior measurement found link "did nothing above 0.15
+— the whole slider was one step". Whatever extension B22 makes should re-measure rather than
+inherit that curve.
+
+## GLOBAL TIME SCALE — a macro over every time-domain param (human, 2026-08-07)
+
+Human: *"take a page out of many Ableton effects/instruments and add a global time slider which
+controls all or most time settings at once. For now we can get into the habit of flagging
+features this might apply to."*
+
+Queued as **B25**, and the flagging starts now — here is the surface as it stands. **16
+time-domain params today:**
+
+| | |
+|---|---|
+| envelope (amp) | 19 attack · 20 decay · 22 release |
+| envelope (SPECTRA) | 65 sAttack · 66 sDecay · 68 sRelease |
+| swarm | 8 dissolve · 10 driftRate |
+| glide | 33 glide · 75 freqGlide |
+| scatter | 93 attackScatter · 95 relScatter |
+
+(`sustain`/`sSustain` are levels, not times, and `polyGlide`/`glideMode` are behaviour
+switches — listed by the scan, excluded from scaling.)
+
+**Not yet in the shell but coming, and all time-domain:** the glide module's five travel laws
+(glide time, rate, lag τ, spring frequency), the time engines' echo and room decays, and the
+reverb's EDT/T30. The macro should be designed knowing those are arriving, not retrofitted
+around them.
+
+**The design question to settle before implementing:** a global time macro can scale
+*multiplicatively* (every time × N, preserving ratios — the Ableton-ish behaviour and the one
+that stays musical) or *interpolate toward a target*. Multiplicative is almost certainly right,
+but it needs a rule for params whose range is clamped (`freqGlide` maxes at 0.1 s, so ×4 from
+the top does nothing) — otherwise the macro silently stops affecting some controls partway
+through its travel, which is the dead-control failure this project keeps re-learning.
+
+**Convention going forward:** any new time-domain parameter gets flagged for the macro at the
+point it is added, in the ADR or roadmap entry that introduces it. Cheaper than auditing for
+them later — this list took a scan and still needed hand-filtering.
 
 ## RE-ORDER: MASTER/MIXER PAGE FIRST (human, 2026-08-07) — and 13 params are already mis-scoped
 
@@ -1173,9 +1271,11 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B19 | **Glide/travel module** — **CORE + ORACLE SHIPPED 2026-08-06** (`src/glide_core.h`, `glide_check` in `./verify full`, parity 11/11 worst 3.5e-08, not yet in the audio path). Remaining: shell integration — destination mapping onto the 7 existing glide params (11/33/34/70/75/89/90), which wants ADR-082-level care since ids are append-only | § Glide core ported |
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring; scale source still the Tonality brief | § Step-glide tested |
-| B22 | **K link across oscillators AND effects** — independent or locked to a master K; the FX swarms, filter and notch cores all carry a K and B17 already uses `link` as the idiom. Design once, not twice | § Re-order |
+| B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
 | B23 | **Routing lab** — per-osc sends vs matrix; serial/parallel per path; composition with the morph and mod matrix, which already target FX params | § Re-order |
 | B24 | **Master/mixer page** — the audio context; per-osc channel strip (level/width/pan) + master bus. FIRST in the re-ordered plan; replaces today's hardcoded oscillator sum | § Re-order |
+| B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
+| B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |
