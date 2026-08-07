@@ -25,14 +25,16 @@ export function extractInertia() {
     if (depth === 0 && i > clsAt) { end = i; break; }
   }
   if (end < 0) throw new Error('class Inertia never closes');
-  // keep only what Inertia needs: constants, the damping helpers, the class
-  const keep = [];
-  for (let i = start; i <= end; i++) {
-    const l = lines[i];
-    if (i >= clsAt || l.startsWith('const TAU') || l.startsWith('const osFromZeta') ||
-        l.startsWith('const zetaFromOs') || (i > 156 && i < clsAt && /^\s/.test(l)))
-      keep.push(l);
-  }
+  // Keep only what Inertia needs: TAU, the two damping helpers, the class.
+  // Located by CONTENT, never by line index — the first version kept "indented
+  // lines after line 156", and the moment three lines were added to the P
+  // literal above the helpers, the slice swallowed the literal's orphaned tail
+  // and the golden generator died with a syntax error, taking ./verify full
+  // red with it. A magic number in an extractor is a delayed break.
+  const osAt = lines.findIndex(l => l.startsWith('const osFromZeta'));
+  if (osAt < 0 || osAt > clsAt) throw new Error('bend-lab shape changed: osFromZeta not found');
+  const keep = [lines[start]];                        // const TAU..., TICK
+  for (let i = osAt; i <= end; i++) keep.push(lines[i]);  // helpers + class, contiguous
   const src = keep.join('\n');
   const api = new Function(src + '\n;return {Inertia, TAU, TICK};')();
   if (typeof api.Inertia !== 'function') throw new Error('Inertia did not evaluate');
