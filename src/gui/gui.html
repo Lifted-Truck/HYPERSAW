@@ -60,6 +60,11 @@
   .scope, .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
   /* Oscillator switcher: only rendered when the build actually has more than
      one oscillator, so a 1-osc build shows no dead control. */
+  .mixstrips { display: flex; gap: 10px; }
+  .mixstrips .strip { flex: 1; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 3px; padding: 5px 8px; }
+  .mixstrips .strip b { font-size: 10px; color: var(--dim, #7f8899); letter-spacing: 1px; }
+  .mixstrips .strip.master b { color: var(--text); }
   .oscSel { display: inline-flex; gap: 3px; margin-left: 8px; vertical-align: middle; }
   .oscSel .oscTab { font: inherit; font-size: 10px; padding: 1px 7px; cursor: pointer;
     background: var(--panel2); color: var(--dim, #7f8899);
@@ -175,6 +180,22 @@
       <h2 id="xyLabel">XY · x=detune y=pull K</h2>
       <canvas id="xyPad" width="256" height="150"></canvas>
       <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
+    </div>
+    <div class="cluster">
+      <h2>Mix <span class="q" style="font-weight:normal;font-size:10px;color:var(--dim,#7f8899)">— B24 increment 1: both oscillators at once; strips never retarget</span></h2>
+      <div class="mixstrips">
+        <div class="strip"><b>OSC 1</b>
+          <div class="row"><label>level</label><input type="range" data-p="17" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><output></output></div>
+          <div class="row"><label>width</label><input type="range" data-p="14" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
+        </div>
+        <div class="strip"><b>OSC 2</b>
+          <div class="row"><label>level</label><input type="range" data-p="1017" data-fixed="1" min="0" max="1" step="0.005" value="0"><output></output></div>
+          <div class="row"><label>width</label><input type="range" data-p="1014" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
+        </div>
+        <div class="strip master"><b>MASTER</b>
+          <div class="row"><label>volume</label><input type="range" data-p="100" data-fixed="1" min="0" max="1.5" step="0.005" value="1"><output></output></div>
+        </div>
+      </div>
     </div>
     <div class="cluster">
       <h2>The swarm <span id="oscSel" class="oscSel"></span></h2>
@@ -391,7 +412,7 @@
 "use strict";
 const $ = s => document.querySelector(s);
 // Param defaults (mirror of the shell's kParams) for double-click reset.
-const DEFAULTS = {1:7,2:1,3:1234,4:0.28,5:0,6:0,7:0,8:0.63,9:0,10:0.4,11:0,12:0,13:0.75,14:0.8,
+const DEFAULTS = {100:1,1017:0,1014:0.8,1:7,2:1,3:1234,4:0.28,5:0,6:0,7:0,8:0.63,9:0,10:0.4,11:0,12:0,13:0.75,14:0.8,
   15:0,16:1,17:0.4,18:1,19:0.003,20:0.16,21:1,22:0.16,23:1,24:0,25:5,26:0.6,27:0,28:1,29:0,
   30:35,31:0,32:0,33:0,34:1,35:0,36:0,37:0,38:0,39:0,40:0,41:120,42:0,43:0,44:12,45:1,46:0,47:5,48:0.25,49:0,50:0,51:0,52:0,53:0,54:0,55:-1,56:0,
   57:0,58:0.5,59:0,60:0.5,61:0,62:0.5,63:0,64:0.5,
@@ -529,8 +550,10 @@ document.addEventListener('keydown', e => {
 controls.forEach(el => {
   const baseId = +el.dataset.p;
   // Resolved per event, not captured once: the selected oscillator changes
-  // after these listeners are installed.
-  const id_ = () => effId(baseId);
+  // after these listeners are installed. data-fixed controls (the mixer
+  // strips) pin their EXACT id — the whole point of a strip is showing both
+  // oscillators at once, which retargeting would defeat.
+  const id_ = () => el.dataset.fixed ? baseId : effId(baseId);
   const isCheck = el.type === 'checkbox';
   const isSelect = el.tagName === 'SELECT';
   const toParam = () => {
@@ -684,10 +707,15 @@ function paintOscTabs(ps) {
 }
 
 function setControl(id, v) {
-  // Incoming ids are EFFECTIVE (they carry the oscillator block); controls are
-  // declared with their oscillator-0 id. Map back, and drop values belonging to
-  // an oscillator the user is not editing — otherwise oscillator 1's params
-  // would overwrite the visible oscillator-0 controls on every refresh.
+  // Mixer strips bind the EXACT effective id (data-fixed) and are painted
+  // first, before any remapping — a strip shows every oscillator at once, so
+  // the not-currently-edited filter below must never apply to it.
+  document.querySelectorAll(`[data-p="${id}"][data-fixed]`).forEach(f => paintControl(f, v));
+  // Incoming ids are EFFECTIVE (they carry the oscillator block); tabbed
+  // controls are declared with their oscillator-0 id. Map back, and drop
+  // values belonging to an oscillator the user is not editing — otherwise
+  // oscillator 1's params would overwrite the visible oscillator-0 controls
+  // on every refresh.
   const osc = Math.floor(id / OSC_STRIDE);
   const base = id % OSC_STRIDE;
   const isGlobal = globalIds ? globalIds.has(base) : osc === 0;
@@ -696,8 +724,12 @@ function setControl(id, v) {
   id = base;
   if (id === xAxisId()) { curDetune = v; xyDirty = true; }
   if (id === K_ID) { curK = v; xyDirty = true; }
-  const el = document.querySelector(`[data-p="${id}"]`);
+  const el = document.querySelector(`[data-p="${id}"]:not([data-fixed])`);
   if (!el) return;
+  paintControl(el, v);
+}
+
+function paintControl(el, v) {
   if (el.type === 'checkbox') el.checked = v > 0.5;
   else if (el.tagName === 'SELECT') {
     // nearest option by numeric value (grid divisions are non-integer)

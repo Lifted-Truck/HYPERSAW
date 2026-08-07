@@ -244,6 +244,12 @@ static const ParamDef kParams[] = {
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.
     {70, "inertiaCurve", "Inertia Curve (dev)", 0.3, 5, 0.5, false, nullptr},
+    // MASTER VOLUME (B24 mixer, 2026-08-07) — the first id above 99, allocated
+    // under Amendment 1's stride-1000 scheme. Needed because Amendment 1 made
+    // `vol` (17) per-oscillator: after that there was NO patch-level fader at
+    // all. Default 1.0 = unity, and the render skips the multiply at exactly
+    // 1.0, so every existing patch is bit-identical. GLOBAL (in kGlobalIds).
+    {100, "masterVol", "Master Volume", 0, 1.5, 1.0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -280,7 +286,12 @@ static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified 
    there rather than buried here, because a param in the wrong class is wrong
    permanently. */
 constexpr clap_id kGlobalIds[] = {
-    14, 15, 40, 41,                              // output & image
+    15, 40, 41,                                  // output & image
+    // NB: 14 "width" left this list 2026-08-07 (A12, human-ruled: "oscillators
+    // will independently need their own width controls"). It is a SwarmCore
+    // param, so each oscillator always had its own copy — global classification
+    // just made oscillator 2's unreachable. mono (15) stays global pending the
+    // rest of the A12 ruling.
     // NB: 17 "vol" is NOT here. It is the swarm's own output gain, computed
     // inside SwarmCore::render — so it is PER-OSCILLATOR, and it is what lets
     // two oscillators be balanced against each other. A patch-level master
@@ -290,6 +301,7 @@ constexpr clap_id kGlobalIds[] = {
     32, 33, 34, 38, 75, 89, 90, 11, 70,          // voice & glide behaviour
     57, 58, 59, 60, 61, 62, 63, 64, 96, 97, 98, 99,  // FX rack
     23, 88,                                      // tempo grid, oversampling
+    100,                                         // masterVol (B24 mixer)
 };
 constexpr bool isGlobalId(clap_id id)
 {
@@ -430,6 +442,7 @@ struct Plugin
   // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
   // no crossover phase mismatch, the classic vinyl-elliptic routing.
   double bassMonoOn = 0, bassMonoHz = 120;
+  double masterVol = 1.0, masterVolSm = 1.0;   // B24: target + smoothed
   double bmIc1 = 0, bmIc2 = 0;
 
   void updateTune()
@@ -965,6 +978,11 @@ struct Plugin
         bassMonoHz = applied;
         return;
       }
+      if (id == 100)
+      {
+        masterVol = applied;   // smoothing happens in process()
+        return;
+      }
       if (id == 43)
       {
         if (applied != engineSel)
@@ -1024,6 +1042,7 @@ struct Plugin
       if (d->id == 38) return pitchBend;
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
+      if (d->id == 100) return masterVol;
       if (d->id == 43) return engineSel;
       if ((d->id >= 44 && d->id <= 55) || (d->id >= 65 && d->id <= 68))  // SPECTRA (44-55) + SPECTRA ADSR (ADR-055, 65-68)
         return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
@@ -1359,6 +1378,25 @@ struct Plugin
     // All-Off is a bit-exact passthrough (the parity gate). Runs before the
     // spectrum feed so the visualizer reflects post-FX output.
     rack.processStereo(outL, outR, (int)nframes);
+
+    // MASTER VOLUME (B24): last in the chain, before the visualizer feed so
+    // the meters show what leaves the plugin. One-pole smoothed (~8 ms) with a
+    // snap once within 1e-6 of target — the snap is load-bearing: it makes
+    // unity EXACTLY 1.0, and the skip below keeps every pre-mixer patch
+    // byte-identical rather than "identical up to a converging one-pole".
+    {
+      const double c = 1.0 - std::exp(-1.0 / (0.008 * sampleRate));
+      for (uint32_t i = 0; i < nframes; i++)
+      {
+        masterVolSm += (masterVol - masterVolSm) * c;
+        if (std::fabs(masterVolSm - masterVol) < 1e-6) masterVolSm = masterVol;
+        if (masterVolSm != 1.0)
+        {
+          outL[i] = (float)(outL[i] * masterVolSm);
+          outR[i] = (float)(outR[i] * masterVolSm);
+        }
+      }
+    }
 
     publishViz();
     {

@@ -79,6 +79,27 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## B24 INCREMENT 1 SHIPPED — the mixer exists (2026-08-07)
+
+The audio context, first piece. Three changes, each calibrated:
+
+- **`width` (14) is per-oscillator** (A12, human-ruled). Removed from `kGlobalIds`; id 1014 now
+  addresses oscillator 2's copy. Measured: narrowing only osc 2's width raises L/R correlation
+  0.683 → 0.917 while osc 1 stays wide.
+- **`masterVol` (id 100) exists** — the first id allocated above 99 under Amendment 1's stride.
+  Needed because Amendment 1 made `vol` per-oscillator, leaving NO patch-level fader at all.
+  One-pole smoothed (~8 ms) with a snap-to-target so unity is exactly 1.0 and the multiply is
+  skipped — every pre-mixer patch stays byte-identical. Measured: 0.5 gives rms ratio 0.500.
+- **The Mix cluster in the GUI**: per-osc strips (level + width) and the master fader, as
+  `data-fixed` controls that pin their exact id — a strip shows BOTH oscillators at once, which
+  is precisely what the tab retargeting cannot do. Verified in-page: the OSC 2 strip sends 1017
+  with OSC 1's tab selected; `setControl(1017)` paints the strip and leaves the main vol
+  control untouched; the main-panel width control retargets 14 → 1014 with the tabs.
+
+Remaining in B24: pan (no per-osc pan-position param exists yet — panScatter/panLayout are
+image laws, not a position), mute/solo (want params, not GUI state, so automation can reach
+them), meters, and the rest of the A12 ruling (mono, inertia, the amp envelope).
+
 ## MOD MATRIX: DEPTH IS ITSELF A MOD TARGET (human, 2026-08-07)
 
 Human: *"I also want the mod matrix to expose the secondary mod target of modulation depth per
@@ -1273,7 +1294,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring; scale source still the Tonality brief | § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
 | B23 | **Routing lab** — per-osc sends vs matrix; serial/parallel per path; composition with the morph and mod matrix, which already target FX params | § Re-order |
-| B24 | **Master/mixer page** — the audio context; per-osc channel strip (level/width/pan) + master bus. FIRST in the re-ordered plan; replaces today's hardcoded oscillator sum | § Re-order |
+| B24 | **Master/mixer page** — **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan param, mute/solo as params, meters, rest of A12 | § B24 increment 1 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
