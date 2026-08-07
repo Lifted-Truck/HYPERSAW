@@ -79,6 +79,27 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## OPEN BUG — chord retrigger (human report 2026-08-07), repro NOT yet achieved
+
+Human: *"Notes are getting stuck; when I hold most of a chord and try to retrigger a note that
+I let go, it only retriggers a fraction of the time."*
+
+Status, honestly: **not reproduced yet, and one false repro already discarded.** The first
+probe reported 19/21 failures — then turned out to queue every chord event as a pointer to ONE
+`static` struct, so a "6-note chord" was the last key pressed six times. Every number was a
+harness artifact. The corrected probe shows holds 2/6/7 recovering fully and hold=5 dipping
+within the beating variance of five detuned swarms — an rms oracle cannot resolve one voice
+among many (L0017: calibrate per signal class).
+
+**Two leads for the next probe:**
+1. **`note_id` semantics.** Live sends real note ids; the probes sent −1. The shell's tag
+   matching (`tags[slot] = {note_id, port, channel, key}`) and NOTE_END lifecycle key on them —
+   a repress with a NEW note_id against a stale tag is exactly where "a fraction of the time"
+   lives.
+2. **A gate-count oracle, not an audio one.** Drive the CLAP path but count gated voices
+   through the viz snapshot (or a core-level twin), so one voice's absence is a hard integer,
+   not a wiggle under detune beating.
+
 ## GUI2 — the greenfield interface, cluster by cluster (human, 2026-08-07)
 
 Human: *"start a branch to test a new interface and build it up a cluster of components at a
