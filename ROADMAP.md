@@ -79,6 +79,45 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## STEP-GLIDE TESTED IN THE LAB + B25 SCALING RULES (2026-08-07)
+
+### Time-gated quantise is in the bend lab (the human's step-glide, testable now)
+
+Three new controls in `bend-lab.html`: **quantise** (off / chromatic / major scale),
+**q·hysteresis**, and **q·step time** (0 = free; tempo-sync replaces the ms value at fold time,
+the same substitution `beatMult` makes). The gate holds the previous step until it elapses —
+the law's dynamics run untouched underneath, only the *emission* is gated, so spring +
+gated-quantise still lands its overshoot wobble on the grid. The timer arms on reset so a
+gesture's FIRST step is never delayed (gating the onset just reads as latency).
+
+Measured (constant-rate 12 st/s, major scale, one octave): free = 7 steps at the law's natural
+~146 ms pace; qTime 120 barely bites (the gate is faster than the law); **qTime 250 = 4 steps
+at 250.3 ms apart** — the gate paces only when slower than the law's own step rate, which is
+the right behaviour for a musical increment control.
+
+Goldens bit-identical (`glide_check` parity rms unchanged) — `qTime` defaults 0 = the old free
+path. The C++ fold of the gate waits for the glide-module shell work (three lines once B19's
+wiring lands).
+
+**Extractor break worth recording:** adding three lines to the lab's `P` literal broke
+`extract_glide.mjs` and took `./verify full` red — its helper slice kept "indented lines after
+line 156", a magic index its own comment claimed it did not use. Now located by content
+(`const osFromZeta` → class end). A magic number in an extractor is a delayed break.
+
+### B25 scaling rules for clamped ranges (recommendation, per the human's ask)
+
+Hand-tailored per family, as anticipated. Three rules:
+
+1. **Multiplicative in the log domain, with a per-family sensitivity weight.** `t' = t · N^w`,
+   w hand-tuned: envelopes 1.0, glide ~0.5, driftRate ~0.3 (drift is character more than time).
+   Ratios inside a family are preserved exactly; families differ in how hard the macro pulls
+   them — the hand-tailoring is one number each.
+2. **Clamp-and-show, never clamp-and-hide.** A pinned param displays an at-limit marker while
+   the macro keeps its position. The macro must never silently stop affecting a control — the
+   pre-divided-headroom alternative warps the macro's feel for every other param and is worse.
+3. **Where a cap is taste rather than physics, widen the range instead of engineering around
+   it.** `freqGlide`'s 0.1 s max is a taste cap. Widen + expose together, per L0023.
+
 ## RE-ORDER: MASTER/MIXER PAGE FIRST (human, 2026-08-07) — and 13 params are already mis-scoped
 
 Human: *"Maybe we switch up the order so we don't build a bunch of tech debt. First we need the
