@@ -81,6 +81,7 @@ struct GuiHost
   std::function<std::string()> getParamsJson;            // {"<id>":value,...}
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin
+  std::function<void(uint32_t)> setVizOsc;               // visuals follow the GUI's active osc
   std::function<void()> panic;                          // all-off, both engines + rack
   std::function<std::string()> getBuildId;               // git short hash, GUI corner
   std::function<std::string()> getStateJson;             // full provenance dump
