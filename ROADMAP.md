@@ -79,6 +79,34 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## OSCILLATOR PRESET TIER SHIPPED (B20 bottom tier, 2026-08-06)
+
+`src/osc_preset.h` + `tools/preset_check.cpp`, gated in `./verify full`.
+
+**The tier really was nearly free, exactly as predicted.** ADR-082 gave every per-oscillator
+param the key `o<k>.name`, so one oscillator's preset is *the subset of state keys carrying one
+prefix* — saving is a filter, loading into another slot a prefix rewrite. That fell out of the
+id scheme rather than being designed for presets, which is some evidence the scheme is right.
+
+**Two properties are pinned, and both are load-bearing rather than decorative:**
+- **Slot-agnostic on disk** — keys are stored UNPREFIXED. A format that embedded its origin
+  slot would pass a naive round-trip and fail the first time anyone copied oscillator 1 to 2,
+  which is the main thing this tier is for.
+- **Globals never travel** — an oscillator preset carrying the FX rack or the master image
+  would silently redecorate whatever patch it was dropped into: data loss wearing the costume
+  of a feature.
+
+Also pinned: a patch blob is rejected rather than half-applied; unknown keys are skipped, not
+fatal (the same forward-compatibility the patch loader promises).
+
+**Plugin wiring deliberately NOT shipped.** Binding read/write to `readParam`/`applyParam` with
+the `+kOscStride` offset has no caller until the osc-page GUI exists. Unreachable code rots
+quietly — it keeps compiling while the surface it assumed drifts underneath. It lands with the
+GUI that calls it, in the same change, so it is exercised the day it ships.
+
+**Corner tier remains next**, now unblocked by A11 (corners are global). The patch tier already
+exists as CLAP state.
+
 ## ADR-082 INCREMENT 2 SHIPPED — the second oscillator (2026-08-06)
 
 `kNumOsc = 2`. `cores[kMaxOsc]` with `core` kept as a reference to oscillator 0 (the 52
@@ -928,7 +956,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B11 | **Multi-oscillator** | **ADR-082 RATIFIED (2 slots); Amendment 1 (stride 1000); increments 1 AND 2 SHIPPED** — `kNumOsc = 2`, second core summing, silent by default, parity 147/147 unchanged. Remaining: GUI (osc page) + B20 preset tiers — id scheme (+100 stride, osc 0 keeps its ids), per-osc state keys, CPU budget. Blocks all interface-renovation GUI work; needs ratification |
 | B18 | **ADR-082 increment 2 blockers** — (a) state version gate WIDENED + ratified 2026-08-06 (accepts 1 or 2, still red on unknown). (b) min-spec CPU measurement STILL OPEN before 2 oscillators ship | § ADR-082 increment 1 |
 | B19 | **Glide/travel module** — **CORE + ORACLE SHIPPED 2026-08-06** (`src/glide_core.h`, `glide_check` in `./verify full`, parity 11/11 worst 3.5e-08, not yet in the audio path). Remaining: shell integration — destination mapping onto the 7 existing glide params (11/33/34/70/75/89/90), which wants ADR-082-level care since ids are append-only | § Glide core ported |
-| B20 | **Three preset tiers** — oscillator tier nearly free via ADR-082's `o<k>.` keys; corner tier UNBLOCKED (A11 ruled global) | § Layout: glide + preset tiers |
+| B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide (note/scale-quantized)** — a sixth travel law with an autotune character; workshop in bend-lab and measure like the other five. Needs a scale source (Tonality brief); interim chromatic + scale selector | § Glide module |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
