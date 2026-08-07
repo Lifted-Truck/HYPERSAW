@@ -436,8 +436,14 @@ struct Plugin
   // chosen value gets hardcoded and this param + slider removed.
   double inertiaCurve = 0.5;
   // ADR-026 shell voice-mode state (audio-thread only)
-  double voiceMono = 0, voiceLegato = 1, octave = 0;
-  double semi = 0, fineCents = 0, pitchBend = 0;
+  double voiceMono = 0, voiceLegato = 1;
+  // ADR-082 classified transpose (35/36/37) PER-OSCILLATOR — "an octave down
+  // replaces what a sub would do" — but increment 2 left this shell state as a
+  // single copy, so editing osc 2's pitch was silently dropped and the GUI
+  // poll snapped the control back (human report 2026-08-07). One copy per
+  // oscillator; pitchBend stays global (the wheel bends the patch).
+  double octaveA[kMaxOsc] = {0}, semiA[kMaxOsc] = {0}, fineCentsA[kMaxOsc] = {0};
+  double pitchBend = 0;
   // ADR-035 bass-mono output stage: ONE 2nd-order TPT SVF high-pass on the
   // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
   // no crossover phase mismatch, the classic vinyl-elliptic routing.
@@ -445,12 +451,17 @@ struct Plugin
   double masterVol = 1.0, masterVolSm = 1.0;   // B24: target + smoothed
   double bmIc1 = 0, bmIc2 = 0;
 
-  void updateTune()
+  void updateTune(uint32_t k)
   {
-    const double st = 12.0 * octave + semi + pitchBend + fineCents / 100.0;
+    const double st = 12.0 * octaveA[k] + semiA[k] + pitchBend + fineCentsA[k] / 100.0;
     const double factor = st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0);
-    core.setParam("tune", factor);
-    spectra.setParam("tune", factor);  // ADR-057: octave/semi/fine/pitch transpose SPECTRA too
+    cores[k].setParam("tune", factor);
+    if (k == 0)
+      spectra.setParam("tune", factor);  // ADR-057: SPECTRA rides osc 0's transpose (legacy path)
+  }
+  void updateTuneAll()
+  {
+    for (uint32_t k = 0; k < kNumOsc; k++) updateTune(k);
   }
   struct Held
   {
@@ -943,28 +954,23 @@ struct Plugin
         voiceLegato = applied;
         return;
       }
-      if (id == 35)
+      if (baseIdOf(id) == 35 || baseIdOf(id) == 36 || baseIdOf(id) == 37)
       {
-        octave = applied;
-        updateTune();
-        return;
-      }
-      if (id == 36)
-      {
-        semi = applied;
-        updateTune();
-        return;
-      }
-      if (id == 37)
-      {
-        fineCents = applied;
-        updateTune();
+        const uint32_t osc = oscOfId(id);
+        if (osc < kNumOsc)
+        {
+          const clap_id base = baseIdOf(id);
+          if (base == 35) octaveA[osc] = applied;
+          else if (base == 36) semiA[osc] = applied;
+          else fineCentsA[osc] = applied;
+          updateTune(osc);
+        }
         return;
       }
       if (id == 38)
       {
         pitchBend = applied;
-        updateTune();
+        updateTuneAll();
         return;
       }
       if (id == 40)
@@ -1036,9 +1042,9 @@ struct Plugin
       if (d->id == 70) return inertiaCurve;  // ADR-059 dev taper exponent
       if (d->id == 32) return voiceMono;
       if (d->id == 34) return voiceLegato;
-      if (d->id == 35) return octave;
-      if (d->id == 36) return semi;
-      if (d->id == 37) return fineCents;
+      if (d->id == 35) return octaveA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
+      if (d->id == 36) return semiA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
+      if (d->id == 37) return fineCentsA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 38) return pitchBend;
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
@@ -1605,11 +1611,11 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
     else if (value < 0.01) std::snprintf(out, cap, "%.1f ms", value * 1000);
     else std::snprintf(out, cap, "%.2f s", value);
   }
-  else if (id == 35)  // octave
+  else if (baseIdOf(id) == 35)  // octave (any oscillator block)
   {
     std::snprintf(out, cap, "%+d oct", (int)std::round(value));
   }
-  else if (id == 36)
+  else if (baseIdOf(id) == 36)
   {
     std::snprintf(out, cap, "%+d st", (int)std::round(value));
   }
@@ -1617,7 +1623,7 @@ bool params_value_to_text(const clap_plugin_t *, clap_id id, double value, char 
   {
     std::snprintf(out, cap, "%+.0f deg", value);
   }
-  else if (id == 37)
+  else if (baseIdOf(id) == 37)
   {
     std::snprintf(out, cap, "%+.1f c", value);
   }
