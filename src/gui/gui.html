@@ -64,7 +64,10 @@
   .oscSel .oscTab { font: inherit; font-size: 10px; padding: 1px 7px; cursor: pointer;
     background: var(--panel2); color: var(--dim, #7f8899);
     border: 1px solid var(--line); border-radius: 3px; }
-  .oscSel .oscTab.on { color: var(--text); border-color: currentColor; }
+  .oscSel .oscTab.on { color: #0b0e13; background: var(--text); border-color: var(--text);
+    font-weight: 600; }
+  .oscSel .oscTab.silent { opacity: .62; }
+  .oscSel .oscTab.on.silent { opacity: 1; }
   .controls .cluster { break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 10px; }
   .scope h2, .cluster h2 {
     font-family: var(--disp-f); font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
@@ -648,16 +651,36 @@ function buildOscSelector() {
     b.type = 'button';
     b.className = 'oscTab' + (k === editOsc ? ' on' : '');
     b.textContent = 'OSC ' + (k + 1);
+    b.dataset.osc = k;
     b.addEventListener('click', async () => {
       editOsc = k;
       host.querySelectorAll('.oscTab').forEach((t, i) => t.classList.toggle('on', i === k));
       // repaint every control from the newly-targeted oscillator
       const ps = JSON.parse(await bridge.getParams());
       for (const [id, v] of Object.entries(ps)) setControl(+id, v);
+      paintOscTabs(ps);
       applyGates();
     });
     host.appendChild(b);
   }
+}
+
+// Tab labels carry each oscillator's level. This is not decoration: every
+// per-oscillator default is IDENTICAL across oscillators except `vol`, so
+// without it, switching tabs repaints the same numbers and everything you edit
+// on a silent oscillator is inaudible — indistinguishable from a dead control.
+function paintOscTabs(ps) {
+  const host = document.getElementById('oscSel');
+  if (!host) return;
+  host.querySelectorAll('.oscTab').forEach(b => {
+    const k = +b.dataset.osc;
+    const vol = ps[k === 0 ? 17 : 17 + k * OSC_STRIDE];
+    const silent = !(vol > 0.0005);
+    b.classList.toggle('silent', silent);
+    b.textContent = 'OSC ' + (k + 1) + (silent ? ' ○' : '');
+    b.title = silent ? `Oscillator ${k + 1} is SILENT (Volume 0) — raise Volume to hear it`
+                     : `Oscillator ${k + 1} · Volume ${(+vol).toFixed(2)}`;
+  });
 }
 
 function setControl(id, v) {
@@ -782,6 +805,7 @@ function applyGates() {
 async function syncFromEngine() {
   const ps = JSON.parse(await bridge.getParams());
   if (!globalIds) { learnOscLayout(ps); buildOscSelector(); }
+  paintOscTabs(ps);
   lastParams = ps;
   for (const [id, v] of Object.entries(ps)) setControl(+id, v);
   applyGates();
