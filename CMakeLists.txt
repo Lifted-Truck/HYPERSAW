@@ -153,6 +153,7 @@ add_executable(rtsafety_probe tools/rtsafety_probe.cpp)
 target_link_libraries(rtsafety_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
   target_compile_options(rtsafety_probe PRIVATE -O2)
+endif()
 
 # Oscillator preset tier (B20): format + slot-agnosticism.
 add_executable(preset_check tools/preset_check.cpp)
