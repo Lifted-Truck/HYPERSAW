@@ -250,6 +250,13 @@ static const ParamDef kParams[] = {
     // all. Default 1.0 = unity, and the render skips the multiply at exactly
     // 1.0, so every existing patch is bit-identical. GLOBAL (in kGlobalIds).
     {100, "masterVol", "Master Volume", 0, 1.5, 1.0, false, nullptr},
+    // GLOBAL PITCH (human, 2026-08-07): patch-level transpose summed with each
+    // oscillator's own. UI range is the honest playing range (+/-12 st); the
+    // MOD MATRIX is intended to drive pitch harder (to +/-48, clamped) when it
+    // folds into the shell — recorded in ROADMAP so the widened drive does not
+    // become an invisible feature (L0023).
+    {101, "gSemi", "Pitch", -12, 12, 0, true, nullptr},
+    {102, "gFine", "Fine", -100, 100, 0, false, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -301,7 +308,7 @@ constexpr clap_id kGlobalIds[] = {
     32, 33, 34, 38, 75, 89, 90, 11, 70,          // voice & glide behaviour
     57, 58, 59, 60, 61, 62, 63, 64, 96, 97, 98, 99,  // FX rack
     23, 88,                                      // tempo grid, oversampling
-    100,                                         // masterVol (B24 mixer)
+    100, 101, 102,                               // masterVol + global pitch
 };
 constexpr bool isGlobalId(clap_id id)
 {
@@ -443,17 +450,22 @@ struct Plugin
   // poll snapped the control back (human report 2026-08-07). One copy per
   // oscillator; pitchBend stays global (the wheel bends the patch).
   double octaveA[kMaxOsc] = {0}, semiA[kMaxOsc] = {0}, fineCentsA[kMaxOsc] = {0};
-  double pitchBend = 0;
+  double pitchBend = 0, gSemi = 0, gFine = 0;   // global transpose (101/102)
   // ADR-035 bass-mono output stage: ONE 2nd-order TPT SVF high-pass on the
   // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
   // no crossover phase mismatch, the classic vinyl-elliptic routing.
   double bassMonoOn = 0, bassMonoHz = 120;
   double masterVol = 1.0, masterVolSm = 1.0;   // B24: target + smoothed
+  // Which oscillator the visuals describe. GUI-owned (follows the OSC tab),
+  // audio-thread-read. The visuals were hardwired to oscillator 0 — the
+  // intermediary the human asked for is this one index.
+  std::atomic<uint32_t> vizOsc{0};
   double bmIc1 = 0, bmIc2 = 0;
 
   void updateTune(uint32_t k)
   {
-    const double st = 12.0 * octaveA[k] + semiA[k] + pitchBend + fineCentsA[k] / 100.0;
+    const double st = 12.0 * octaveA[k] + semiA[k] + gSemi + pitchBend +
+                      (fineCentsA[k] + gFine) / 100.0;
     const double factor = st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0);
     cores[k].setParam("tune", factor);
     if (k == 0)
@@ -643,6 +655,11 @@ struct Plugin
 
   void publishViz()
   {
+    // THE INTERMEDIARY (human, 2026-08-07): every per-swarm visual reads the
+    // oscillator the GUI is editing, not oscillator 0. Slot indices stay
+    // aligned across cores because noteOn/noteOff fan out in order.
+    const uint32_t vo = vizOsc.load(std::memory_order_relaxed);
+    hypersaw::SwarmCore &vc = cores[vo < kNumOsc ? vo : 0];
     const int writeIdx = 1 - vizPublished.load(std::memory_order_relaxed);
     hypersaw::VizSnapshot &v = vizBuf[writeIdx];
     // NOTE MONITOR — built here, BEFORE the engine branch, and from whichever
@@ -653,14 +670,14 @@ struct Plugin
     int nm = 0;
     for (int i = 0; i < hypersaw::kPoly && nm < 16; i++)
     {
-      const int gate = spectraMode() ? spectra.swarmAt(i).gate : core.swarmAt(i).gate;
-      const double env = spectraMode() ? spectra.swarmAt(i).env : core.swarmAt(i).env;
+      const int gate = spectraMode() ? spectra.swarmAt(i).gate : vc.swarmAt(i).gate;
+      const double env = spectraMode() ? spectra.swarmAt(i).env : vc.swarmAt(i).env;
       // 1e-9, not 1e-4: the render skip-test also uses 1e-4, so a voice just
       // under it was invisible to the monitor while still being rendered. The
       // human hit a note that was audible and ABSENT from the tab (2026-08-03,
       // SAW, no FX), so the monitor must never be the thing that is silent.
       if (!gate && env < 1e-9) continue;
-      v.nmMidi[nm] = spectraMode() ? spectra.swarmAt(i).midi : core.swarmAt(i).midi;
+      v.nmMidi[nm] = spectraMode() ? spectra.swarmAt(i).midi : vc.swarmAt(i).midi;
       v.nmGate[nm] = gate;
       v.nmEnv[nm] = env;
       nm++;
@@ -708,7 +725,7 @@ struct Plugin
       vizPublished.store(writeIdx, std::memory_order_release);
       return;
     }
-    const auto *s = core.focus();
+    const auto *s = vc.focus();
     if (!s)
     {
       v = hypersaw::VizSnapshot{};
@@ -716,8 +733,8 @@ struct Plugin
     else
     {
       v.active = true;
-      v.n = (int)core.p.n;
-      v.centerIdx = core.centerIndex();
+      v.n = (int)vc.p.n;
+      v.centerIdx = vc.centerIndex();
       v.R = s->R;
       v.RN = s->RN;
       v.psi = s->psi;
@@ -732,7 +749,7 @@ struct Plugin
       {
         v.vmVf[i] = s->vf[i];
         v.vmEff[i] = s->eff[i];
-        v.vmPan[i] = core.panEffAt(i);
+        v.vmPan[i] = vc.panEffAt(i);
       }
       // Per-voice envelope shape (ADR-077/078 scatter made visible). Coefficients
       // are one-poles, so the time constant is the inverse of the derivation in
@@ -740,7 +757,7 @@ struct Plugin
       // from the coefficients the core is ACTUALLY using, so the display cannot
       // disagree with the sound.
       {
-        const bool perVoice = core.p.onsetScatter > 0 || core.p.voiceEnv > 0.5;
+        const bool perVoice = vc.p.onsetScatter > 0 || vc.p.voiceEnv > 0.5;
         v.envCount = perVoice ? (v.n < 32 ? v.n : 32) : 0;
         const auto tOf = [&](double c) {
           return (c > 0 && c < 1) ? -1000.0 / (sampleRate * std::log(1.0 - c)) : 0.0;
@@ -753,29 +770,29 @@ struct Plugin
         }
       }
       // dynamics layer
-      v.topo = (int)core.p.topo;
-      v.poles = (int)core.p.poles;
+      v.topo = (int)vc.p.topo;
+      v.poles = (int)vc.p.poles;
       v.RA = s->RA;
       v.RB = s->RB;
       v.RQ = s->RQ;
-      v.gravCount = core.gravCount < 4 ? core.gravCount : 4;
+      v.gravCount = vc.gravCount < 4 ? vc.gravCount : 4;
       for (int i = 0; i < v.gravCount; i++)
       {
-        v.gravRatio[i] = core.gravPairs[i][0];
-        v.gravOct[i] = core.gravPairs[i][1];
-        v.gravErr[i] = core.gravErr[i];
+        v.gravRatio[i] = vc.gravPairs[i][0];
+        v.gravOct[i] = vc.gravPairs[i][1];
+        v.gravErr[i] = vc.gravErr[i];
       }
       // note monitor: every slot, gated or ringing
       // grid status (ADR-016/017): unit, occupied rungs, cause-AND-state lock
-      v.gridActive = ((int)core.p.law == 3);
+      v.gridActive = ((int)vc.p.law == 3);
       if (v.gridActive)
       {
-        v.gridU = (core.p.bpm / 60.0) * core.p.beatMult;
+        v.gridU = (vc.p.bpm / 60.0) * vc.p.beatMult;
         int rungCount = 0;
         double seen[32];
         for (int i = 0; i < v.n && i < 32; i++)
         {
-          const double rung = std::round((s->vf[i] - s->f0cur * core.p.tune) / v.gridU);
+          const double rung = std::round((s->vf[i] - s->f0cur * vc.p.tune) / v.gridU);
           bool dup = false;
           for (int j = 0; j < rungCount; j++)
             if (seen[j] == rung) dup = true;
@@ -989,6 +1006,8 @@ struct Plugin
         masterVol = applied;   // smoothing happens in process()
         return;
       }
+      if (id == 101) { gSemi = applied; updateTuneAll(); return; }
+      if (id == 102) { gFine = applied; updateTuneAll(); return; }
       if (id == 43)
       {
         if (applied != engineSel)
@@ -1049,6 +1068,8 @@ struct Plugin
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 100) return masterVol;
+      if (d->id == 101) return gSemi;
+      if (d->id == 102) return gFine;
       if (d->id == 43) return engineSel;
       if ((d->id >= 44 && d->id <= 55) || (d->id >= 65 && d->id <= 68))  // SPECTRA (44-55) + SPECTRA ADSR (ADR-055, 65-68)
         return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
@@ -1862,6 +1883,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
     for (auto &t : pl->tags) t.active = false;
   };
   hostIf.getBuildId = []() { return std::string(HYPERSAW_BUILD_STAMP); };
+  hostIf.setVizOsc = [pl](uint32_t k) { pl->vizOsc.store(k, std::memory_order_relaxed); };
   hostIf.getStateJson = [pl]() { return pl->stateJson(); };
   hostIf.applyStateJson = [pl](const std::string &s) { return pl->applyStateJson(s); };
   pl->gui = new hypersaw::HypersawGui(std::move(hostIf));

@@ -79,6 +79,32 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## VIZ INTERMEDIARY + XY RETARGET + GLOBAL PITCH (human, 2026-08-07)
+
+Human: *"un-wire all the visuals from OSC 1 and create an intermediary layer that points all
+visuals to the active Osc… The XY is acting kind of buggy — I seem to only have control over
+the detune of Osc B but not the K value."*
+
+Not an XY problem — the diagnosis was exactly right, twice over:
+- **`publishViz` built every per-swarm visual from `core` (oscillator 0) unconditionally.**
+  The intermediary is one atomic index: `vizOsc`, set by the GUI on every tab click via a new
+  `hzSetVizOsc` binding; `publishViz` reads `cores[vizOsc]`. Slot indices stay aligned across
+  cores because note fan-out is in-order.
+- **The XY pad sent raw base ids** — `setParam(4/6)` regardless of tab. Now `effId`-routed:
+  verified in-page sending 1004/1006 on OSC 2's tab, 4/6 on OSC 1's. (The reported asymmetry —
+  detune seemed to work, K did not — was both axes writing osc 0 while the panel repainted.)
+
+**Global pitch added**: `gSemi` (101, ±12 st, "Pitch") and `gFine` (102, ±100 c) on the master
+strip, summed into every oscillator's tune alongside its own transpose; the wheel stays global.
+
+**FLAG (L0023, human request): mod drive beyond the UI range.** The pitch slider exposes ±12
+deliberately, but the mod matrix, when it folds into the shell, should be able to drive pitch
+to **±48 st, clamped** — modulation headroom past the knob. Recorded here so the fold
+implements it and it does not become an invisible widened range.
+
+Remaining from the "un-wire" audit: the spectrum/scope rings feed from the MASTER bus
+(post-mix, correct as-is); the note monitor reads the viz oscillator's gates (aligned slots).
+
 ## B24 INCREMENT 1 SHIPPED — the mixer exists (2026-08-07)
 
 The audio context, first piece. Three changes, each calibrated:
