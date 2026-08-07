@@ -1626,6 +1626,15 @@ const clap_plugin_params_t s_params = {params_count, params_get_info, params_get
 
 /* ---- state extension: versioned key=value text ---- */
 
+/* ---- OSCILLATOR PRESETS (B20) -------------------------------------------
+   The format and filtering live in src/osc_preset.h and are gated by
+   tools/preset_check.cpp. The plugin-side wiring (bind read/write to
+   readParam/applyParam with the +kOscStride offset) is NOT here yet, on
+   purpose: it would have no caller until the osc-page GUI exists, and
+   unreachable code rots quietly — it compiles forever while the surface it
+   assumed drifts underneath it. It lands with the GUI that calls it, in the
+   same change, so it is exercised the day it ships. */
+
 bool state_save(const clap_plugin_t *p, const clap_ostream_t *stream)
 {
   // ADR-082: oscillator 0's keys are UNCHANGED, so every existing patch keeps
