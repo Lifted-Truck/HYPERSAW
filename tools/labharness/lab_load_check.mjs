@@ -89,8 +89,12 @@ function checkFile(file) {
 }
 
 const args = process.argv.slice(2);
+// Default sweep covers the design labs AND the shipping GUIs — gui2.html is
+// built up cluster-by-cluster on a branch and must never load-fail silently.
+const guiDir = join(root, 'src/gui');
 const files = args.length ? args.map(a => resolve(a))
-  : readdirSync(labDir).filter(f => f.endsWith('.html')).sort().map(f => join(labDir, f));
+  : [...readdirSync(labDir).filter(f => f.endsWith('.html')).sort().map(f => join(labDir, f)),
+     ...readdirSync(guiDir).filter(f => f.endsWith('.html')).sort().map(f => join(guiDir, f))];
 
 let bad = 0, skipped = 0;
 for (const f of files) {
