@@ -79,6 +79,74 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## RE-ORDER: MASTER/MIXER PAGE FIRST (human, 2026-08-07) — and 13 params are already mis-scoped
+
+Human: *"Maybe we switch up the order so we don't build a bunch of tech debt. First we need the
+audio context: the master/mixer page. Then when one Osc can send its audio through there, we
+add the second Osc, and from there the routing algorithms."*
+
+**Agreed, and there is evidence the debt is already accruing.**
+
+### The finding: 13 "global" params are per-oscillator by construction
+
+Audited by asking which ids in `kGlobalIds` have a key `SwarmCore` itself owns — because a
+param the core owns exists **once per core instance**, so declaring it global does not make it
+shared, it makes the second oscillator's copy **unreachable**:
+
+`inertia (11)` · `width (14)` · `mono (15)` · `attack/decay/sustain/release (19-22)` ·
+`beatMult (23)` · `glide (33)` · `freqGlide (75)` · `oversample (88)` · `polyGlide (89)` ·
+`glideMode (90)` — **13 of 31**.
+
+Oscillator 2 already has its own `width`, `attack`, `glide` and the rest sitting inside its
+core at defaults, with no id able to address them. The human spotted this from the outside —
+*"oscillators will independently need their own width controls, among I'm sure many other
+things"* — before the audit found it.
+
+**Fixable cleanly, and only while the ids are unallocated.** Making these per-oscillator
+allocates their `+1000` versions; no existing id moves, so it is additive. That stops being
+true the moment a build ships exposing them.
+
+**Calibration note, since it nearly hid the finding:** the first audit reported **0
+misclassified**. It searched for `eq(k, "...")`, the idiom `swarmalator_core.h` uses;
+`swarm_core.h` uses `k == "..."`. A clean bill of health from a detector looking for the wrong
+pattern — the same shape as the sweep's 53 phantom dead routings and the allocation the
+optimizer elided.
+
+### Which of the 13 become per-oscillator — needs a ruling (A12)
+
+Core ownership is a *fact*; exposing it per-oscillator is a *choice*:
+
+- **Clearly per-oscillator:** `width`, `mono`, `inertia`. Stereo image and drift character are
+  properties of a sound; two oscillators that cannot differ in width cannot layer convincingly.
+- **Arguably:** `attack/decay/sustain/release` — different envelopes per layer is the oldest
+  trick there is, but the *voice* conventionally owns one amp envelope and SPECTRA already
+  carries its own at 65-68.
+- **Probably patch-level despite core ownership:** `oversample` (per-osc multiplies the CPU
+  question ADR-082 already flagged as tight), `beatMult` (tempo grid), and the glide family —
+  which B19's module is about to own anyway, and which A1 made a *destination-linked* system
+  rather than a per-oscillator one.
+
+### The re-ordered plan
+
+1. **Master / mixer page — the audio context.** Per-oscillator channel strip (level, width,
+   pan, mute/solo) plus the master bus. This is where the per-osc/patch boundary is decided *by
+   the interface* rather than guessed in an ADR.
+2. **One oscillator through it**, proving the strip with a signal that already works.
+3. **The second oscillator into the same strip** — replacing today's hardcoded sum, which is a
+   fixed routing that would otherwise calcify.
+4. **Routing** (B23).
+
+### New items
+
+- **K link across oscillators AND effects (B22).** It should extend beyond oscillators: the FX
+  swarms (`choSwarm`, `phSwarm`), the filter and notch cores all carry a K, and the Kuro-synced
+  FX class (B17) already uses `link` as exactly this idiom. One concept — *a K value is
+  independent or locked to a master K* — designed once rather than twice.
+- **Routing lab (B23).** Routing is a topology question (which sources reach which slots, in
+  what order, with what summing), and the FX rack is already a grid rather than a fixed chain
+  (ADR-054). The lab should settle per-osc sends vs a matrix, serial/parallel per path, and how
+  it composes with the morph and mod matrix — both of which already target FX parameters.
+
 ## OSCILLATOR PRESET TIER SHIPPED (B20 bottom tier, 2026-08-06)
 
 `src/osc_preset.h` + `tools/preset_check.cpp`, gated in `./verify full`.
@@ -1044,6 +1112,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A9 | **Mod source polarity** — ANSWERED 2026-08-05 by the reachability probe: zero routings fully unreachable, two half-unreachable (`R → Kboost`, `ENV → Kboost`), now marked in the matrix rather than rejected. Only residual question if you want it: should `Kboost` stop being half-wave rectified | § Rejected routings |
 | A10 | **Morph-owned routing semantics** — RULED 2026-08-06: **per-corner depths per cell**. Each morph-owned cell holds four depths; a flip swaps which is live. Implemented + measured | § Morph-owned = per-corner depths |
 | A11 | **Morph corner scope** — RULED 2026-08-06: **global** — one corner holds every per-oscillator parameter of *both* oscillators. Unblocks B20 | § Morph corners are global |
+| A12 | **Which of the 13 core-owned params become per-oscillator?** — width/mono/inertia clearly yes; the amp envelope arguably; oversample/beatMult/glide-family probably patch-level. Additive only while their +1000 ids stay unallocated | § Re-order: master/mixer page first |
 
 ### B · Queued build work
 
@@ -1065,6 +1134,9 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B19 | **Glide/travel module** — **CORE + ORACLE SHIPPED 2026-08-06** (`src/glide_core.h`, `glide_check` in `./verify full`, parity 11/11 worst 3.5e-08, not yet in the audio path). Remaining: shell integration — destination mapping onto the 7 existing glide params (11/33/34/70/75/89/90), which wants ADR-082-level care since ids are append-only | § Glide core ported |
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide (note/scale-quantized)** — a sixth travel law with an autotune character; workshop in bend-lab and measure like the other five. Needs a scale source (Tonality brief); interim chromatic + scale selector | § Glide module |
+| B22 | **K link across oscillators AND effects** — independent or locked to a master K; the FX swarms, filter and notch cores all carry a K and B17 already uses `link` as the idiom. Design once, not twice | § Re-order |
+| B23 | **Routing lab** — per-osc sends vs matrix; serial/parallel per path; composition with the morph and mod matrix, which already target FX params | § Re-order |
+| B24 | **Master/mixer page** — the audio context; per-osc channel strip (level/width/pan) + master bus. FIRST in the re-ordered plan; replaces today's hardcoded oscillator sum | § Re-order |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |
