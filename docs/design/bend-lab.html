@@ -61,6 +61,13 @@
     <div class="row"><label>damping ζ</label><input type="range" id="damp" min="0.05" max="2" step="0.01" value="0.6"><output id="damp_o"></output></div>
     <div class="row"><label>dist→overshoot</label><input type="range" id="distOver" min="0" max="2" step="0.05" value="1"><output id="distOver_o"></output></div>
     <div class="row"><label>return ×</label><input type="range" id="retMul" min="0.2" max="3" step="0.05" value="1"><output id="retMul_o"></output></div>
+    <div class="row"><label>quantise</label><select id="quant">
+      <option value="0" selected>off</option>
+      <option value="1">chromatic</option>
+      <option value="2">scale (major)</option>
+    </select></div>
+    <div class="row"><label>q·hysteresis</label><input type="range" id="qhyst" min="0" max="50" step="1" value="8"><output id="qhyst_o"></output></div>
+    <div class="row"><label>q·step time</label><input type="range" id="qTime" min="0" max="500" step="5" value="0"><output id="qTime_o"></output></div>
     <div class="row"><label>applies to</label><select id="applyTo">
       <option value="0">bend only</option>
       <option value="1" selected>note pitch only (glide with character)</option>
@@ -146,7 +153,10 @@ function gaussFrom(rng) {
 const P = { model: 2, gtime: 120, rate: 24, tau: 60, springF: 4, damp: 0.6,
             distOver: 1, retMul: 1, applyTo: 1, bendRange: 2, wobF: 5, mpe: false,
             // scale quantise: 0 off / 1 chromatic / 2 scale; qhyst in cents
-            quant: 0, qhyst: 8, scaleRoot: 0,
+            // qTime ms: step changes land on a TIME grid (0 = free). This is
+            // what turns the quantiser from a zipper into a glissando RUN —
+            // tempo-sync replaces the ms value in the fold, same as beatMult.
+            quant: 0, qhyst: 8, qTime: 0, scaleRoot: 0,
             scaleMask: [1,0,1,0,1,1,0,1,0,1,0,1] };   // major
 
 // Overshoot fraction of a second-order step response, and its inverse. Both
@@ -166,7 +176,7 @@ const zetaFromOs = os => { const l = Math.log(Math.min(0.95, Math.max(1e-4, os))
 class Inertia {
   constructor(rate, lane) { this.sr = rate; this.lane = lane; this.x = 0; this.v = 0; this.y = 0; this.D = 0; }
   reset(v) { this.x = v; this.v = 0; this.y = v; this.D = 0;
-            this.q = v; this.qStep = undefined; this.qFlips = 0; }
+            this.q = v; this.qStep = undefined; this.qFlips = 0; this.qT = 1e9; }
   step(t, p) {
     const dt = 1 / this.sr;
     // Move distance, peak-held since the last arrival. Constant-time glide
@@ -268,7 +278,20 @@ class Inertia {
     const hyst = Math.max(0, p.qhyst || 0) / 100;
     if (this.qStep !== undefined && best !== this.qStep &&
         Math.abs(semis - this.qStep) - Math.abs(semis - best) < hyst) best = this.qStep;
-    if (best !== this.qStep) { this.qStep = best; this.qFlips = (this.qFlips || 0) + 1; }
+    // TIME GATE (human proposal 2026-08-07): with qTime > 0 a step may only
+    // COMMIT when the gate has elapsed — between gates the previous step holds,
+    // however far the underlying law has travelled. The law's dynamics are
+    // untouched (x keeps moving); only the emission is gated, so spring +
+    // gated-quantise still lands its overshoot wobble ON the grid. Timer
+    // resets on commit, not on attempt: at most one step per qTime, which is
+    // the glissando-run character. reset() arms the timer (qT = 1e9) so the
+    // FIRST step of a gesture is never delayed — gating the initial onset just
+    // reads as latency.
+    this.qT = (this.qT || 0) + 1 / this.sr;
+    const gateOpen = !(p.qTime > 0) || this.qT >= p.qTime / 1000;
+    if (this.qStep !== undefined && best !== this.qStep && !gateOpen) best = this.qStep;
+    if (best !== this.qStep) { this.qStep = best; this.qFlips = (this.qFlips || 0) + 1;
+                               this.qT = 0; }
     this.q = best;
     return best;
   }
@@ -528,6 +551,9 @@ const wire = (id, fn, fmt) => { const el = $(id), out = $(id + '_o');
 wire('gtime', v => P.gtime = v, v => v.toFixed(0) + ' ms');
 wire('rate', v => P.rate = v, v => (v * 100).toFixed(0) + ' ¢/s');
 wire('tau', v => P.tau = v, v => v.toFixed(0) + ' ms');
+wire('qhyst', v => P.qhyst = v, v => v.toFixed(0) + ' c');
+wire('qTime', v => P.qTime = v, v => v < 2.5 ? 'free' : v.toFixed(0) + ' ms');
+$('quant').addEventListener('change', () => P.quant = +$('quant').value);
 wire('distOver', v => P.distOver = v, v => v.toFixed(2));
 wire('springF', v => P.springF = v, v => v.toFixed(1) + ' Hz');
 wire('damp', v => P.damp = v, v => v.toFixed(2));

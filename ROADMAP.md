@@ -79,6 +79,67 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## MOD MATRIX: DEPTH IS ITSELF A MOD TARGET (human, 2026-08-07)
+
+Human: *"I also want the mod matrix to expose the secondary mod target of modulation depth per
+mapping: it would be great, for instance, if I could have a high R value kick in a tempo-sync'd
+down-ramp sawtooth LFO on the osc volume or the filter cutoff."*
+
+Queued as **B26**. This is second-order modulation — each ROUTING's depth becomes a
+destination, so `R → (LFO → cutoff).depth` reads exactly as the example: the LFO is always
+running, and R fades its *grip* in and out. Notes for the design:
+
+- **The lab already has the scaffolding.** A routing is a cell with a depth; making depth
+  addressable means the destination list gains one entry per ACTIVE routing (per the standing
+  convention, surfaced only when the routing exists — not 108 phantom rows).
+- **It composes with scope**: a depth-of-depth routing should itself carry the corner/system
+  scope vocabulary, and A10's per-corner depths mean the target may be four values, not one —
+  the ruling needed is whether depth-of-depth addresses the *live* value or the whole cell.
+- **The example needs two other queued pieces**: a down-ramp saw (the reverse-saw LFO shape,
+  already absorbed into B16) and tempo sync (the same substitution q·step time and beatMult
+  use). Worth landing those with it so the motivating patch is buildable on day one.
+- **Chatter risk is known territory**: R crossing a threshold to enable a routing is the
+  flip-chatter problem the morph hysteresis already solved — reuse that, not a new mechanism.
+
+## STEP-GLIDE TESTED IN THE LAB + B25 SCALING RULES (2026-08-07)
+
+### Time-gated quantise is in the bend lab (the human's step-glide, testable now)
+
+Three new controls in `bend-lab.html`: **quantise** (off / chromatic / major scale),
+**q·hysteresis**, and **q·step time** (0 = free; tempo-sync replaces the ms value at fold time,
+the same substitution `beatMult` makes). The gate holds the previous step until it elapses —
+the law's dynamics run untouched underneath, only the *emission* is gated, so spring +
+gated-quantise still lands its overshoot wobble on the grid. The timer arms on reset so a
+gesture's FIRST step is never delayed (gating the onset just reads as latency).
+
+Measured (constant-rate 12 st/s, major scale, one octave): free = 7 steps at the law's natural
+~146 ms pace; qTime 120 barely bites (the gate is faster than the law); **qTime 250 = 4 steps
+at 250.3 ms apart** — the gate paces only when slower than the law's own step rate, which is
+the right behaviour for a musical increment control.
+
+Goldens bit-identical (`glide_check` parity rms unchanged) — `qTime` defaults 0 = the old free
+path. The C++ fold of the gate waits for the glide-module shell work (three lines once B19's
+wiring lands).
+
+**Extractor break worth recording:** adding three lines to the lab's `P` literal broke
+`extract_glide.mjs` and took `./verify full` red — its helper slice kept "indented lines after
+line 156", a magic index its own comment claimed it did not use. Now located by content
+(`const osFromZeta` → class end). A magic number in an extractor is a delayed break.
+
+### B25 scaling rules for clamped ranges (recommendation, per the human's ask)
+
+Hand-tailored per family, as anticipated. Three rules:
+
+1. **Multiplicative in the log domain, with a per-family sensitivity weight.** `t' = t · N^w`,
+   w hand-tuned: envelopes 1.0, glide ~0.5, driftRate ~0.3 (drift is character more than time).
+   Ratios inside a family are preserved exactly; families differ in how hard the macro pulls
+   them — the hand-tailoring is one number each.
+2. **Clamp-and-show, never clamp-and-hide.** A pinned param displays an at-limit marker while
+   the macro keeps its position. The macro must never silently stop affecting a control — the
+   pre-divided-headroom alternative warps the macro's feel for every other param and is worse.
+3. **Where a cap is taste rather than physics, widen the range instead of engineering around
+   it.** `freqGlide`'s 0.1 s max is a taste cap. Widen + expose together, per L0023.
+
 ## K vs LINK — two mechanisms, and they are not the two the question assumed (2026-08-07)
 
 Human: *"there might be a difference between the notion of a master K and sync'd Ks: syncing
@@ -1209,11 +1270,12 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B18 | **ADR-082 increment 2 blockers** — (a) state version gate WIDENED + ratified 2026-08-06 (accepts 1 or 2, still red on unknown). (b) min-spec CPU measurement STILL OPEN before 2 oscillators ship | § ADR-082 increment 1 |
 | B19 | **Glide/travel module** — **CORE + ORACLE SHIPPED 2026-08-06** (`src/glide_core.h`, `glide_check` in `./verify full`, parity 11/11 worst 3.5e-08, not yet in the audio path). Remaining: shell integration — destination mapping onto the 7 existing glide params (11/33/34/70/75/89/90), which wants ADR-082-level care since ids are append-only | § Glide core ported |
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
-| B21 | **Step glide (note/scale-quantized)** — a sixth travel law with an autotune character; workshop in bend-lab and measure like the other five. Needs a scale source (Tonality brief); interim chromatic + scale selector | § Glide module |
+| B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring; scale source still the Tonality brief | § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
 | B23 | **Routing lab** — per-osc sends vs matrix; serial/parallel per path; composition with the morph and mod matrix, which already target FX params | § Re-order |
 | B24 | **Master/mixer page** — the audio context; per-osc channel strip (level/width/pan) + master bus. FIRST in the re-ordered plan; replaces today's hardcoded oscillator sum | § Re-order |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
+| B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |

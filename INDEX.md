@@ -29,3 +29,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0024] A result landing right at its threshold means the DETECTOR is wrong, not that the fix is marginal | measurement, oracle, epistemics, doctrine, cross-project
 - [L0025] A narrative decision log records WHY, not WHAT IS OPEN — keep a status index, updated atomically | docs, process, roadmap, doctrine, cross-project
 - [L0026] A setup-time callback reaching FORWARD into uninitialised state fails silently and totally (JS temporal dead zone) — 5 occurrences; now GATED by `./verify fast` lab load check | javascript, gui, labs, debugging, tooling
+- [L0027] **HIGH-PRIORITY (flagged for up-propagation):** infrastructure before instrument — audio context, routing, id namespace, preset format, coupling semantics, macro flags, display vocabulary all FIRST; cross-source axes freeze at first ship | architecture, sequencing, synth, doctrine, cross-project
