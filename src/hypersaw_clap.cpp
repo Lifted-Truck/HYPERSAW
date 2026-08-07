@@ -829,14 +829,26 @@ struct Plugin
 
   std::string paramsJson() const
   {
+    // ADR-082: emit EVERY oscillator's block, not just oscillator 0. Without
+    // this the GUI cannot see — let alone edit — the second oscillator, which
+    // is the whole point of increment 2.
+    //
+    // It also lets the GUI DERIVE which params are global instead of carrying
+    // a copy of kGlobalIds: a base id with no `+kOscStride` sibling in this
+    // JSON is global. A hand-maintained second list would drift from this one
+    // within a release, and the drift would be silent — the GUI would simply
+    // edit the wrong oscillator.
     std::string out = "{";
     char buf[48];
-    for (const auto &d : kParams)
-    {
-      std::snprintf(buf, sizeof(buf), "%s\"%u\":%.6g", out.size() > 1 ? "," : "", d.id,
-                    readParam(d.id));
-      out += buf;
-    }
+    for (uint32_t k = 0; k < kNumOsc; k++)
+      for (const auto &d : kParams)
+      {
+        if (k > 0 && isGlobalId(d.id)) continue;   // globals exist once
+        const clap_id id = (clap_id)(d.id + k * kOscStride);
+        std::snprintf(buf, sizeof(buf), "%s\"%u\":%.6g", out.size() > 1 ? "," : "", id,
+                      readParam(id));
+        out += buf;
+      }
     return out + "}";
   }
 

@@ -58,6 +58,13 @@
      width drives the count: 1 column when narrow, 2+ when wide. */
   .controls { columns: 220px; column-gap: 10px; }
   .scope, .cluster { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
+  /* Oscillator switcher: only rendered when the build actually has more than
+     one oscillator, so a 1-osc build shows no dead control. */
+  .oscSel { display: inline-flex; gap: 3px; margin-left: 8px; vertical-align: middle; }
+  .oscSel .oscTab { font: inherit; font-size: 10px; padding: 1px 7px; cursor: pointer;
+    background: var(--panel2); color: var(--dim, #7f8899);
+    border: 1px solid var(--line); border-radius: 3px; }
+  .oscSel .oscTab.on { color: var(--text); border-color: currentColor; }
   .controls .cluster { break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 10px; }
   .scope h2, .cluster h2 {
     font-family: var(--disp-f); font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
@@ -167,7 +174,7 @@
       <textarea id="statebox" spellcheck="false" placeholder='paste state JSON here, then PASTE STATE'></textarea>
     </div>
     <div class="cluster">
-      <h2>The swarm</h2>
+      <h2>The swarm <span id="oscSel" class="oscSel"></span></h2>
       <!-- ENGINE SELECTOR REMOVED (human, 2026-08-05) for the SAW-first
            renovation; it returns when the engine expansion resumes. The
            control is gone from the surface, NOT from the plugin: param id 43
@@ -433,6 +440,34 @@ const bridge = {
 
 /* ---- controls -> params ---- */
 const DETUNE_ID = 4, K_ID = 6, CASCADE_ID = 51;
+
+/* ---- OSCILLATOR TARGETING (ADR-082) ---------------------------------------
+   Controls carry their OSCILLATOR-0 id in data-p. When another oscillator is
+   selected, a PER-OSCILLATOR control retargets to `base + editOsc*OSC_STRIDE`;
+   a GLOBAL control keeps its id, because there is only one of it.
+
+   The global set is DERIVED, never copied: paramsJson emits every oscillator's
+   block, so a base id with no `+OSC_STRIDE` sibling in that JSON is global. A
+   hand-maintained copy of the C++ kGlobalIds would drift within a release and
+   the drift would be SILENT — the GUI would quietly edit the wrong oscillator
+   instead of failing. Deriving it means the plugin stays the single source. */
+const OSC_STRIDE = 1000;
+let editOsc = 0;          // which oscillator the per-osc controls address
+let numOsc = 1;           // learned from the params JSON
+let globalIds = null;     // Set of base ids that exist once; null until learned
+
+function learnOscLayout(params) {
+  const ids = Object.keys(params).map(Number);
+  const have = new Set(ids);
+  numOsc = 1;
+  while (ids.some(i => Math.floor(i / OSC_STRIDE) === numOsc)) numOsc++;
+  globalIds = new Set(ids.filter(i => i < OSC_STRIDE && !have.has(i + OSC_STRIDE)));
+}
+// Effective id for a control's declared (oscillator-0) id.
+function effId(base) {
+  if (!globalIds || editOsc === 0) return base;
+  return globalIds.has(base) ? base : base + editOsc * OSC_STRIDE;
+}
 // The XY x-axis targets whichever "spread/motion" param the active engine has:
 // detune in SAW, cascade in SPECTRA (both 0..1, so the pad math is identical).
 function xAxisId() { return (lastParams[43] | 0) === 1 ? CASCADE_ID : DETUNE_ID; }
@@ -489,7 +524,10 @@ document.addEventListener('keydown', e => {
 });
 
 controls.forEach(el => {
-  const id = +el.dataset.p;
+  const baseId = +el.dataset.p;
+  // Resolved per event, not captured once: the selected oscillator changes
+  // after these listeners are installed.
+  const id_ = () => effId(baseId);
   const isCheck = el.type === 'checkbox';
   const isSelect = el.tagName === 'SELECT';
   const toParam = () => {
@@ -502,18 +540,18 @@ controls.forEach(el => {
   const ev = (isCheck || isSelect) ? 'change' : 'input';
   el.addEventListener(ev, () => {
     const v = toParam();
-    bridge.setParam(id, v);
+    bridge.setParam(id_(), v);
     displayValue(el, v);
-    lastParams[id] = v;
+    lastParams[id_()] = v;
     applyGates();
-    if (id === xAxisId()) { curDetune = v; xyDirty = true; }
-    if (id === K_ID) { curK = v; xyDirty = true; }
+    if (id_() === xAxisId()) { curDetune = v; xyDirty = true; }
+    if (id_() === K_ID) { curK = v; xyDirty = true; }
   });
   if (!isCheck && !isSelect) {
     // shift+drag = fine mode (20x finer, no jump-to-click)
     let fine = null;
     el.addEventListener('pointerdown', e => {
-      bridge.gesture(id, true);
+      bridge.gesture(id_(), true);
       // e.shiftKey off the event, not a tracked flag: Live delivers the shift
       // keydown but not always the keyup, so a global flag sticks true and
       // every drag crawls in fine mode (2026-07-18 report).
@@ -532,13 +570,13 @@ controls.forEach(el => {
       el.value = v;
       el.dispatchEvent(new Event('input'));
     });
-    el.addEventListener('pointerup', () => { fine = null; bridge.gesture(id, false); el.blur(); });  // ADR-032(a)
+    el.addEventListener('pointerup', () => { fine = null; bridge.gesture(id_(), false); el.blur(); });  // ADR-032(a)
     // double-click = reset to default
     el.addEventListener('dblclick', () => {
-      const def = DEFAULTS[id];
+      const def = DEFAULTS[baseId];   // DEFAULTS is keyed by osc-0 id
       if (def === undefined) return;
-      bridge.setParam(id, def);
-      setControl(id, def);
+      bridge.setParam(id_(), def);
+      setControl(id_(), def);
     });
   }
   // double-click the value display = type a value (Enter commits, Esc cancels)
@@ -583,10 +621,10 @@ controls.forEach(el => {
           el.value = v;
         }
         const applied = el.dataset.log10 ? v : +el.value;
-        bridge.setParam(id, applied);
+        bridge.setParam(id_(), applied);
         displayValue(el, applied);
-        if (id === xAxisId()) { curDetune = applied; xyDirty = true; }
-        if (id === K_ID) { curK = applied; xyDirty = true; }
+        if (id_() === xAxisId()) { curDetune = applied; xyDirty = true; }
+        if (id_() === K_ID) { curK = applied; xyDirty = true; }
       };
       inp.addEventListener('keydown', e => {
         e.stopPropagation();
@@ -597,7 +635,42 @@ controls.forEach(el => {
   }
 });
 
+/* The oscillator switcher. Built from the LEARNED layout rather than hardcoded,
+   so a build with a different kNumOsc shows the right number of tabs and a
+   1-oscillator build shows none at all — no dead control, which is the failure
+   mode the FX dropdown and the widened-range params both hit before. */
+function buildOscSelector() {
+  const host = document.getElementById('oscSel');
+  if (!host || numOsc < 2) return;
+  host.innerHTML = '';
+  for (let k = 0; k < numOsc; k++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'oscTab' + (k === editOsc ? ' on' : '');
+    b.textContent = 'OSC ' + (k + 1);
+    b.addEventListener('click', async () => {
+      editOsc = k;
+      host.querySelectorAll('.oscTab').forEach((t, i) => t.classList.toggle('on', i === k));
+      // repaint every control from the newly-targeted oscillator
+      const ps = JSON.parse(await bridge.getParams());
+      for (const [id, v] of Object.entries(ps)) setControl(+id, v);
+      applyGates();
+    });
+    host.appendChild(b);
+  }
+}
+
 function setControl(id, v) {
+  // Incoming ids are EFFECTIVE (they carry the oscillator block); controls are
+  // declared with their oscillator-0 id. Map back, and drop values belonging to
+  // an oscillator the user is not editing — otherwise oscillator 1's params
+  // would overwrite the visible oscillator-0 controls on every refresh.
+  const osc = Math.floor(id / OSC_STRIDE);
+  const base = id % OSC_STRIDE;
+  const isGlobal = globalIds ? globalIds.has(base) : osc === 0;
+  if (!isGlobal && osc !== editOsc) return;
+  if (base === 0) return;
+  id = base;
   if (id === xAxisId()) { curDetune = v; xyDirty = true; }
   if (id === K_ID) { curK = v; xyDirty = true; }
   const el = document.querySelector(`[data-p="${id}"]`);
@@ -708,6 +781,7 @@ function applyGates() {
 
 async function syncFromEngine() {
   const ps = JSON.parse(await bridge.getParams());
+  if (!globalIds) { learnOscLayout(ps); buildOscSelector(); }
   lastParams = ps;
   for (const [id, v] of Object.entries(ps)) setControl(+id, v);
   applyGates();
