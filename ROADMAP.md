@@ -79,6 +79,17 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## STANDING BEAT — core-library insight harvest (human, 2026-08-08)
+
+The human is building a **core library** for all their audio projects, inspired directly by
+this project's sequencing scars: signal flow first, every param modulation-ready at birth,
+engines born into a multi-osc context, FX as simple ports, features horizontally portable.
+**HYPERSAW is the primary insight source and this is a recurring beat.** The donor-side pull
+surface is `docs/integrations/corelib-insights.md` (architecture lessons with their PRs,
+portable modules by readiness, and what the library should demand of every module) — keep it
+current as lessons land. Cross-repo work follows doctrine/INTEGRATIONS.md; the sibling is
+aliased per ADR-014. Documentation from the human's other thread is incoming.
+
 ## VELOCITY + PRESSURE → VOLUME BY DEFAULT (ADR-084) · master octave · pitch labels (2026-08-08)
 
 Velocity now scales each voice (linear), and MPE `PRESSURE` expressions drive a ~20 ms-smoothed
