@@ -657,3 +657,19 @@ retarget keeps the original strike's velocity (a retargeted note is the same phr
 if the ear disagrees); raw MIDI channel aftertouch (0xD0) relies on the wrapper translating to
 PRESSURE expressions — verify in a DAW pass. Velocity CURVE (soft/hard) is a future param; the
 stride amendment leaves room.
+
+## NOTICE · Library standby (plugin-skeleton FOUNDATIONS) — RECORDED 2026-08-08
+
+Relayed by the human from the library thread. A shared infrastructure library
+("plugin-skeleton") is being founded; its FOUNDATIONS document defines contracts this project
+will eventually consume (parameter registry, mod routing, scoped presets, event pipeline,
+payload interfaces). A mediator agent will open a brief→response dialogue when this repo
+becomes the active correspondent; until then **passive standby**: no refactoring toward the
+library, no imagined interfaces, no speculative extraction — writes stay home, roadmap
+continues as-is. Passive disciplines adopted: stable hierarchical param addresses (record any
+rename old→new), no new singletons/global state in components plausibly per-voice or per-module
+elsewhere, engine internals behind clean boundaries. Standby artifact:
+`INTEGRATION-STANDBY.md` (friction list · component inventory · param+mod architecture
+sketch), kept cheap and current — it becomes the first brief when the mediator calls. The
+pre-existing donor manifest (`docs/integrations/corelib-insights.md`) predates this notice and
+is documentation, not refactoring; the standby artifact references it rather than duplicating.
