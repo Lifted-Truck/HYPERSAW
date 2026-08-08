@@ -636,3 +636,24 @@ parity is the regression proof: **147/147, worst 4.262e-09, unchanged**.
 sustain survives the entire 160-note arp with its f0 power never dropping below the no-arp
 beating floor. Follow-up queued: fold the arp-sustain scenario into `notefuzz_check` as a
 permanent gate.
+
+## ADR-084 · Velocity and MPE pressure → per-voice volume, on by default — ACCEPTED (superset)
+
+Human request (2026-08-08). The synth ignored velocity entirely (the AU-wrapper comment said as
+much) and note expressions handled only TUNING. Now: **note-on velocity scales the voice's
+gain** (linear, `vel` ∈ [0,1]) and **CLAP `PRESSURE` expressions drive a per-voice gain
+target** smoothed over ~20 ms (ADR-009 seconds→coefficient; expression streams arrive at UI
+rate and a raw multiply zippers). Pressure re-arms to 1.0 per note, so hosts that never send it
+are untouched; MPE surfaces get strike-then-swell behaviour by default.
+
+Superset discipline: `vel`/`press` default 1.0 exactly, the multiply is bit-inert, and the core
+`noteOn` signature is unchanged (velocity applied via `setNoteVelocity` after allocation) — so
+every golden and every pre-existing caller is byte-identical. **Parity 147/147, worst
+4.262e-09, unchanged** is the regression proof. Calibrated through the real CLAP path: vel 0.5
+→ rms ratio 0.503; pressure 0.3 mid-note → ratio 0.302 after the smoother settles.
+
+Recorded residuals: SPECTRA ignores velocity still (its own increment); the mono/legato
+retarget keeps the original strike's velocity (a retargeted note is the same phrase — revisit
+if the ear disagrees); raw MIDI channel aftertouch (0xD0) relies on the wrapper translating to
+PRESSURE expressions — verify in a DAW pass. Velocity CURVE (soft/hard) is a future param; the
+stride amendment leaves room.

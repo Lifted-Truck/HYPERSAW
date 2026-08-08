@@ -257,6 +257,7 @@ static const ParamDef kParams[] = {
     // become an invisible feature (L0023).
     {101, "gSemi", "Pitch", -12, 12, 0, true, nullptr},
     {102, "gFine", "Fine", -100, 100, 0, false, nullptr},
+    {103, "gOct", "Master Octave", -2, 2, 0, true, nullptr},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -308,7 +309,7 @@ constexpr clap_id kGlobalIds[] = {
     32, 33, 34, 38, 75, 89, 90, 11, 70,          // voice & glide behaviour
     57, 58, 59, 60, 61, 62, 63, 64, 96, 97, 98, 99,  // FX rack
     23, 88,                                      // tempo grid, oversampling
-    100, 101, 102,                               // masterVol + global pitch
+    100, 101, 102, 103,                          // masterVol + global pitch
 };
 constexpr bool isGlobalId(clap_id id)
 {
@@ -450,7 +451,7 @@ struct Plugin
   // poll snapped the control back (human report 2026-08-07). One copy per
   // oscillator; pitchBend stays global (the wheel bends the patch).
   double octaveA[kMaxOsc] = {0}, semiA[kMaxOsc] = {0}, fineCentsA[kMaxOsc] = {0};
-  double pitchBend = 0, gSemi = 0, gFine = 0;   // global transpose (101/102)
+  double pitchBend = 0, gSemi = 0, gFine = 0, gOct = 0;   // global transpose (101/102/103)
   // ADR-035 bass-mono output stage: ONE 2nd-order TPT SVF high-pass on the
   // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
   // no crossover phase mismatch, the classic vinyl-elliptic routing.
@@ -464,7 +465,7 @@ struct Plugin
 
   void updateTune(uint32_t k)
   {
-    const double st = 12.0 * octaveA[k] + semiA[k] + gSemi + pitchBend +
+    const double st = 12.0 * (octaveA[k] + gOct) + semiA[k] + gSemi + pitchBend +
                       (fineCentsA[k] + gFine) / 100.0;
     const double factor = st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0);
     cores[k].setParam("tune", factor);
@@ -1008,6 +1009,7 @@ struct Plugin
       }
       if (id == 101) { gSemi = applied; updateTuneAll(); return; }
       if (id == 102) { gFine = applied; updateTuneAll(); return; }
+      if (id == 103) { gOct = applied; updateTuneAll(); return; }
       if (id == 43)
       {
         if (applied != engineSel)
@@ -1070,6 +1072,7 @@ struct Plugin
       if (d->id == 100) return masterVol;
       if (d->id == 101) return gSemi;
       if (d->id == 102) return gFine;
+      if (d->id == 103) return gOct;
       if (d->id == 43) return engineSel;
       if ((d->id >= 44 && d->id <= 55) || (d->id >= 65 && d->id <= 68))  // SPECTRA (44-55) + SPECTRA ADSR (ADR-055, 65-68)
         return const_cast<Plugin *>(this)->spectra.getParam(d->coreKey);
@@ -1231,7 +1234,12 @@ struct Plugin
             if (monoSlot >= 0 && core.swarmAt(monoSlot).gate)
               core.noteOff(core.swarmAt(monoSlot).midi);
             monoSlot = core.noteOn(n->key, freq);
-            for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOn(n->key, freq);
+            core.setNoteVelocity(monoSlot, n->velocity);
+            for (uint32_t k = 1; k < kNumOsc; k++)
+            {
+              const int sk = cores[k].noteOn(n->key, freq);
+              cores[k].setNoteVelocity(sk, n->velocity);
+            }
           }
           retireTag(monoSlot);
           tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};
@@ -1240,7 +1248,12 @@ struct Plugin
         else
         {
           const int slot = core.noteOn(n->key, freq);
-          for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOn(n->key, freq);
+          core.setNoteVelocity(slot, n->velocity);
+          for (uint32_t k = 1; k < kNumOsc; k++)
+          {
+            const int sk = cores[k].noteOn(n->key, freq);
+            cores[k].setNoteVelocity(sk, n->velocity);
+          }
           retireTag(slot);
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
           struck = slot;
@@ -1265,6 +1278,22 @@ struct Plugin
         // TUNING expression in relative semitones; CLAP wildcard matching
         // (-1) applies. Reaches the core through the ADR-027 live-tune seam.
         auto *x = reinterpret_cast<const clap_event_note_expression_t *>(ev);
+        // ADR-084: PRESSURE -> per-voice gain (default mapping the human asked
+        // for). Same tag-matching as TUNING; fan out to every oscillator, since
+        // note fan-out keeps slot indices aligned.
+        if (x->expression_id == CLAP_NOTE_EXPRESSION_PRESSURE)
+        {
+          for (int i = 0; i < hypersaw::kPoly; i++)
+            if (tags[i].active &&
+                (x->note_id == -1 || tags[i].noteId == x->note_id) &&
+                (x->key == -1 || tags[i].key == x->key) &&
+                (x->channel == -1 || tags[i].channel == x->channel))
+            {
+              core.setNotePressure(i, x->value);
+              for (uint32_t k = 1; k < kNumOsc; k++) cores[k].setNotePressure(i, x->value);
+            }
+          break;
+        }
         if (x->expression_id != CLAP_NOTE_EXPRESSION_TUNING) break;
         for (int i = 0; i < hypersaw::kPoly; i++)
         {
