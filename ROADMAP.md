@@ -79,6 +79,15 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## VOICE STEAL FIXED — sustains survive arpeggios (ADR-083, 2026-08-08)
+
+Human: *"if I have an arpeggio running and try to play a sustained note on top of it,
+eventually its voice will be stolen."* Reproduced, mechanism measured, fixed as a **deliberate
+divergence** (ADR-083): three-tier steal — free slot → quietest releasing tail → only then the
+oldest held note. The reference's steal-oldest survives untouched in the prototypes; goldens
+never overflow the pool, so parity (147/147) is the regression proof. Follow-up: fold the
+arp-sustain scenario into `notefuzz_check` (B27).
+
 ## CHORD RETRIGGER — RESOLVED AS REFERENCE PHYSICS; design question A13 (2026-08-08)
 
 The reported intermittent retrigger failure is **real, reproduced, and not a defect in the
@@ -1361,6 +1370,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B24 | **Master/mixer page** — **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan param, mute/solo as params, meters, rest of A12 | § B24 increment 1 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |
+| B27 | **Arp-sustain steal scenario into notefuzz_check** — the ADR-083 probe as a permanent gate (sustain's f0 power must never collapse under 160 arp notes) | § Voice steal fixed |
 | B12 | **BLEP aliasing re-measure at incommensurate f0** | earlier measurement used a commensurate f0 |
 | B13 | **Granular-sibling intake** | gated on that sibling maturing; INTEGRATIONS.md route |
 | B15 | **Promote the mod sweep to a gate?** — `tools/labharness/modlab_sweep.mjs` is runnable but not wired into `./verify` (adding it is a gate change, human call). ~3 min for 216 routings | § Full mod-matrix sweep |

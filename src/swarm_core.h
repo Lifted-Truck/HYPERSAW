@@ -1034,10 +1034,28 @@ class SwarmCore
 
   Swarm &alloc()
   {
+    // Three-tier steal policy (ADR-083, deliberate divergence from the JS
+    // reference's steal-oldest). The reference steals the oldest voice
+    // REGARDLESS of gate — and under an arpeggio the oldest voice is precisely
+    // the note being deliberately held: release tails occupy slots for ~1.1 s
+    // (env < 1e-3 at tau 0.16 s), a 9-note/s arp keeps ~10 tails alive, the
+    // pool fills, and the sustain is sacrificed first. Measured: stolen ~11
+    // arp notes in, held-note f0 power to 7% of its beating floor.
+    //   1) a FREE slot (released and faded) — oldest first, as before;
+    //   2) a RELEASING tail — quietest first (least audible loss), age as
+    //      tiebreak. An arp recycles its own tails and never touches holds;
+    //   3) only when every slot is GATED: oldest held note (unavoidable).
+    // Tiers 1 and 3 match the reference exactly; goldens never overflow the
+    // pool, so parity is untouched (verified: 147/147 unchanged).
     Swarm *best = nullptr;
     for (auto &s : swarms)
       if (!s.gate && s.env < 1e-3)
         if (!best || s.age < best->age) best = &s;
+    if (best) return *best;
+    for (auto &s : swarms)
+      if (!s.gate)
+        if (!best || s.env < best->env || (s.env == best->env && s.age < best->age))
+          best = &s;
     if (best) return *best;
     for (auto &s : swarms)
       if (!best || s.age < best->age) best = &s;

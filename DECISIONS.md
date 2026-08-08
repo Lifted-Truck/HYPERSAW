@@ -614,3 +614,25 @@ not each oscillator), and SPECTRA already has its own env at 65-68; (b) **transp
 36 semi / 37 fineCents per-osc** — this is much of the point of a second oscillator (an octave
 down replaces what a sub would do), so they move into the per-osc class; (c) **18 retrig and 74
 keepPhase per-osc** — phase behaviour is a property of the oscillator, not the note.
+
+## ADR-083 · Voice steal: three-tier policy — releasing tails before held notes — ACCEPTED (deliberate divergence)
+
+Human report (2026-08-08): a sustained note under a running arpeggio is eventually stolen.
+Measured mechanism: a released tail occupies its slot until `env < 1e-3` (~1.1 s at the 0.16 s
+release), so a 9-note/s arp keeps ~10 tails alive; when the 16-slot pool fills, the reference's
+steal-oldest policy sacrifices the OLDEST voice — which is precisely the note being deliberately
+held. Reproduced with a Goertzel probe at the held note's f0 (long windows + a no-arp control,
+after a short-window first attempt measured the sustain's own 65 Hz beat nulls): stolen ~11 arp
+notes in, power to 7% of the beating floor.
+
+**Decision:** `alloc()` becomes three tiers — (1) free slot, oldest first (as the reference);
+(2) **releasing tail, quietest first** (least audible loss; age as tiebreak) — an arp recycles
+its own tails and never touches holds; (3) only when every slot is gated, oldest held note
+(unavoidable, as the reference). The JS reference keeps its naive policy (protected prototype);
+this is a recorded divergence in the overflow regime only. Goldens never overflow the pool, so
+parity is the regression proof: **147/147, worst 4.262e-09, unchanged**.
+
+**Verified:** the pre-fix probe run is the calibration (sustain stolen at ~1.2 s); post-fix the
+sustain survives the entire 160-note arp with its f0 power never dropping below the no-arp
+beating floor. Follow-up queued: fold the arp-sustain scenario into `notefuzz_check` as a
+permanent gate.
