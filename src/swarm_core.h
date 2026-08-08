@@ -183,6 +183,7 @@ class SwarmCore
     double phase[kMaxV], driftS[kMaxV], couple[kMaxV], vf[kMaxV], eff[kMaxV], mom[kMaxV];
     double f0 = 220, f0cur = 220;
     int midi = -1, gate = 0;
+    double vel = 1.0, press = 1.0, pressSm = 1.0;   // ADR-084 (1.0 = inert)
     double env = 0, Kenv = 0, KsmS = 0, KsmP = 0;
     double R = 0, RN = 0, psi = 0, sigma = 0, RA = 0, RB = 0, RQ = 0;
     long age = -1;
@@ -339,6 +340,9 @@ class SwarmCore
     s.midi = midi;
     s.f0 = f;
     s.f0cur = f;
+    s.vel = 1.0;      // set by the shell AFTER noteOn (keeps the reference signature)
+    s.press = 1.0;    // pressure re-arms per note; hosts that never send it stay inert
+    s.pressSm = 1.0;
     s.gate = 1;
     s.age = noteCounter++;
     // ADR-056: signed quadratic → bipolar onset lock. onset >= 0 reproduces
@@ -420,6 +424,20 @@ class SwarmCore
   {
     if (slot < 0 || slot >= kPoly) return;
     swarms[slot].noteTune = semis == 0.0 ? 1.0 : std::pow(2.0, semis / 12.0);
+  }
+
+  // ADR-084 velocity + MPE pressure -> per-voice gain (superset; both default
+  // 1.0, and x1.0 is bit-identical, so every golden and pre-existing caller is
+  // untouched). Pressure is a TARGET smoothed per control tick (ADR-009: the
+  // constant is seconds, ~20 ms) — expression streams arrive at UI rate and a
+  // raw multiply would zipper.
+  void setNoteVelocity(int slot, double v)
+  {
+    if (slot >= 0 && slot < kPoly) swarms[slot].vel = std::max(0.0, std::min(1.0, v));
+  }
+  void setNotePressure(int slot, double v)
+  {
+    if (slot >= 0 && slot < kPoly) swarms[slot].press = std::max(0.0, std::min(1.0, v));
   }
 
   void noteOff(int midi)
@@ -731,7 +749,9 @@ class SwarmCore
         {
           s.env += (0 - s.env) * rel;
         }
-        const double g = vEnvOn ? gain : gain * s.env;   // ADR-078: already applied per voice
+        // ADR-084: velocity and smoothed pressure scale the voice. Both default
+        // 1.0 (exact), so the multiply is bit-inert for goldens and old hosts.
+        const double g = (vEnvOn ? gain : gain * s.env) * s.vel * s.pressSm;
         // Float32Array += semantics: round to f32 on every store
         outL[smp] = (float)((double)outL[smp] + s.lpL * g);
         outR[smp] = (float)((double)outR[smp] + s.lpR * g);
@@ -1066,6 +1086,9 @@ class SwarmCore
 
   void controlTick(Swarm &s)
   {
+    // ADR-084: ~20 ms pressure smoothing, seconds -> per-tick coefficient
+    s.pressSm += (s.press - s.pressSm) * (1 - std::exp(-(kTick / sr) / 0.02));
+    if (std::fabs(s.pressSm - s.press) < 1e-6) s.pressSm = s.press;
     const int n = (int)p.n;
     const double dt = kTick / sr;
     // ADR-063 frequency glide (parity with swarmsaw.html): seconds -> coefficient.

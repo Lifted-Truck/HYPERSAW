@@ -79,6 +79,15 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
+## VELOCITY + PRESSURE → VOLUME BY DEFAULT (ADR-084) · master octave · pitch labels (2026-08-08)
+
+Velocity now scales each voice (linear), and MPE `PRESSURE` expressions drive a ~20 ms-smoothed
+per-voice gain — both default-inert at 1.0, parity 147/147 unchanged, calibrated vel 0.5 →
+0.503 and pressure 0.3 → 0.302 through the real CLAP path. SPECTRA velocity, the velocity
+curve param, and a DAW check of wrapper aftertouch translation are recorded residuals in the
+ADR. Also: **master octave** (gOct, id 103) added, and pitch labels unified — every strip and
+the master now read octave / pitch / fine.
+
 ## VOICE STEAL FIXED — sustains survive arpeggios (ADR-083, 2026-08-08)
 
 Human: *"if I have an arpeggio running and try to play a sustained note on top of it,
