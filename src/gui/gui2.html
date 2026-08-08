@@ -64,9 +64,12 @@
     <div class="note" style="margin-top:5px">Drives the ACTIVE oscillator (the plumbing rule this
       interface is built on: nothing is hardwired to oscillator 1).</div>
   </div>
-  <div class="cluster"><h2>Viz</h2>
-    <div class="note">The visual cluster (phase circle · K vector · spectrum · note monitor)
-      lands as its own increment, fed by the per-oscillator snapshot. Absent, not mocked.</div>
+  <div class="cluster"><h2>Viz — the active oscillator's swarm</h2>
+    <canvas id="phaseC" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
+    <canvas id="specC" width="330" height="70" style="width:100%"></canvas>
+    <div class="note" style="margin-top:4px">Phase circle + K vector follow the OSC tab (the
+      per-oscillator snapshot); the spectrum is the MASTER bus — what leaves the plugin.</div>
   </div>
 </div>
 
@@ -128,6 +131,14 @@ if (!window.hzGetParams) {   /* standalone/dev mocks */
   window.hzGesture = async () => {};
   window.hzSetVizOsc = async () => {};
   window.hzGetBuild = async () => 'dev';
+  let t = 0;
+  window.hzGetViz = async () => { t += 0.03;
+    const n = 7, phase = [];
+    for (let i = 0; i < n; i++) phase.push(((t * (1 + i * 0.015) + i * 0.04) % 1));
+    return { active: true, n, phase, R: 0.5 + 0.4 * Math.sin(t * 0.7), psi: t % 6.283,
+             KsmP: 0, centerIdx: 3, topo: 0 }; };
+  window.hzGetSpec = async () =>
+    Array.from({length: 96}, (_, i) => Math.max(0, 0.8 - Math.abs(i - 20) / 30) + 0.05 * Math.random());
 }
 const bridge = {
   getParams: () => window.hzGetParams(),
@@ -135,6 +146,8 @@ const bridge = {
   gesture: (id, b) => window.hzGesture(id, b),
   setVizOsc: (k) => window.hzSetVizOsc(k),
   getBuild: () => window.hzGetBuild(),
+  getViz: () => window.hzGetViz(),
+  getSpec: () => window.hzGetSpec(),
 };
 const OSC_STRIDE = 1000;
 let editOsc = 0, numOsc = 1, globalIds = null;
@@ -272,8 +285,12 @@ xy.addEventListener('pointerdown', e => { xyDown = true; xy.setPointerCapture(e.
 xy.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
 xy.addEventListener('pointerup', () => { xyDown = false;
   bridge.gesture(effId(4), false); bridge.gesture(effId(6), false); });
+let frameNo = 0;
 function drawXY() {
   requestAnimationFrame(drawXY);
+  frameNo++;
+  vizFrame();                          // every frame; busy-flag drops overlaps
+  if (frameNo % 4 === 0) specFrame();  // ~15 fps is plenty for a spectrum
   if (!xyDirty) return;
   xyDirty = false;
   const w = xy.width, h = xy.height;
@@ -285,6 +302,71 @@ function drawXY() {
   xyctx.fillStyle = '#e8ecf2';
   xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
 }
+/* ---- viz: phase circle + K vector (ported from gui.html, which ports
+   swarmsaw's drawPhase) and the master spectrum. The snapshot follows vizOsc,
+   so these display the ACTIVE oscillator by construction. ---- */
+const pc = document.getElementById('phaseC'), pctx = pc.getContext('2d');
+const sc2 = document.getElementById('specC'), sctx2 = sc2.getContext('2d');
+let kSmX = 0, kSmY = 0, kSmR = 0, vizBusy = false, specBusy = false;
+function drawPhase(s) {
+  const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
+  pctx.fillStyle = 'rgba(11,14,20,0.32)';
+  pctx.fillRect(0, 0, w, h);
+  pctx.strokeStyle = '#232a3a'; pctx.lineWidth = 1;
+  pctx.beginPath(); pctx.arc(cx, cy, rad, 0, Math.PI * 2); pctx.stroke();
+  if (!s || !s.active) return;
+  const n = s.n, px = [], py = [];
+  for (let i = 0; i < n; i++) {
+    const a = s.phase[i] * Math.PI * 2;
+    px.push(cx + rad * Math.cos(a)); py.push(cy - rad * Math.sin(a));
+  }
+  pctx.strokeStyle = 'rgba(95,242,224,0.28)'; pctx.lineWidth = 1;
+  pctx.beginPath(); pctx.moveTo(px[0], py[0]);
+  for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
+  pctx.closePath(); pctx.stroke();
+  const twoClu = s.topo === 2, halfN = n >> 1;
+  for (let i = 0; i < n; i++) {
+    pctx.fillStyle = (twoClu && i >= halfN) ? '#ffc24b' : '#5ff2e0';
+    pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
+  }
+  // K-vector: Cartesian-smoothed direction, separately-smoothed scalar length
+  // (averaging a rotating vector's positions shortens it — misreads as low R).
+  const kx = s.R * Math.cos(s.psi), ky = s.R * Math.sin(s.psi);
+  kSmX += (kx - kSmX) * 0.18; kSmY += (ky - kSmY) * 0.18;
+  kSmR += (s.R - kSmR) * 0.35;
+  const kLen = Math.hypot(kSmX, kSmY);
+  const ux = kLen > 1e-6 ? kSmX / kLen : 0, uy = kLen > 1e-6 ? kSmY / kLen : 0;
+  pctx.strokeStyle = '#ff4fa3'; pctx.lineWidth = 2;
+  pctx.beginPath(); pctx.moveTo(cx, cy);
+  pctx.lineTo(cx + rad * kSmR * ux, cy - rad * kSmR * uy); pctx.stroke();
+  const ro = document.getElementById('rOut');
+  if (ro) ro.textContent = s.R.toFixed(3);
+}
+async function vizFrame() {
+  if (vizBusy) return;
+  vizBusy = true;
+  try { drawPhase(await bridge.getViz()); } catch (e) {}
+  vizBusy = false;
+}
+async function specFrame() {
+  if (specBusy) return;
+  specBusy = true;
+  try {
+    const bins = await bridge.getSpec();
+    const w = sc2.width, h = sc2.height;
+    sctx2.fillStyle = '#0b0e14'; sctx2.fillRect(0, 0, w, h);
+    sctx2.strokeStyle = '#5ff2e0'; sctx2.lineWidth = 1.2;
+    sctx2.beginPath();
+    for (let i = 0; i < bins.length; i++) {
+      const x = i / (bins.length - 1) * w;
+      const y = h - bins[i] * (h - 4) - 2;
+      if (i === 0) sctx2.moveTo(x, y); else sctx2.lineTo(x, y);
+    }
+    sctx2.stroke();
+  } catch (e) {}
+  specBusy = false;
+}
+
 /* build stamp + boot */
 window.addEventListener('load', async () => {
   try {

@@ -142,8 +142,10 @@ cannot see a hex byte array — the first attempt "proved" the switch broken wit
 detector). `lab_load_check` now sweeps `src/gui/*.html` by default so gui2 can never
 load-fail silently.
 
-Next clusters, in the mixer-first order: viz (per-osc snapshot feed) · FX rack + routing
-(B23 lab first) · MOD (matrix fold) · MORPH.
+Next clusters, in the mixer-first order: ~~viz~~ **viz SHIPPED 2026-08-08** (phase circle +
+K vector from the per-osc snapshot — follows the OSC tab by construction — plus the master-bus
+spectrum; drawing code ported from gui.html, which ports swarmsaw's drawPhase, K-vector
+smoothing intact) · FX rack + routing (B23 lab first) · MOD (matrix fold) · MORPH.
 
 ## VIZ INTERMEDIARY + XY RETARGET + GLOBAL PITCH (human, 2026-08-07)
 
