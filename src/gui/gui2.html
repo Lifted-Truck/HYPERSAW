@@ -87,6 +87,7 @@
   </div></div>
   <div class="cluster"><h2>Master</h2><div class="strip master"><b>MASTER</b>
     <div class="row"><label>volume</label><input type="range" data-p="100" data-fixed="1" min="0" max="1.5" step="0.005" value="1"><output></output></div>
+    <div class="row"><label>octave</label><input type="range" data-p="103" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="101" data-fixed="1" min="-12" max="12" step="1" value="0"><output></output></div>
     <div class="row"><label>fine</label><input type="range" data-p="102" data-fixed="1" min="-100" max="100" step="1" value="0"><output></output></div>
   </div></div>
@@ -104,6 +105,9 @@
     <div class="row"><label>pull K</label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row"><label>onset</label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row"><label>dissolve</label><input type="range" data-p="8" min="0.05" max="7.94" step="0.01" value="0.63"><output></output></div>
+    <div class="row"><label>retrigger</label><input type="checkbox" data-p="18" checked><output></output></div>
+    <div class="note">retrigger OFF = free-run phases; random starts can null for
+      ~300 ms under slow detune beating (A13 — reference physics, not a bug)</div>
   </div>
   <div class="cluster"><h2>Pitch</h2>
     <div class="row"><label>octave</label><input type="range" data-p="35" min="-2" max="2" step="1" value="0"><output></output></div>
@@ -116,7 +120,7 @@
 "use strict";
 /* ============ PLUMBING (ported from gui.html — proven, do not fork) ======= */
 const $ = s => document.querySelector(s);
-const DEFAULTS = {100:1,101:0,102:0,103:0,1017:0,1014:0.8,1035:0,1036:0,1037:0,1:7,3:1234,4:0.28,6:0,7:0,8:0.63,
+const DEFAULTS = {100:1,101:0,102:0,103:0,18:1,1017:0,1014:0.8,1035:0,1036:0,1037:0,1:7,3:1234,4:0.28,6:0,7:0,8:0.63,
   14:0.8,17:0.4,35:0,36:0,37:0};
 if (!window.hzGetParams) {   /* standalone/dev mocks */
   window.hzGetParams = async () => JSON.stringify(DEFAULTS);
@@ -169,8 +173,9 @@ function setControl(id, v) {
 document.querySelectorAll('[data-p]').forEach(el => {
   const baseId = +el.dataset.p;
   const id_ = () => el.dataset.fixed ? baseId : effId(baseId);
-  el.addEventListener('input', () => {
-    const v = +el.value;
+  const evName = el.type === 'checkbox' ? 'change' : 'input';
+  el.addEventListener(evName, () => {
+    const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : +el.value;
     bridge.setParam(id_(), v);
     displayValue(el, v);
     lastParams[id_()] = v;
