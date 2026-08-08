@@ -370,6 +370,89 @@ int main(int argc, char **argv)
     std::printf("%s %s: %d/%d silent after all-keys-up, worst tail %.0f ms\n",
                 modeFail ? "FAIL" : "OK  ", m.name, nSeeds - modeFail, nSeeds, worstRelease);
   }
+  // ---- ADR-083 arp-sustain steal gate (B27) --------------------------------
+  // A sustained note under a 9-note/s arpeggio must keep sounding: release
+  // tails occupy slots for ~1.1 s, and the pre-ADR-083 steal-oldest policy
+  // sacrificed the held note ~11 arp notes in. Oracle: Goertzel power at the
+  // held note's own f0 in LONG windows (short windows at 65 Hz measure the
+  // sustain's own beat nulls — that detector once convicted the wrong code),
+  // against a no-arp control run for the beating floor.
+  {
+    auto goertzelRun = [](bool withArp) -> double {
+      auto *factory =
+          (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
+      const clap_plugin_t *p =
+          factory->create_plugin(factory, &kHost, "com.lifted-truck.hypersaw");
+      p->init(p);
+      p->activate(p, kSR, 32, 256);
+      p->start_processing(p);
+      std::vector<float> L(256), R(256);
+      float *chans[2] = {L.data(), R.data()};
+      clap_audio_buffer_t out{};
+      out.data32 = chans;
+      out.channel_count = 2;
+      const int SUS = 36;
+      const double f0 = 440.0 * std::pow(2.0, (SUS - 69) / 12.0);
+      int lastKey = -1, step = 0, nextId = 1;
+      auto block = [&](std::vector<clap_event_note_t> notes) {
+        EvList ev;
+        ev.notes = std::move(notes);
+        ev.finalize();
+        clap_process_t proc{};
+        proc.frames_count = 256;
+        proc.audio_outputs = &out;
+        proc.audio_outputs_count = 1;
+        proc.in_events = &ev.list;
+        proc.out_events = &kOut;
+        p->process(p, &proc);
+      };
+      auto window = [&](int nblk) -> double {
+        const double w = 2 * 3.14159265358979323846 * f0 / kSR, cw = 2 * std::cos(w);
+        double s1 = 0, s2 = 0;
+        long n = 0;
+        for (int b = 0; b < nblk; b++)
+        {
+          std::vector<clap_event_note_t> evs;
+          if (withArp && b % 18 == 0)
+          {
+            if (lastKey >= 0)
+              evs.push_back(mkNote(CLAP_EVENT_NOTE_OFF, 0, (int16_t)lastKey, -1, 0.8));
+            lastKey = 60 + (step % 8) * 2;
+            evs.push_back(mkNote(CLAP_EVENT_NOTE_ON, 0, (int16_t)lastKey, nextId++, 0.8));
+            step++;
+          }
+          block(std::move(evs));
+          for (int i = 0; i < 256; i++)
+          {
+            const double s0 = L[i] + cw * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+            n++;
+          }
+        }
+        return std::sqrt(std::max(0.0, s1 * s1 + s2 * s2 - cw * s1 * s2)) / n;
+      };
+      block({mkNote(CLAP_EVENT_NOTE_ON, 0, (int16_t)SUS, nextId++, 0.8)});
+      window(40);
+      double minP = 1e18;
+      for (int seg = 0; seg < 12; seg++)
+      {
+        const double pw = window(40);
+        if (pw < minP) minP = pw;
+      }
+      p->stop_processing(p);
+      p->deactivate(p);
+      p->destroy(p);
+      return minP;
+    };
+    const double floorP = goertzelRun(false);
+    const double arpP = goertzelRun(true);
+    const bool ok = arpP > floorP * 0.3;
+    std::printf("%s arp-sustain (ADR-083): held-f0 min %.3g vs no-arp floor %.3g\n",
+                ok ? "OK  " : "FAIL", arpP, floorP);
+    if (!ok) failures++;
+  }
+
   std::printf(failures ? "notefuzz_check: RED (%d hangs)\n" : "notefuzz_check: GREEN (0 hangs)\n",
               failures);
   return failures ? 1 : 0;
