@@ -5,7 +5,7 @@
 > SURFACE: what exists, how portable it is, and what each piece needs to leave
 > home. Kept current as lessons land; exchanges beyond this file follow
 > doctrine/INTEGRATIONS.md (file-based briefs, writes stay home).
-> Last verified: 2026-08-08.
+> Last verified: 2026-08-08 (taper lesson added same day).
 
 ## 1 · The architecture lessons (the reason the library exists)
 
@@ -68,3 +68,9 @@ because the first shipped build freezes it. Concrete scars, each with its PR:
 6. **Params modulation-ready at birth**: UI range and mod range declared
    separately (the ±12-knob / ±48-mod pitch pattern), time-domain params
    macro-flagged at introduction.
+7. **Perceptual taper declared WITH the param, applied at the knob, never in
+   the core.** A spring-damping knob linear in ζ parks all audible action in a
+   fraction of its travel (53%→1.5% ring between ζ 0.2 and 0.8); the fix is a
+   knob linear in OVERSHOOT via the closed-form inverse — and because the taper
+   lives at the knob, the core, goldens and parity are untouched (ADR-024
+   lineage; bend-lab damping, 2026-08-08).

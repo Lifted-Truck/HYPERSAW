@@ -58,7 +58,7 @@
     <div class="row"><label>glide rate</label><input type="range" id="rate" min="0.5" max="200" step="0.5" value="24"><output id="rate_o"></output></div>
     <div class="row"><label>lag τ</label><input type="range" id="tau" min="1" max="400" step="1" value="60"><output id="tau_o"></output></div>
     <div class="row"><label>spring f</label><input type="range" id="springF" min="0.5" max="20" step="0.1" value="4"><output id="springF_o"></output></div>
-    <div class="row"><label>damping ζ</label><input type="range" id="damp" min="0.05" max="2" step="0.01" value="0.6"><output id="damp_o"></output></div>
+    <div class="row"><label>damping</label><input type="range" id="damp" min="0" max="1" step="0.002" value="0.76"><output id="damp_o"></output></div>
     <div class="row"><label>dist→overshoot</label><input type="range" id="distOver" min="0" max="2" step="0.05" value="1"><output id="distOver_o"></output></div>
     <div class="row"><label>return ×</label><input type="range" id="retMul" min="0.2" max="3" step="0.05" value="1"><output id="retMul_o"></output></div>
     <div class="row"><label>quantise</label><select id="quant">
@@ -556,7 +556,24 @@ wire('qTime', v => P.qTime = v, v => v < 2.5 ? 'free' : v.toFixed(0) + ' ms');
 $('quant').addEventListener('change', () => P.quant = +$('quant').value);
 wire('distOver', v => P.distOver = v, v => v.toFixed(2));
 wire('springF', v => P.springF = v, v => v.toFixed(1) + ' Hz');
-wire('damp', v => P.damp = v, v => v.toFixed(2));
+// DAMPING KNOB TAPER (human report 2026-08-08: "immediately flattens all
+// motion"). Overshoot goes as exp(-pi*z/sqrt(1-z^2)) — 53% ring at zeta 0.2
+// collapses to 1.5% by 0.8 — so a knob linear in ZETA parks all the audible
+// action in its first stretch. The knob is now linear in OVERSHOOT (the thing
+// you hear), using the closed-form inverse the lab already owns:
+//   k in [0, .85):  ring region — overshoot 90% -> 0, zeta = zetaFromOs(os)
+//   k in [.85, 1]:  overdamped tail — zeta ramps 1 -> 2 (sluggish, on purpose)
+// P.damp still STORES zeta, so the model, the goldens and glide_check parity
+// are untouched — the taper lives at the knob, never in the core (ADR-024's
+// pattern, and the reason the C++ fold must ship the same mapping in its
+// shell layer, not in glide_core).
+const zetaFromKnob = k => k < 0.85 ? zetaFromOs(0.90 * (1 - k / 0.85))
+                                   : 1 + (k - 0.85) / 0.15;
+wire('damp', k => P.damp = zetaFromKnob(k), k => {
+  const z = zetaFromKnob(k);
+  return z < 1 ? (osFromZeta(z) * 100).toFixed(1) + '% ring (\u03b6 ' + z.toFixed(2) + ')'
+               : '\u03b6 ' + z.toFixed(2) + (z > 1.02 ? ' (overdamped)' : ' critical');
+});
 wire('retMul', v => P.retMul = v, v => v.toFixed(2) + '×');
 wire('bendRange', v => P.bendRange = v, v => '±' + v.toFixed(0) + ' st');
 wire('wobF', v => P.wobF = v, v => v.toFixed(1) + ' Hz');
