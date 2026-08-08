@@ -79,26 +79,18 @@ already anticipated the uni-vs-bipolar question; the sweep gives it teeth — be
 it is not *halved*, it is *entirely dead*, and half the R source's range is spent on the
 rectifier. **Needs a human ruling (A9), not a unilateral fix.**
 
-## OPEN BUG — chord retrigger (human report 2026-08-07), repro NOT yet achieved
+## CHORD RETRIGGER — RESOLVED AS REFERENCE PHYSICS; design question A13 (2026-08-08)
 
-Human: *"Notes are getting stuck; when I hold most of a chord and try to retrigger a note that
-I let go, it only retriggers a fraction of the time."*
+The reported intermittent retrigger failure is **real, reproduced, and not a defect in the
+port**: it requires `retrig = 0`, where voices restart at seeded-random phases, and ~10-cent
+detune beating can hold a fundamental null for ≥380 ms — an audibly dead start, a fraction of
+the time. The JS reference exhibits the **identical 5/20** under the same experiment, so the
+C++ is faithful. Full chain (including two discarded probe generations) in
+`traces/2026-08-08-retrigger-hunt.md`.
 
-Status, honestly: **not reproduced yet, and one false repro already discarded.** The first
-probe reported 19/21 failures — then turned out to queue every chord event as a pointer to ONE
-`static` struct, so a "6-note chord" was the last key pressed six times. Every number was a
-harness artifact. The corrected probe shows holds 2/6/7 recovering fully and hold=5 dipping
-within the beating variance of five detuned swarms — an rms oracle cannot resolve one voice
-among many (L0017: calibrate per signal class).
-
-**Two leads for the next probe:**
-1. **`note_id` semantics.** Live sends real note ids; the probes sent −1. The shell's tag
-   matching (`tags[slot] = {note_id, port, channel, key}`) and NOTE_END lifecycle key on them —
-   a repress with a NEW note_id against a stale tag is exactly where "a fraction of the time"
-   lives.
-2. **A gate-count oracle, not an audio one.** Drive the CLAP path but count gated voices
-   through the viz snapshot (or a core-level twin), so one voice's absence is a hard integer,
-   not a wiggle under detune beating.
+**A13 (human):** leave as spec'd free-run character / anti-null redraw (reference edit + ADR +
+new goldens) / random-rotated even spread. Also confirm the patch that shows it has the
+retrigger toggle off.
 
 ## GUI2 — the greenfield interface, cluster by cluster (human, 2026-08-07)
 
@@ -1342,6 +1334,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A10 | **Morph-owned routing semantics** — RULED 2026-08-06: **per-corner depths per cell**. Each morph-owned cell holds four depths; a flip swaps which is live. Implemented + measured | § Morph-owned = per-corner depths |
 | A11 | **Morph corner scope** — RULED 2026-08-06: **global** — one corner holds every per-oscillator parameter of *both* oscillators. Unblocks B20 | § Morph corners are global |
 | A12 | **Which of the 13 core-owned params become per-oscillator?** — width/mono/inertia clearly yes; the amp envelope arguably; oversample/beatMult/glide-family probably patch-level. Additive only while their +1000 ids stay unallocated | § Re-order: master/mixer page first |
+| A13 | **Retrig-off dead starts** — reference physics (random-phase nulls under slow detune beating; reference shows identical 5/20). Options: document / anti-null redraw (reference edit + ADR) / rotated even spread | § Chord retrigger resolved |
 
 ### B · Queued build work
 
