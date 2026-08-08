@@ -196,9 +196,14 @@ function buildOscSelectors() {
       b.dataset.osc = k; b.textContent = 'OSC ' + (k + 1);
       b.addEventListener('click', async () => {
         editOsc = k;
-        bridge.setVizOsc(k);
+        // Highlight FIRST, then the host call. The old order put
+        // bridge.setVizOsc before the class toggle, so a throw from the webview
+        // binding switched the controls (editOsc was already set) while the
+        // highlight line never ran — "shows OSC 2's controls but doesn't
+        // highlight the button" (human report 2026-08-08).
         document.querySelectorAll('.oscSel .oscTab').forEach(t =>
           t.classList.toggle('on', +t.dataset.osc === k));
+        try { bridge.setVizOsc(k); } catch (e) {}
         const ps = JSON.parse(await bridge.getParams());
         for (const [id, v] of Object.entries(ps)) setControl(+id, v);
       });
@@ -209,6 +214,10 @@ function buildOscSelectors() {
 function paintOscTabs(ps) {
   document.querySelectorAll('.oscSel .oscTab').forEach(b => {
     const k = +b.dataset.osc;
+    // AUTHORITATIVE highlight: editOsc is the single source of truth and this
+    // runs on every poll, so a missed click-time toggle self-heals within
+    // 500 ms instead of leaving a permanently unlit tab.
+    b.classList.toggle('on', k === editOsc);
     const vol = ps[k === 0 ? 17 : 17 + k * OSC_STRIDE];
     const silent = !(vol > 0.0005);
     b.classList.toggle('silent', silent);
