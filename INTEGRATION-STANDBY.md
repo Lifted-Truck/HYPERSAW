@@ -55,6 +55,25 @@ Voices / events:
   note_id/port/channel/key.
 - MPE note expressions currently reach only oscillator 0 (fan-out gap, open).
 
+Parity corpus (REPLY DRAFTED 2026-08-09 to FOUNDATIONS'
+`notice-f2-parity-corpus` — `docs/integrations/DRAFT-foundations-response-parity-corpus.md`):
+- Corpus base is the existing `./verify full`: 15 gates, 147 parity scenarios,
+  worst RMS 4.262e-09. **It contains no multi-oscillator scenario**, and that is
+  the gap that matters: `parity_check` renders a SINGLE core, so the eight-site
+  fan-out bug of 2026-08-09 passed all fourteen other gates.
+- **Bit-identity is currently fragile for a real reason:** consonance gravity is
+  integrated once per render call at dt = block length (explicit Euler on a
+  nonlinear ODE), so output depends on block SUBDIVISION. Measured: grav 0 →
+  identical under any subdivision; grav 0.5 → max diff 1.03 between one whole
+  call and 256-frame chunks. Whole-plugin parity is therefore only well defined
+  at a pinned block size while grav > 0.005 — and since osc 0 renders unchunked
+  while osc 1..N render in kMixChunk chunks, identically-configured oscillators
+  are predicted not to track with gravity engaged. Ours to fix; wants an ADR.
+- Boundary recommendation: whole-plugin as the blocking gate (the only one that
+  catches shell defects — where our worst bug lived), per-core as a diagnostic
+  on failure. No `-ffast-math`/`-march=native` anywhere; no FTZ/DAZ handling —
+  if the library sets flush-to-zero, tails change in the last bits.
+
 Signal-graph topology (BRIEF DRAFTED 2026-08-09, awaiting the human before
 filing — `docs/integrations/DRAFT-foundations-brief-signal-graph.md`):
 - FOUNDATIONS §3.2 rules MODULATION routing as a sparse five-tuple; §3.5 leaves

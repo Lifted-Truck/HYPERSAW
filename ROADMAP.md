@@ -512,6 +512,48 @@ representation** — and it belongs to the mediator, not here. Ratifying a dense
 either foreclose §3.5's doorframe or guarantee a retrofit, which is precisely what FOUNDATIONS
 exists to prevent. **Still unruled; brief drafted in `INTEGRATION-STANDBY.md`.**
 
+## OPEN BUG — consonance gravity is block-subdivision dependent (2026-08-09)
+
+Found while answering FOUNDATIONS' parity-corpus notice. **Not fixed — the fix moves goldens, so
+it wants an ADR and a human gate.**
+
+`SwarmCore::render()` opens with `gravityStep((double)frames / sr)`: gravity advances **once per
+render call, with dt = the block length**. It is explicit Euler on a nonlinear ODE — `move = err ·
+rate · dt`, then `f0cur *= 2^(-move/1200)`, with `err` recomputed from the current `f0cur` each
+call — so one step of dt and two of dt/2 do not agree.
+
+Measured (bare `SwarmCore`, same seed, three notes, 1 s):
+
+| gravity | one whole call vs 256-frame chunks | vs 333-frame blocks |
+|---|---|---|
+| 0.00 | **0** | **0** |
+| 0.50 | **1.028** | **1.029** |
+
+Gravity off, the engine is bit-identical under any subdivision — everything else is buffer-size
+invariant. Gravity on, it is not a last-bits difference; it is a different sound.
+
+**Two consequences.**
+
+1. **Renders are not buffer-size invariant while `grav > 0.005`.** A user changing their DAW
+   buffer changes the sound. That alone is worth a fix.
+2. **Oscillator 0 and oscillators 1..N are integrated differently.** In the mix stage, oscillator 0
+   renders in a single `n`-frame call while oscillators 1..N render in `kMixChunk` (256) chunks. The
+   mechanism above therefore predicts that two *identically configured* oscillators do not track
+   each other with gravity engaged.
+
+**Honesty about what is proven.** The mechanism is measured in isolation (the table) and the
+render asymmetry is plain in `hypersaw_clap.cpp`. Consequence 2 is a well-grounded prediction,
+**not yet isolated end-to-end**: three attempts at a plugin-level probe were confounded, the last
+because `plug_reset` does not clear core phase state, so the silently-rendering oscillator had
+already advanced when it was measured. Recorded as prediction, not measurement.
+
+**Proposed fix (needs the ADR):** integrate gravity on a fixed grid — accumulate elapsed samples
+and step at a constant interval (the existing 16-sample control tick is the obvious grid) rather
+than once per render call. That makes the result independent of both block size and subdivision,
+and makes the two oscillators agree by construction. It is parity-affecting: goldens must be
+re-measured on the reference, and the JS prototype has the same per-call structure, so the
+reference moves too — which is a SPEC change and therefore a protected-path decision.
+
 ## Gesture routing — MPE belongs in the plumbing, not in the event loop (2026-08-09)
 
 Human, on the eight-site fan-out fix: *"MPE should go to the plumbing and get routed from there
