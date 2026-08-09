@@ -255,6 +255,43 @@ Hand-tailored per family, as anticipated. Three rules:
 3. **Where a cap is taste rather than physics, widen the range instead of engineering around
    it.** `freqGlide`'s 0.1 s max is a taste cap. Widen + expose together, per L0023.
 
+## Gesture routing — MPE belongs in the plumbing, not in the event loop (2026-08-09)
+
+Human, on the eight-site fan-out fix: *"MPE should go to the plumbing and get routed from there
+instead of messy redundancies and missed connections. This is another lesson for FOUNDATIONS.
+This would be a good candidate for having the library build up from scratch efficiently and then
+we can test against the oracle."*
+
+**The shipped fix is honest but is not the cure.** PR #242 routed 14 call sites through a
+fan-out seam (`allOffAll`, `setNoteExprAll`, …). That reduces `E x C` wiring (E event types x C
+consumers) to `E` — it does not remove the class. Add a third oscillator, a sub-oscillator, or a
+per-voice FX send and every one of the E helpers must be revisited, forever.
+
+**The target.** Performance gestures — velocity, aftertouch/pressure, per-note tuning, channel
+bend, mod wheel — are SOURCES. They should enter the same routing table as every other source
+and be distributed by it. HYPERSAW currently runs TWO parallel paths for one class of signal: a
+mod matrix, and a hand-wired MPE path in the CLAP event loop that reaches consumers directly.
+Two paths for the same thing is the bug generator; the fan-out helpers only make the second path
+tidier.
+
+The win is not that the question gets answered — it is that **"does pressure reach oscillator 2?"
+stops being askable**, because no per-consumer wiring exists to get wrong.
+
+**Sequencing (why this is not scheduled here yet).** This is L0027 instantiated: the layer is
+cheapest before the second consumer and never cheap again — and HYPERSAW is already past that
+point, which is precisely why it cost eight bugs. Retrofitting it here competes directly with
+the mixer/routing track (B23/B24) that the human ordered first, and it touches the mod matrix,
+the event loop, and every consumer at once. **Queued behind a human gate; wants an ADR** —
+specifically on whether per-note tuning needs a routed FAST LANE (bypassing depth/smoothing to
+stay sample-accurate), which is the one real counter-pressure to routing everything.
+
+**The library exchange (the human's proposal).** plugin-skeleton builds this subsystem from
+scratch — the way it should have been built — and is tested against HYPERSAW's `mpe_check`,
+which names no oscillator, core or alias: it drives the public plugin interface and detects via
+emitted audio. **HYPERSAW donates the ORACLE, the library donates the ARCHITECTURE**, and
+neither side inherits the other's accidents. Recorded in `INTEGRATION-STANDBY.md` and
+`docs/integrations/corelib-insights.md` §4 as the proposed first exchange (L0029, L0030).
+
 ## Scale picker — a pitch-class set is a shared control, not a glide feature (2026-08-09)
 
 Human: *"when it's in scale mode it will need a scale selector. It might be nice to be able to

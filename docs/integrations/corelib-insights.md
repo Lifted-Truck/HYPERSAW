@@ -80,9 +80,48 @@ because the first shipped build freezes it. Concrete scars, each with its PR:
    (a callback with no bind is invisible to the compiler and ships dead-green).
    See L0028.
 
-8. **Perceptual taper declared WITH the param, applied at the knob, never in
+8. **One routing layer for performance gestures.** Velocity, aftertouch/
+   pressure, per-note tuning, channel bend and mod wheel are SOURCES: they
+   enter the same routing table as every other source and are distributed from
+   it. Never a second hand-wired path alongside the mod matrix — with E event
+   types and C consumers that is E x C silent chances to miss a connection, and
+   every new consumer re-opens all E. A fan-out helper per operation family
+   (HYPERSAW's 2026-08-09 patch) reduces E x C to E and is honest, but it is
+   not the cure. **The layer must exist before the SECOND consumer**, because
+   hand-wiring is cheapest exactly while there is one and is never cheap again.
+   The win is that "does pressure reach oscillator 2?" becomes *unaskable*
+   rather than merely answerable. See L0029.
+
+9. **Perceptual taper declared WITH the param, applied at the knob, never in
    the core.** A spring-damping knob linear in ζ parks all audible action in a
    fraction of its travel (53%→1.5% ring between ζ 0.2 and 0.8); the fix is a
    knob linear in OVERSHOOT via the closed-form inverse — and because the taper
    lives at the knob, the core, goldens and parity are untouched (ADR-024
    lineage; bend-lab damping, 2026-08-08).
+
+## 4 · Oracles — the donation that transfers requirement, not implementation
+
+**The highest-leverage thing HYPERSAW can hand over is not code.** A donated
+module carries the donor's accidents (its aliases, allocation habits, scope
+assumptions) and the library inherits them. A donated **oracle** carries only
+the requirement, so the library can build the subsystem from scratch — the way
+it should have been built — and still be held to behaviour that was paid for in
+real bugs here.
+
+This only holds for oracles written against the **public surface and observable
+output**. An oracle that reads internal state is a code donation wearing a
+test's clothes: it pins the recipient's architecture to the donor's. See L0030.
+
+| oracle | states the requirement | names no internals? |
+|---|---|---|
+| `mpe_check` | every performance gesture reaches every voice consumer; all-notes-off silences everything; legato retarget moves everything | ✅ drives factory → activate → events → process, detects by Goertzel on the output |
+| `notefuzz_check` | seeded note on/off streams always decay to silence (no hung voices) | ✅ public note events only |
+| `rtsafety_probe` | the audio thread allocates nothing | ✅ counts global operator new/delete around `process()` |
+| `preset_check` | a preset is slot-agnostic and globals never travel | ⚠️ uses the preset format's own API — portable only with that format |
+| `parity_check` / the golden chains | bit-parity against a reference implementation | ❌ HYPERSAW-specific by construction — these are the donor's own gate, not a donation |
+
+**Suggested first exchange (the human's proposal, 2026-08-09):** the library
+builds gesture routing from scratch and runs `mpe_check`'s *requirements*
+against it. HYPERSAW supplies the oracle; the library supplies the architecture
+HYPERSAW retrofitted. That is the cleanest possible division — neither side
+inherits the other's mistakes.
