@@ -52,9 +52,13 @@ static void check(bool ok, const char *what, const char *detail)
 }
 
 // Single-bin DFT magnitude, normalised by block length.
+// Own pi: M_PI is a POSIX extension, absent under MSVC without
+// _USE_MATH_DEFINES, and libc++ defining it anyway is how this shipped
+// mac-green and windows-red.
+static constexpr double kPi = 3.14159265358979323846;
 static double goertzel(const std::vector<float> &x, double freq, double sr)
 {
-  const double w = 2.0 * M_PI * freq / sr;
+  const double w = 2.0 * kPi * freq / sr;
   const double c = 2.0 * std::cos(w);
   double s1 = 0, s2 = 0;
   for (float v : x) { const double s0 = v + c * s1 - s2; s2 = s1; s1 = s0; }
@@ -135,8 +139,11 @@ int main()
   std::vector<float> before;
   run(20, &before);
   const double b0 = goertzel(before, f0, SR);
-  check(b0 > 1e-3, "unbent note is present at 440 Hz",
-        (std::string("mag ") + std::to_string(b0)).c_str());
+  char d0[64];
+  std::snprintf(d0, sizeof(d0), "mag %.6g", b0);   // snprintf, not std::string:
+  check(b0 > 1e-3, "unbent note is present at 440 Hz", d0);  // <string> is not
+                                                             // included here and
+                                                             // only libc++ leaks it
 
   // The gesture: +7 semitones as a TUNING note expression.
   clap_event_note_expression_t tx{};
