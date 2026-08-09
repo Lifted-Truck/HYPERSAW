@@ -39,6 +39,20 @@
   .strip { background:var(--panel2); border:1px solid var(--line); border-radius:3px;
     padding:6px 9px; margin-bottom:8px; min-width:0; }
   .strip b { font-size:10px; color:var(--dim); letter-spacing:1px; }
+  .msrow { display:flex; gap:4px; align-items:center; margin:4px 0 2px; }
+  .msbtn { flex:0 0 auto; font-size:9px; letter-spacing:1px; padding:2px 7px;
+           border:1px solid var(--line); border-radius:3px; background:var(--panel);
+           color:var(--dim); cursor:pointer; user-select:none; }
+  .msbtn.on[data-ms="m"] { background:#7a2740; border-color:#a8395b; color:#ffd9e4; }
+  .msbtn.on[data-ms="s"] { background:#7a6a1f; border-color:#b09a2c; color:#fff3c9; }
+  /* Dimmed by ANOTHER strip's solo — distinct from self-muted, or the mixer
+     lies about which control silenced you. */
+  .strip.bysolo { opacity:.45; }
+  .meter { flex:1 1 auto; height:6px; background:#0d1119; border:1px solid var(--line);
+           border-radius:2px; overflow:hidden; }
+  .meter i { display:block; height:100%; width:0%; background:linear-gradient(90deg,#2f7d55,#61c08a);
+             transition:width .05s linear; }
+  .meter i.clip { background:linear-gradient(90deg,#a8395b,#ff6b8f); }
   .strip.master b { color:var(--text); }
   .row { display:grid; grid-template-columns:64px minmax(0,1fr) 52px;
     align-items:center; gap:6px; margin:5px 0; }
@@ -75,6 +89,7 @@
 
 <div class="page" id="pg-MIX">
   <div class="cluster"><h2>OSC 1</h2><div class="strip"><b>OSC 1</b>
+    <div class="msrow"><div class="msbtn" data-ms="m" data-p="104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="105" data-fixed="1">S</div><div class="meter" data-osc="0"><i></i></div></div>
     <div class="row"><label>level</label><input type="range" data-p="17" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><output></output></div>
     <div class="row"><label>width</label><input type="range" data-p="14" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="35" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
@@ -82,6 +97,7 @@
     <div class="row"><label>fine</label><input type="range" data-p="37" data-fixed="1" min="-100" max="100" step="1" value="0"><output></output></div>
   </div></div>
   <div class="cluster"><h2>OSC 2</h2><div class="strip"><b>OSC 2</b>
+    <div class="msrow"><div class="msbtn" data-ms="m" data-p="1104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="1105" data-fixed="1">S</div><div class="meter" data-osc="1"><i></i></div></div>
     <div class="row"><label>level</label><input type="range" data-p="1017" data-fixed="1" min="0" max="1" step="0.005" value="0"><output></output></div>
     <div class="row"><label>width</label><input type="range" data-p="1014" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="1035" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
@@ -136,7 +152,8 @@ if (!window.hzGetParams) {   /* standalone/dev mocks */
     const n = 7, phase = [];
     for (let i = 0; i < n; i++) phase.push(((t * (1 + i * 0.015) + i * 0.04) % 1));
     return { active: true, n, phase, R: 0.5 + 0.4 * Math.sin(t * 0.7), psi: t % 6.283,
-             KsmP: 0, centerIdx: 3, topo: 0 }; };
+             KsmP: 0, centerIdx: 3, topo: 0,
+             oscPeak: [0.5 + 0.4 * Math.sin(t), 0.3 + 0.2 * Math.cos(t * 1.3)] }; };
   window.hzGetSpec = async () =>
     Array.from({length: 256}, (_, i) => Math.max(0, 0.8 - Math.abs(i - 55) / 80) + 0.05 * Math.random());
 }
@@ -168,9 +185,26 @@ function displayValue(el, v) {
   if (out) out.textContent = (+v).toFixed(el.step && +el.step >= 1 ? 0 : 2);
 }
 function paintControl(el, v) {
+  // M/S are divs, not inputs: they have no .value and emit no 'input', so they
+  // need their own paint and their own event below. Handled here rather than
+  // by giving them a hidden checkbox, so the param id stays on the thing the
+  // user actually clicks.
+  if (el.classList.contains('msbtn')) { el.classList.toggle('on', v > 0.5); paintSolo(); return; }
   if (el.type === 'checkbox') el.checked = v > 0.5;
   else el.value = v;
   displayValue(el, v);
+}
+
+// A strip silenced by SOMEONE ELSE's solo is dimmed, and that is deliberately
+// distinct from its own M being lit — otherwise the mixer cannot tell you which
+// control silenced you, which is the one question a mixer strip has to answer.
+function paintSolo() {
+  const anySolo = [...document.querySelectorAll('.msbtn[data-ms="s"]')].some(b => b.classList.contains('on'));
+  document.querySelectorAll('.strip').forEach(strip => {
+    const solo = strip.querySelector('.msbtn[data-ms="s"]');
+    if (!solo) return;                       // master strip has no M/S
+    strip.classList.toggle('bysolo', anySolo && !solo.classList.contains('on'));
+  });
 }
 function setControl(id, v) {
   document.querySelectorAll(`[data-p="${id}"][data-fixed]`).forEach(f => paintControl(f, v));
@@ -186,6 +220,16 @@ function setControl(id, v) {
 document.querySelectorAll('[data-p]').forEach(el => {
   const baseId = +el.dataset.p;
   const id_ = () => el.dataset.fixed ? baseId : effId(baseId);
+  if (el.classList.contains('msbtn')) {
+    el.addEventListener('click', () => {
+      const v = el.classList.contains('on') ? 0 : 1;
+      el.classList.toggle('on', v > 0);
+      bridge.setParam(id_(), v);
+      lastParams[id_()] = v;
+      paintSolo();
+    });
+    return;
+  }
   const evName = el.type === 'checkbox' ? 'change' : 'input';
   el.addEventListener(evName, () => {
     const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : +el.value;
@@ -347,10 +391,31 @@ function drawPhase(s) {
   const ro = document.getElementById('rOut');
   if (ro) ro.textContent = s.R.toFixed(3);
 }
+// Meters decay slowly and rise instantly: a peak meter that falls as fast as
+// the signal is unreadable at frame rate. Scale is amplitude, not dB, with a
+// clip flag at 1.0 — these are PRE-master and PRE-FX, so they answer "is this
+// strip contributing?" rather than "how loud is the plugin".
+const meterHold = [];
+function drawMeters(s) {
+  const pk = s && s.oscPeak;
+  if (!pk) return;
+  document.querySelectorAll('.meter[data-osc]').forEach(m => {
+    const k = +m.dataset.osc;
+    const v = pk[k] || 0;
+    meterHold[k] = Math.max(v, (meterHold[k] || 0) * 0.86);
+    const bar = m.querySelector('i');
+    bar.style.width = Math.min(100, meterHold[k] * 100) + '%';
+    bar.classList.toggle('clip', meterHold[k] >= 1.0);
+  });
+}
 async function vizFrame() {
   if (vizBusy) return;
   vizBusy = true;
-  try { drawPhase(await bridge.getViz()); } catch (e) {}
+  try {
+    const s = await bridge.getViz();
+    drawPhase(s);
+    drawMeters(s);
+  } catch (e) {}
   vizBusy = false;
 }
 async function specFrame() {

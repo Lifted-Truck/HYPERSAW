@@ -59,6 +59,11 @@ struct VizSnapshot
   // ungated but loud = DSP tail (core side). Turns the human's stuck-note
   // reports from anecdote into a screenshot.
   double outPeak = 0;   // plugin output peak — answers "is it even us?"
+  // Per-oscillator meters (B24). PRE-master, PRE-FX: they answer "is this
+  // strip contributing?", which is the question a mixer strip asks — a
+  // post-master reading would just be outPeak scaled, and would go dark
+  // when the master fader was down even though the strip was working.
+  double oscPeak[4] = {0};
   // Per-voice envelope shape for the envelope display (2026-08-03). Published
   // as the times the CORE actually gave each voice, not re-derived in JS: the
   // scatter draws from the core's seeded stream, so any JS reconstruction
