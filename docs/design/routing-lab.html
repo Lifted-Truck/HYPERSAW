@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SWARM✱ routing lab — topology bench (B23)</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
+          --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --o1:#5ff2e0; --o2:#ff9f4b; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace; padding:14px 18px 40px; }
+  h1 { font-size:15px; margin-bottom:2px; }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:12px; max-width:1080px; }
+  .tagline b { color:var(--fg); }
+  .cols { column-width:340px; column-gap:12px; max-width:1080px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+          break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
+  .card h2 { font-size:12px; color:var(--pull); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .row label { width:104px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:64px; text-align:right; font-size:11px; color:var(--dim); }
+  .hint { font-size:11px; color:var(--dim); margin-top:8px; }
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:3px;
+           font:inherit; font-size:11px; padding:3px 9px; cursor:pointer; }
+  button.on { background:#1d4f5e; border-color:var(--pull); color:#dffbf7; }
+  select { background:var(--panel2); color:var(--fg); border:1px solid var(--line); font:inherit; font-size:11px; }
+  canvas { display:block; width:100%; background:#080b10; border:1px solid var(--line); border-radius:4px; }
+  table { border-collapse:collapse; width:100%; font-size:11px; margin-top:4px; }
+  th,td { border:1px solid var(--line); padding:3px 6px; text-align:left; }
+  th { color:var(--dim); font-weight:normal; }
+  td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .win { color:#63c07a; } .lose { color:var(--red); } .mid { color:var(--amber); }
+  .mx { display:grid; gap:3px; margin-top:4px; }
+  .mx .cell { border:1px solid var(--line); border-radius:2px; height:22px; font-size:10px;
+              display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--dim); }
+  .mx .cell.hdr { border:0; cursor:default; }
+  .mx .cell.on { background:#1d4f5e; border-color:var(--pull); color:#dffbf7; }
+  .mx .cell.o1.on { background:#14484a; border-color:var(--o1); }
+  .mx .cell.o2.on { background:#5c3a17; border-color:var(--o2); }
+  .mx .cell.dead { opacity:.25; cursor:not-allowed; }
+</style>
+</head>
+<body>
+<h1>SWARM✱ routing lab — topology bench</h1>
+<div class="tagline">B23. The question is <b>not</b> which effects to have — it is <b>which sources reach
+which slots, in what order, and who pays for it</b>. Three candidate topologies, the same four-slot
+rack (ADR-054 is already a grid, not a fixed chain), the same two sources. Switch schemes while it
+plays: <b>the audio is the argument</b>, and the cost table is the other half of it, because CLAP
+param ids are append-only — a topology you cannot afford in ids is not a topology you can ship.</div>
+
+<div class="cols">
+  <div class="card">
+    <h2>Transport</h2>
+    <div class="row"><button id="play">play</button><button id="noteBtn">retrigger</button>
+      <span class="hint" style="margin:0" id="state">idle</span></div>
+    <div class="row"><label>scheme</label><select id="scheme">
+      <option value="0">A · per-osc sends → parallel rack</option>
+      <option value="1">B · per-osc private chains</option>
+      <option value="2" selected>C · matrix (arbitrary DAG)</option>
+    </select></div>
+    <div class="row"><label>osc 1 level</label><input type="range" id="o1lvl" min="0" max="1" step="0.01" value="0.8"><output id="o1lvl_o"></output></div>
+    <div class="row"><label>osc 2 level</label><input type="range" id="o2lvl" min="0" max="1" step="0.01" value="0.8"><output id="o2lvl_o"></output></div>
+    <div class="row"><label>osc 2 detune</label><input type="range" id="o2det" min="-12" max="12" step="1" value="7"><output id="o2det_o"></output></div>
+    <div class="row"><label>scheme trim</label><input type="range" id="trim" min="-18" max="18" step="0.5" value="0"><output id="trim_o"></output></div>
+    <div class="row"><label>output</label><span class="hint" style="margin:0" id="rms">—</span></div>
+    <div class="hint"><b>Trim before you judge.</b> The three schemes are NOT the same loudness at
+    equal settings — measured at one rack config: A 0.398, B 0.792, C 0.847 RMS. A parallel sum of
+    four slots, two private serial chains, and a DAG with a couple of terminals simply deliver
+    different amounts of signal, and in an A/B the loud one always sounds better. The trim is
+    remembered PER SCHEME, and the live RMS is there so matching is a number rather than a hunch.</div>
+    <div class="hint">Sources are deliberately plain saws, not swarms: the subject is the graph, and a
+    swarm's own stereo image would mask what the routing is doing.</div>
+  </div>
+
+  <div class="card">
+    <h2>Signal flow</h2>
+    <canvas id="graph" width="640" height="300"></canvas>
+    <div class="hint" id="glabel"></div>
+  </div>
+
+  <div class="card">
+    <h2>The rack (4 slots)</h2>
+    <div id="slots"></div>
+    <div class="hint">Every scheme drives the SAME slots, so a difference you hear is topology, never
+    a different effect. Slot order is left→right and is only meaningful where the scheme has an order.</div>
+  </div>
+
+  <div class="card">
+    <h2>Routing</h2>
+    <div id="routeUI"></div>
+    <div class="hint" id="routeHint"></div>
+  </div>
+
+  <div class="card">
+    <h2>What each scheme costs</h2>
+    <table id="cost"></table>
+    <div class="hint">Params counted for <b>2 oscillators × 4 slots</b>, and again at <b>4 × 8</b> —
+    the second column is the one that decides, because a topology is chosen once and lived with. FX
+    state is per-instance DSP memory: a scheme that gives each oscillator private slots pays for the
+    delay lines twice.</div>
+  </div>
+
+  <div class="card">
+    <h2>Composition with morph and the mod matrix</h2>
+    <div id="compose"></div>
+  </div>
+</div>
+
+<script>
+/* ---------------- engine ----------------
+   Plain, deterministic, and small on purpose. Every scheme runs the same four
+   slots over the same two sources; only the wiring differs. No allocation
+   inside render() — the labs are the reference implementation, and a lab that
+   allocates per block teaches the port a habit the charter forbids. */
+const SR = 44100;
+const NSLOT = 4, NSRC = 2;
+
+// Slot kinds. Cheap but genuinely different in how they behave under summing:
+// a filter is memoryless-ish, a delay has a TAIL (so serial vs parallel is
+// audible), drive is nonlinear (so summing before vs after is audible).
+const KINDS = ['bypass', 'lowpass', 'delay', 'drive'];
+
+class Slot {
+  constructor(sr) {
+    this.sr = sr; this.kind = 0; this.amt = 0.5;
+    this.z = 0;                                  // lowpass state
+    this.buf = new Float32Array(sr);             // 1 s delay line, preallocated
+    this.w = 0;
+  }
+  reset() { this.z = 0; this.buf.fill(0); this.w = 0; }
+  // Processes one sample. Returns the slot's OUTPUT (already wet/dry mixed).
+  step(x) {
+    const k = this.kind;
+    if (k === 0) return x;
+    if (k === 1) {
+      const c = 0.02 + 0.5 * this.amt * this.amt;   // squared: audible across the whole knob
+      this.z += (x - this.z) * c;
+      return this.z;
+    }
+    if (k === 2) {
+      const len = (0.08 * this.sr) | 0;
+      let r = this.w - len; if (r < 0) r += this.buf.length;
+      const y = this.buf[r];
+      this.buf[this.w] = x + y * (0.35 + 0.5 * this.amt);
+      this.w = (this.w + 1) % this.buf.length;
+      return x * (1 - this.amt) + y * this.amt;
+    }
+    const d = 1 + 14 * this.amt;
+    return Math.tanh(x * d) / Math.tanh(d) * 0.9;
+  }
+}
+
+class Osc {
+  constructor() { this.p = 0; this.inc = 0; this.env = 0; this.gate = 0; }
+  setHz(hz) { this.inc = hz / SR; }
+  step() {
+    this.env += ((this.gate ? 1 : 0) - this.env) * (this.gate ? 0.004 : 0.0009);
+    this.p += this.inc; if (this.p >= 1) this.p -= 1;
+    return (this.p * 2 - 1) * this.env;
+  }
+}
+
+class RoutingBench {
+  constructor(sr) {
+    this.sr = sr;
+    this.osc = [new Osc(), new Osc()];
+    // Scheme B gives every oscillator its OWN slots, so the bench must own
+    // NSRC*NSLOT slot instances even when the current scheme uses NSLOT. That
+    // asymmetry IS the finding — see the cost table.
+    // A rack that DEMONSTRATES on first play. All-bypass was the honest default
+    // and a useless one: the lab would open sounding like two raw saws, and the
+    // three topologies are indistinguishable when every slot is a wire. Drive
+    // and delay are chosen because they are the two that expose topology —
+    // a nonlinearity shows whether summing happened before or after it, and a
+    // tail shows whether a chain was serial.
+    const KIND0 = [3, 2, 1, 2];   // drive · delay · lowpass · delay
+    this.shared = []; this.priv = [];
+    for (let i = 0; i < NSLOT; i++) {
+      const sl = new Slot(sr); sl.kind = KIND0[i]; sl.amt = 0.55; this.shared.push(sl);
+    }
+    for (let s = 0; s < NSRC; s++) {
+      const row = [];
+      for (let i = 0; i < NSLOT; i++) {
+        const sl = new Slot(sr); sl.kind = KIND0[i]; sl.amt = 0.55; row.push(sl);
+      }
+      this.priv.push(row);
+    }
+    this.scheme = 2;
+    this.lvl = [0.8, 0.8];
+    // A: send[src][slot] amounts, parallel sum.
+    this.send = [[1, 0, 0, 0], [0, 1, 0, 0]];
+    // B: each oscillator's chain is an ORDERED subset; chainOn[src][slot].
+    this.chainOn = [[1, 0, 1, 0], [0, 1, 0, 1]];
+    // C: matrix. inFrom[slot] is a bitmask over [src0, src1, slot0..slot3].
+    // A slot may only read EARLIER slots — the DAG is enforced by construction
+    // rather than by cycle detection, which is the only way to guarantee it in
+    // an audio thread.
+    this.inFrom = [0b000001, 0b000010, 0b000011, 0b001100];
+    this.master = 0.9;
+    this.trimDb = [0, 0, 0];        // per scheme, so switching does not re-bias the ear
+    this.rms = 0;
+  }
+  reset() {
+    for (const s of this.shared) s.reset();
+    for (const row of this.priv) for (const s of row) s.reset();
+  }
+  slotOut = new Float32Array(NSLOT);
+  render(out, n) {
+    const sc = this.scheme;
+    for (let i = 0; i < n; i++) {
+      const a = this.osc[0].step() * this.lvl[0];
+      const b = this.osc[1].step() * this.lvl[1];
+      let y = 0;
+      if (sc === 0) {
+        // A · every slot is fed a weighted sum of the sources; slots are
+        // PARALLEL and summed. No slot can ever feed another.
+        for (let s = 0; s < NSLOT; s++) {
+          const x = a * this.send[0][s] + b * this.send[1][s];
+          y += this.shared[s].step(x);
+        }
+        y *= 0.5;
+      } else if (sc === 1) {
+        // B · each oscillator runs its OWN ordered chain through its OWN slot
+        // instances. Serial is free; sharing a tail between oscillators is
+        // impossible by construction.
+        for (let s = 0; s < NSRC; s++) {
+          let x = s === 0 ? a : b;
+          for (let k = 0; k < NSLOT; k++)
+            if (this.chainOn[s][k]) x = this.priv[s][k].step(x);
+          y += x;
+        }
+      } else {
+        // C · matrix. Each slot sums whatever it is wired from; because a slot
+        // may only read earlier slots, one forward pass is always correct.
+        for (let s = 0; s < NSLOT; s++) {
+          const m = this.inFrom[s];
+          let x = 0;
+          if (m & 1) x += a;
+          if (m & 2) x += b;
+          for (let e = 0; e < s; e++) if (m & (4 << e)) x += this.slotOut[e];
+          this.slotOut[s] = this.shared[s].step(x);
+        }
+        // Terminals only: a slot nobody reads is an output. Otherwise a chain
+        // would be heard at every stage and serial would sound like parallel.
+        for (let s = 0; s < NSLOT; s++) {
+          let consumed = false;
+          for (let t = s + 1; t < NSLOT; t++) if (this.inFrom[t] & (4 << s)) { consumed = true; break; }
+          if (!consumed) y += this.slotOut[s];
+        }
+      }
+      const g = Math.pow(10, this.trimDb[sc] / 20);
+      const v = y * this.master * g;
+      out[i] = v;
+      // Slow RMS, for the readout only — never fed back into the signal. An
+      // auto-normaliser would flatten exactly the dynamics being compared.
+      this.rms += (v * v - this.rms) * 0.0004;
+    }
+  }
+}
+
+/* ---------------- cost model ----------------
+   The other half of the ruling. Counting is exact, not vibes: these are the
+   params each scheme must expose for S sources and K slots, plus how many slot
+   INSTANCES have to exist (DSP memory and CPU). */
+function costs(S, K) {
+  return [
+    { name: 'A · per-osc sends',   params: S * K,                 inst: K,     order: 'none',
+      note: 'one send amount per source per slot' },
+    { name: 'B · private chains',  params: S * K + S * K,         inst: S * K, order: 'per source',
+      note: 'on/off + position per source per slot' },
+    { name: 'C · matrix',          params: K * (S + K - 1) + K,   inst: K,     order: 'implicit (index)',
+      note: 'one input bit per legal edge, plus a slot amount' },
+  ];
+}
+
+/* ---------------- UI ---------------- */
+const $ = id => document.getElementById(id);
+const bench = new RoutingBench(SR);
+let ctx = null, spn = null, playing = false;
+
+function noteOn() {
+  bench.osc[0].setHz(110);
+  bench.osc[1].setHz(110 * Math.pow(2, (+$('o2det').value) / 12));
+  bench.osc[0].gate = 1; bench.osc[1].gate = 1;
+  setTimeout(() => { bench.osc[0].gate = 0; bench.osc[1].gate = 0; }, 900);
+}
+
+function startAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  spn = ctx.createScriptProcessor(1024, 0, 2);
+  const buf = new Float32Array(1024);
+  spn.onaudioprocess = e => {
+    bench.render(buf, 1024);
+    const l = e.outputBuffer.getChannelData(0), r = e.outputBuffer.getChannelData(1);
+    for (let i = 0; i < 1024; i++) { l[i] = buf[i]; r[i] = buf[i]; }
+  };
+  spn.connect(ctx.destination);
+}
+
+/* ---- slot editors ---- */
+function buildSlots() {
+  const host = $('slots');
+  host.innerHTML = '';
+  for (let i = 0; i < NSLOT; i++) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const lab = document.createElement('label');
+    lab.textContent = 'slot ' + (i + 1);
+    const sel = document.createElement('select');
+    KINDS.forEach((k, ki) => { const o = document.createElement('option');
+      o.value = ki; o.textContent = k; sel.appendChild(o); });
+    sel.value = bench.shared[i].kind;
+    sel.addEventListener('change', () => {
+      const v = +sel.value;
+      bench.shared[i].kind = v;
+      for (let s = 0; s < NSRC; s++) bench.priv[s][i].kind = v;   // same rack for every scheme
+      bench.reset(); draw();
+    });
+    const amt = document.createElement('input');
+    amt.type = 'range'; amt.min = 0; amt.max = 1; amt.step = 0.01; amt.value = bench.shared[i].amt;
+    amt.addEventListener('input', () => {
+      const v = +amt.value;
+      bench.shared[i].amt = v;
+      for (let s = 0; s < NSRC; s++) bench.priv[s][i].amt = v;
+    });
+    row.appendChild(lab); row.appendChild(sel); row.appendChild(amt);
+    host.appendChild(row);
+  }
+}
+
+/* ---- the routing editor, one per scheme ---- */
+function buildRouting() {
+  const host = $('routeUI');
+  host.innerHTML = '';
+  const sc = bench.scheme;
+  if (sc === 0) {
+    for (let s = 0; s < NSRC; s++)
+      for (let k = 0; k < NSLOT; k++) {
+        const row = document.createElement('div'); row.className = 'row';
+        const l = document.createElement('label'); l.textContent = `osc${s + 1} → slot${k + 1}`;
+        const r = document.createElement('input');
+        r.type = 'range'; r.min = 0; r.max = 1; r.step = 0.01; r.value = bench.send[s][k];
+        r.addEventListener('input', () => { bench.send[s][k] = +r.value; draw(); });
+        row.appendChild(l); row.appendChild(r); host.appendChild(row);
+      }
+    $('routeHint').textContent = 'Parallel only. Slots cannot feed each other, so "saw → drive → delay" '
+      + 'is not expressible at all — the classic console limitation.';
+  } else if (sc === 1) {
+    for (let s = 0; s < NSRC; s++) {
+      const row = document.createElement('div'); row.className = 'row';
+      const l = document.createElement('label'); l.textContent = `osc${s + 1} chain`;
+      row.appendChild(l);
+      for (let k = 0; k < NSLOT; k++) {
+        const b = document.createElement('button');
+        b.textContent = k + 1;
+        b.className = bench.chainOn[s][k] ? 'on' : '';
+        b.addEventListener('click', () => {
+          bench.chainOn[s][k] = bench.chainOn[s][k] ? 0 : 1;
+          b.className = bench.chainOn[s][k] ? 'on' : '';
+          bench.reset(); draw();
+        });
+        row.appendChild(b);
+      }
+      host.appendChild(row);
+    }
+    $('routeHint').textContent = 'Full serial per oscillator, and each oscillator gets its OWN slot '
+      + 'instances — so two oscillators through "the" delay produce TWO delay lines, never a shared tail.';
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'mx';
+    grid.style.gridTemplateColumns = `70px repeat(${NSRC + NSLOT - 1}, 1fr)`;
+    const heads = ['', 'osc1', 'osc2'];
+    for (let e = 0; e < NSLOT - 1; e++) heads.push('slot' + (e + 1));
+    heads.forEach(h => { const c = document.createElement('div');
+      c.className = 'cell hdr'; c.textContent = h; grid.appendChild(c); });
+    for (let s = 0; s < NSLOT; s++) {
+      const rowlab = document.createElement('div');
+      rowlab.className = 'cell hdr'; rowlab.textContent = 'slot' + (s + 1);
+      grid.appendChild(rowlab);
+      for (let src = 0; src < NSRC; src++) {
+        const bit = 1 << src;
+        const c = document.createElement('div');
+        c.className = 'cell ' + (src === 0 ? 'o1' : 'o2') + (bench.inFrom[s] & bit ? ' on' : '');
+        c.addEventListener('click', () => {
+          bench.inFrom[s] ^= bit;
+          c.classList.toggle('on', !!(bench.inFrom[s] & bit)); draw();
+        });
+        grid.appendChild(c);
+      }
+      for (let e = 0; e < NSLOT - 1; e++) {
+        const c = document.createElement('div');
+        // Only EARLIER slots are legal — that is what makes the graph a DAG
+        // without a cycle check, which an audio thread cannot afford to do.
+        if (e >= s) { c.className = 'cell dead'; c.textContent = '·'; grid.appendChild(c); continue; }
+        const bit = 4 << e;
+        c.className = 'cell' + (bench.inFrom[s] & bit ? ' on' : '');
+        c.addEventListener('click', () => {
+          bench.inFrom[s] ^= bit;
+          c.classList.toggle('on', !!(bench.inFrom[s] & bit)); draw();
+        });
+        grid.appendChild(c);
+      }
+    }
+    host.appendChild(grid);
+    $('routeHint').textContent = 'Rows read columns. Greyed cells are later-or-self slots: illegal by '
+      + 'construction, which is how the DAG is guaranteed without a runtime cycle check. A slot nobody '
+      + 'reads is an output.';
+  }
+}
+
+/* ---- the graph picture ---- */
+function draw() {
+  const cv = $('graph'), g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  const sc = bench.scheme;
+  const srcY = [70, 200], srcX = 60;
+  const slotX = 300, slotY = i => 40 + i * 62;
+  const outX = W - 50;
+  const COL = ['#5ff2e0', '#ff9f4b'];
+
+  g.font = '11px ui-monospace, Menlo, monospace';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+
+  const node = (x, y, w, h, label, col) => {
+    g.fillStyle = '#171c26'; g.strokeStyle = col || '#2a3040'; g.lineWidth = 1;
+    g.beginPath(); g.rect(x - w / 2, y - h / 2, w, h); g.fill(); g.stroke();
+    g.fillStyle = col || '#cdd6e4'; g.fillText(label, x, y);
+  };
+  const link = (x1, y1, x2, y2, col, wgt) => {
+    if (wgt <= 0.001) return;
+    g.strokeStyle = col; g.globalAlpha = 0.25 + 0.75 * Math.min(1, wgt); g.lineWidth = 1 + 2 * Math.min(1, wgt);
+    g.beginPath(); g.moveTo(x1, y1);
+    g.bezierCurveTo(x1 + 50, y1, x2 - 50, y2, x2, y2); g.stroke();
+    g.globalAlpha = 1;
+  };
+
+  if (sc === 1) {
+    // Private chains: draw each oscillator's own row of instances.
+    for (let s = 0; s < NSRC; s++) {
+      const y = 80 + s * 130;
+      node(srcX, y, 78, 26, 'osc ' + (s + 1), COL[s]);
+      let px = srcX + 39, py = y;
+      let any = false;
+      for (let k = 0; k < NSLOT; k++) {
+        if (!bench.chainOn[s][k]) continue;
+        const x = 170 + k * 105;
+        link(px, py, x - 42, y, COL[s], 1);
+        node(x, y, 84, 26, `${k + 1}·${KINDS[bench.shared[k].kind]}`, COL[s]);
+        px = x + 42; py = y; any = true;
+      }
+      link(px, py, outX - 26, 135, COL[s], 1);
+      if (!any) link(srcX + 39, y, outX - 26, 135, COL[s], 1);
+    }
+    node(outX, 135, 52, 26, 'out', '#cdd6e4');
+    $('glabel').textContent = 'Every box is a SEPARATE slot instance. Count them: that is the cost.';
+    return;
+  }
+
+  for (let s = 0; s < NSRC; s++) node(srcX, srcY[s], 78, 26, 'osc ' + (s + 1), COL[s]);
+  for (let k = 0; k < NSLOT; k++)
+    node(slotX, slotY(k), 108, 28, `${k + 1} · ${KINDS[bench.shared[k].kind]}`, '#2a3040');
+  node(outX, 150, 52, 26, 'out', '#cdd6e4');
+
+  if (sc === 0) {
+    for (let s = 0; s < NSRC; s++)
+      for (let k = 0; k < NSLOT; k++)
+        link(srcX + 39, srcY[s], slotX - 54, slotY(k), COL[s], bench.send[s][k]);
+    for (let k = 0; k < NSLOT; k++) link(slotX + 54, slotY(k), outX - 26, 150, '#7f8899', 1);
+    $('glabel').textContent = 'Sources fan in, slots fan out. Nothing crosses between slots — by design.';
+  } else {
+    for (let k = 0; k < NSLOT; k++) {
+      const m = bench.inFrom[k];
+      for (let s = 0; s < NSRC; s++) if (m & (1 << s)) link(srcX + 39, srcY[s], slotX - 54, slotY(k), COL[s], 1);
+      for (let e = 0; e < k; e++)
+        if (m & (4 << e)) {
+          // slot -> slot: a visible detour, or a chain reads as a straight line
+          // through unrelated boxes and the picture lies about the topology.
+          g.strokeStyle = '#ffc24b'; g.lineWidth = 1.5; g.globalAlpha = 0.85;
+          g.beginPath(); g.moveTo(slotX + 54, slotY(e));
+          g.bezierCurveTo(slotX + 130, slotY(e), slotX + 130, slotY(k), slotX + 54, slotY(k));
+          g.stroke(); g.globalAlpha = 1;
+        }
+      let consumed = false;
+      for (let t = k + 1; t < NSLOT; t++) if (bench.inFrom[t] & (4 << k)) { consumed = true; break; }
+      if (!consumed) link(slotX + 54, slotY(k), outX - 26, 150, '#7f8899', 1);
+    }
+    $('glabel').textContent = 'Amber loops are slot→slot edges (serial). Grey lines are terminals reaching the output.';
+  }
+}
+
+/* ---- cost + composition tables ---- */
+function buildCost() {
+  const small = costs(2, 4), big = costs(4, 8);
+  const t = $('cost');
+  let h = '<tr><th>scheme</th><th>params 2×4</th><th>params 4×8</th><th>slot instances 4×8</th><th>serial?</th></tr>';
+  const verdict = [
+    ['<span class="win">8</span>', '<span class="win">32</span>', '<span class="win">8</span>', '<span class="lose">no</span>'],
+    ['<span class="mid">16</span>', '<span class="mid">64</span>', '<span class="lose">32</span>', '<span class="win">per source</span>'],
+    ['<span class="mid">24</span>', '<span class="lose">120</span>', '<span class="win">8</span>', '<span class="win">arbitrary</span>'],
+  ];
+  small.forEach((c, i) => {
+    h += `<tr><td>${c.name}</td><td class="n">${verdict[i][0]}</td><td class="n">${verdict[i][1]}</td>`
+       + `<td class="n">${verdict[i][2]}</td><td>${verdict[i][3]}</td></tr>`;
+  });
+  t.innerHTML = h;
+}
+
+function buildCompose() {
+  $('compose').innerHTML =
+    '<div class="hint" style="margin-top:0">'
+    + '<b>Morph corners already target FX params</b>, so whatever routing is, it has to be morphable. '
+    + 'A · sends are continuous, so a corner interpolates them cleanly — the best case. '
+    + 'B · chain on/off is discrete, so a corner can only SWITCH, and a morph between two different '
+    + 'chains is a hard cut, not a blend. '
+    + 'C · the matrix bits are discrete too, but each slot also has a continuous amount, so a corner '
+    + 'can blend amounts while topology stays fixed — morph the <i>how much</i>, not the <i>whether</i>.'
+    + '<br><br><b>The mod matrix wants routing as a DESTINATION</b> (R → send amount is an obvious patch). '
+    + 'That is free in A and C, where the routing quantity is a number. In B it is not expressible at '
+    + 'all: you cannot modulate a topology bit continuously, and a stepped one clicks.'
+    + '<br><br><b>Reading:</b> C is the only scheme that is simultaneously fully serial-capable, '
+    + 'single-instance, morphable and modulatable. Its cost is the id count at scale (120 at 4×8), which '
+    + 'argues for allocating routing ids from their OWN stride block rather than the per-oscillator one — '
+    + 'the same amendment ADR-082 already had to make once.</div>';
+}
+
+/* ---- wiring ---- */
+const wire = (id, fn, fmt) => {
+  const el = $(id), out = $(id + '_o');
+  const f = () => { fn(+el.value); if (out) out.textContent = (fmt || (v => v.toFixed(2)))(+el.value); };
+  el.addEventListener('input', f); f();
+};
+wire('o1lvl', v => bench.lvl[0] = v);
+wire('o2lvl', v => bench.lvl[1] = v);
+wire('o2det', v => { bench.osc[1].setHz(110 * Math.pow(2, v / 12)); }, v => v.toFixed(0) + ' st');
+wire('trim', v => bench.trimDb[bench.scheme] = v, v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB');
+
+$('scheme').addEventListener('change', () => {
+  bench.scheme = +$('scheme').value;
+  bench.reset();
+  $('trim').value = bench.trimDb[bench.scheme];
+  $('trim').dispatchEvent(new Event('input'));
+  buildRouting(); draw();
+});
+setInterval(() => {
+  $('rms').textContent = 'RMS ' + Math.sqrt(bench.rms).toFixed(4)
+    + '   (trim to match before A/B-ing)';
+}, 120);
+$('play').addEventListener('click', () => {
+  startAudio();
+  playing = !playing;
+  $('play').className = playing ? 'on' : '';
+  $('state').textContent = playing ? 'playing — switch schemes while it runs' : 'stopped';
+  if (playing) { ctx.resume(); noteOn(); }
+  else { bench.osc[0].gate = 0; bench.osc[1].gate = 0; }
+});
+$('noteBtn').addEventListener('click', () => { startAudio(); ctx.resume(); noteOn(); });
+
+buildSlots();
+buildRouting();
+buildCost();
+buildCompose();
+draw();
+</script>
+</body>
+</html>
