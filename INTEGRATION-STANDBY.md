@@ -56,6 +56,12 @@ Voices / events:
 - MPE note expressions currently reach only oscillator 0 (fan-out gap, open).
 
 Host/GUI boundary:
+- Consumers (visuals, meters, labels, preset scopes, mod destinations) must
+  address a ROLE resolved per read, not an instance captured at wire time —
+  and must RENDER which instance they resolved to, or a mis-resolution is
+  unobservable. Three same-shaped incidents here (publishViz on osc 0, XY pad
+  on raw base ids, the unregistered bind). This is the class FOUNDATIONS is
+  explicitly being built to mitigate (human, 2026-08-09). See L0028.
 - A callback registered in the host struct and assigned by the plugin but never
   BOUND in the webview layer is invisible to the compiler: the feature ships
   dead (`setVizOsc`, 2026-08-08 — visuals stayed pinned to oscillator 0 for two
