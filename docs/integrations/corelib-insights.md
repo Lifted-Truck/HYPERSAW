@@ -24,6 +24,7 @@ because the first shipped build freezes it. Concrete scars, each with its PR:
 | macros need flags at introduction | the time-scale macro's 16-param list took a scan plus hand-filtering | B25, PR #222 |
 | one display vocabulary, defined once | corner colour/glyph is global across all UIs (standing convention) | ROADMAP 2026-08-05 |
 | velocity/pressure from day one | the engine ignored velocity for a month; adding it late was easy ONLY because gain had one seam | ADR-084, PR #233 |
+| consumers address a ROLE, not an instance | visuals, the XY pad, and labels each hardwired to oscillator 0; the fix is one named indirection resolved per read — **and the resolved instance must be labelled**, or mis-resolution is unobservable | L0028; PR #227, #239 |
 
 ## 2 · Portable modules, by readiness
 
@@ -68,7 +69,17 @@ because the first shipped build freezes it. Concrete scars, each with its PR:
 6. **Params modulation-ready at birth**: UI range and mod range declared
    separately (the ±12-knob / ±48-mod pitch pattern), time-domain params
    macro-flagged at introduction.
-7. **Perceptual taper declared WITH the param, applied at the knob, never in
+7. **Role addressing for every consumer.** Visuals, meters, labels, preset
+   scopes and mod destinations name a ROLE ("the oscillator being edited", "the
+   master bus") resolved through ONE named indirection on every read — never an
+   instance captured at wire time. Two hard requirements fall out: the resolved
+   instance must be RENDERED (a label is part of the mechanism, not decoration
+   — an unlabelled mis-resolution survives every visual inspection), and a
+   host/GUI callback must pair its member and its binding in one declaration
+   (a callback with no bind is invisible to the compiler and ships dead-green).
+   See L0028.
+
+8. **Perceptual taper declared WITH the param, applied at the knob, never in
    the core.** A spring-damping knob linear in ζ parks all audible action in a
    fraction of its travel (53%→1.5% ring between ζ 0.2 and 0.8); the fix is a
    knob linear in OVERSHOOT via the closed-form inverse — and because the taper
