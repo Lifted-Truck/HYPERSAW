@@ -55,6 +55,21 @@ Voices / events:
   note_id/port/channel/key.
 - MPE note expressions currently reach only oscillator 0 (fan-out gap, open).
 
+Signal-graph topology (BRIEF DRAFTED 2026-08-09, awaiting the human before
+filing — `docs/integrations/DRAFT-foundations-brief-signal-graph.md`):
+- FOUNDATIONS §3.2 rules MODULATION routing as a sparse five-tuple; §3.5 leaves
+  the SIGNAL graph a plain chain, which is the least expressive of the six
+  topologies HYPERSAW's routing lab benched and cannot express per-oscillator
+  destinations. HYPERSAW is phase 0 and *slot chain* seam quality is in its
+  remit, so ratifying B23 locally forecloses that doorframe or guarantees a
+  retrofit.
+- Three findings offered upward: patch state and automation ids are different
+  resources (we conflated them and got the answer wrong); topology morph splits
+  dense from sparse, which means §3.1 morph corners + §3.2 sparse routings imply
+  a discontinuity that appears to be unstated; and a free edge list can express
+  an illegal graph where a dense grid cannot, so the acyclicity rule needs an
+  owner on the READ side (preset load and morph are writers).
+
 Gesture routing (the strongest single ask, 2026-08-09):
 - MPE and every other performance gesture must enter ONE routing layer and be
   distributed from it — not a hand-wired path parallel to the mod matrix.
