@@ -387,6 +387,43 @@ struct Plugin
   hypersaw::SwarmCore cores[kMaxOsc] = {hypersaw::SwarmCore{44100.0},
                                         hypersaw::SwarmCore{44100.0}};
   hypersaw::SwarmCore &core = cores[0];
+
+  /* FAN-OUT SEAM (2026-08-09). Every per-voice and lifecycle operation means
+     "all oscillators", never "oscillator 0" — route them through these and
+     never through `core`.
+
+     The `core` alias exists so the multi-oscillator port (ADR-082) did not have
+     to touch every legacy call site. That convenience is exactly what hid this:
+     eight sites read as correct C++ and were correct with one oscillator, and
+     with two they addressed half the instrument. PRESSURE fanned out while
+     TUNING did not, so a bend split the pair mid-gesture; every allOff() —
+     mono/poly toggle, engine switch, MIDI all-notes-off, reset, GUI panic —
+     silenced oscillator 0 and left the rest ringing, which is a stuck note.
+
+     This is L0028's shape: an operation whose intent is a ROLE ("every
+     oscillator") written against an INSTANCE. Covered by tools/mpe_check.cpp;
+     the alias itself is the root cause and its removal is queued behind a
+     human gate, since `core` still has legitimately-oscillator-0 readers. */
+  void allOffAll()
+  {
+    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].allOff();
+  }
+  void noteOffAll(int key)
+  {
+    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].noteOff(key);
+  }
+  void retargetAll(int slot, int key, double freq, bool keepPhase)
+  {
+    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].retargetNote(slot, key, freq, keepPhase);
+  }
+  void setNoteExprAll(int slot, double v)
+  {
+    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setNoteExpr(slot, v);
+  }
+  void setNotePressureAll(int slot, double v)
+  {
+    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setNotePressure(slot, v);
+  }
   // constructed state matches the reported default above
   struct SilenceHigherOscillators
   {
@@ -960,7 +997,7 @@ struct Plugin
       {
         if (applied != voiceMono)
         {
-          core.allOff();
+          allOffAll();
           heldCount = 0;
           monoSlot = -1;
         }
@@ -1014,7 +1051,7 @@ struct Plugin
       {
         if (applied != engineSel)
         {
-          core.allOff();
+          allOffAll();
           spectra.allOff();
           heldCount = 0;
           monoSlot = -1;
@@ -1100,7 +1137,7 @@ struct Plugin
   {
     if (n->key < 0)
     {
-      core.allOff();
+      allOffAll();
       spectra.allOff();
       heldCount = 0;
       return;
@@ -1131,20 +1168,18 @@ struct Plugin
         if (heldCount > 0)
         {
           const Held &top = heldStack[heldCount - 1];
-          core.retargetNote(monoSlot, top.key, top.freq, voiceLegato != 0);
+          retargetAll(monoSlot, top.key, top.freq, voiceLegato != 0);
           tags[monoSlot].key = top.key;
         }
         else
         {
-          core.noteOff(n->key);
-          for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOff(n->key);
+          noteOffAll(n->key);
         }
       }
     }
     else
     {
-      core.noteOff(n->key);
-      for (uint32_t k = 1; k < kNumOsc; k++) cores[k].noteOff(n->key);
+      noteOffAll(n->key);
     }
   }
 
@@ -1215,7 +1250,7 @@ struct Plugin
           if (anotherHeld && voiceGated)
           {
             const bool keep = voiceLegato != 0;
-            core.retargetNote(monoSlot, n->key, freq, keep);
+            retargetAll(monoSlot, n->key, freq, keep);
           }
           else
           {
@@ -1232,7 +1267,7 @@ struct Plugin
             // has gate == 0, so the intended tail-overlap behaviour above is
             // untouched.
             if (monoSlot >= 0 && core.swarmAt(monoSlot).gate)
-              core.noteOff(core.swarmAt(monoSlot).midi);
+              noteOffAll(core.swarmAt(monoSlot).midi);
             monoSlot = core.noteOn(n->key, freq);
             core.setNoteVelocity(monoSlot, n->velocity);
             for (uint32_t k = 1; k < kNumOsc; k++)
@@ -1261,7 +1296,7 @@ struct Plugin
         // ADR-038: a fresh strike resets noteTune (ADR-036), so re-apply the
         // channel's latched MPE bend — MPE hosts sent it before this note-on.
         if (n->channel >= 1 && n->channel < 16 && mpeBendSemis[n->channel] != 0.0)
-          core.setNoteExpr(struck, mpeBendSemis[n->channel]);
+          setNoteExprAll(struck, mpeBendSemis[n->channel]);
         break;
       }
       case CLAP_EVENT_NOTE_OFF:
@@ -1289,8 +1324,7 @@ struct Plugin
                 (x->key == -1 || tags[i].key == x->key) &&
                 (x->channel == -1 || tags[i].channel == x->channel))
             {
-              core.setNotePressure(i, x->value);
-              for (uint32_t k = 1; k < kNumOsc; k++) cores[k].setNotePressure(i, x->value);
+              setNotePressureAll(i, x->value);
             }
           break;
         }
@@ -1303,7 +1337,7 @@ struct Plugin
               (x->port_index == -1 || x->port_index == t.port) &&
               (x->channel == -1 || x->channel == t.channel) &&
               (x->key == -1 || x->key == t.key))
-            core.setNoteExpr(i, x->value);
+            setNoteExprAll(i, x->value);
         }
         break;
       }
@@ -1321,7 +1355,7 @@ struct Plugin
         const double semis = (v14 - 8192) * (48.0 / 8192.0);
         mpeBendSemis[ch] = semis;
         for (int i = 0; i < hypersaw::kPoly; i++)
-          if (tags[i].active && tags[i].channel == ch) core.setNoteExpr(i, semis);
+          if (tags[i].active && tags[i].channel == ch) setNoteExprAll(i, semis);
         break;
       }
       case CLAP_EVENT_PARAM_VALUE:
@@ -1534,7 +1568,7 @@ void plug_stop_processing(const clap_plugin_t *p)
 void plug_reset(const clap_plugin_t *p)
 {
   auto *pl = self(p);
-  pl->core.allOff();
+  pl->allOffAll();
   for (double &b : pl->mpeBendSemis) b = 0.0;
 }
 
@@ -1903,7 +1937,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   // device. Clears both engines, every note tag (including the pending-END
   // queue), the mono held-stack, and the FX rack's tails.
   hostIf.panic = [pl]() {
-    pl->core.allOff();
+    pl->allOffAll();
     pl->spectra.allOff();
     pl->rack.reset();
     pl->heldCount = 0;

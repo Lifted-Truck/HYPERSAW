@@ -159,6 +159,16 @@ endif()
 # values AND identical audio).
 # Real-time safety oracle: the audio thread must not allocate (charter rule,
 # previously enforced only by review).
+# mpe_check: per-note expression must reach EVERY oscillator (2026-08-09).
+# Links the plugin impl, like rtsafety_probe — it drives the real CLAP event
+# path rather than a core in isolation, because the bug lived in the event
+# fan-out, which a core-level test cannot see.
+add_executable(mpe_check tools/mpe_check.cpp)
+target_link_libraries(mpe_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(mpe_check PRIVATE -O2)
+endif()
+
 add_executable(rtsafety_probe tools/rtsafety_probe.cpp)
 target_link_libraries(rtsafety_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
