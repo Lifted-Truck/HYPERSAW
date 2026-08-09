@@ -144,17 +144,32 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
                     args[1].getWithDefault<double>(0.0));
     return {};
   });
+  // The visuals follow the GUI's active oscillator. THIS BIND WAS MISSING until
+  // 2026-08-08: the GuiHost member and the plugin-side assignment both landed,
+  // the build was green, and window.hzSetVizOsc simply did not exist — so every
+  // tab click threw and the viz stayed pinned to oscillator 0. A callback with
+  // no bind is invisible to the compiler.
+  web->bind("hzSetVizOsc", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    if (host.setVizOsc && args.isArray() && args.size() >= 1)
+      host.setVizOsc((uint32_t)args[0].getWithDefault<int64_t>(0));
+    return {};
+  });
   web->bind("hzGesture", [&host](const choc::value::ValueView &args) -> choc::value::Value {
     if (args.isArray() && args.size() >= 2)
       host.gesture((uint32_t)args[0].getWithDefault<int64_t>(0),
                    args[1].getWithDefault<bool>(false));
     return {};
   });
+  // 256 bins, not 96 (human 2026-08-08: "choppy and ugly"). The analyzer is a
+  // 2048-point FFT — ~1024 usable magnitudes — so 96 log bins were throwing
+  // away most of what had already been computed; the cost of more bins is the
+  // array marshal, not the transform.
   web->bind("hzGetSpec", [&host](const choc::value::ValueView &) -> choc::value::Value {
-    float bins[96];
-    host.getSpectrum(bins, 96);
+    constexpr int kBins = 256;
+    float bins[kBins];
+    host.getSpectrum(bins, kBins);
     auto arr = choc::value::createEmptyArray();
-    for (int i = 0; i < 96; i++) arr.addArrayElement(bins[i]);
+    for (int i = 0; i < kBins; i++) arr.addArrayElement(bins[i]);
     return arr;
   });
   web->bind("hzGetScope", [&host](const choc::value::ValueView &) -> choc::value::Value {
