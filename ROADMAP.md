@@ -255,6 +255,55 @@ Hand-tailored per family, as anticipated. Three rules:
 3. **Where a cap is taste rather than physics, widen the range instead of engineering around
    it.** `freqGlide`'s 0.1 s max is a taste cap. Widen + expose together, per L0023.
 
+## Scale picker — a pitch-class set is a shared control, not a glide feature (2026-08-09)
+
+Human: *"when it's in scale mode it will need a scale selector. It might be nice to be able to
+choose the semitone pattern with a little approximation of an octave on a keyboard. This could
+also be useful for effects or modulations we add down the line."*
+
+Built as **`hzScalePicker`** in bend-lab: root selector + named-scale dropdown + a one-octave
+keyboard whose keys toggle degrees. Shipped 2026-08-09.
+
+**The gap it closed was L0023, not a missing nicety.** `scaleMask[12]` and `scaleRoot` already
+existed in BOTH references (`bend-lab.html` P literal, `glide_core.h:54`) and had done since the
+A1 fold — with nothing anywhere able to set them. Scale mode has therefore only ever meant C
+major, and the option even said so. A reachable range with no control is an invisible feature.
+
+**Ruling: the mask is the truth, the name is UI.** Consumers store and transmit `{root, mask}`
+only, never a scale ID. That is what keeps `glide_core.h` free of a scale table: adding a named
+scale is a UI-table edit that adds **no core change and no parity surface**, and hand-drawn sets
+are first-class rather than a degraded mode (the dropdown reverse-matches, or reads *custom*).
+This is the reason to prefer it over a `scale` enum param, which would have forced the same
+table into C++ and made every new scale a parity risk.
+
+**The keyboard is absolute; the mask is relative.** Keys show real pitch classes and the mask is
+stored relative to root, so changing root TRANSPOSES the lit keys (C major → D major moves the
+accidentals) — which is what "scale" means musically, and matches the core's
+`((c - root) % 12 + 12) % 12`.
+
+**Empty set is made unreachable, not handled.** The root key stays lit and the last lit degree
+cannot be cleared. An empty mask is the one input the quantiser has no defined answer for: both
+references fall through to plain rounding, and `Math.round(-0.5) = -0` vs `std::lround(-0.5) = -1`
+disagree on exact .5 ties. Blocking it at the only control that can produce it is cheaper and
+more honest than a downstream guard in two languages. *(The tie divergence itself is latent in
+chromatic mode too — unreached by the current gesture. Recorded here rather than "fixed"
+silently, since changing either reference's rounding is a goldens-moving act.)*
+
+**Oracle widened to match the new reachable space.** `glide-quant-scale` had only ever rendered
+C major, so every other mask was untested code the moment the picker existed. Three scenarios
+added to both `gen_glide_goldens.mjs` and `glide_check.cpp` — non-zero root (`root3`,
+D♯ minor pentatonic), wide-gap set (`whole`, whole tone), sparse rooted set (`sparse`, G
+hirajoshi, with hysteresis). All parity **rms 0**, and calibrated as non-vacuous: the four masks
+emit genuinely different step sets (−1·0·2 / −2·1 / −2·0·2 / −2·2), so a scenario cannot pass
+by the mask being ignored.
+
+**Reuse (the human's actual point).** The component's contract is `{root, mask}` in, `{root,
+mask}` out, with zero dependency on lab internals — so an arpeggiator, a harmonic-snap FX, or a
+quantised mod destination mounts the same control. Per FOUNDATIONS standby it is NOT extracted
+to a shared module yet; it is recorded in `INTEGRATION-STANDBY.md` as a portable component with
+its contract stated, which is what the first brief will need. Second consumer earns the
+extraction — copying it once is the honest price of ADR-003 single-file labs.
+
 ## K vs LINK — two mechanisms, and they are not the two the question assumed (2026-08-07)
 
 Human: *"there might be a difference between the notion of a master K and sync'd Ks: syncing
@@ -1386,7 +1435,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B18 | **ADR-082 increment 2 blockers** — (a) state version gate WIDENED + ratified 2026-08-06 (accepts 1 or 2, still red on unknown). (b) min-spec CPU measurement STILL OPEN before 2 oscillators ship | § ADR-082 increment 1 |
 | B19 | **Glide/travel module** — **CORE + ORACLE SHIPPED 2026-08-06** (`src/glide_core.h`, `glide_check` in `./verify full`, parity 11/11 worst 3.5e-08, not yet in the audio path). Remaining: shell integration (MUST ship the overshoot-linear damping taper from bend-lab 2026-08-08 — knob domain, never glide_core) — destination mapping onto the 7 existing glide params (11/33/34/70/75/89/90), which wants ADR-082-level care since ids are append-only | § Glide core ported |
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
-| B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring; scale source still the Tonality brief | § Step-glide tested |
+| B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring. **Scale source answered 2026-08-09**: `hzScalePicker` (root + 12-bit mask, no scale enum) — the shell exposes root + mask, not a scale ID, so named scales stay a UI table |  § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
 | B23 | **Routing lab** — per-osc sends vs matrix; serial/parallel per path; composition with the morph and mod matrix, which already target FX params | § Re-order |
 | B24 | **Master/mixer page** — **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan param, mute/solo as params, meters, rest of A12 | § B24 increment 1 |

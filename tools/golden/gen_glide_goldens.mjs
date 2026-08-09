@@ -40,6 +40,19 @@ export const SCENARIOS = [
   { name: 'glide-quant-chrom',  p: { model: 2, quant: 1 } },
   { name: 'glide-quant-scale',  p: { model: 3, quant: 2 } },
   { name: 'glide-quant-hyst',   p: { model: 4, quant: 1, qhyst: 25 } },
+  // The scale MASK is now user-drawable (bend-lab's hzScalePicker), so the
+  // quantiser must be proven over more than the one hardcoded C-major set it
+  // shipped with. These three cover what the picker can actually produce:
+  // a non-zero ROOT (exercises the ((c-root)%12+12)%12 wrap in both
+  // references), a WIDE-GAP set where the nearest degree is often >1 semitone
+  // away and ties at exactly 0.5 are reachable, and a SPARSE rooted set that
+  // combines both. Without these, every scale but C major was untested code.
+  { name: 'glide-quant-root3',  p: { model: 3, quant: 2, scaleRoot: 3,
+        scaleMask: [1,0,0,1,0,1,0,1,0,0,1,0] } },                 // minor pentatonic on D#
+  { name: 'glide-quant-whole',  p: { model: 2, quant: 2,
+        scaleMask: [1,0,1,0,1,0,1,0,1,0,1,0] } },                 // whole tone, root C
+  { name: 'glide-quant-sparse', p: { model: 4, quant: 2, scaleRoot: 7, qhyst: 20,
+        scaleMask: [1,0,1,1,0,0,0,1,1,0,0,0] } },                 // hirajoshi on G
   { name: 'glide-note-lane',    p: { model: 4, lane: 'note' } },
 ];
 

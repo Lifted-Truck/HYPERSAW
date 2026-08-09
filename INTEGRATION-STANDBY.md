@@ -86,6 +86,18 @@ readiness grades and PR provenance. Compact form:
 - Rulings portable, code lab-bound: quantum morph (ownership/territory/
   per-corner depths/hysteresis), mod-matrix semantics (scope vocabulary,
   polarity markers, depth-of-depth), Kuro LFO rotor.
+- **Pitch-class set control (`hzScalePicker`, 2026-08-09)** — root + named
+  scales + a click-to-toggle one-octave keyboard. Written to a deliberately
+  narrow contract so glide is not its only consumer (arpeggiator, harmonic-snap
+  FX, quantised mod destination all want the same control):
+      hzScalePicker(mount, { root, mask, onChange(root, mask) })
+        .get() -> { root, mask }        mask is ROOT-RELATIVE, mask[0] === 1
+        .set(root, mask)                repaints, does not fire onChange
+  **The mask is the truth; the name is UI.** Consumers store `{root, mask}`,
+  never a scale ID — that is what keeps the DSP core free of a scale table, so
+  a new named scale costs a UI-table row and adds no parity surface. Not
+  extracted (standby rules); the second consumer earns that. Zero deps on lab
+  internals, so it lifts as-is.
 
 ## (c) Parameter + modulation architecture, half a page
 
