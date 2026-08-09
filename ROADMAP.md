@@ -441,6 +441,77 @@ protected path, so it needs the human gate.
 Wikipedia *Matrix mixer*; sparse-slot mod-matrix practice via Cherry Audio Sines docs and KVR
 DSP-forum implementation threads.
 
+## B23 ROUND 2 — six schemes, a corrected cost model, and the real question (2026-08-09)
+
+Human: *"Go for it."* D (sparse connection slots), E (reorderable chain) and F (bus/aux-send) are
+now in the lab alongside A/B/C, the crosspoint **initial value** is implemented, and the cost table
+is rebuilt.
+
+### The cost model was measuring the wrong thing
+
+Round 1 assumed **every routable quantity needs its own CLAP param**. Split into what it actually
+conflated — *patch state* (saved, morphed; cheap and unbounded) versus *automation ids*
+(append-only; the only scarce resource) — the picture inverts:
+
+| scheme | patch state 4×8 | automation ids | instances | serial? | topology morph |
+|---|---|---|---|---|---|
+| A per-osc sends | 32 | 32 | 8 | no | continuous |
+| B private chains | 64 | 0 | **32** | per source | hard cut |
+| C dense crosspoint | 88 | **8** | 8 | arbitrary | **continuous** |
+| D sparse slots | 36 | 12 | 8 | arbitrary | hard cut on edge add/remove |
+| E reorderable chain | 8 | 0 | 8 | one path | hard cut |
+| F bus model | **20** | 8 | 8 | arbitrary\* | hard cut on bus change |
+
+**C costs 8 automation ids, not 120.** The column that killed it in round 1 was counting patch
+state as if it were plugin ids.
+
+### Topology morph is the axis that actually separates them
+
+A morph corner interpolates *values*. In a dense table a crosspoint at 0 **is** "not connected",
+so connecting and disconnecting are the same continuous motion. Every sparse scheme stores
+topology as discrete structure, so adding an edge, reordering a chain or repatching a bus is a
+**hard cut** — the identical objection round 1 raised against B and failed to apply to D, because
+D was not on the menu. Quantum morph is a headline feature, so this is decisive here and would not
+be elsewhere.
+
+F is the cheapest scheme that still expresses serial (20 values), at the cost that a bus is a sum:
+you cannot send two different amounts of one source to two places.
+
+### A finding that separates dense from sparse on safety, not cost
+
+D's acyclicity guard was written **in the editor**. Setting `from=slot3, to=slot1` directly on the
+model — the route a preset load, a morph corner or automation would take — stuck, and produced an
+undeclared one-sample feedback loop. **C cannot express a backwards edge at all**: its grid has no
+cell for one. A free edge list can always express the illegal state, so either every writer is
+trusted or every reader checks; only the reader-side check cannot be bypassed.
+
+Then the fix itself was wrong in a familiar way: the legality test went into the signal sum but
+**not into the terminal test**, which kept its own copy of "does anything read this slot?". The
+illegal edge was correctly dropped from the audio and *still* marked its source slot consumed,
+silently removing that slot from the output — measured 0.81. Same shape as the oscillator fan-out
+bug (L0028), different subsystem, same day. Now one named predicate `edgeLive()` owns the rule and
+the signal sum, the OUT sum, the terminal test and the graph all call it. Verified: an illegal edge
+changes the output by **exactly 0**, a legal one by 1.056.
+
+### Verified
+
+Six schemes, identical gesture: rms 0.395 / 0.777 / 0.862 / 0.922 / 0.983 / 1.514, all finite,
+**no two identical**. Each scheme's characteristic control does real work — D adding an edge 0.576,
+F repatching a bus 1.876, E reordering the chain 2.299.
+
+### The real question is above this repo
+
+FOUNDATIONS **§3.2** already rules a MODULATION routing to be a five-tuple *(source, destination,
+depth, curve, scope)* — that is scheme D, ratified. But **§3.5 (Signal Graph)** says only "slot
+chain: source → per-voice processing → mix → global chain", which is **scheme E** and cannot
+express what this lab demonstrates. HYPERSAW is **phase 0**, whose stated remit includes *slot
+chain* seam quality, and §9's deferred-questions register does not contain audio-routing topology.
+
+So the question is not "which scheme" but **whether audio routing and modulation routing share one
+representation** — and it belongs to the mediator, not here. Ratifying a dense matrix locally would
+either foreclose §3.5's doorframe or guarantee a retrofit, which is precisely what FOUNDATIONS
+exists to prevent. **Still unruled; brief drafted in `INTEGRATION-STANDBY.md`.**
+
 ## Gesture routing — MPE belongs in the plumbing, not in the event loop (2026-08-09)
 
 Human, on the eight-site fan-out fix: *"MPE should go to the plumbing and get routed from there
@@ -1660,7 +1731,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring. **Scale source answered 2026-08-09**: `hzScalePicker` (root + 12-bit mask, no scale enum) — the shell exposes root + mask, not a scale ID, so named scales stay a UI table |  § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
-| B23 | **Routing lab** — **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Initially recommended **C (matrix DAG)**; a 2026-08-09 research probe found the **menu incomplete** (missing sparse connection-slots, reorderable chain, bus model) and the cost table built on an unexamined assumption that every routable quantity needs its own CLAP param. **DO NOT RATIFY** until D/E/F are in the lab | § B23 routing lab · § B23 research probe |
+| B23 | **Routing lab** — **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Initially recommended **C (matrix DAG)**; a 2026-08-09 research probe found the **menu incomplete** (missing sparse connection-slots, reorderable chain, bus model) and the cost table built on an unexamined assumption that every routable quantity needs its own CLAP param. Round 2 (2026-08-09) added D/E/F, the crosspoint initial value, and a corrected cost model (C is **8 automation ids**, not 120). **Still unruled — escalated to FOUNDATIONS**: §3.2 rules modulation routing sparse, §3.5 leaves the signal graph a plain chain | § B23 routing lab · § research probe · § round 2 |
 | B24 | **Master/mixer page** — **INCREMENT 2 SHIPPED 2026-08-09** (mute/solo params 104/105 + per-osc meters, `mixer_check` built-not-gated). **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan (LAW UNRULED — balance vs image-shift, see § OPEN), rest of A12 | § B24 increment 1 · § increment 2 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |

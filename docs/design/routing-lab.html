@@ -56,7 +56,10 @@ param ids are append-only — a topology you cannot afford in ids is not a topol
     <div class="row"><label>scheme</label><select id="scheme">
       <option value="0">A · per-osc sends → parallel rack</option>
       <option value="1">B · per-osc private chains</option>
-      <option value="2" selected>C · matrix (arbitrary DAG)</option>
+      <option value="2" selected>C · dense crosspoint matrix (DAG)</option>
+      <option value="3">D · sparse connection slots (FOUNDATIONS five-tuple)</option>
+      <option value="4">E · reorderable chain (permutation)</option>
+      <option value="5">F · bus / aux-send model</option>
     </select></div>
     <div class="row"><label>osc 1 level</label><input type="range" id="o1lvl" min="0" max="1" step="0.01" value="0.8"><output id="o1lvl_o"></output></div>
     <div class="row"><label>osc 2 level</label><input type="range" id="o2lvl" min="0" max="1" step="0.01" value="0.8"><output id="o2lvl_o"></output></div>
@@ -197,14 +200,55 @@ class RoutingBench {
     // an audio thread.
     this.inFrom = [0b000001, 0b000010, 0b000011, 0b001100];
     this.master = 0.9;
-    this.trimDb = [0, 0, 0];        // per scheme, so switching does not re-bias the ear
+    // D · sparse connection slots. FOUNDATIONS §3.2 rules a MODULATION routing to
+    // be (source, destination, depth, curve, scope); audio routing needs the
+    // first three, so an edge here is {from, to, amt}. `from` indexes
+    // [src0, src1, slot0..3]; `to` indexes [slot0..3, OUT]. Acyclicity is kept
+    // the same way C keeps it — an edge from slot i may only reach slot j > i.
+    this.edges = [
+      { from: 0, to: 0, amt: 1 },       // osc1 -> slot1
+      { from: 1, to: 1, amt: 1 },       // osc2 -> slot2
+      { from: 2, to: 2, amt: 1 },       // slot1 -> slot3   (serial)
+      { from: 0, to: 4, amt: 0.4 },     // osc1 -> OUT      (dry blend)
+    ];
+    this.edgeCap = 12;                  // fixed slot count; the whole point of D
+    // E · reorderable chain: a PERMUTATION plus enables. Sources are summed
+    // first, so there is exactly one path and no topology to speak of.
+    this.order = [0, 1, 2, 3];
+    this.chainEn = [1, 1, 1, 1];
+    // F · bus model. Sources write a bus, slots read one and write one; buses
+    // sum. Serial = write the bus a later slot reads; parallel = share a bus.
+    // Bus 0 is the output.
+    this.NBUS = 3;
+    this.srcBus = [1, 1];
+    this.slotIn = [1, 1, 2, 2];
+    this.slotOutBus = [2, 0, 0, 0];
+    // C's crosspoint INITIAL VALUE (Brandtsegg et al.: out_i = in_i + sum g*m).
+    // The lab had only the coefficient; without in_i a slot cannot be given a
+    // standing offset independent of what is routed into it.
+    this.slotInit = [0, 0, 0, 0];
+    this.trimDb = [0, 0, 0, 0, 0, 0];   // per scheme, so switching does not re-bias the ear
     this.rms = 0;
   }
   reset() {
     for (const s of this.shared) s.reset();
     for (const row of this.priv) for (const s of row) s.reset();
   }
+  /* THE legality test for a D edge — one named predicate, used by the signal
+     sum, the terminal test AND the graph. It was originally inlined in the
+     signal sum only, and the terminal test kept its own copy of the "does
+     anything read this slot?" logic without it: an illegal backwards edge was
+     correctly dropped from the audio, yet still marked its source slot
+     "consumed", silently removing that slot from the output (measured: 0.81).
+     A rule enforced at one site and not its sibling — the same shape as the
+     oscillator fan-out bug, in a different subsystem on the same day. */
+  edgeLive(ed) {
+    if (ed.from < NSRC) return true;              // a source may reach anything
+    if (ed.to === NSLOT) return true;             // anything may reach OUT
+    return ed.from - NSRC < ed.to;                // slots read strictly earlier slots
+  }
   slotOut = new Float32Array(NSLOT);
+  bus = new Float32Array(8);          // F's buses; fixed, never allocated in render
   render(out, n) {
     const sc = this.scheme;
     for (let i = 0; i < n; i++) {
@@ -229,12 +273,74 @@ class RoutingBench {
             if (this.chainOn[s][k]) x = this.priv[s][k].step(x);
           y += x;
         }
+      } else if (sc === 3) {
+        // D · sparse connection slots. One forward pass over slots; each slot
+        // sums the edges that land on it. Cost is O(edges), and — the point —
+        // a third oscillator or a fifth slot costs NO new routing params,
+        // because it is just another value of `from`/`to`.
+        let toOut = 0;
+        for (let s = 0; s < NSLOT; s++) {
+          let x = this.slotInit[s];
+          for (let e = 0; e < this.edges.length; e++) {
+            const ed = this.edges[e];
+            if (ed.to !== s || !this.edgeLive(ed)) continue;
+            // ACYCLICITY MUST LIVE HERE, NOT IN THE EDITOR. Found 2026-08-09:
+            // the guard was only in the select's change handler, so setting
+            // from=slot3,to=slot1 by any other route — preset load, a morph
+            // corner, automation — stuck, and produced an undeclared one-sample
+            // feedback loop (slotOut persists across samples). This is the
+            // sharpest difference between D and C that the lab found: C's grid
+            // has NO CELL for a backwards edge, so the illegal state is
+            // unrepresentable; D's free list can always express one, so every
+            // writer must be trusted or every reader must check. Checking in
+            // the reader is the only version that cannot be bypassed.
+            const src = ed.from < NSRC ? (ed.from === 0 ? a : b) : this.slotOut[ed.from - NSRC];
+            x += src * ed.amt;
+          }
+          this.slotOut[s] = this.shared[s].step(x);
+        }
+        for (let e = 0; e < this.edges.length; e++) {
+          const ed = this.edges[e];
+          if (ed.to !== NSLOT || !this.edgeLive(ed)) continue;   // NSLOT == OUT
+          const src = ed.from < NSRC ? (ed.from === 0 ? a : b) : this.slotOut[ed.from - NSRC];
+          toOut += src * ed.amt;
+        }
+        // Terminals: any slot no edge reads from is an output, same rule as C.
+        for (let s = 0; s < NSLOT; s++) {
+          let consumed = false;
+          for (let e = 0; e < this.edges.length; e++)
+            if (this.edges[e].from === NSRC + s && this.edgeLive(this.edges[e])) { consumed = true; break; }
+          if (!consumed) toOut += this.slotOut[s];
+        }
+        y = toOut;
+      } else if (sc === 4) {
+        // E · reorderable chain. Sources summed, then one ordered pass. There
+        // is no topology here at all — only a permutation.
+        let x = a + b;
+        for (let i = 0; i < NSLOT; i++) {
+          const k = this.order[i];
+          if (this.chainEn[k]) x = this.shared[k].step(x);
+        }
+        y = x;
+      } else if (sc === 5) {
+        // F · bus model. Sources write a bus; each slot reads one and writes
+        // one; buses sum. Serial and parallel are both expressible, and the
+        // param cost is per-SLOT rather than per-EDGE.
+        for (let i = 0; i < this.NBUS; i++) this.bus[i] = 0;
+        this.bus[this.srcBus[0]] += a;
+        this.bus[this.srcBus[1]] += b;
+        for (let s = 0; s < NSLOT; s++) {
+          const o = this.shared[s].step(this.bus[this.slotIn[s]] + this.slotInit[s]);
+          this.bus[this.slotOutBus[s]] += o;
+        }
+        y = this.bus[0];
       } else {
         // C · matrix. Each slot sums whatever it is wired from; because a slot
         // may only read earlier slots, one forward pass is always correct.
+        // slotInit is the crosspoint INITIAL VALUE (Brandtsegg et al.).
         for (let s = 0; s < NSLOT; s++) {
           const m = this.inFrom[s];
-          let x = 0;
+          let x = this.slotInit[s];
           if (m & 1) x += a;
           if (m & 2) x += b;
           for (let e = 0; e < s; e++) if (m & (4 << e)) x += this.slotOut[e];
@@ -366,6 +472,101 @@ function buildRouting() {
     }
     $('routeHint').textContent = 'Full serial per oscillator, and each oscillator gets its OWN slot '
       + 'instances — so two oscillators through "the" delay produce TWO delay lines, never a shared tail.';
+  } else if (sc === 3) {
+    const FROM = ['osc1', 'osc2', 'slot1', 'slot2', 'slot3', 'slot4'];
+    const TO = ['slot1', 'slot2', 'slot3', 'slot4', 'OUT'];
+    bench.edges.forEach((ed, i) => {
+      const row = document.createElement('div'); row.className = 'row';
+      const l = document.createElement('label'); l.textContent = 'edge ' + (i + 1);
+      const f = document.createElement('select');
+      FROM.forEach((n, ni) => { const o = document.createElement('option');
+        o.value = ni; o.textContent = n; f.appendChild(o); });
+      f.value = ed.from;
+      const t = document.createElement('select');
+      TO.forEach((n, ni) => { const o = document.createElement('option');
+        o.value = ni; o.textContent = n; t.appendChild(o); });
+      t.value = ed.to;
+      const legal = () => {
+        // Same acyclicity rule as C: an edge out of slot i may only reach a
+        // LATER slot (or OUT). Enforced on edit, so an illegal graph is never
+        // representable and no runtime cycle check is needed.
+        if (ed.from < NSRC) return true;
+        return ed.to === NSLOT || ed.to > ed.from - NSRC;
+      };
+      const apply = () => {
+        ed.from = +f.value; ed.to = +t.value;
+        if (!legal()) { ed.to = NSLOT; t.value = NSLOT; }
+        bench.reset(); draw();
+      };
+      f.addEventListener('change', apply); t.addEventListener('change', apply);
+      const amt = document.createElement('input');
+      amt.type = 'range'; amt.min = 0; amt.max = 1; amt.step = 0.01; amt.value = ed.amt;
+      amt.addEventListener('input', () => { ed.amt = +amt.value; draw(); });
+      const del = document.createElement('button');
+      del.textContent = '×';
+      del.addEventListener('click', () => { bench.edges.splice(i, 1); bench.reset(); buildRouting(); draw(); });
+      row.appendChild(l); row.appendChild(f); row.appendChild(t); row.appendChild(amt); row.appendChild(del);
+      host.appendChild(row);
+    });
+    const add = document.createElement('button');
+    add.textContent = '+ edge  (' + bench.edges.length + '/' + bench.edgeCap + ')';
+    add.addEventListener('click', () => {
+      if (bench.edges.length >= bench.edgeCap) return;
+      bench.edges.push({ from: 0, to: NSLOT, amt: 0.5 });
+      bench.reset(); buildRouting(); draw();
+    });
+    host.appendChild(add);
+    $('routeHint').textContent = 'Backwards edges (slot i → slot ≤ i) are DROPPED BY THE RENDER, not '
+      + 'by this editor — a guard that lives only in the UI is bypassed by preset load, morph and '
+      + 'automation. C cannot express one at all. '
+      + 'A fixed pool of ' + bench.edgeCap + ' edges, each (from, to, amount) — '
+      + 'the shape FOUNDATIONS §3.2 already rules for MODULATION routings. Adding a third oscillator '
+      + 'costs NO new routing params: it is one more value of "from". The cost is that you can run out '
+      + 'of edges, and that a patch morph which adds or removes an edge is a discontinuity.';
+  } else if (sc === 4) {
+    const row = document.createElement('div'); row.className = 'row';
+    const l = document.createElement('label'); l.textContent = 'chain order';
+    row.appendChild(l);
+    bench.order.forEach((k, i) => {
+      const b = document.createElement('button');
+      b.textContent = (k + 1) + (bench.chainEn[k] ? '' : '·off');
+      b.className = bench.chainEn[k] ? 'on' : '';
+      b.addEventListener('click', () => { bench.chainEn[k] ^= 1; bench.reset(); buildRouting(); draw(); });
+      b.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (i === 0) return;
+        const t = bench.order[i - 1]; bench.order[i - 1] = bench.order[i]; bench.order[i] = t;
+        bench.reset(); buildRouting(); draw();
+      });
+      row.appendChild(b);
+    });
+    host.appendChild(row);
+    $('routeHint').textContent = 'Click toggles a slot; RIGHT-click moves it earlier. Sources are summed '
+      + 'first, so there is no topology at all — only a permutation. This is the Serum/Vital model: '
+      + 'cheapest possible, and it cannot send one oscillator somewhere the other does not go.';
+  } else if (sc === 5) {
+    const busSel = (get, set, label) => {
+      const row = document.createElement('div'); row.className = 'row';
+      const l = document.createElement('label'); l.textContent = label;
+      const sel = document.createElement('select');
+      for (let i = 0; i < bench.NBUS; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i === 0 ? 'bus 0 (OUT)' : 'bus ' + i;
+        sel.appendChild(o);
+      }
+      sel.value = get();
+      sel.addEventListener('change', () => { set(+sel.value); bench.reset(); draw(); });
+      row.appendChild(l); row.appendChild(sel); host.appendChild(row);
+    };
+    for (let i = 0; i < NSRC; i++)
+      busSel(() => bench.srcBus[i], v => bench.srcBus[i] = v, 'osc' + (i + 1) + ' → ');
+    for (let k = 0; k < NSLOT; k++) {
+      busSel(() => bench.slotIn[k], v => bench.slotIn[k] = v, 'slot' + (k + 1) + ' reads');
+      busSel(() => bench.slotOutBus[k], v => bench.slotOutBus[k] = v, 'slot' + (k + 1) + ' writes');
+    }
+    $('routeHint').textContent = 'Console lineage. Serial = write the bus a later slot reads; parallel = '
+      + 'two slots share a bus. Cost is per-SLOT, not per-EDGE, so it does not grow with the square of '
+      + 'anything — but a bus is a sum, so you cannot send two different amounts of one source to two places.';
   } else {
     const grid = document.createElement('div');
     grid.className = 'mx';
@@ -436,6 +637,54 @@ function draw() {
     g.globalAlpha = 1;
   };
 
+  if (sc === 4) {
+    // E · one summed path. Drawn as a straight line in PERMUTATION order, so
+    // the picture shows the thing the scheme actually has: an order.
+    node(srcX, 100, 78, 26, 'osc 1', COL[0]);
+    node(srcX, 200, 78, 26, 'osc 2', COL[1]);
+    const sum = 150;
+    link(srcX + 39, 100, 150, sum, COL[0], 1);
+    link(srcX + 39, 200, 150, sum, COL[1], 1);
+    let px = 150;
+    bench.order.forEach((k, i) => {
+      if (!bench.chainEn[k]) return;
+      const x = 200 + i * 100;
+      link(px, sum, x - 42, sum, '#7f8899', 1);
+      node(x, sum, 84, 26, `${k + 1}·${KINDS[bench.shared[k].kind]}`, '#2a3040');
+      px = x + 42;
+    });
+    link(px, sum, outX - 26, sum, '#7f8899', 1);
+    node(outX, sum, 52, 26, 'out', '#cdd6e4');
+    $('glabel').textContent = 'One path. Reordering moves boxes along the line; there is nothing else to change.';
+    return;
+  }
+  if (sc === 5) {
+    // F · bus rails. The buses ARE the topology, so they are the drawing.
+    const busY = i => 55 + i * 85;
+    for (let i = 0; i < bench.NBUS; i++) {
+      g.strokeStyle = i === 0 ? '#5ff2e0' : '#2a3040';
+      g.lineWidth = i === 0 ? 2 : 1;
+      g.beginPath(); g.moveTo(110, busY(i)); g.lineTo(W - 90, busY(i)); g.stroke();
+      g.fillStyle = i === 0 ? '#5ff2e0' : '#7f8899';
+      g.textAlign = 'right';
+      g.fillText(i === 0 ? 'bus 0 · OUT' : 'bus ' + i, 104, busY(i));
+      g.textAlign = 'center';
+    }
+    for (let i = 0; i < NSRC; i++) {
+      node(150 + i * 70, 265, 62, 22, 'osc ' + (i + 1), COL[i]);
+      link(150 + i * 70, 254, 150 + i * 70, busY(bench.srcBus[i]), COL[i], 1);
+    }
+    for (let k = 0; k < NSLOT; k++) {
+      const x = 320 + k * 78;
+      node(x, 230, 70, 24, `${k + 1}·${KINDS[bench.shared[k].kind]}`, '#2a3040');
+      link(x, 218, x, busY(bench.slotIn[k]), '#7f8899', 1);          // reads
+      g.strokeStyle = '#ffc24b'; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(x + 20, 218); g.lineTo(x + 20, busY(bench.slotOutBus[k])); g.stroke();
+    }
+    node(outX, busY(0), 52, 24, 'out', '#cdd6e4');
+    $('glabel').textContent = 'Grey drops READ a bus, amber drops WRITE one. Serial = write a bus a later slot reads.';
+    return;
+  }
   if (sc === 1) {
     // Private chains: draw each oscillator's own row of instances.
     for (let s = 0; s < NSRC; s++) {
@@ -469,6 +718,29 @@ function draw() {
         link(srcX + 39, srcY[s], slotX - 54, slotY(k), COL[s], bench.send[s][k]);
     for (let k = 0; k < NSLOT; k++) link(slotX + 54, slotY(k), outX - 26, 150, '#7f8899', 1);
     $('glabel').textContent = 'Sources fan in, slots fan out. Nothing crosses between slots — by design.';
+  } else if (sc === 3) {
+    // D · draw the EDGE LIST, not a grid. Every line here is one stored tuple,
+    // which is the scheme's whole argument made visible.
+    for (const ed of bench.edges) {
+      if (!bench.edgeLive(ed)) continue;                       // dropped by render
+      const yTo = ed.to === NSLOT ? 150 : slotY(ed.to);
+      const xTo = ed.to === NSLOT ? outX - 26 : slotX - 54;
+      if (ed.from < NSRC) link(srcX + 39, srcY[ed.from], xTo, yTo, COL[ed.from], ed.amt);
+      else {
+        g.strokeStyle = '#ffc24b'; g.globalAlpha = 0.3 + 0.7 * ed.amt; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(slotX + 54, slotY(ed.from - NSRC));
+        g.bezierCurveTo(slotX + 130, slotY(ed.from - NSRC), slotX + 130, yTo, xTo, yTo);
+        g.stroke(); g.globalAlpha = 1;
+      }
+    }
+    for (let k = 0; k < NSLOT; k++) {
+      let consumed = false;
+      for (const ed of bench.edges)
+        if (ed.from === NSRC + k && bench.edgeLive(ed)) { consumed = true; break; }
+      if (!consumed) link(slotX + 54, slotY(k), outX - 26, 150, '#7f8899', 1);
+    }
+    $('glabel').textContent = bench.edges.length + ' of ' + bench.edgeCap
+      + ' edges used. Every line is one stored (from, to, amount) tuple — that is the entire cost.';
   } else {
     for (let k = 0; k < NSLOT; k++) {
       const m = bench.inFrom[k];
@@ -492,37 +764,65 @@ function draw() {
 
 /* ---- cost + composition tables ---- */
 function buildCost() {
-  const small = costs(2, 4), big = costs(4, 8);
-  const t = $('cost');
-  let h = '<tr><th>scheme</th><th>params 2×4</th><th>params 4×8</th><th>slot instances 4×8</th><th>serial?</th></tr>';
-  const verdict = [
-    ['<span class="win">8</span>', '<span class="win">32</span>', '<span class="win">8</span>', '<span class="lose">no</span>'],
-    ['<span class="mid">16</span>', '<span class="mid">64</span>', '<span class="lose">32</span>', '<span class="win">per source</span>'],
-    ['<span class="mid">24</span>', '<span class="lose">120</span>', '<span class="win">8</span>', '<span class="win">arbitrary</span>'],
+  // TWO columns, because the original table conflated them and that is what
+  // made C look unaffordable. PATCH STATE is what a preset saves and a morph
+  // corner interpolates — it can be large, it costs no plugin ids. AUTOMATION
+  // IDS are what a host can see: append-only, scarce, and the only genuinely
+  // constrained resource. Discrete topology selectors belong in patch state;
+  // only the continuous quantities need to be automatable.
+  const rows = [
+    { n: 'A · per-osc sends',      state: 'S·K = 32',      ids: 'S·K = 32', inst: 8,
+      serial: 'no',        morph: 'continuous' },
+    { n: 'B · private chains',     state: '2·S·K = 64',    ids: '0',        inst: 32,
+      serial: 'per source', morph: 'HARD CUT' },
+    { n: 'C · dense crosspoint',   state: 'K(S+K−1) = 88', ids: 'K = 8',    inst: 8,
+      serial: 'arbitrary', morph: 'continuous' },
+    { n: 'D · sparse slots',       state: '3·E = 36',      ids: 'E = 12',   inst: 8,
+      serial: 'arbitrary', morph: 'HARD CUT on edge add/remove' },
+    { n: 'E · reorderable chain',  state: 'K = 8',         ids: '0',        inst: 8,
+      serial: 'one path',  morph: 'HARD CUT' },
+    { n: 'F · bus model',          state: 'S+2K = 20',     ids: 'K = 8',    inst: 8,
+      serial: 'arbitrary*', morph: 'HARD CUT on bus change' },
   ];
-  small.forEach((c, i) => {
-    h += `<tr><td>${c.name}</td><td class="n">${verdict[i][0]}</td><td class="n">${verdict[i][1]}</td>`
-       + `<td class="n">${verdict[i][2]}</td><td>${verdict[i][3]}</td></tr>`;
-  });
-  t.innerHTML = h;
+  const cls = t => t === 'no' || t.indexOf('HARD') === 0 ? 'lose'
+                 : (t === 'continuous' || t === 'arbitrary' ? 'win' : 'mid');
+  let h = '<tr><th>scheme</th><th>patch state 4×8</th><th>automation ids</th>'
+        + '<th>instances</th><th>serial?</th><th>topology morph</th></tr>';
+  for (const r of rows)
+    h += `<tr><td>${r.n}</td><td class="n">${r.state}</td><td class="n">${r.ids}</td>`
+       + `<td class="n">${r.inst}</td><td class="${cls(r.serial)}">${r.serial}</td>`
+       + `<td class="${cls(r.morph)}">${r.morph}</td></tr>`;
+  $('cost').innerHTML = h;
 }
 
 function buildCompose() {
   $('compose').innerHTML =
     '<div class="hint" style="margin-top:0">'
-    + '<b>Morph corners already target FX params</b>, so whatever routing is, it has to be morphable. '
-    + 'A · sends are continuous, so a corner interpolates them cleanly — the best case. '
-    + 'B · chain on/off is discrete, so a corner can only SWITCH, and a morph between two different '
-    + 'chains is a hard cut, not a blend. '
-    + 'C · the matrix bits are discrete too, but each slot also has a continuous amount, so a corner '
-    + 'can blend amounts while topology stays fixed — morph the <i>how much</i>, not the <i>whether</i>.'
-    + '<br><br><b>The mod matrix wants routing as a DESTINATION</b> (R → send amount is an obvious patch). '
-    + 'That is free in A and C, where the routing quantity is a number. In B it is not expressible at '
-    + 'all: you cannot modulate a topology bit continuously, and a stepped one clicks.'
-    + '<br><br><b>Reading:</b> C is the only scheme that is simultaneously fully serial-capable, '
-    + 'single-instance, morphable and modulatable. Its cost is the id count at scale (120 at 4×8), which '
-    + 'argues for allocating routing ids from their OWN stride block rather than the per-oscillator one — '
-    + 'the same amendment ADR-082 already had to make once.</div>';
+    + '<b>The first version of this lab got the cost analysis wrong</b>, and the error is worth '
+    + 'keeping visible: it assumed every routable quantity needs its own CLAP param, which conflates '
+    + 'what a PATCH can express (saved, morphed — cheap, unlimited) with what a HOST can automate '
+    + '(append-only ids — scarce). Split apart, C costs <b>8 automation ids</b>, not 120. The column '
+    + 'that killed it was measuring the wrong thing.'
+    + '<br><br><b>Topology morph is the axis that actually separates them.</b> Quantum morph is a '
+    + 'headline feature here, and a corner interpolates <i>values</i>. A dense table of continuous '
+    + 'coefficients morphs cleanly — a crosspoint at 0 IS "not connected", so connecting and '
+    + 'disconnecting are the same continuous motion. Every sparse scheme (D, E, F) stores topology as '
+    + 'discrete structure, so a morph that adds or removes an edge, reorders a chain, or repatches a '
+    + 'bus is a hard cut. That is the same objection the lab raised against B — and the first version '
+    + 'failed to apply it to D, because D was not on the menu.'
+    + '<br><br><b>Where each is genuinely best.</b> D is the cheapest way to reach ANY source/dest '
+    + 'count without new ids, and is the right answer where the routing set is edited rather than '
+    + 'morphed — which is exactly why FOUNDATIONS §3.2 rules a MODULATION routing to be a five-tuple '
+    + '(source, destination, depth, curve, scope). F is the cheapest scheme that still expresses '
+    + 'serial, at the cost that a bus is a sum — you cannot send two different amounts of one source '
+    + 'to two places. E is not a topology at all.'
+    + '<br><br><b>The open question this lab now poses</b> is not "which scheme" but <b>whether audio '
+    + 'routing and modulation routing should share one representation</b>. FOUNDATIONS §3.2 rules the '
+    + 'mod side sparse; §3.5 (Signal Graph) currently says only "slot chain: source → per-voice → mix '
+    + '→ global chain", which is scheme E and cannot express what this lab demonstrates. If HYPERSAW '
+    + 'ratifies a dense matrix locally, it either forecloses that doorframe or guarantees a retrofit. '
+    + 'That is a question for the mediator, not for this repo.'
+    + '</div>';
 }
 
 /* ---- wiring ---- */
