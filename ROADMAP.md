@@ -512,6 +512,58 @@ representation** — and it belongs to the mediator, not here. Ratifying a dense
 either foreclose §3.5's doorframe or guarantee a retrofit, which is precisely what FOUNDATIONS
 exists to prevent. **Still unruled; brief drafted in `INTEGRATION-STANDBY.md`.**
 
+## EXCHANGES FILED AND CLOSED (2026-08-09)
+
+Three documents filed into other repos' mailboxes under the INTEGRATIONS mailbox exception (write
+only to `integrations/<us>/`; the **resident** commits, not us), and one thread ratified.
+
+### FOUNDATIONS — two filings, one ack
+
+- **`brief-signal-graph.md`** (new thread `hypersaw-signal-graph-001`, ball → provider). Asks one
+  narrow doorframe question: does §3.5's signal graph stay a chain, or widen to admit a non-chain
+  topology? Deliberately does **not** request a facility — Prime Directive 2 is two-consumers-
+  minimum and we are one. Carries three findings judged to be the library's business: patch state
+  and automation ids are different resources; topology morph splits dense from sparse (so §3.1
+  morph corners + §3.2 sparse routings imply an unstated discontinuity); and a free edge list can
+  express an illegal graph where a dense grid cannot, so the acyclicity rule needs an owner on the
+  READ side.
+- **`brief-parity-corpus.md`** — filed under **their** notice's id so the governor threads it onto
+  the existing conversation and flips the ball, rather than opening a second thread that leaves
+  theirs forever ball-on-us. Answers all three asks; headline is that the existing 147-scenario
+  corpus contains **no multi-oscillator scenario**, plus the gravity block-dependence trap.
+- **`ack-intake.md`** — closes `foundations-notice-intake-hypersaw`. Their notice says no
+  acknowledgement is required, which is respected; left open it reads `ball: consumer` in the fleet
+  sweep forever, which is a false signal about a settled thread. Terminal statuses are how the
+  scanner learns a thread is done.
+
+### Tonality HYPERSAW-001 — RATIFIED
+
+Consonance-gravity ratio priors. Tonality's 2026-07-18 response ruled **(2a) gap 24 slice 1
+buildable now** — the finer boundary being that a static table of rationals is *versioned prior
+data*, not identity math off the 12-TET lattice, so it is **not** blocked by the Phase 6 / JI-monzo
+deferral. We had assumed otherwise; the correction moves the ask earlier and is accepted. (2b)
+context-weighting registered as slice 2 on the Phase 3.5 stack; (2c) determinism kinship confirmed.
+All three schema counters accepted — provenance fields on kk-1982.1 discipline, fold-safety enforced
+at the **producer** (our CI verifies rather than normalizes), and display names riding the artifact.
+
+**Slice 1 deliberately not requested yet.** We are "one message away", and the reason for not
+sending it is the gravity integrator bug above: swapping the ratio table while gravity's
+integration is block-subdivision dependent would move the parity goldens **twice** and make it
+impossible to attribute a change in settling behaviour to the right cause. The ask goes out once
+that ADR lands. HYPERSAW stays named consumer on gap 24 and remains unblocked on the 13-ratio
+placeholder, exactly as ADR-028 intended.
+
+### A filing-convention finding worth carrying
+
+`brief.md` carried `id: HYPERSAW-001`; `response.md` carried `id: hypersaw-001-response`. **The
+fleet scanner threads exchanges by `id` alone**, so these were never one thread — the brief's
+thread showed as awaiting a response that had been written nineteen days earlier, and the
+response's thread sat separately with the ball on us. That is why the exchange surfaced as
+overdue: a convention slip, not a stalled conversation. Both threads are now closed and the fleet
+overdue count went 3 → 2. **A reply should keep the original `id` and add `in-reply-to` for the
+human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
+replies.
+
 ## OPEN BUG — consonance gravity is block-subdivision dependent (2026-08-09)
 
 Found while answering FOUNDATIONS' parity-corpus notice. **Not fixed — the fix moves goldens, so
