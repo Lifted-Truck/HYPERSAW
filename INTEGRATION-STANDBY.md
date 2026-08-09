@@ -55,6 +55,19 @@ Voices / events:
   note_id/port/channel/key.
 - MPE note expressions currently reach only oscillator 0 (fan-out gap, open).
 
+Gesture routing (the strongest single ask, 2026-08-09):
+- MPE and every other performance gesture must enter ONE routing layer and be
+  distributed from it — not a hand-wired path parallel to the mod matrix.
+  HYPERSAW has both, and that is what produced eight missed connections
+  (PR #242): pressure fanned out, tuning did not; every panic path silenced one
+  oscillator. Human: *"MPE should go to the plumbing and get routed from there
+  instead of messy redundancies and missed connections."* See L0029.
+- **Proposed first exchange:** the library builds this subsystem from scratch
+  and is tested against HYPERSAW's `mpe_check`, which names no oscillator, core
+  or alias — it drives the public plugin interface and detects via emitted
+  audio. HYPERSAW donates the ORACLE, the library donates the ARCHITECTURE.
+  Neither side inherits the other's accidents (L0030).
+
 Host/GUI boundary:
 - Consumers (visuals, meters, labels, preset scopes, mod destinations) must
   address a ROLE resolved per read, not an instance captured at wire time —
