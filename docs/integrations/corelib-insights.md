@@ -24,6 +24,7 @@ because the first shipped build freezes it. Concrete scars, each with its PR:
 | macros need flags at introduction | the time-scale macro's 16-param list took a scan plus hand-filtering | B25, PR #222 |
 | one display vocabulary, defined once | corner colour/glyph is global across all UIs (standing convention) | ROADMAP 2026-08-05 |
 | velocity/pressure from day one | the engine ignored velocity for a month; adding it late was easy ONLY because gain had one seam | ADR-084, PR #233 |
+| a pitch-class set is a shared control | scale quantise, arpeggiators, harmonic-snap FX and quantised mod destinations all need root+mask; carrying `{root, mask}` instead of a scale ID keeps the DSP core free of a scale table, so a new scale adds no parity surface | `hzScalePicker`, ROADMAP § Scale picker |
 | consumers address a ROLE, not an instance | visuals, the XY pad, and labels each hardwired to oscillator 0; the fix is one named indirection resolved per read — **and the resolved instance must be labelled**, or mis-resolution is unobservable | L0028; PR #227, #239 |
 
 ## 2 · Portable modules, by readiness

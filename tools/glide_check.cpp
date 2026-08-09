@@ -13,6 +13,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <initializer_list>
 #include "../src/glide_core.h"
 
 using hypersaw::GlideCore;
@@ -52,6 +53,14 @@ static double targetAt(long i)
 
 struct Scenario { const char *name; GlideCore::Params p; bool noteLane; };
 
+// Params::scaleMask is a C array, so it cannot be brace-assigned after
+// construction; this keeps the scenario table reading like the JS one.
+static void setMask(GlideCore::Params &p, std::initializer_list<int> m)
+{
+  int i = 0;
+  for (int v : m) p.scaleMask[i++] = v;
+}
+
 int main(int argc, char **argv)
 {
   const std::string dir = argc > 1 ? argv[1] : "build-golden/glide";
@@ -74,6 +83,16 @@ int main(int argc, char **argv)
     add("glide-quant-scale", p); }
   { auto p = base; p.model = GlideCore::kSpring; p.quant = GlideCore::kQuantChromatic;
     p.qhyst = 25; add("glide-quant-hyst", p); }
+  // Non-default scale masks (2026-08-09): the lab's scale picker makes the
+  // whole 12-bit mask space reachable, so parity must cover a non-zero root,
+  // a wide-gap set, and a sparse rooted set — not just the C major default.
+  { auto p = base; p.model = GlideCore::kLag; p.quant = GlideCore::kQuantScale;
+    p.scaleRoot = 3; setMask(p, {1,0,0,1,0,1,0,1,0,0,1,0}); add("glide-quant-root3", p); }
+  { auto p = base; p.model = GlideCore::kConstRate; p.quant = GlideCore::kQuantScale;
+    setMask(p, {1,0,1,0,1,0,1,0,1,0,1,0}); add("glide-quant-whole", p); }
+  { auto p = base; p.model = GlideCore::kSpring; p.quant = GlideCore::kQuantScale;
+    p.scaleRoot = 7; p.qhyst = 20; setMask(p, {1,0,1,1,0,0,0,1,1,0,0,0});
+    add("glide-quant-sparse", p); }
   { auto p = base; p.model = GlideCore::kSpring; add("glide-note-lane", p, true); }
 
   double worst = 0;
