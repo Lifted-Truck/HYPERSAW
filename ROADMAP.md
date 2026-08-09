@@ -255,6 +255,30 @@ Hand-tailored per family, as anticipated. Three rules:
 3. **Where a cap is taste rather than physics, widen the range instead of engineering around
    it.** `freqGlide`'s 0.1 s max is a taste cap. Widen + expose together, per L0023.
 
+## Gate ratification — `mpe_check` joins `./verify full` (2026-08-09)
+
+**Human decision, recorded per the charter's gate rule.** Human: *"Gate ratified."*
+`./verify` is a protected path; this is the explicit approval to add
+`"$build_dir/mpe_check" || return 1` to `full()`.
+
+`./verify full` now runs **fifteen** gates (the charter's "eight oracle chains" was stale by
+seven and has been corrected): nine parity/trajectory chains — parity · trajectory · force ·
+spectra · filter · notch · swarmalator · glide · time — plus six behavioural probes — state ·
+notefuzz · rtsafety · **mpe** · preset · waveshape.
+
+**Proven at the gate, not just at the probe.** With `allOffAll()` reverted to `cores[0].allOff()`
+in the note-off path, `./verify full` exits **1**; restored, it exits **0**. That distinction
+matters: a probe that prints RED while the dispatcher swallows its exit code is the failure mode
+that stranded the preset tier on a dead branch — there, main stayed green precisely because the
+missing piece WAS the gate.
+
+**What it defends.** Parity renders a single core, so the whole fan-out class was invisible to
+every other gate: a bend that split the oscillator pair and an all-notes-off that left half the
+instrument gated (a stuck note) both passed fourteen chains. This gate is the only thing standing
+between that class and a silent return — which is now especially load-bearing, since the fan-out
+seam is a *helper per family* and every future consumer (third oscillator, sub-osc, per-voice FX
+send) re-opens all of them until the L0029 routing layer lands.
+
 ## Gesture routing — MPE belongs in the plumbing, not in the event loop (2026-08-09)
 
 Human, on the eight-site fan-out fix: *"MPE should go to the plumbing and get routed from there

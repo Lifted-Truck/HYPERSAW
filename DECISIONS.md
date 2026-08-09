@@ -673,3 +673,34 @@ elsewhere, engine internals behind clean boundaries. Standby artifact:
 sketch), kept cheap and current — it becomes the first brief when the mediator calls. The
 pre-existing donor manifest (`docs/integrations/corelib-insights.md`) predates this notice and
 is documentation, not refactoring; the standby artifact references it rather than duplicating.
+
+## ADR-085 — `mpe_check` is a blocking gate in `./verify full`
+
+**Date:** 2026-08-09 · **Status:** accepted (human: *"Gate ratified."*)
+
+**Context.** Eight sites in the CLAP event loop applied per-voice and lifecycle
+operations to `core` (the oscillator-0 alias) where the intent was every
+oscillator. Every existing gate passed: parity renders a SINGLE core, so a bend
+that split the oscillator pair and an all-notes-off that left half the
+instrument gated — a stuck note — were invisible to all fourteen other chains.
+
+**Decision.** `tools/mpe_check.cpp` runs in `./verify full` as a blocking gate.
+`./verify` is a protected path; this ADR records the human approval required to
+edit it.
+
+**Why this gate and not a state assertion.** It drives the real CLAP path
+(factory → activate → events → process) and detects via emitted audio with a
+single-bin Goertzel. There is no per-voice tuning getter, and adding one to
+test with would test the accessor — the `state_check` trap, where a round-trip
+through one broken accessor agreed with itself.
+
+**Calibration is part of the decision.** Planted `allOff` → a frozen plateau
+(rms 0.142 → 0.142 → 0.142, decay ×1.0); planted tuning and retarget → 49.8%
+and 50.0% of the energy stranded at the old pitch. Verified at the DISPATCHER,
+not only the probe: `./verify full` exits 1 with the bug planted and 0 restored.
+
+**Consequence.** The fan-out fix is a helper per operation family, so every
+future consumer (third oscillator, sub-oscillator, per-voice FX send) re-opens
+the whole class until the L0029 routing layer lands. This gate is what makes
+that debt visible rather than silent.
+
