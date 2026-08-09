@@ -169,6 +169,14 @@ if(NOT MSVC)
   target_compile_options(mpe_check PRIVATE -O2)
 endif()
 
+# mixer_check: per-oscillator mute/solo actually gate the mix (B24, 2026-08-09).
+# Not yet in ./verify — that is a protected path and needs a human gate.
+add_executable(mixer_check tools/mixer_check.cpp)
+target_link_libraries(mixer_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(mixer_check PRIVATE -O2)
+endif()
+
 add_executable(rtsafety_probe tools/rtsafety_probe.cpp)
 target_link_libraries(rtsafety_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)

@@ -258,6 +258,14 @@ static const ParamDef kParams[] = {
     {101, "gSemi", "Pitch", -12, 12, 0, true, nullptr},
     {102, "gFine", "Fine", -100, 100, 0, false, nullptr},
     {103, "gOct", "Master Octave", -2, 2, 0, true, nullptr},
+    // MUTE / SOLO (B24 mixer remainder, 2026-08-09) — PARAMS, not GUI state,
+    // because the human asked for automation to reach them. Per-oscillator, so
+    // oscillator 2 is 1104/1105. Shell-owned: they gate the mix stage and never
+    // enter SwarmCore, so the parity goldens cannot see them.
+    // Defaults 0/0 mean every gain is exactly 1.0 and the render skips the
+    // multiply, so an untouched patch stays bit-identical.
+    {104, "oscMute", "Mute", 0, 1, 0, true, kOffOn},
+    {105, "oscSolo", "Solo", 0, 1, 0, true, kOffOn},
 };
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -488,6 +496,65 @@ struct Plugin
   // poll snapped the control back (human report 2026-08-07). One copy per
   // oscillator; pitchBend stays global (the wheel bends the patch).
   double octaveA[kMaxOsc] = {0}, semiA[kMaxOsc] = {0}, fineCentsA[kMaxOsc] = {0};
+  // B24: mute/solo targets, and the smoothed gain the mix actually applies.
+  // Smoothed because a hard 1->0 on a ringing oscillator is a click; same
+  // one-pole the master fader uses.
+  double oscMute[kMaxOsc] = {0}, oscSolo[kMaxOsc] = {0};
+  double oscGainSm[kMaxOsc] = {1.0, 1.0};
+  double oscPeakViz[kMaxOsc] = {0};   // per-oscillator meter, drained by publishViz
+
+  // Mute wins over solo; any solo anywhere silences every non-soloed
+  // oscillator. Computed from the targets, never stored, so the two params
+  // remain the single source of truth (a cached "anySolo" flag is one more
+  // thing to forget to update).
+  /* Gate one oscillator's block and take its meter reading.
+     `chunked` says whether this buffer is a slice of a larger render (the
+     temp-chunk path): the smoothing coefficient is per-sample either way, so
+     the only difference is that a chunked call must NOT reset the peak.
+     Gain 1.0 with nothing to smooth skips the multiply entirely, which is what
+     keeps an untouched patch bit-identical to a pre-mixer build. */
+  void applyOscGainAndMeter(uint32_t k, float *bL, float *bR, int n, bool chunked)
+  {
+    const double target = oscGainTarget(k);
+    const double c = gainSmoothCoef();
+    double g = oscGainSm[k];
+    double peak = chunked ? oscPeakViz[k] : 0.0;
+    const bool settled = g == target;
+    for (int i = 0; i < n; i++)
+    {
+      if (!settled)
+      {
+        g += (target - g) * c;
+        if (std::fabs(g - target) < 1e-6) g = target;
+      }
+      if (g != 1.0)
+      {
+        bL[i] = (float)(bL[i] * g);
+        bR[i] = (float)(bR[i] * g);
+      }
+      const double a = std::fabs((double)bL[i]) > std::fabs((double)bR[i])
+                           ? std::fabs((double)bL[i]) : std::fabs((double)bR[i]);
+      if (a > peak) peak = a;
+    }
+    oscGainSm[k] = g;
+    oscPeakViz[k] = peak;
+  }
+
+  // Same ~8 ms one-pole the master fader uses. Shared so the two faders in the
+  // mixer cannot drift apart in feel, and so there is one place to change it.
+  double gainSmoothCoef() const
+  {
+    return 1.0 - std::exp(-1.0 / (0.008 * sampleRate));
+  }
+
+  double oscGainTarget(uint32_t k) const
+  {
+    if (oscMute[k] != 0) return 0.0;
+    bool anySolo = false;
+    for (uint32_t i = 0; i < kNumOsc; i++)
+      if (oscSolo[i] != 0) { anySolo = true; break; }
+    return (!anySolo || oscSolo[k] != 0) ? 1.0 : 0.0;
+  }
   double pitchBend = 0, gSemi = 0, gFine = 0, gOct = 0;   // global transpose (101/102/103)
   // ADR-035 bass-mono output stage: ONE 2nd-order TPT SVF high-pass on the
   // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
@@ -726,6 +793,11 @@ struct Plugin
     // cost real debugging time twice now and should be answerable at a glance.
     v.outPeak = outPeakViz;
     outPeakViz = 0;
+    for (uint32_t k = 0; k < kNumOsc && k < 4; k++)
+    {
+      v.oscPeak[k] = oscPeakViz[k];
+      oscPeakViz[k] = 0;
+    }
     if (spectraMode())
     {
       // SPECTRA viz: partial-0's cloud drives the phase circle (v.R/psi/phase),
@@ -1009,6 +1081,16 @@ struct Plugin
         voiceLegato = applied;
         return;
       }
+      if (baseIdOf(id) == 104 || baseIdOf(id) == 105)
+      {
+        const uint32_t osc = oscOfId(id);
+        if (osc < kNumOsc)
+        {
+          if (baseIdOf(id) == 104) oscMute[osc] = applied;
+          else oscSolo[osc] = applied;
+        }
+        return;
+      }
       if (baseIdOf(id) == 35 || baseIdOf(id) == 36 || baseIdOf(id) == 37)
       {
         const uint32_t osc = oscOfId(id);
@@ -1100,6 +1182,8 @@ struct Plugin
       if (d->id == 70) return inertiaCurve;  // ADR-059 dev taper exponent
       if (d->id == 32) return voiceMono;
       if (d->id == 34) return voiceLegato;
+      if (d->id == 104) return oscMute[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
+      if (d->id == 105) return oscSolo[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 35) return octaveA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 36) return semiA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 37) return fineCentsA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
@@ -1410,6 +1494,9 @@ struct Plugin
       {
         const int n = (int)(until - frame);
         core.render(outL + frame, outR + frame, n);
+        // Oscillator 0 renders STRAIGHT into the output, so its mute/solo gain
+        // and meter are applied in place afterwards rather than during a sum.
+        applyOscGainAndMeter(0, outL + frame, outR + frame, n, false);
         // Oscillators 1..N-1 render into a FIXED STACK buffer, in chunks, and
         // sum. At their default vol = 0 they add exact zeros, so a patch that
         // never touches them is bit-identical to a one-oscillator build — which
@@ -1429,6 +1516,7 @@ struct Plugin
           {
             const int m = n - off < kMixChunk ? n - off : kMixChunk;
             cores[k].render(tL, tR, m);
+            applyOscGainAndMeter(k, tL, tR, m, true);
             for (int i = 0; i < m; i++)
             {
               outL[frame + off + i] += tL[i];

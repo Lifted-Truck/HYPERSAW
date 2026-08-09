@@ -83,6 +83,12 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
     notes.addArrayElement(row);
   }
   obj.addMember("outPeak", v.outPeak);
+  // Per-oscillator meters (B24). Serialised as an array so the strip count
+  // is data, not a shape the GUI hardcodes — a third oscillator needs no
+  // change here.
+  auto peaks = choc::value::createEmptyArray();
+  for (double pk : v.oscPeak) peaks.addArrayElement(pk);
+  obj.addMember("oscPeak", peaks);
   auto eOn = choc::value::createEmptyArray();
   auto eAt = choc::value::createEmptyArray();
   auto eRe = choc::value::createEmptyArray();

@@ -190,9 +190,55 @@ The audio context, first piece. Three changes, each calibrated:
   with OSC 1's tab selected; `setControl(1017)` paints the strip and leaves the main vol
   control untouched; the main-panel width control retargets 14 → 1014 with the tabs.
 
-Remaining in B24: pan (no per-osc pan-position param exists yet — panScatter/panLayout are
-image laws, not a position), mute/solo (want params, not GUI state, so automation can reach
-them), meters, and the rest of the A12 ruling (mono, inertia, the amp envelope).
+**INCREMENT 2 SHIPPED 2026-08-09 — mute/solo + meters.** `oscMute` (104) and `oscSolo` (105)
+are PARAMS, per-oscillator, so automation reaches them as the human asked. Shell-owned: they
+gate the mix stage and never enter SwarmCore, so the parity goldens cannot see them. Mute beats
+solo; any solo anywhere silences every non-soloed oscillator; the gain is the same ~8 ms
+one-pole the master fader uses (a hard 1→0 on a ringing oscillator is a click), and the
+1.0-exact snap keeps an untouched patch bit-identical. `anySolo` is COMPUTED from the params
+every block rather than cached — a cached flag is one more thing to forget to update. Meters
+ride the existing viz push as `oscPeak[]` (an array, so a third oscillator needs no serializer
+change), read PRE-master and PRE-FX because a mixer strip answers "is this strip contributing?",
+and a post-master reading would go dark when the master fader was down. In the GUI, a strip
+silenced by ANOTHER strip's solo is dimmed — deliberately distinct from its own M being lit, or
+the mixer cannot tell you which control silenced you.
+
+Proven by `tools/mixer_check.cpp` (built, NOT yet gated — `./verify` is protected): all five
+assertions green. **The probe's first run accused the mixer wrongly** and the interval turned
+out to be load-bearing — see the detector note below.
+
+Remaining in B24: **pan** (no per-osc pan-position param exists yet — panScatter/panLayout are
+image laws, not a position; the law itself is an open question, below) and the rest of the A12
+ruling (mono, inertia, the amp envelope).
+
+### Detector calibration: the interval was load-bearing (2026-08-09)
+
+`mixer_check` distinguishes the two oscillators by transposing one and reading each fundamental
+with a Goertzel. The first version used an OCTAVE and reported mute as broken: muting
+oscillator 1 dropped the 880 Hz bin to 67%. That was the DETECTOR. These are sawtooth
+oscillators, so oscillator 1's second harmonic lands exactly on oscillator 2's fundamental —
+measured, 880 Hz baseline 0.2401 = oscillator 2's 0.1603 plus oscillator 1's second harmonic
+0.0803, and 0.1607/2 = 0.0803 to three figures. Any harmonically related interval makes one bin
+read both sources. Switched to a TRITONE (2^(1/2), irrational, so no harmonic of either lands on
+the other): baseline 0.1599/0.1599, and mute leaves the other oscillator at 100.4%. L0016/L0017
+again — calibrate the detector for the signal class before letting it accuse the code.
+
+### OPEN — per-oscillator pan needs a ruling before it is built
+
+Two laws, materially different instruments, and the cheap one is not obviously right:
+
+1. **Balance at the mix stage** (shell-only, zero parity risk): attenuate the opposite channel,
+   `gL = min(1, 1-pan)`, `gR = min(1, 1+pan)`. Exactly 1.0 at centre, never boosts, standard for
+   a stereo source. Cost: hard-panning *deletes* the far-side voices rather than moving them —
+   on a swarm whose voices are SEATED across the field, half the ensemble vanishes.
+2. **Image shift in the core**: offset every voice's seat, so the whole seated field slides and
+   the ensemble stays intact. Musically right for this instrument, and it composes with
+   panLayout/panScatter/panCurve, which are already seat laws. Cost: touches the parity-locked
+   core and needs an ADR + goldens re-measured on the reference.
+
+Recommendation: **(2)**, because HYPERSAW's stereo image is GENERATED rather than recorded, and
+(1) is a law for material that arrived stereo. But it is a protected-path change, so it is the
+human's call, not a default.
 
 ## MOD MATRIX: DEPTH IS ITSELF A MOD TARGET (human, 2026-08-07)
 
@@ -1499,7 +1545,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring. **Scale source answered 2026-08-09**: `hzScalePicker` (root + 12-bit mask, no scale enum) — the shell exposes root + mask, not a scale ID, so named scales stay a UI table |  § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
 | B23 | **Routing lab** — per-osc sends vs matrix; serial/parallel per path; composition with the morph and mod matrix, which already target FX params | § Re-order |
-| B24 | **Master/mixer page** — **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan param, mute/solo as params, meters, rest of A12 | § B24 increment 1 |
+| B24 | **Master/mixer page** — **INCREMENT 2 SHIPPED 2026-08-09** (mute/solo params 104/105 + per-osc meters, `mixer_check` built-not-gated). **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan (LAW UNRULED — balance vs image-shift, see § OPEN), rest of A12 | § B24 increment 1 · § increment 2 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |
 | B27 | **Arp-sustain gate** — **SHIPPED 2026-08-08** in `notefuzz_check`; calibrated (naive steal-oldest fails 55× below threshold, ADR-083 policy passes). Retrig toggle also now exposed in gui2 | § Voice steal fixed |
