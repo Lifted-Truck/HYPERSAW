@@ -143,6 +143,19 @@ full() {
   # Calibrated: a planted (non-elidable) allocation gives 320 hits and exit 1.
   "$build_dir/rtsafety_probe" || return 1
 
+  # OSCILLATOR FAN-OUT (2026-08-09, gate ratified by the human same day): every
+  # per-note and lifecycle operation must reach EVERY oscillator, not just the
+  # one the `core` alias points at. Eight sites got this wrong and nothing
+  # caught them — parity renders a single core, so a bend that split the
+  # oscillator pair and an all-notes-off that left half the instrument gated
+  # (a stuck note) were both invisible to every other chain here.
+  # Drives the real CLAP event path and detects via emitted audio (Goertzel),
+  # never a state read — a per-voice getter would test the accessor, which is
+  # how state_check once agreed with itself through a broken one.
+  # Calibrated: planted allOff gives a frozen plateau (decay x1.0), planted
+  # tuning/retarget each strand ~50% of the energy at the old pitch.
+  "$build_dir/mpe_check" || return 1
+
   # Oscillator preset tier (B20, 2026-08-06): the format is slot-AGNOSTIC and
   # globals never travel. Both are load-bearing — a preset that embedded its
   # origin slot would pass a naive round-trip and fail the first time anyone

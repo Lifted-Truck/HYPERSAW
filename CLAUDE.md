@@ -88,9 +88,10 @@ Track E effects labs `swarmfilter.html`, `swarmphaser.html`, `swarmtime.html`
 (`Swarmalator`, ADR-048) — all spec-in-code (ADR-003). Ported C++ cores so far:
 `swarm_core.h` (SAW+dynamics), `spectra_core.h` (SPECTRA), `force_core.h`
 (shared force system, ADR-034), `filter_core.h` / `notch_core.h` (E1 effects),
-`swarmalator_core.h` (swarmalator). Build/test = `./verify fast|full` (eight
-oracle chains: parity · trajectory · state · force · spectra · filter · notch
-· swarmalator). This Mac: Command Line Tools only, CMake
+`swarmalator_core.h` (swarmalator). Build/test = `./verify fast|full` (fifteen
+gates: nine parity/trajectory chains — parity · trajectory · force · spectra ·
+filter · notch · swarmalator · glide · time — plus six behavioural probes:
+state · notefuzz · rtsafety · mpe · preset · waveshape). This Mac: Command Line Tools only, CMake
 with `-G "Unix Makefiles"`, absolute build paths (sandbox resets cwd) — see
 the global CLAUDE.md audio-plugin section before any build/install/validate.
 
