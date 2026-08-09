@@ -325,6 +325,49 @@ between that class and a silent return — which is now especially load-bearing,
 seam is a *helper per family* and every future consumer (third oscillator, sub-osc, per-voice FX
 send) re-opens all of them until the L0029 routing layer lands.
 
+## B23 ROUTING LAB SHIPPED — three topologies, and a cost table that decides (2026-08-09)
+
+`docs/design/routing-lab.html`. Three candidate topologies over the SAME four slots and the same
+two sources, switchable while it plays, so a difference you hear is topology and never a
+different effect.
+
+| | expresses serial? | params 2×4 | params 4×8 | slot instances 4×8 |
+|---|---|---|---|---|
+| **A** per-osc sends → parallel rack | **no** | 8 | 32 | 8 |
+| **B** per-osc private chains | per source | 16 | 64 | **32** |
+| **C** matrix (arbitrary DAG) | **arbitrary** | 24 | **120** | 8 |
+
+**A cannot express `saw → drive → delay` at all** — the classic console limitation. **B** makes
+serial free but gives each oscillator its OWN slot instances, so two oscillators through "the"
+delay are two delay lines and a shared tail is impossible by construction. **C** allows a slot to
+read only EARLIER slots, which makes the graph acyclic *by construction* rather than by a runtime
+cycle check the audio thread cannot afford; a slot nobody reads is an output.
+
+**Composition, which is what actually decides it.** Morph corners already target FX params, and
+the mod matrix wants routing as a destination (`R → send amount`). A's sends are continuous, so a
+corner interpolates cleanly. B's chain on/off is discrete — a morph between two chains is a hard
+cut, and a topology bit cannot be modulated continuously at all. C's bits are discrete too, but
+each slot also carries a continuous amount, so a corner blends *how much* while topology holds.
+
+**Reading: C.** It is the only scheme that is simultaneously serial-capable, single-instance,
+morphable and modulatable. Its one real cost is id count at scale (120 at 4×8), which argues for
+**routing ids getting their OWN stride block** rather than being carved out of the per-oscillator
+one — the same amendment ADR-082 already had to make once. **Not ruled — the human's call**, and
+it wants an ADR because the id-block decision is append-only and therefore permanent.
+
+**Verified offline, not by eye.** Identical gesture through all three: rms 0.398 / 0.792 / 0.847,
+pairwise max diff 1.31–1.87, all finite, none silent. Inside C, rewiring slot 2 from slot 1
+instead of from the source changes the output by 1.23 — the DAG edges do real work rather than
+decorating a fixed path.
+
+**Two lab-design corrections found while testing it.** (1) The schemes are not equally loud at
+equal settings, and in an A/B the loud one always wins — so there is a per-scheme trim (remembered
+across switches; −6 dB verified at 0.501×) and a live RMS readout, making the match a number
+rather than a hunch. This is the calibrate-the-detector discipline pointed at the ear instead of a
+probe. (2) The rack now defaults to drive/delay/lowpass/delay rather than all-bypass: all-bypass
+was the honest default and a useless one, because every topology sounds identical when every slot
+is a wire.
+
 ## Gesture routing — MPE belongs in the plumbing, not in the event loop (2026-08-09)
 
 Human, on the eight-site fan-out fix: *"MPE should go to the plumbing and get routed from there
@@ -1544,7 +1587,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring. **Scale source answered 2026-08-09**: `hzScalePicker` (root + 12-bit mask, no scale enum) — the shell exposes root + mask, not a scale ID, so named scales stay a UI table |  § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
-| B23 | **Routing lab** — per-osc sends vs matrix; serial/parallel per path; composition with the morph and mod matrix, which already target FX params | § Re-order |
+| B23 | **Routing lab** — **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Recommends **C (matrix DAG)** with routing ids in their OWN stride block. **UNRULED — wants an ADR** (id-block choice is append-only, therefore permanent) | § B23 routing lab |
 | B24 | **Master/mixer page** — **INCREMENT 2 SHIPPED 2026-08-09** (mute/solo params 104/105 + per-osc meters, `mixer_check` built-not-gated). **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan (LAW UNRULED — balance vs image-shift, see § OPEN), rest of A12 | § B24 increment 1 · § increment 2 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |
