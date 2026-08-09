@@ -55,6 +55,13 @@ Voices / events:
   note_id/port/channel/key.
 - MPE note expressions currently reach only oscillator 0 (fan-out gap, open).
 
+Host/GUI boundary:
+- A callback registered in the host struct and assigned by the plugin but never
+  BOUND in the webview layer is invisible to the compiler: the feature ships
+  dead (`setVizOsc`, 2026-08-08 — visuals stayed pinned to oscillator 0 for two
+  PRs). A registry that pairs member and binding in ONE declaration, or a
+  startup assertion that every host member has a binding, removes the class.
+
 Signal routing:
 - Oscillator sum was hardcoded before the mixer existed; master volume did not
   exist at all once `vol` went per-osc. The audio context (mixer/master)
