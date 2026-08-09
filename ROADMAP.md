@@ -368,6 +368,79 @@ probe. (2) The rack now defaults to drive/delay/lowpass/delay rather than all-by
 was the honest default and a useless one, because every topology sounds identical when every slot
 is a wire.
 
+## B23 RESEARCH PROBE — the menu was incomplete, and the ruling is NOT ready (2026-08-09)
+
+Human, at the gate: *"are we certain this is the most efficient system we can come up with?
+...would it be worth running a research probe to make sure nobody has solved this problem more
+elegantly?"* Yes. It was, and it did.
+
+**The methodological fault first.** The lab compared three schemes **I authored**, then elected
+one of them. A comparison whose candidate set is written by the same agent that judges it will
+always produce a winner and can never produce the option that was never listed. The cost table
+was honest; the *menu* was not audited. That is the class of error the doctrine's gate discipline
+exists for, and the human caught it, not the process.
+
+### What the literature actually has
+
+- **The crosspoint matrix is the canonical primitive, and it is old.** ARP 2500 switch matrix
+  (1970) → EMS VCS3 pin patchbay (1969) → NI Matrix Modular 3 → today's 16×16 hardware matrix
+  mixers. Scheme C is not novel; it is the mainstream answer, which is reassuring about
+  expressiveness and says nothing about cost.
+- **Canonical crosspoint carries TWO values, not one:** a *scaling coefficient* and an *initial
+  value* — `out_i = in_i + Σ_k (g_ki · m_k)` (Brandtsegg, Saue & Johansen, NIME 2011). The lab's
+  slots have the coefficient and no initial value.
+- **Three schemes the lab never considered.** (D) a **sparse connection-slot list** — N fixed
+  slots each holding `(from, to, amount)`, which is the shape a mod matrix normally takes and the
+  shape *HYPERSAW's own mod matrix already uses*; (E) a **reorderable chain** (a permutation, the
+  Serum/Vital model), O(N) params, serial-only; (F) a **bus/aux-send** model from the console
+  lineage, O(N) selectors.
+
+### The finding that flips the analysis
+
+D looks strictly better than C on the axis the lab used to judge: `12 slots × 3 params = 36`
+params **fixed forever**, expressing any 12-edge graph, and a third oscillator or a fifth FX slot
+costs **zero new ids** because it is just another value in the `from`/`to` enums. That dissolves
+C's 120-param objection *and* the stride-block recommendation built on it.
+
+**But the paper argues the other way, and its argument applies here with unusual force.**
+Brandtsegg et al. keep the **dense** authored table specifically so it can be **interpolated
+between whole coefficient tables** — their "dynamic modulation matrix" — and sparsify only at
+*evaluation* time (§3.4: scan, drop all-zero rows/columns, run the reduced matrix until the
+table changes). A dense table of continuous coefficients morphs cleanly; **a sparse edge list
+cannot morph topology continuously**, because an edge appearing or disappearing is a
+discontinuity. That is *precisely* the objection the lab raised against scheme B — and I did not
+apply it to the sparse alternative because the sparse alternative was not on the menu. HYPERSAW's
+quantum morph is a headline feature, so this is not a minor consideration here.
+
+### The assumption underneath the whole cost table
+
+The lab assumed **every routable quantity must be its own CLAP param**. That is what made C's
+column look fatal. It conflates two different things: *what a patch can express* (table size,
+saved and morphed) versus *what a host can automate* (param ids, append-only and scarce). They
+need not be 1:1 — a dense table can be patch state with a bounded set of automatable routing
+slots on top. Until that distinction is made explicit, every number in the cost table is
+answering a question nobody asked.
+
+### Also worth carrying (separate finding)
+
+The paper permits **modulator feedback** — modulators modulating modulators, cycles included —
+and warns it "must be applied with caution". The lab's *acyclic-by-construction* rule (a slot may
+only read earlier slots) is correct for **audio** routing, where a zero-delay loop is not a
+sound, and must **not** be copied into the **modulation** layer, where feedback is a feature and
+is exactly what B26 (depth-of-depth) is asking for. One rule, two layers, opposite answers.
+
+### Status
+
+**Do not ratify.** The recommendation of C stands only against a menu now known to be incomplete.
+Before a ruling: add D, E and F to the lab; separate *expressible* from *automatable* in the cost
+table; and add the crosspoint initial value. PRIOR-ART.md should gain the matrix-mixer lineage —
+protected path, so it needs the human gate.
+
+**Sources:** Brandtsegg, Saue & Johansen, *A modulation matrix for complex parameter sets*, NIME
+2011 (nime.org/proceedings/2011/nime2011_316.pdf); matrix-mixer lineage via Perfect Circuit and
+Wikipedia *Matrix mixer*; sparse-slot mod-matrix practice via Cherry Audio Sines docs and KVR
+DSP-forum implementation threads.
+
 ## Gesture routing — MPE belongs in the plumbing, not in the event loop (2026-08-09)
 
 Human, on the eight-site fan-out fix: *"MPE should go to the plumbing and get routed from there
@@ -1587,7 +1660,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring. **Scale source answered 2026-08-09**: `hzScalePicker` (root + 12-bit mask, no scale enum) — the shell exposes root + mask, not a scale ID, so named scales stay a UI table |  § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
-| B23 | **Routing lab** — **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Recommends **C (matrix DAG)** with routing ids in their OWN stride block. **UNRULED — wants an ADR** (id-block choice is append-only, therefore permanent) | § B23 routing lab |
+| B23 | **Routing lab** — **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Initially recommended **C (matrix DAG)**; a 2026-08-09 research probe found the **menu incomplete** (missing sparse connection-slots, reorderable chain, bus model) and the cost table built on an unexamined assumption that every routable quantity needs its own CLAP param. **DO NOT RATIFY** until D/E/F are in the lab | § B23 routing lab · § B23 research probe |
 | B24 | **Master/mixer page** — **INCREMENT 2 SHIPPED 2026-08-09** (mute/solo params 104/105 + per-osc meters, `mixer_check` built-not-gated). **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan (LAW UNRULED — balance vs image-shift, see § OPEN), rest of A12 | § B24 increment 1 · § increment 2 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |
