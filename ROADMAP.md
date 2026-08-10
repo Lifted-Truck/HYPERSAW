@@ -564,6 +564,50 @@ overdue count went 3 → 2. **A reply should keep the original `id` and add `in-
 human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
 replies.
 
+## F2 OPENED — extraction plan reviewed; we found a second shell (2026-08-10)
+
+FOUNDATIONS opened F2 and filed an extraction plan **for correction, not approval**, having read
+`src/` first. Plan endorsed: registry-first is right, and their diagnosis that our friction list is
+symptoms of one split — metadata on the shell side, values on the core side, joined by a hand-kept
+string — is right.
+
+**Three corrections, re-derived from `src/` rather than memory.**
+
+1. **Understated:** all **nine** cores are framework-free (they sampled four). Zero clap/juce
+   references anywhere in `filter_core.h  force_core.h  glide_core.h  notch_core.h  osc_preset.h
+   spectra_core.h  swarm_core.h  swarmalator_core.h  time_core.h`.
+
+2. **Missed, and it changes their Stage 1:** `src/swarmfx_clap.cpp` is a **second CLAP shell**
+   (437 lines, own factory/entry, shares filter/notch cores via `processExternal()`) — the
+   dual-deployment pattern their §5 describes, already shipping. Its `ParamDef` has **already
+   diverged**: 7 fields against 8, **no `coreKey`**, and **positional dispatch**
+   (`indexOf(id)` → switch on index). So the registry is not "inside the shell", it is *copied
+   into two shells and already forked, in exactly the field carrying core identity*. Their brief
+   says three consumers independently reported positional identity failing; **we are the fourth,
+   and we did it to ourselves in the newer code.** Asked them to extract Stage 1 against both
+   shells — 17 params against 105, barely more work, and their own two-consumer rule satisfied
+   without leaving this repo.
+
+3. **Invisible from outside:** `coreKey` is the **state wire format**, not an internal detail — the
+   literal key in every saved patch (`"%s=%.17g"`, `"o%u.%s=%.17g"`) *and* the core dispatch key.
+   So HYPERSAW has **three identities and two are externally frozen**: the CLAP id by
+   specification, `coreKey` by our own saved files, and only the core's internal string compare is
+   free. Any address scheme must preserve `coreKey` as the serialization key or ship a migration —
+   a constraint we created by using one string for two jobs.
+
+**On their `coreKey` question** we answered against the obvious fix in both directions: the defect
+was never *two representations*, it was a **hand-maintained mapping**. Collapsing to one
+representation is what `swarmfx` did by dropping `coreKey`, and it landed on positional dispatch —
+worse. Meanwhile the string surface is load-bearing: every core-level probe we own
+(`trajectory_check`, `subdiv_check`, the block and sample-rate probes that found ADR-086) builds a
+core with no shell and calls `setParam("grav", 0.7)`. Recommendation: registry owns the address,
+core key **derived from it by construction and asserted at build** — two representations, one
+identity, zero hand-kept mapping.
+
+**Stage order:** registry-first agreed. We declined their offer to move voice architecture earlier
+"while the code is fresh": it is fresh *because* the fan-out bug and `mpe_check` are three days
+old, and `mpe_check` now pins it, so it will be no less fresh at Stage 2.
+
 ## SYNC PASS before ratifying the id block (2026-08-10) — and it found something
 
 Human: *"it's this ID issue I'm currently chewing on with FOUNDATIONS as well. Let's take a

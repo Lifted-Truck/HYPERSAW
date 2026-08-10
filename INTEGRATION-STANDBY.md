@@ -74,6 +74,21 @@ Parity corpus (REPLY DRAFTED 2026-08-09 to FOUNDATIONS'
   on failure. No `-ffast-math`/`-march=native` anywhere; no FTZ/DAZ handling —
   if the library sets flush-to-zero, tails change in the last bits.
 
+F2 IS OPEN (2026-08-10) — HYPERSAW is the active correspondent. Extraction
+plan reviewed and endorsed; three corrections filed. The one that matters:
+- **`src/swarmfx_clap.cpp` is a SECOND shell** (437 lines, its own CLAP factory,
+  sharing filter/notch cores via `processExternal()`), and its `ParamDef` has
+  **already diverged** from the instrument's — 7 fields vs 8, **no `coreKey`**,
+  and **positional dispatch** (`indexOf(id)` → switch). We are the fourth
+  consumer reporting positional identity failing, and we did it to ourselves in
+  the newer code. Stage 1 must extract against BOTH shells or it will re-fork.
+- **`coreKey` is the state wire format**, not an internal detail: it is the
+  literal key in every saved patch (`"%s=%.17g"`, `"o%u.%s=%.17g"`) *and* the
+  core dispatch key. So there are THREE identities here and TWO are externally
+  frozen — CLAP id by spec, `coreKey` by our own saved files. Only the core's
+  internal string compare is free.
+- All NINE cores are framework-free, not the four they sampled.
+
 Signal-graph topology (BRIEF DRAFTED 2026-08-09, awaiting the human before
 filing — `docs/integrations/DRAFT-foundations-brief-signal-graph.md`):
 - FOUNDATIONS §3.2 rules MODULATION routing as a sparse five-tuple; §3.5 leaves
