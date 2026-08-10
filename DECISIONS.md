@@ -849,3 +849,50 @@ that settling is an audible physical event (decelerating beating). That is an
 ear question, not a numbers question, and it should be answered before this is
 ratified.
 
+## ADR-086 Amendment 1 — the gravity grid is a fixed TIME (ACCEPTED)
+
+**Date:** 2026-08-10 · **Status:** ACCEPTED, ratified same day.
+
+ADR-086 shipped `kGravGrid = 256` **samples**. A sample-rate invariance probe,
+written within the hour, found that this is a duration that shrinks as the rate
+rises — 5.81 ms at 44.1 kHz, 2.67 ms at 96 kHz — so Euler truncation error and
+therefore gravity's trajectory tracked the sample rate. Settle time drifted
+**+0.42% at 96 kHz, monotonically**. The original fix removed a dependence on
+buffer size and left one on sample rate: relocated, not closed.
+
+**No golden could ever have seen this** — goldens are generated at 44.1 kHz
+only, so parity is silent about every other rate. This is L0031's thesis
+demonstrated on the fix that produced L0031.
+
+**Decision.** `kGravGridSeconds = 256.0 / 44100.0` (5.805 ms), with
+`gravGridSamples() = lround(sr * kGravGridSeconds)`. The value is chosen so the
+result is **exactly 256 at 44.1 kHz**: verified, **252 goldens unchanged, 0
+moved**. After the amendment the settle time is 0.00% / +0.16% / 0.00% /
+−0.03% across 44.1–96 kHz — no longer monotonic, the residual being integer
+rounding of the grid (279 samples at 48 kHz against an ideal 278.6), which is
+inherent and musically nil.
+
+Brings gravity under ADR-009 like every other time constant in the engine.
+
+## ADR-087 — `subdiv_check` is a blocking gate; pan motion is a declared exclusion
+
+**Date:** 2026-08-10 · **Status:** accepted (human ratified).
+
+**Decision 1.** `tools/subdiv_check.cpp` runs in `./verify full`. It asserts
+that rendering does not depend on how a buffer is subdivided — **the property
+no golden can test**, because the generator and `parity_check` both render at a
+fixed block, so both sides share any subdivision bug and parity agrees with
+itself. All 147 scenarios passed for the entire life of the gravity bug and
+could not have failed. Calibrated: reverting the segmenting gives FAIL at 1.093.
+
+**Decision 2.** Pan motion (ADR-064) remains a **per-render-call** integrator
+and therefore subdivision-dependent (measured 0.191 at chunk 333). Ruled: leave
+it. The audible stake is near zero — worst-case step is 0.014 on a ±1 pan range,
+about 0.06 dB at 21 Hz, below click threshold — and the reference
+(`swarmsaw.html`) is a stage that will be graduated rather than patched
+piecemeal. `subdiv_check` reports it as **KNOWN**, printed loudly and named in
+its summary line, because an undeclared exclusion is how a gate rots into
+decoration.
+
+`./verify full` now runs **16 gates**. Parity 147/147 worst 4.262e-09.
+

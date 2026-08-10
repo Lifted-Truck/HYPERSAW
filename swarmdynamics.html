@@ -412,12 +412,17 @@ class DynSynth {
     const sr = this.sr;
     let done = 0;
     while (done < outL.length) {
-      const room = 256 - (this.gravAccum || 0);
+      // ADR-086 Amendment 1: the grid is a fixed TIME (5.805 ms), not 256
+      // samples. A fixed sample count is a duration that shrinks as the rate
+      // rises, so gravity's trajectory tracked the sample rate. 256/44100 is
+      // chosen so this is exactly 256 at 44.1 kHz and no golden moves.
+      const grid = Math.max(1, Math.round(sr * 256 / 44100));
+      const room = grid - (this.gravAccum || 0);
       const seg = Math.min(outL.length - done, room);
       this.renderSeg(outL.subarray(done, done + seg), outR.subarray(done, done + seg));
       this.gravAccum = (this.gravAccum || 0) + seg;
       done += seg;
-      if (this.gravAccum >= 256) { this.gravityStep(256 / sr); this.gravAccum = 0; }
+      if (this.gravAccum >= grid) { this.gravityStep(grid / sr); this.gravAccum = 0; }
     }
   }
 

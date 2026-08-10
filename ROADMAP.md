@@ -564,7 +564,39 @@ overdue count went 3 → 2. **A reply should keep the original `id` and add `in-
 human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
 replies.
 
-## ADR-086 AMENDMENT PROPOSED — the gravity grid should be a fixed TIME, not 256 samples (2026-08-10)
+## B23 UNBLOCKED — FOUNDATIONS widened the doorframe (2026-08-09, read 2026-08-10)
+
+`response-signal-graph.md`, human-ratified on their side, answers the brief filed the same day.
+
+**The ruling:** *"§3.5's chain is a default shape, not a constitutional commitment. The core will
+not assume chain-only."* It deliberately does **not** choose a topology, promise a facility, or add
+machinery — the two-consumer rule we pre-empted applies. The topology question enters their §9
+register with our lab as its first evidence.
+
+**Consequence:** *"ratify what HYPERSAW needs... nothing in FOUNDATIONS forecloses it, and nothing
+in FOUNDATIONS should appear in your ratification rationale. Divergence between your topology and
+any future library shape is information, not debt."*
+
+**So B23 is a HYPERSAW decision again, on HYPERSAW's evidence** — and the lab's own reading stands:
+scheme **C, the dense crosspoint**, on the corrected cost model (88 patch-state values, **8
+automation ids**) and because it is the only scheme that is simultaneously serial-capable,
+single-instance, morphable and modulatable. **Awaiting the human's ratification; nothing blocks it.**
+
+**Where our three findings landed:**
+- *Patch state ≠ automation ids* — confirmed, and we are the **second** voice: their F1 P5 found
+  five vendors converging on a macro/proxy layer because host-facing ids are scarcer than state.
+  That crosses their two-consumer threshold from the host side.
+- *Topology morph discontinuity* — confirmed unstated and load-bearing; recorded into their morph
+  semantics open question alongside the same question for curves.
+- *Acyclicity needs a read-side owner* — generalized by them, better than our framing: **"legality
+  is enforced where structure is consumed, not where it is written, because the writer set is
+  open."** That generalizes past routing to every structure a preset can carry. Worth folding into
+  the knowledge loop at the next consolidation.
+
+Our oracle offer was accepted in principle: a routing oracle in `mpe_check`'s shape, consumer-
+authored and resident-landed when F2 opens.
+
+## ADR-086 AMENDMENT 1 SHIPPED — the gravity grid is a fixed TIME (2026-08-10, ratified)
 
 Found by a sample-rate invariance probe written the same hour ADR-086 shipped, which is the point:
 **a property oracle found a flaw in the fix, one that no golden could ever see** (goldens are only
@@ -585,7 +617,7 @@ The attack column is the control: flat to ±0.13%, so ADR-009's seconds→coeffi
 holds. Gravity's drift is small (6.5 ms in 1.57 s — musically nothing) but **monotonic with rate**,
 which is a dependence rather than noise.
 
-**Proposed:** `kGravGrid = lround(sr * 256.0 / 44100.0)` — a fixed 5.805 ms. At 44.1 kHz it
+**Shipped, ratified same day.** `kGravGridSeconds = 256.0/44100.0` with `gravGridSamples() = lround(sr * kGravGridSeconds)` — a fixed 5.805 ms. At 44.1 kHz it
 evaluates to exactly 256, so **every golden is bit-identical and no parity moves**; at other rates
 the integration step becomes constant in seconds, which is what ADR-009 asks of every other time
 constant in the engine. Costs one line in `swarm_core.h` and one in `swarmdynamics.html`

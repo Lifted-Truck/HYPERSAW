@@ -143,6 +143,20 @@ full() {
   # Calibrated: a planted (non-elidable) allocation gives 320 hits and exit 1.
   "$build_dir/rtsafety_probe" || return 1
 
+  # SUBDIVISION INVARIANCE (ADR-086, gate ratified 2026-08-10). Rendering must
+  # not depend on how a buffer is split — a host may send 2048 frames or 33, and
+  # the multi-oscillator mix splits further still. None of that is a musical
+  # choice, so none of it may change a sample.
+  # THIS IS THE PROPERTY NO GOLDEN CAN TEST: the generator and parity_check both
+  # render at a FIXED block, so both sides share any subdivision bug and parity
+  # agrees with itself. All 147 scenarios passed for the entire life of the
+  # gravity bug and could not have failed. Reference oracles certify agreement;
+  # this one certifies an invariant (L0031).
+  # Calibrated: reverting the segmenting in swarm_core.h gives FAIL at 1.093.
+  # Pan motion (ADR-064) is a KNOWN exclusion, printed loudly, pending its own
+  # ruling — an undeclared exclusion is how a gate rots into decoration.
+  "$build_dir/subdiv_check" || return 1
+
   # OSCILLATOR FAN-OUT (2026-08-09, gate ratified by the human same day): every
   # per-note and lifecycle operation must reach EVERY oscillator, not just the
   # one the `core` alias points at. Eight sites got this wrong and nothing
