@@ -564,6 +564,39 @@ overdue count went 3 → 2. **A reply should keep the original `id` and add `in-
 human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
 replies.
 
+## SYNC PASS before ratifying the id block (2026-08-10) — and it found something
+
+Human: *"it's this ID issue I'm currently chewing on with FOUNDATIONS as well. Let's take a
+cautious extra pass to make sure everything is sync'd up."* Correct instinct; there was a gap.
+
+**The gap.** ADR-088 §4 justified a permanent routing id block with "CLAP ids are append-only, so
+this cannot be unmade" — stated as fact. It is FOUNDATIONS **open question #15**, unverified:
+*"can shipping hosts survive `rescan(CLAP_PARAM_RESCAN_ALL)` mid-session with automation lanes
+intact?"* HYPERSAW holds a `clap_host_params_t *` and has **never called rescan**; our param list
+is static by assumption, never by measurement.
+
+**Why it matters beyond tidiness.** The block allocation is safe under either answer — cheap if ids
+turn out revisable, load-bearing if not. But the *justification* is not, and the difference is a
+different design rather than a tidier one: if hosts survive a rescan, params could exist only when
+their rack does, instead of a static block sized for the worst case. **§4 stays unratified**;
+§§1–3 (the topology) are ratified and independent.
+
+**Offered:** HYPERSAW runs the spike. It is a shipping CLAP plugin that has never called rescan —
+an honest baseline rather than one already shaped around an answer — and its machine has real
+hosts. Six cases (id unchanged / added / removed / **reused**, in-session and after reload, plus
+the clap-wrapper VST3 path since that is also our shipping surface), reported as host × case data
+with **no recommendation attached**, because five vendors converging on a macro layer should not be
+overwritten by one machine's results. Filed as `offer-param-rescan-spike.md`.
+
+**Also resynced, and both moved in our favour:**
+- Their **#16 signal-graph topology** now cites **three convergent consumers** — our six-scheme
+  lab, Morphos's absent bus abstraction, auricle's hardcoded `Engine::process` order. When their
+  response was written it was "the second consumer decides"; it is now three, and the shape is
+  still deliberately undecided. Our ratifying C locally remains exactly what they asked for.
+- Their **#17 graph legality on the read side** is now a named open question with **two**
+  convergent consumers (auricle's "the runtime trusts the document", plus our backwards edge via
+  preset load). Our finding generalized past routing on their side, not ours.
+
 ## B23 UNBLOCKED — FOUNDATIONS widened the doorframe (2026-08-09, read 2026-08-10)
 
 `response-signal-graph.md`, human-ratified on their side, answers the brief filed the same day.
@@ -1944,7 +1977,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring. **Scale source answered 2026-08-09**: `hzScalePicker` (root + 12-bit mask, no scale enum) — the shell exposes root + mask, not a scale ID, so named scales stay a UI table |  § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
-| B23 | **Routing lab** — **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Initially recommended **C (matrix DAG)**; a 2026-08-09 research probe found the **menu incomplete** (missing sparse connection-slots, reorderable chain, bus model) and the cost table built on an unexamined assumption that every routable quantity needs its own CLAP param. Round 2 (2026-08-09) added D/E/F, the crosspoint initial value, and a corrected cost model (C is **8 automation ids**, not 120). **Still unruled — escalated to FOUNDATIONS**: §3.2 rules modulation routing sparse, §3.5 leaves the signal graph a plain chain | § B23 routing lab · § research probe · § round 2 |
+| B23 | **RULED 2026-08-10 (ADR-088): dense crosspoint matrix, id block ACCEPTED** (routing at 10000+, topology as patch state). Both halves settled; ids are append-only *by CLAP spec* (`params.h:212`) while the param SET is revisable (`params.h:70-77`) — dynamic params are a live option, not a closed door. Implementation increment not started. Lab **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Initially recommended **C (matrix DAG)**; a 2026-08-09 research probe found the **menu incomplete** (missing sparse connection-slots, reorderable chain, bus model) and the cost table built on an unexamined assumption that every routable quantity needs its own CLAP param. Round 2 (2026-08-09) added D/E/F, the crosspoint initial value, and a corrected cost model (C is **8 automation ids**, not 120). **Still unruled — escalated to FOUNDATIONS**: §3.2 rules modulation routing sparse, §3.5 leaves the signal graph a plain chain | § B23 routing lab · § research probe · § round 2 |
 | B24 | **Master/mixer page** — **INCREMENT 2 SHIPPED 2026-08-09** (mute/solo params 104/105 + per-osc meters, `mixer_check` built-not-gated). **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan (LAW UNRULED — balance vs image-shift, see § OPEN), rest of A12 | § B24 increment 1 · § increment 2 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |

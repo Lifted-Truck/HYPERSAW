@@ -896,3 +896,131 @@ decoration.
 
 `./verify full` now runs **16 gates**. Parity 147/147 worst 4.262e-09.
 
+## ADR-088 — B23 routing topology: dense crosspoint matrix (ACCEPTED)
+
+**Date:** 2026-08-10 · **Status:** topology ACCEPTED (human-ratified). The id
+allocation in §4 is **PROPOSED** and needs its own nod — see there.
+
+### Decision
+
+HYPERSAW's audio routing is a **dense crosspoint matrix**: every rack slot may
+be fed from any source and from any **earlier** slot, each crosspoint carrying a
+continuous coefficient, each slot additionally carrying an **initial value**
+(`out_i = in_i + Σ g_ki · m_k`, the canonical crosspoint form). A slot that no
+later slot reads is an output.
+
+### Why, on our own evidence
+
+`docs/design/routing-lab.html` benched six topologies over identical slots and
+sources, with audio, a cost model, and a morph analysis. Two things decided it:
+
+1. **Topology morph.** Quantum morph is a headline feature and a corner
+   interpolates *values*. In a dense table a crosspoint at 0 **is** "not
+   connected", so connecting and disconnecting are one continuous motion. Every
+   sparse scheme stores topology as discrete structure, so adding an edge,
+   reordering a chain, or repatching a bus is a **hard cut**. C is the only
+   scheme that is simultaneously serial-capable, single-instance, morphable and
+   modulatable.
+2. **The cost objection was measuring the wrong thing.** Round 1 rejected C at
+   "120 params" by conflating patch state with automation ids. Split properly it
+   is **88 patch-state values and 8 automation ids** at 4 oscillators × 8 slots.
+
+**Acyclicity by construction, enforced on the read side.** A slot may only read
+earlier slots, so one forward pass is always correct and no runtime cycle check
+is needed — an audio thread cannot afford one. The legality test lives where
+edges are *consumed*, never in the editor: preset load, morph corners and
+automation are all writers, so a guard on the write path is bypassable by
+construction. (The lab's scheme-D implementation proved this the hard way, and
+the principle generalizes past routing to every structure a preset can carry.)
+
+### What this decision is NOT
+
+It is not a bet on the shared library. FOUNDATIONS was asked one doorframe
+question and answered that §3.5's chain is "a default shape, not a
+constitutional commitment", explicitly declining to choose a topology and asking
+not to be cited as design input. Its only role here is **removing the retrofit
+risk**: divergence between HYPERSAW's topology and any future library shape is
+information, not debt.
+
+### §4 — Id allocation (ACCEPTED 2026-08-10, on the specification)
+
+**Resolved 2026-08-10 by reading the specification we vendor.** This section
+originally opened *"CLAP ids are append-only, so this cannot be unmade."* That
+sentence is wrong in **both** directions at once, and FOUNDATIONS caught it by
+citing `libs/clap/include/clap/ext/params.h` — our own tree — so it could be
+checked without taking their word. Verified verbatim:
+
+- **`params.h:212`** — *"Stable parameter identifier, it must never change."*
+  The id-stability half is **stronger** than claimed: append-only is **mandated
+  by specification**, not a convention we adopted for safety. The block
+  allocation needs no further permission from anyone.
+- **`params.h:70-77` ("VI. Adding or removing parameters")** — the parameter
+  **set** is explicitly revisable: `restart()` → deactivate → apply → `clear(host,
+  param_id, CLAP_PARAM_CLEAR_ALL)` for any id gone or reused → `rescan(ALL)`.
+  The "cannot be unmade" half is simply **false**.
+- **`params.h:328`** — *"It can only be used while the plugin is deactivated."*
+  There is no mid-session rescan to survive; the question we were both asking
+  contained a false premise.
+
+**The accurate claim, which is weaker and truer:** *ids are append-only by
+specification; the parameter SET is revisable through a documented
+deactivate/rescan cycle whose host-side automation behaviour is unmeasured.*
+
+**What this opens.** "Params that exist only when their rack does" is a flow
+CLAP documents, not a door we assumed shut. It is not adopted here — a static
+block is simpler and the host behaviour is unmeasured — but it is a **live
+option** for a future rack rather than a foreclosed one, and that is worth
+knowing before a second rack exists.
+
+The original framing cited FOUNDATIONS **ROADMAP open question #15** — *"can shipping
+hosts survive `rescan(CLAP_PARAM_RESCAN_ALL)` mid-session with automation lanes
+intact? Decides whether the shell needs a bounded macro/proxy surface (five
+vendors' answer) or can expose dynamic params (CLAP's promise, unverified). Runs
+before any shell phase relies on either answer."*
+
+HYPERSAW holds a `clap_host_params_t *` and **has never called rescan**. Our
+param list is static for an instance's life by assumption, never by measurement.
+So the "permanent" framing is the CONSERVATIVE reading, not a verified one.
+
+**What survives the uncertainty, and what does not:**
+
+- **The block allocation is safe under BOTH answers** and is therefore still
+  proposed: a clean block costs nothing if ids turn out to be revisable, and
+  saves everything if they do not. Hygiene either way.
+- **The justification does not survive**, and matters beyond this ADR: if hosts
+  do survive a rescan, HYPERSAW gains an option it has been treating as
+  foreclosed — params that exist only when their rack does, rather than a
+  statically allocated block sized for the worst case. That is a different
+  design, not a tidier version of this one.
+
+**Therefore §4 is ACCEPTED**, on the specification rather than on the
+measurement. The residual empirical question — what a host does to an automation
+lane across the documented restart cycle — is narrowed, no longer blocking, and
+carried separately (`offer-param-rescan-spike.md`, accepted by FOUNDATIONS with
+two amendments: cases must run the legal cycle rather than an out-of-spec live
+rescan, and the clap-wrapper VST3 row is to be protected ahead of extra hosts,
+since most hosts meet us through the wrapper rather than through CLAP).
+
+**Process note worth keeping.** We held §4 on a library open question that was
+filed "pre-shell" — i.e. scoped against *their* phases, not against the fact
+that it gated a consumer's current work. Their words: *"a phase gate that
+ignores its correspondent's blocker is not a gate, it is a schedule."* The
+lesson cuts both ways: we also sat on it rather than asking, and it surfaced
+only because the human noticed the two threads were the same question.
+
+### The proposal itself, unchanged
+
+- **Topology is patch state, not CLAP params.** Crosspoint on/off is discrete
+  and nothing needs to automate it; morph corners are internal snapshots and
+  reach it without host ids. Only the continuous quantities get ids.
+- **Routing gets its own stride block: `10000 + rack*1000 + local`.** Rack 0
+  occupies 10000–10999. Rationale: ADR-082's amendment had to move once already
+  because a flat space ran out on the day it was needed, and stride IS capacity.
+  Oscillators own 0–2999 (`kOscStride` 1000, third slot reserved); 3000–9999
+  stays unallocated so a future block does not have to squeeze.
+- **Today's id cost is 8 per rack** — per-slot amount ×4, per-slot initial
+  value ×4.
+
+**Not implemented.** This ADR records the ruling; the increment that builds it
+is scoped in ROADMAP.
+
