@@ -400,9 +400,29 @@ class DynSynth {
       }
     }
   }
+  /* ADR-086: gravity steps on a FIXED 256-sample grid, INTERLEAVED with the
+     audio. Explicit Euler on a nonlinear ODE means dt = buffer length made the
+     result depend on how audio was subdivided, so the same patch rendered
+     differently at different host buffer sizes. Fixing only the step SIZE is
+     not enough — running every step at the top of the call puts all the motion
+     before any audio; the steps must fall BETWEEN segments. The settling point
+     is unchanged (386.314 c either way; a 10.4 Hz beat decelerating to 0.00 Hz)
+     — only the phase trajectory differs. */
   render(outL, outR) {
+    const sr = this.sr;
+    let done = 0;
+    while (done < outL.length) {
+      const room = 256 - (this.gravAccum || 0);
+      const seg = Math.min(outL.length - done, room);
+      this.renderSeg(outL.subarray(done, done + seg), outR.subarray(done, done + seg));
+      this.gravAccum = (this.gravAccum || 0) + seg;
+      done += seg;
+      if (this.gravAccum >= 256) { this.gravityStep(256 / sr); this.gravAccum = 0; }
+    }
+  }
+
+  renderSeg(outL, outR) {
     const sr = this.sr, p = this.p, n = p.n;
-    this.gravityStep(outL.length / sr);
     const gain = p.vol * 0.9 / Math.pow(n, 0.75);
     const atk = 1 - Math.exp(-1 / (0.003 * sr));
     const rel = 1 - Math.exp(-1 / (0.16 * sr));

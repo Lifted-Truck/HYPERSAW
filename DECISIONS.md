@@ -704,10 +704,48 @@ future consumer (third oscillator, sub-oscillator, per-voice FX send) re-opens
 the whole class until the L0029 routing layer lands. This gate is what makes
 that debt visible rather than silent.
 
-## ADR-086 — Consonance gravity integrates on a fixed grid (PROPOSED, awaiting ratification)
+## ADR-086 — Consonance gravity integrates on a fixed grid (ACCEPTED)
 
-**Date:** 2026-08-09 · **Status:** PROPOSED — needs the human. Touches a
-protected path (`swarmdynamics.html`) and moves one golden.
+**Date:** 2026-08-09 · **Status:** ACCEPTED 2026-08-10, ratified after an ear
+check ("the two gravity buffers sound nearly identical"). Implemented same day.
+
+### Implementation note — the accumulator alone was not the fix
+
+The first implementation did exactly what this ADR described: accumulate
+samples, then `while (accum >= grid) gravityStep(grid/sr)` at the top of
+`render()`. The subdivision probe rejected it immediately — still 1.04.
+Fixing the step SIZE is insufficient because it leaves the step PLACEMENT
+wrong: in one whole call every step fires *before any audio is written*, while
+chunked calls spread the same steps through the buffer. Same steps, different
+placement, same divergence.
+
+The working fix **segments the render**: `render()` is now a loop that calls a
+private `renderSeg()` in pieces bounded by the grid, advancing gravity between
+them. Invariance verified at 0.00 for chunk sizes 64…44100 including 333 and
+127, which are not multiples of the grid.
+
+### And it moved something it should not have
+
+Segmenting also changed **pan motion** (ADR-064), which is a per-render-call
+integrator too — nine SAW parity scenarios went red, against goldens whose
+reference (`swarmsaw.html`) this ADR never touched. Pan motion is now hoisted
+into `advancePanMotion()`, called once per outer call, so it keeps its
+per-call rate exactly. **Gravity was ratified for a fixed grid; pan motion was
+not**, and confining the change to what was approved is the whole reason the
+hoist exists.
+
+Pan motion therefore remains subdivision-dependent — measured 0.191 at chunk
+333 — and that is now a declared, visible exclusion in `subdiv_check` rather
+than an unknown. See ROADMAP § pan motion.
+
+**Verified:** `./verify full` GREEN, 15 gates, parity **147/147 worst
+4.262e-09**. Golden footprint exactly as predicted: **248 unchanged, 3 moved**
+(`dyn-gravity` × 3 seeds).
+
+**Original proposal follows.**
+
+**Date:** 2026-08-09 · Touches a protected path (`swarmdynamics.html`) and
+moves one golden.
 
 ### Context — a measured defect
 
