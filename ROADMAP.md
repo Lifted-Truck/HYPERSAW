@@ -582,7 +582,14 @@ Measured (bare `SwarmCore`, same seed, three notes, 1 s):
 | 0.50 | **1.028** | **1.029** |
 
 Gravity off, the engine is bit-identical under any subdivision — everything else is buffer-size
-invariant. Gravity on, it is not a last-bits difference; it is a different sound.
+invariant. Gravity on, it is not a last-bits difference.
+
+**Corrected 2026-08-09 (same day), by measurement:** "a different sound" overstated it. That 1.03
+is **phase**, not tuning. Re-measured on `dyn-gravity`'s own settings, the interval settles within
+**0.005 cents** of the same place at every step size from 16 to 2048 samples (701.926–701.931 ¢;
+just 3/2 is 701.955 ¢). What varies is the trajectory, not the destination. This is a
+**reproducibility** defect, not a tuning defect — real, and smaller than first stated. Full
+evidence and the ratification ask are in **ADR-086 (PROPOSED)**.
 
 **Two consequences.**
 
@@ -599,12 +606,17 @@ render asymmetry is plain in `hypersaw_clap.cpp`. Consequence 2 is a well-ground
 because `plug_reset` does not clear core phase state, so the silently-rendering oscillator had
 already advanced when it was measured. Recorded as prediction, not measurement.
 
-**Proposed fix (needs the ADR):** integrate gravity on a fixed grid — accumulate elapsed samples
-and step at a constant interval (the existing 16-sample control tick is the obvious grid) rather
-than once per render call. That makes the result independent of both block size and subdivision,
-and makes the two oscillators agree by construction. It is parity-affecting: goldens must be
-re-measured on the reference, and the JS prototype has the same per-call structure, so the
-reference moves too — which is a SPEC change and therefore a protected-path decision.
+**Proposed fix — now ADR-086 (PROPOSED, awaiting ratification):** integrate on a fixed
+accumulator grid at **256 samples**, not the 16-sample control tick as first guessed. Measured with
+10 held notes, a 16-sample grid costs **+66% CPU** (2.09% → 3.48% of a core) to buy a settling
+difference of 0.001 cents; 256 samples costs **+2%** (2.13%) and removes the block-size and
+subdivision dependence entirely.
+
+**Parity impact is one scenario, not a sweep.** `dyn-gravity` is the ONLY one of the 147 that
+engages gravity — `grav` defaults to 0 and `gravityStep` early-returns below 0.005 — so the other
+146 stay bit-identical. An earlier note here implied a broad re-measurement; that was wrong. The
+JS reference (`swarmdynamics.html:405`) has the same per-call shape and moves with it, which is
+what makes this a SPEC change and a protected-path decision.
 
 ## Gesture routing — MPE belongs in the plumbing, not in the event loop (2026-08-09)
 

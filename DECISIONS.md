@@ -704,3 +704,110 @@ future consumer (third oscillator, sub-oscillator, per-voice FX send) re-opens
 the whole class until the L0029 routing layer lands. This gate is what makes
 that debt visible rather than silent.
 
+## ADR-086 — Consonance gravity integrates on a fixed grid (PROPOSED, awaiting ratification)
+
+**Date:** 2026-08-09 · **Status:** PROPOSED — needs the human. Touches a
+protected path (`swarmdynamics.html`) and moves one golden.
+
+### Context — a measured defect
+
+`SwarmCore::render()` opens with `gravityStep((double)frames / sr)`. Gravity is
+integrated **once per render call, with dt = the block length** — explicit Euler
+on a nonlinear ODE (`move = err · rate · dt`, then `f0cur *= 2^(-move/1200)`,
+with `err` recomputed from the current `f0cur` each call). One step of dt and
+two of dt/2 therefore disagree, so output depends on how a buffer is
+**subdivided**, not merely on its total length.
+
+The JS reference has the identical shape: `swarmdynamics.html:405`,
+`this.gravityStep(outL.length / sr)`.
+
+**Why no gate caught it.** The golden generator renders a fixed-size buffer and
+`parity_check` renders `kBlock` — both sides use the *same* subdivision, so
+parity agrees with itself. The defect is invisible to the oracle by
+construction, which is the same blind spot the multi-oscillator fan-out bug
+exploited.
+
+### Evidence
+
+Bare `SwarmCore`, same seed and notes, 1 s:
+
+| gravity | one whole call vs 256-frame chunks | vs 333-frame blocks |
+|---|---|---|
+| 0.00 | **0** | **0** |
+| 0.50 | **1.028** | **1.029** |
+
+**Correction to the first report of this bug.** That 1.03 was described as "a
+different sound". It is not — it is **phase**, not tuning. Re-measured on
+`dyn-gravity`'s own settings, the musically meaningful quantity is invariant:
+
+| integration step | interval settles at | waveform rmsDiff / rms |
+|---|---|---|
+| 2048 samples | 701.931 ¢ | 0.128 |
+| 512 (reference) | 701.927 ¢ | — |
+| 256 | 701.926 ¢ | 0.022 |
+| 128 | 701.926 ¢ | 0.033 |
+| 16 | 701.926 ¢ | 0.043 |
+
+Gravity settles to within **0.005 cents** of the same place at every step size
+(just 3/2 is 701.955 ¢). What varies is the phase trajectory getting there.
+So the bug is a **reproducibility** defect, not a tuning defect — real, but
+smaller than first stated, and that distinction should survive into whatever
+gets fixed.
+
+### Options
+
+1. **Do nothing; document it.** Cheapest. Leaves renders non-reproducible across
+   host buffer sizes whenever `grav > 0.005`, and leaves oscillator 0 (rendered
+   in one `n`-frame call) integrating differently from oscillators 1..N (256-frame
+   chunks). Rejected: "the sound changes when you change your buffer size" is a
+   defect users report and cannot work around.
+2. **Fixed accumulator grid at 256 samples** — accumulate elapsed samples, step
+   gravity by a constant `dt = 256/sr` whenever a full interval has elapsed.
+   **Recommended.**
+3. **Fine grid at the existing 16-sample control tick.** Most accurate, aligns
+   with `controlTick`. Rejected on measured cost: gravity is O(gated²) per step,
+   and with 10 held notes a 16-sample grid costs **+66% CPU** (2.09% → 3.48% of
+   one core) to buy a settling difference of 0.001 cents.
+4. **Align the shell instead** — render oscillator 0 in `kMixChunk` chunks like
+   the others. Makes the oscillators agree with each other but leaves the whole
+   instrument dependent on the residual partial chunk, so host buffer size still
+   changes the sound. Fixes the symptom we noticed, not the defect.
+
+### Measured cost of the recommendation
+
+10 held notes, 2 s of audio:
+
+| grid | CPU | vs today |
+|---|---|---|
+| 512 (today, typical) | 41.9 ms (2.09% of a core) | — |
+| **256 (proposed)** | **42.7 ms (2.13%)** | **+2%** |
+| 128 | 44.9 ms (2.25%) | +7% |
+| 16 | 69.7 ms (3.48%) | +66% |
+
+256 samples is 172 Hz — roughly 57 updates across gravity's ~1/3 s settle time,
+which is ample for a slow restoring force.
+
+### Consequences
+
+- **One golden moves**: `dyn-gravity` is the *only* scenario in the 147 that
+  engages gravity (`grav` defaults to 0 and `gravityStep` early-returns below
+  0.005). The other 146 are bit-identical. An earlier note in ROADMAP implied a
+  broad re-measurement; that was wrong.
+- **Both references change together** — `swarmdynamics.html` (PROTECTED, the
+  spec) and `swarm_core.h`. Parity stays green because both sides move; the
+  audio for gravity patches changes in phase, not in tuning.
+- Oscillator 0 and oscillators 1..N integrate identically afterwards, by
+  construction rather than by matching their chunk sizes.
+- Unblocks the Tonality gap-24 slice-1 ask: with a stable integrator, swapping
+  the ratio table becomes one attributable change instead of two entangled ones.
+- `grav = 0` patches are untouched at every step of this.
+
+### What would falsify the recommendation
+
+If a listening pass on `dyn-gravity` finds the phase-trajectory change audible
+and *worse* — the settling numbers say the destination is identical, but they
+say nothing about the character of the journey, and gravity's whole point is
+that settling is an audible physical event (decelerating beating). That is an
+ear question, not a numbers question, and it should be answered before this is
+ratified.
+
