@@ -163,6 +163,14 @@ endif()
 # Links the plugin impl, like rtsafety_probe — it drives the real CLAP event
 # path rather than a core in isolation, because the bug lived in the event
 # fan-out, which a core-level test cannot see.
+# subdiv_check: rendering must not depend on how a buffer is subdivided
+# (ADR-086). Core-level, so no plugin link.
+add_executable(subdiv_check tools/subdiv_check.cpp)
+target_include_directories(subdiv_check PRIVATE src)
+if(NOT MSVC)
+  target_compile_options(subdiv_check PRIVATE -O2)
+endif()
+
 add_executable(mpe_check tools/mpe_check.cpp)
 target_link_libraries(mpe_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)

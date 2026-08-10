@@ -564,7 +564,48 @@ overdue count went 3 → 2. **A reply should keep the original `id` and add `in-
 human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
 replies.
 
-## OPEN BUG — consonance gravity is block-subdivision dependent (2026-08-09)
+## PAN MOTION is subdivision-dependent — the same defect, unruled (2026-08-10)
+
+Found by `subdiv_check`, the gate written for ADR-086, on its first run. Pan motion (ADR-064) is a
+per-render-call integrator exactly like gravity was: `dtB = frames/sr`, phases advanced once and
+held across the block. Measured **0.191 max sample difference at chunk 333**.
+
+**Deliberately not fixed.** ADR-086 ratified a fixed grid for GRAVITY. When the render was first
+segmented, pan motion came along for the ride and took nine SAW parity scenarios red — against
+goldens whose reference (`swarmsaw.html`) that ADR never touched. It is now hoisted to
+`advancePanMotion()`, called once per outer call, preserving today's behaviour exactly.
+
+**The decision, when you want it.** Pan motion is a slow LFO sampled at block rate, so the
+practical symptom is milder than gravity's: the pan LFO's update rate follows the host buffer, so
+the same patch moves slightly differently at 128 vs 2048 frames. Options: (a) leave it — a
+block-rate LFO is a common design and the character is arguably "the sound"; (b) give it the same
+fixed grid, which costs a second protected-path edit (`swarmsaw.html`) and moves the nine pan
+goldens. **Recommendation: (b)**, because "the patch sounds different at a different buffer size"
+is the same user-visible defect either way and there is now one mechanism to reuse — but it is not
+urgent and it is not mine to rule.
+
+Until ruled, `subdiv_check` reports it as **KNOWN** rather than asserting it, and says so in its
+summary line. An undeclared exclusion is how a gate rots into decoration.
+
+## ADR-086 SHIPPED — gravity on a fixed grid (2026-08-10)
+
+Ratified after the ear check and implemented same day. Two things the ADR did not anticipate:
+
+**The accumulator alone was not the fix.** Fixing the step SIZE left the step PLACEMENT wrong — in
+one whole call every step fires before any audio is written. The subdivision probe rejected the
+first implementation immediately (still 1.04). The working fix segments the render so gravity
+advances *between* pieces of audio. Invariance now measures **0.00** across chunk sizes 64–44100,
+including 333 and 127 which are not multiples of the grid.
+
+**It moved something it should not have** — see the pan-motion section above.
+
+Golden footprint exactly as predicted: **248 unchanged, 3 moved** (`dyn-gravity` × 3 seeds).
+`./verify full` GREEN, 15 gates, parity 147/147 worst 4.262e-09.
+
+**`subdiv_check` is built but NOT gated** — `./verify` is a protected path. Calibrated both ways:
+reverting the segmenting gives FAIL at 1.093, restoring gives GREEN.
+
+## (RESOLVED by ADR-086 — kept for the trail) gravity block-subdivision dependence (2026-08-09)
 
 Found while answering FOUNDATIONS' parity-corpus notice. **Not fixed — the fix moves goldens, so
 it wants an ADR and a human gate.**

@@ -41,6 +41,9 @@ constexpr int kPoly = 16;  // raised from 8 (2026-07-18: user hit the ceiling
                            // at ~6-7 held notes). 16 voices x 32 osc = trivial
                            // CPU; well inside the ADR-006 spike headroom.
 constexpr int kTick = 16;
+// ADR-086: the fixed grid gravity integrates on, in samples. Chosen by
+// measurement, not taste — see the comment at its use site in render().
+constexpr int kGravGrid = 256;
 constexpr double kTau = 6.283185307;   // matches the reference's literal
 constexpr double kPiRef = 3.14159265;  // ditto — NOT M_PI, parity over precision
 
@@ -472,6 +475,8 @@ class SwarmCore
   // Consonance gravity (ADR-008; DYN reference exact): once per render call,
   // pull each gated pair's f0cur toward the nearest folded ratio inside the
   // basin. grav < 0.005 returns untouched — the SAW-parity path.
+  int gravAccum = 0;   // ADR-086: samples owed to the gravity grid
+
   void gravityStep(double dtB)
   {
     gravCount = 0;
@@ -520,25 +525,42 @@ class SwarmCore
       }
   }
 
+  /* ADR-086. The public entry SEGMENTS the render so gravity steps on a fixed
+     grid *interleaved with the audio*, whatever block size the caller uses.
+
+     The first attempt only fixed the step SIZE — accumulate samples, then run
+     `while (accum >= grid) gravityStep(grid/sr)` at the top of render. That is
+     not enough and the subdivision probe said so immediately: with one whole
+     call every step fires BEFORE any audio is written, while chunked calls
+     spread the same steps through the buffer. Same steps, different placement,
+     same 1.03 divergence. Gravity has to advance *between* segments of audio,
+     which means the loop belongs here and not at the top. */
   void render(float *outL, float *outR, int frames)
   {
-    gravityStep((double)frames / sr);
+    advancePanMotion(frames);
+    int done = 0;
+    while (done < frames)
+    {
+      const int room = kGravGrid - gravAccum;
+      const int seg = (frames - done) < room ? (frames - done) : room;
+      renderSeg(outL + done, outR + done, seg);
+      gravAccum += seg;
+      done += seg;
+      if (gravAccum >= kGravGrid)
+      {
+        gravityStep((double)kGravGrid / sr);
+        gravAccum = 0;
+      }
+    }
+  }
+
+private:
+  bool panMotionOn = false;   // ADR-086: set by advancePanMotion(), read by renderSeg
+
+  // Per-CALL, deliberately — see the note in renderSeg.
+  void advancePanMotion(int frames)
+  {
     const int n = (int)p.n;
-    const double gain = p.vol * 0.9 / std::pow((double)n, p.normExp);
-    // ADR-021: at the defaults these are the reference's exact expressions
-    // (attackS = 0.003, releaseS = 0.16 — same operands, same doubles).
-    const double atk = forcecore::onePoleCoef(p.attackS, sr);
-    const double rel = forcecore::onePoleCoef(p.releaseS, sr);
-    const double dec = forcecore::onePoleCoef(p.decayS, sr);
-    // ADR-063: per-sample leg of the frequency glide — a quarter of the
-    // control-rate time constant, seconds -> coefficient. 0 leaves the path alone.
-    const bool glideOn = p.freqGlide > 0;
-    const double gCoefS = glideOn ? 1 - std::exp(-1 / (p.freqGlide * 0.25 * sr)) : 0;
-    for (int i = 0; i < frames; i++) { outL[i] = 0.0f; outR[i] = 0.0f; }
-    // pan motion (ADR-064, parity with swarmsaw.html): slow LFOs sweep the base pan
-    // once per block. mode 0 = independent per-voice drift, 1 = one shared sweep.
-    // Centre pin scales the offset by distance from the fundamental.
-    const double *PL = panL, *PR = panR;
     const double pmv = p.panMotion;
     if (pmv > 0.001)
     {
@@ -558,8 +580,50 @@ class SwarmCore
         const double th = (pv + 1) * 0.25 * kPiRef;
         panLm[i] = std::cos(th); panRm[i] = std::sin(th);
       }
-      PL = panLm; PR = panRm;
+      panMotionOn = true;
     }
+    else panMotionOn = false;
+  }
+
+  void renderSeg(float *outL, float *outR, int frames)
+  {
+    // ADR-086: gravity integrates on a FIXED GRID, not once per render call.
+    // It is explicit Euler on a nonlinear ODE, so stepping with dt = the block
+    // length made the result depend on how a buffer was SUBDIVIDED — one call
+    // of n frames and n/256 chunked calls disagreed (measured 1.03 max sample
+    // difference at grav 0.5, and 0 with gravity off). That made renders
+    // non-reproducible across host buffer sizes, and made oscillator 0 (one
+    // whole call) integrate differently from oscillators 1..N (kMixChunk).
+    // A constant dt driven by an accumulator depends only on the cumulative
+    // sample count, never on its subdivision.
+    // 256 and not the 16-sample control tick: with 10 held notes gravity is
+    // O(gated^2) per step, and a 16-sample grid measured +66% CPU to buy a
+    // settling difference of 0.001 cents. 256 costs +2%.
+
+    const int n = (int)p.n;
+    const double gain = p.vol * 0.9 / std::pow((double)n, p.normExp);
+    // ADR-021: at the defaults these are the reference's exact expressions
+    // (attackS = 0.003, releaseS = 0.16 — same operands, same doubles).
+    const double atk = forcecore::onePoleCoef(p.attackS, sr);
+    const double rel = forcecore::onePoleCoef(p.releaseS, sr);
+    const double dec = forcecore::onePoleCoef(p.decayS, sr);
+    // ADR-063: per-sample leg of the frequency glide — a quarter of the
+    // control-rate time constant, seconds -> coefficient. 0 leaves the path alone.
+    const bool glideOn = p.freqGlide > 0;
+    const double gCoefS = glideOn ? 1 - std::exp(-1 / (p.freqGlide * 0.25 * sr)) : 0;
+    for (int i = 0; i < frames; i++) { outL[i] = 0.0f; outR[i] = 0.0f; }
+    // pan motion (ADR-064, parity with swarmsaw.html): slow LFOs sweep the base pan
+    // once per block. mode 0 = independent per-voice drift, 1 = one shared sweep.
+    // Centre pin scales the offset by distance from the fundamental.
+    // ADR-086: pan motion is advanced ONCE PER CALL by advancePanMotion(),
+    // not here. It is also a per-render-call integrator (phase += rate * dtB,
+    // sampled once and held across the block), so segmenting the render for
+    // gravity silently changed its update rate too — which broke parity on
+    // nine SAW pan scenarios whose reference (swarmsaw.html) was never part of
+    // this ADR. Gravity was ratified for a fixed grid; pan motion was not.
+    // Keeping it per-call is what confines this change to what was approved.
+    const double *PL = panMotionOn ? panLm : panL;
+    const double *PR = panMotionOn ? panRm : panR;
     const int osSub = p.oversample > 0.5 ? 2 : 1;   // ADR-075
     const bool ensOn = p.onsetScatter > 0;         // ADR-077
     const bool vEnvOn = p.voiceEnv > 0.5;          // ADR-078
@@ -806,6 +870,8 @@ class SwarmCore
     const Swarm *foc = focus();
     if (foc) std::memcpy(lastPhase, foc->phase, sizeof(lastPhase));   // ADR-062 keep-phase snapshot
   }
+
+public:
 
   Params p;
 
