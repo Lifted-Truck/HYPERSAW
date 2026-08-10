@@ -564,6 +564,39 @@ overdue count went 3 → 2. **A reply should keep the original `id` and add `in-
 human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
 replies.
 
+## SYNC PASS before ratifying the id block (2026-08-10) — and it found something
+
+Human: *"it's this ID issue I'm currently chewing on with FOUNDATIONS as well. Let's take a
+cautious extra pass to make sure everything is sync'd up."* Correct instinct; there was a gap.
+
+**The gap.** ADR-088 §4 justified a permanent routing id block with "CLAP ids are append-only, so
+this cannot be unmade" — stated as fact. It is FOUNDATIONS **open question #15**, unverified:
+*"can shipping hosts survive `rescan(CLAP_PARAM_RESCAN_ALL)` mid-session with automation lanes
+intact?"* HYPERSAW holds a `clap_host_params_t *` and has **never called rescan**; our param list
+is static by assumption, never by measurement.
+
+**Why it matters beyond tidiness.** The block allocation is safe under either answer — cheap if ids
+turn out revisable, load-bearing if not. But the *justification* is not, and the difference is a
+different design rather than a tidier one: if hosts survive a rescan, params could exist only when
+their rack does, instead of a static block sized for the worst case. **§4 stays unratified**;
+§§1–3 (the topology) are ratified and independent.
+
+**Offered:** HYPERSAW runs the spike. It is a shipping CLAP plugin that has never called rescan —
+an honest baseline rather than one already shaped around an answer — and its machine has real
+hosts. Six cases (id unchanged / added / removed / **reused**, in-session and after reload, plus
+the clap-wrapper VST3 path since that is also our shipping surface), reported as host × case data
+with **no recommendation attached**, because five vendors converging on a macro layer should not be
+overwritten by one machine's results. Filed as `offer-param-rescan-spike.md`.
+
+**Also resynced, and both moved in our favour:**
+- Their **#16 signal-graph topology** now cites **three convergent consumers** — our six-scheme
+  lab, Morphos's absent bus abstraction, auricle's hardcoded `Engine::process` order. When their
+  response was written it was "the second consumer decides"; it is now three, and the shape is
+  still deliberately undecided. Our ratifying C locally remains exactly what they asked for.
+- Their **#17 graph legality on the read side** is now a named open question with **two**
+  convergent consumers (auricle's "the runtime trusts the document", plus our backwards edge via
+  preset load). Our finding generalized past routing on their side, not ours.
+
 ## B23 UNBLOCKED — FOUNDATIONS widened the doorframe (2026-08-09, read 2026-08-10)
 
 `response-signal-graph.md`, human-ratified on their side, answers the brief filed the same day.

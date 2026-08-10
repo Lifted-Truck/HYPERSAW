@@ -942,9 +942,36 @@ not to be cited as design input. Its only role here is **removing the retrofit
 risk**: divergence between HYPERSAW's topology and any future library shape is
 information, not debt.
 
-### §4 — Id allocation (PROPOSED, needs a separate ratification)
+### §4 — Id allocation (PROPOSED — and its premise is an OPEN LIBRARY QUESTION)
 
-The permanent half. CLAP ids are append-only, so this cannot be unmade.
+**Sync pass, 2026-08-10.** This section originally opened "CLAP ids are
+append-only, so this cannot be unmade." That is stated as settled fact and it is
+not: it is precisely FOUNDATIONS **ROADMAP open question #15** — *"can shipping
+hosts survive `rescan(CLAP_PARAM_RESCAN_ALL)` mid-session with automation lanes
+intact? Decides whether the shell needs a bounded macro/proxy surface (five
+vendors' answer) or can expose dynamic params (CLAP's promise, unverified). Runs
+before any shell phase relies on either answer."*
+
+HYPERSAW holds a `clap_host_params_t *` and **has never called rescan**. Our
+param list is static for an instance's life by assumption, never by measurement.
+So the "permanent" framing is the CONSERVATIVE reading, not a verified one.
+
+**What survives the uncertainty, and what does not:**
+
+- **The block allocation is safe under BOTH answers** and is therefore still
+  proposed: a clean block costs nothing if ids turn out to be revisable, and
+  saves everything if they do not. Hygiene either way.
+- **The justification does not survive**, and matters beyond this ADR: if hosts
+  do survive a rescan, HYPERSAW gains an option it has been treating as
+  foreclosed — params that exist only when their rack does, rather than a
+  statically allocated block sized for the worst case. That is a different
+  design, not a tidier version of this one.
+
+**Therefore §4 stays unratified until the spike resolves**, and HYPERSAW has
+offered to run it (below). Ratifying a permanent layout on an unverified premise
+is the one move here that cannot be undone cheaply.
+
+### The proposal itself, unchanged
 
 - **Topology is patch state, not CLAP params.** Crosspoint on/off is discrete
   and nothing needs to automate it; morph corners are internal snapshots and
