@@ -43,7 +43,15 @@ constexpr int kPoly = 16;  // raised from 8 (2026-07-18: user hit the ceiling
 constexpr int kTick = 16;
 // ADR-086: the fixed grid gravity integrates on, in samples. Chosen by
 // measurement, not taste — see the comment at its use site in render().
-constexpr int kGravGrid = 256;
+// ADR-086 Amendment 1: the grid is a fixed TIME, not a fixed sample count.
+// 256 samples at 44.1 kHz was a duration that shrank as the rate rose (5.81 ms
+// there, 2.67 ms at 96 k), so Euler truncation error — and therefore gravity's
+// trajectory — tracked the sample rate: settle time drifted +0.42% at 96 k,
+// monotonically. That is the same defect one level down, relocated rather than
+// closed. Expressed in seconds it obeys ADR-009 like every other time constant.
+// The value is exactly 256/44100 so `gravGridSamples()` returns exactly 256 at
+// 44.1 kHz and every golden stays bit-identical.
+constexpr double kGravGridSeconds = 256.0 / 44100.0;   // 5.805 ms
 constexpr double kTau = 6.283185307;   // matches the reference's literal
 constexpr double kPiRef = 3.14159265;  // ditto — NOT M_PI, parity over precision
 
@@ -476,6 +484,13 @@ class SwarmCore
   // pull each gated pair's f0cur toward the nearest folded ratio inside the
   // basin. grav < 0.005 returns untouched — the SAW-parity path.
   int gravAccum = 0;   // ADR-086: samples owed to the gravity grid
+  // Rounded, never truncated: at 44.1 kHz this must land on exactly 256 or the
+  // goldens move for no reason. lround(44100 * 256/44100) == 256 exactly.
+  int gravGridSamples() const
+  {
+    const int g = (int)std::lround(sr * kGravGridSeconds);
+    return g < 1 ? 1 : g;
+  }
 
   void gravityStep(double dtB)
   {
@@ -541,14 +556,15 @@ class SwarmCore
     int done = 0;
     while (done < frames)
     {
-      const int room = kGravGrid - gravAccum;
+      const int grid = gravGridSamples();
+      const int room = grid - gravAccum;
       const int seg = (frames - done) < room ? (frames - done) : room;
       renderSeg(outL + done, outR + done, seg);
       gravAccum += seg;
       done += seg;
-      if (gravAccum >= kGravGrid)
+      if (gravAccum >= grid)
       {
-        gravityStep((double)kGravGrid / sr);
+        gravityStep((double)grid / sr);
         gravAccum = 0;
       }
     }

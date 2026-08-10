@@ -564,6 +564,72 @@ overdue count went 3 → 2. **A reply should keep the original `id` and add `in-
 human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
 replies.
 
+## B23 UNBLOCKED — FOUNDATIONS widened the doorframe (2026-08-09, read 2026-08-10)
+
+`response-signal-graph.md`, human-ratified on their side, answers the brief filed the same day.
+
+**The ruling:** *"§3.5's chain is a default shape, not a constitutional commitment. The core will
+not assume chain-only."* It deliberately does **not** choose a topology, promise a facility, or add
+machinery — the two-consumer rule we pre-empted applies. The topology question enters their §9
+register with our lab as its first evidence.
+
+**Consequence:** *"ratify what HYPERSAW needs... nothing in FOUNDATIONS forecloses it, and nothing
+in FOUNDATIONS should appear in your ratification rationale. Divergence between your topology and
+any future library shape is information, not debt."*
+
+**So B23 is a HYPERSAW decision again, on HYPERSAW's evidence** — and the lab's own reading stands:
+scheme **C, the dense crosspoint**, on the corrected cost model (88 patch-state values, **8
+automation ids**) and because it is the only scheme that is simultaneously serial-capable,
+single-instance, morphable and modulatable. **Awaiting the human's ratification; nothing blocks it.**
+
+**Where our three findings landed:**
+- *Patch state ≠ automation ids* — confirmed, and we are the **second** voice: their F1 P5 found
+  five vendors converging on a macro/proxy layer because host-facing ids are scarcer than state.
+  That crosses their two-consumer threshold from the host side.
+- *Topology morph discontinuity* — confirmed unstated and load-bearing; recorded into their morph
+  semantics open question alongside the same question for curves.
+- *Acyclicity needs a read-side owner* — generalized by them, better than our framing: **"legality
+  is enforced where structure is consumed, not where it is written, because the writer set is
+  open."** That generalizes past routing to every structure a preset can carry. Worth folding into
+  the knowledge loop at the next consolidation.
+
+Our oracle offer was accepted in principle: a routing oracle in `mpe_check`'s shape, consumer-
+authored and resident-landed when F2 opens.
+
+## ADR-086 AMENDMENT 1 SHIPPED — the gravity grid is a fixed TIME (2026-08-10, ratified)
+
+Found by a sample-rate invariance probe written the same hour ADR-086 shipped, which is the point:
+**a property oracle found a flaw in the fix, one that no golden could ever see** (goldens are only
+generated at 44.1 kHz, so parity is silent about every other rate).
+
+`kGravGrid = 256` is a fixed number of SAMPLES, so the grid's duration tracks the sample rate —
+5.81 ms at 44.1 k, 2.67 ms at 96 k. Total integrated time is unchanged, but Euler truncation error
+is not, so the trajectory differs slightly by rate. Measured, gravity settle time:
+
+| rate | attack 90% | gravity settle | vs 44.1 k |
+|---|---|---|---|
+| 44100 | 0.23341 s | 1.56744 s | — |
+| 48000 | 0.23311 s | 1.56800 s | +0.04% |
+| 88200 | 0.23338 s | 1.57342 s | +0.38% |
+| 96000 | 0.23314 s | 1.57400 s | **+0.42%** |
+
+The attack column is the control: flat to ±0.13%, so ADR-009's seconds→coefficient discipline
+holds. Gravity's drift is small (6.5 ms in 1.57 s — musically nothing) but **monotonic with rate**,
+which is a dependence rather than noise.
+
+**Shipped, ratified same day.** `kGravGridSeconds = 256.0/44100.0` with `gravGridSamples() = lround(sr * kGravGridSeconds)` — a fixed 5.805 ms. At 44.1 kHz it
+evaluates to exactly 256, so **every golden is bit-identical and no parity moves**; at other rates
+the integration step becomes constant in seconds, which is what ADR-009 asks of every other time
+constant in the engine. Costs one line in `swarm_core.h` and one in `swarmdynamics.html`
+(protected), and closes the dependence completely rather than relocating it.
+
+**Measurement caveat worth keeping.** The first run of this probe reported the attack varying by
+−1.4% and gravity by 0.38%, and the attack figure was entirely an artifact: the probe sampled every
+256 samples, so its own time resolution tracked the sample rate — the exact confound under test. Re-run
+with one millisecond of audio per step at every rate and interpolated threshold crossings, the attack
+variation collapsed to ±0.13% while gravity's survived. **A probe whose resolution depends on the
+variable it is testing will manufacture the effect it is looking for.**
+
 ## PAN MOTION is subdivision-dependent — the same defect, unruled (2026-08-10)
 
 Found by `subdiv_check`, the gate written for ADR-086, on its first run. Pan motion (ADR-064) is a

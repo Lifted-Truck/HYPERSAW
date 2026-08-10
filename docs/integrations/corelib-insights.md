@@ -24,6 +24,7 @@ because the first shipped build freezes it. Concrete scars, each with its PR:
 | macros need flags at introduction | the time-scale macro's 16-param list took a scan plus hand-filtering | B25, PR #222 |
 | one display vocabulary, defined once | corner colour/glyph is global across all UIs (standing convention) | ROADMAP 2026-08-05 |
 | velocity/pressure from day one | the engine ignored velocity for a month; adding it late was easy ONLY because gain had one seam | ADR-084, PR #233 |
+| oracles come in KINDS; parity is only one | parity certifies agreement, not correctness, and CERTIFIES any bug the reference shares — 147 scenarios passed for the whole life of the gravity bug and could not have failed. Invariant oracles need no reference, so they outlive it and donate cleanly | L0031; `subdiv_check`, ADR-086 |
 | a pitch-class set is a shared control | scale quantise, arpeggiators, harmonic-snap FX and quantised mod destinations all need root+mask; carrying `{root, mask}` instead of a scale ID keeps the DSP core free of a scale table, so a new scale adds no parity surface | `hzScalePicker`, ROADMAP § Scale picker |
 | consumers address a ROLE, not an instance | visuals, the XY pad, and labels each hardwired to oscillator 0; the fix is one named indirection resolved per read — **and the resolved instance must be labelled**, or mis-resolution is unobservable | L0028; PR #227, #239 |
 
@@ -118,6 +119,7 @@ test's clothes: it pins the recipient's architecture to the donor's. See L0030.
 | `notefuzz_check` | seeded note on/off streams always decay to silence (no hung voices) | ✅ public note events only |
 | `rtsafety_probe` | the audio thread allocates nothing | ✅ counts global operator new/delete around `process()` |
 | `preset_check` | a preset is slot-agnostic and globals never travel | ⚠️ uses the preset format's own API — portable only with that format |
+| `subdiv_check` | rendering does not depend on how a buffer is subdivided | ✅ **the most donatable kind** — an invariant, no reference, no internals named |
 | `parity_check` / the golden chains | bit-parity against a reference implementation | ❌ HYPERSAW-specific by construction — these are the donor's own gate, not a donation |
 
 **Suggested first exchange (the human's proposal, 2026-08-09):** the library
