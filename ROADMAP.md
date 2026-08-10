@@ -564,6 +564,40 @@ overdue count went 3 → 2. **A reply should keep the original `id` and add `in-
 human-readable link** — noted to Tonality as a suggestion, and worth applying to our own future
 replies.
 
+## ADR-086 AMENDMENT PROPOSED — the gravity grid should be a fixed TIME, not 256 samples (2026-08-10)
+
+Found by a sample-rate invariance probe written the same hour ADR-086 shipped, which is the point:
+**a property oracle found a flaw in the fix, one that no golden could ever see** (goldens are only
+generated at 44.1 kHz, so parity is silent about every other rate).
+
+`kGravGrid = 256` is a fixed number of SAMPLES, so the grid's duration tracks the sample rate —
+5.81 ms at 44.1 k, 2.67 ms at 96 k. Total integrated time is unchanged, but Euler truncation error
+is not, so the trajectory differs slightly by rate. Measured, gravity settle time:
+
+| rate | attack 90% | gravity settle | vs 44.1 k |
+|---|---|---|---|
+| 44100 | 0.23341 s | 1.56744 s | — |
+| 48000 | 0.23311 s | 1.56800 s | +0.04% |
+| 88200 | 0.23338 s | 1.57342 s | +0.38% |
+| 96000 | 0.23314 s | 1.57400 s | **+0.42%** |
+
+The attack column is the control: flat to ±0.13%, so ADR-009's seconds→coefficient discipline
+holds. Gravity's drift is small (6.5 ms in 1.57 s — musically nothing) but **monotonic with rate**,
+which is a dependence rather than noise.
+
+**Proposed:** `kGravGrid = lround(sr * 256.0 / 44100.0)` — a fixed 5.805 ms. At 44.1 kHz it
+evaluates to exactly 256, so **every golden is bit-identical and no parity moves**; at other rates
+the integration step becomes constant in seconds, which is what ADR-009 asks of every other time
+constant in the engine. Costs one line in `swarm_core.h` and one in `swarmdynamics.html`
+(protected), and closes the dependence completely rather than relocating it.
+
+**Measurement caveat worth keeping.** The first run of this probe reported the attack varying by
+−1.4% and gravity by 0.38%, and the attack figure was entirely an artifact: the probe sampled every
+256 samples, so its own time resolution tracked the sample rate — the exact confound under test. Re-run
+with one millisecond of audio per step at every rate and interpolated threshold crossings, the attack
+variation collapsed to ±0.13% while gravity's survived. **A probe whose resolution depends on the
+variable it is testing will manufacture the effect it is looking for.**
+
 ## PAN MOTION is subdivision-dependent — the same defect, unruled (2026-08-10)
 
 Found by `subdiv_check`, the gate written for ADR-086, on its first run. Pan motion (ADR-064) is a
