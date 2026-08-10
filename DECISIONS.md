@@ -896,3 +896,67 @@ decoration.
 
 `./verify full` now runs **16 gates**. Parity 147/147 worst 4.262e-09.
 
+## ADR-088 — B23 routing topology: dense crosspoint matrix (ACCEPTED)
+
+**Date:** 2026-08-10 · **Status:** topology ACCEPTED (human-ratified). The id
+allocation in §4 is **PROPOSED** and needs its own nod — see there.
+
+### Decision
+
+HYPERSAW's audio routing is a **dense crosspoint matrix**: every rack slot may
+be fed from any source and from any **earlier** slot, each crosspoint carrying a
+continuous coefficient, each slot additionally carrying an **initial value**
+(`out_i = in_i + Σ g_ki · m_k`, the canonical crosspoint form). A slot that no
+later slot reads is an output.
+
+### Why, on our own evidence
+
+`docs/design/routing-lab.html` benched six topologies over identical slots and
+sources, with audio, a cost model, and a morph analysis. Two things decided it:
+
+1. **Topology morph.** Quantum morph is a headline feature and a corner
+   interpolates *values*. In a dense table a crosspoint at 0 **is** "not
+   connected", so connecting and disconnecting are one continuous motion. Every
+   sparse scheme stores topology as discrete structure, so adding an edge,
+   reordering a chain, or repatching a bus is a **hard cut**. C is the only
+   scheme that is simultaneously serial-capable, single-instance, morphable and
+   modulatable.
+2. **The cost objection was measuring the wrong thing.** Round 1 rejected C at
+   "120 params" by conflating patch state with automation ids. Split properly it
+   is **88 patch-state values and 8 automation ids** at 4 oscillators × 8 slots.
+
+**Acyclicity by construction, enforced on the read side.** A slot may only read
+earlier slots, so one forward pass is always correct and no runtime cycle check
+is needed — an audio thread cannot afford one. The legality test lives where
+edges are *consumed*, never in the editor: preset load, morph corners and
+automation are all writers, so a guard on the write path is bypassable by
+construction. (The lab's scheme-D implementation proved this the hard way, and
+the principle generalizes past routing to every structure a preset can carry.)
+
+### What this decision is NOT
+
+It is not a bet on the shared library. FOUNDATIONS was asked one doorframe
+question and answered that §3.5's chain is "a default shape, not a
+constitutional commitment", explicitly declining to choose a topology and asking
+not to be cited as design input. Its only role here is **removing the retrofit
+risk**: divergence between HYPERSAW's topology and any future library shape is
+information, not debt.
+
+### §4 — Id allocation (PROPOSED, needs a separate ratification)
+
+The permanent half. CLAP ids are append-only, so this cannot be unmade.
+
+- **Topology is patch state, not CLAP params.** Crosspoint on/off is discrete
+  and nothing needs to automate it; morph corners are internal snapshots and
+  reach it without host ids. Only the continuous quantities get ids.
+- **Routing gets its own stride block: `10000 + rack*1000 + local`.** Rack 0
+  occupies 10000–10999. Rationale: ADR-082's amendment had to move once already
+  because a flat space ran out on the day it was needed, and stride IS capacity.
+  Oscillators own 0–2999 (`kOscStride` 1000, third slot reserved); 3000–9999
+  stays unallocated so a future block does not have to squeeze.
+- **Today's id cost is 8 per rack** — per-slot amount ×4, per-slot initial
+  value ×4.
+
+**Not implemented.** This ADR records the ruling; the increment that builds it
+is scoped in ROADMAP.
+
