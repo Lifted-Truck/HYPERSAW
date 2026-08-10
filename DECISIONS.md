@@ -942,11 +942,37 @@ not to be cited as design input. Its only role here is **removing the retrofit
 risk**: divergence between HYPERSAW's topology and any future library shape is
 information, not debt.
 
-### §4 — Id allocation (PROPOSED — and its premise is an OPEN LIBRARY QUESTION)
+### §4 — Id allocation (ACCEPTED 2026-08-10, on the specification)
 
-**Sync pass, 2026-08-10.** This section originally opened "CLAP ids are
-append-only, so this cannot be unmade." That is stated as settled fact and it is
-not: it is precisely FOUNDATIONS **ROADMAP open question #15** — *"can shipping
+**Resolved 2026-08-10 by reading the specification we vendor.** This section
+originally opened *"CLAP ids are append-only, so this cannot be unmade."* That
+sentence is wrong in **both** directions at once, and FOUNDATIONS caught it by
+citing `libs/clap/include/clap/ext/params.h` — our own tree — so it could be
+checked without taking their word. Verified verbatim:
+
+- **`params.h:212`** — *"Stable parameter identifier, it must never change."*
+  The id-stability half is **stronger** than claimed: append-only is **mandated
+  by specification**, not a convention we adopted for safety. The block
+  allocation needs no further permission from anyone.
+- **`params.h:70-77` ("VI. Adding or removing parameters")** — the parameter
+  **set** is explicitly revisable: `restart()` → deactivate → apply → `clear(host,
+  param_id, CLAP_PARAM_CLEAR_ALL)` for any id gone or reused → `rescan(ALL)`.
+  The "cannot be unmade" half is simply **false**.
+- **`params.h:328`** — *"It can only be used while the plugin is deactivated."*
+  There is no mid-session rescan to survive; the question we were both asking
+  contained a false premise.
+
+**The accurate claim, which is weaker and truer:** *ids are append-only by
+specification; the parameter SET is revisable through a documented
+deactivate/rescan cycle whose host-side automation behaviour is unmeasured.*
+
+**What this opens.** "Params that exist only when their rack does" is a flow
+CLAP documents, not a door we assumed shut. It is not adopted here — a static
+block is simpler and the host behaviour is unmeasured — but it is a **live
+option** for a future rack rather than a foreclosed one, and that is worth
+knowing before a second rack exists.
+
+The original framing cited FOUNDATIONS **ROADMAP open question #15** — *"can shipping
 hosts survive `rescan(CLAP_PARAM_RESCAN_ALL)` mid-session with automation lanes
 intact? Decides whether the shell needs a bounded macro/proxy surface (five
 vendors' answer) or can expose dynamic params (CLAP's promise, unverified). Runs
@@ -967,9 +993,20 @@ So the "permanent" framing is the CONSERVATIVE reading, not a verified one.
   statically allocated block sized for the worst case. That is a different
   design, not a tidier version of this one.
 
-**Therefore §4 stays unratified until the spike resolves**, and HYPERSAW has
-offered to run it (below). Ratifying a permanent layout on an unverified premise
-is the one move here that cannot be undone cheaply.
+**Therefore §4 is ACCEPTED**, on the specification rather than on the
+measurement. The residual empirical question — what a host does to an automation
+lane across the documented restart cycle — is narrowed, no longer blocking, and
+carried separately (`offer-param-rescan-spike.md`, accepted by FOUNDATIONS with
+two amendments: cases must run the legal cycle rather than an out-of-spec live
+rescan, and the clap-wrapper VST3 row is to be protected ahead of extra hosts,
+since most hosts meet us through the wrapper rather than through CLAP).
+
+**Process note worth keeping.** We held §4 on a library open question that was
+filed "pre-shell" — i.e. scoped against *their* phases, not against the fact
+that it gated a consumer's current work. Their words: *"a phase gate that
+ignores its correspondent's blocker is not a gate, it is a schedule."* The
+lesson cuts both ways: we also sat on it rather than asking, and it surfaced
+only because the human noticed the two threads were the same question.
 
 ### The proposal itself, unchanged
 
