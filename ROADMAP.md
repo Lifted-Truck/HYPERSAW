@@ -206,6 +206,68 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## STUCK NOTES — FOUND, REPRODUCED, FIXED (2026-08-11)
+
+The intermittent "notes don't die on key release" report is **confirmed, deterministic, and fixed.**
+FOUNDATIONS' brief (`integrations/hypersaw/brief-stuck-notes-oracle-blindness.md`) called both the
+oracle blindness and the mechanism before either was measured.
+
+### Why nothing caught it for weeks
+
+`notefuzz_check` gates on **rendered audio**, and the plugin constructor leaves oscillator 2 at
+`vol = 0` (`hypersaw_clap.cpp:444-450`). `vol` is per-oscillator by our own A12 ruling, so raising it
+needs id **1017**, which notefuzz never sent. **A voice stuck in oscillator 2 renders exactly
+nothing.** The oracle was structurally incapable of failing on the entire class of hang that requires
+two oscillators to exist — the class `kNumOsc = 2` introduced. Every green run said nothing about
+oscillator 2. This is the corpus ruling ("parity is structurally blind to every defect that needs two
+oscillators to exist") coming true one layer down, in the oracle we relied on for exactly this bug.
+
+### The defect
+
+`slotOf` was a **convention, not a construction**. The comment said "note fan-out keeps slot indices
+aligned" (`hypersaw_clap.cpp:1421-1423`); nothing enforced it, and it is false. `alloc()`'s tiers 1
+and 2 read `s.env`, and the amp envelope is **per-oscillator (A12)** — so once two cores' envelopes
+differ, their release tails fade on different schedules, the same note lands on **different slots**,
+and `retargetAll`/`setNoteExprAll`/`setNotePressureAll` (all indexed by oscillator 0's slot) hit the
+**wrong voice** in core k. The real voice is orphaned: still gated, under a key whose note-off has
+already been and gone. Only panic clears it.
+
+Matches every symptom: intermittent (depends on tail states, so on how fast you play), computer
+keyboard not piano roll (fast irregular playing forces the lower alloc tiers), unreproducible in
+simulation (the oracle muted the oscillator the orphan lives in), and recent (`kNumOsc = 2` shipped
+with ADR-082 increment 2).
+
+### Measurement, with the control that makes it mean something
+
+| mode | oscillator 2 | envelopes | result |
+|---|---|---|---|
+| `mono+2osc-same` | audible | **matched** | GREEN, 41 ms tail |
+| `mono+2osc` | audible | **diverged** | **hang, peak 0.4519, 1498 ms** |
+| `mono+legato+2osc` | audible | diverged | **hang, peak 0.4519** |
+
+The matched-envelope control is what rules out "raising the volume caused it" and isolates envelope
+divergence as the cause. Without it this is a probe confirming what it expected (L0032).
+
+### The fix
+
+`slotOf[s][k]` — core k's slot for the logical voice oscillator 0 holds at slot s — recorded at
+note-on (the only place a core allocates) and used by every fan-out helper. Identity-initialised, so
+an unbound slot degrades to exactly the old behaviour rather than to garbage: the map corrects an
+assumption, so its unset state must **be** that assumption.
+
+`./verify full` GREEN, all fifteen gates, with six new two-oscillator notefuzz modes and three
+controls. The gate is calibrated by construction — it was RED before the fix and GREEN after,
+same binary, same seeds.
+
+**FOUNDATIONS Stage 2 gets its answer:** §2 is CONFIRMED, with a reproduction. "One logical note maps
+to N physical voices" is now a construction here, and a library voice allocator whose identity
+survives independent per-engine allocation is the right extraction — measured, not plausible.
+
+### Still open from their brief
+
+Ask (c), the forensic ring buffer on panic, is **not done**. It pays regardless of who was right and
+turns future unreproducible field reports into replayable ones. Queued, not dropped.
+
 ## B23 INCREMENT 2 — the matrix is in the audio path, and inert (2026-08-11)
 
 `RoutingMatrix<1, kRackSlots>` now drives the FX rack in `process()`; `rack.processStereo` is gone

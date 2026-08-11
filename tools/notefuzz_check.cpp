@@ -121,7 +121,7 @@ constexpr double kSR = 44100.0;
 // sorted time. Those two skips were the whole blind spot.
 struct Result { double hangPeak; double releaseMs; };
 Result runScenario(uint32_t seed, bool mono, bool legato, bool vel0off,
-                   bool restrike, bool liveTiming)
+                   bool restrike, bool liveTiming, int twoOsc = 0)
 {
   auto *factory =
       (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
@@ -162,6 +162,46 @@ Result runScenario(uint32_t seed, bool mono, bool legato, bool vel0off,
     EvList evs;
     evs.params.push_back(mkParam(22, 0.005));
     evs.params.push_back(mkParam(21, 1.0));
+    /* FOUNDATIONS brief 2026-08-11 §1, and they were right: without this the
+       plugin's own constructor leaves oscillator 2 at vol 0, and the hang gate
+       reads RENDERED AUDIO — so a voice stuck in oscillator 2 renders exactly
+       nothing and this oracle was structurally incapable of failing on the
+       entire class of hang that needs two oscillators to exist. Every green run
+       before today said nothing whatsoever about oscillator 2.
+
+       `vol` is per-oscillator by our own A12 ruling, so raising it needs id
+       1017 — the base id 17 would only re-set oscillator 1.
+
+       The envelopes are set DIFFERENT on purpose. Slot alignment across cores
+       is a convention ("note fan-out keeps slot indices aligned",
+       hypersaw_clap.cpp:1421-1423), not a construction, and alloc()'s tiers 1
+       and 2 read `s.env` — so identical envelopes make the two cores allocate
+       in lockstep and the convention holds for free. Divergent envelopes are
+       the condition under which it can break. Release stays SHORT on both:
+       a long tail on oscillator 2 would decay past the 0.5 s window and report
+       a hang that is just a slow release. */
+    if (twoOsc)
+    {
+      evs.params.push_back(mkParam(1017, 0.4));    // osc2 audible at all
+      if (twoOsc == 2)
+      {
+        evs.params.push_back(mkParam(1019, 0.15));   // attack  (osc1: default)
+        evs.params.push_back(mkParam(1020, 0.40));   // decay
+        evs.params.push_back(mkParam(1021, 0.60));   // sustain (osc1: 1.0)
+        evs.params.push_back(mkParam(1022, 0.020));  // release — short, like osc1
+      }
+      else
+      {
+        // CONTROL (twoOsc == 1): oscillator 2 equally AUDIBLE, envelope MATCHED
+        // to oscillator 1. If the hang were an artefact of raising the volume,
+        // of the mode, or of the fuzz stream, it would appear here too. This
+        // must read clean or the divergent result proves nothing about
+        // divergence (L0032 — a probe with no must-read-clean control confirms
+        // whatever you expected).
+        evs.params.push_back(mkParam(1021, 1.0));
+        evs.params.push_back(mkParam(1022, 0.005));
+      }
+    }
     if (mono) evs.params.push_back(mkParam(32, 1.0));
     evs.params.push_back(mkParam(34, legato ? 1.0 : 0.0));
     process(evs);
@@ -333,22 +373,37 @@ int main(int argc, char **argv)
   }
   const int nSeeds = argc > 1 ? std::atoi(argv[1]) : 15;
   int failures = 0;
-  struct Mode { const char *name; bool mono, legato, vel0off, restrike, liveTiming; };
+  struct Mode { const char *name; bool mono, legato, vel0off, restrike, liveTiming; int twoOsc; };
   const Mode modes[] = {
       // existing coverage — unchanged, so the gate cannot weaken
-      {"poly", false, false, false, false, false},
-      {"mono", true, false, false, false, false},
-      {"mono+legato", true, true, false, false, false},
-      {"poly+vel0off", false, false, true, false, false},
-      {"mono+vel0off", true, false, true, false, false},
+      {"poly", false, false, false, false, false, 0},
+      {"mono", true, false, false, false, false, 0},
+      {"mono+legato", true, true, false, false, false, 0},
+      {"poly+vel0off", false, false, true, false, false, 0},
+      {"mono+vel0off", true, false, true, false, false, 0},
       // new: the computer-keyboard shapes
-      {"poly+restrike", false, false, false, true, false},
-      {"mono+restrike", true, false, false, true, false},
-      {"mono+legato+restrike", true, true, false, true, false},
-      {"poly+live", false, false, false, false, true},
-      {"mono+live", true, false, false, false, true},
-      {"poly+restrike+live", false, false, false, true, true},
-      {"mono+legato+restrike+live", true, true, false, true, true},
+      {"poly+restrike", false, false, false, true, false, 0},
+      {"mono+restrike", true, false, false, true, false, 0},
+      {"mono+legato+restrike", true, true, false, true, false, 0},
+      {"poly+live", false, false, false, false, true, 0},
+      {"mono+live", true, false, false, false, true, 0},
+      {"poly+restrike+live", false, false, false, true, true, 0},
+      {"mono+legato+restrike+live", true, true, false, true, true, 0},
+      // The must-read-clean control: oscillator 2 equally audible, envelope
+      // MATCHED. Isolates envelope divergence as the cause rather than volume.
+      {"poly+2osc-same", false, false, false, false, false, 1},
+      {"mono+2osc-same", true, false, false, false, false, 1},
+      {"mono+legato+2osc-same", true, true, false, false, false, 1},
+      // TWO-OSCILLATOR coverage (FOUNDATIONS brief §1). Same shapes, but with
+      // oscillator 2 audible and its envelope diverged from oscillator 1's, so
+      // a hang that lives only in the second core can actually be heard. These
+      // ADD; nothing above was relaxed to make room.
+      {"poly+2osc", false, false, false, false, false, 2},
+      {"mono+2osc", true, false, false, false, false, 2},
+      {"mono+legato+2osc", true, true, false, false, false, 2},
+      {"mono+legato+restrike+2osc", true, true, false, true, false, 2},
+      {"mono+legato+restrike+live+2osc", true, true, false, true, true, 2},
+      {"poly+restrike+live+2osc", false, false, false, true, true, 2},
   };
   for (const auto &m : modes)
   {
@@ -357,7 +412,7 @@ int main(int argc, char **argv)
     for (int s = 0; s < nSeeds; s++)
     {
       const Result r = runScenario(1000 + (uint32_t)s, m.mono, m.legato, m.vel0off,
-                                   m.restrike, m.liveTiming);
+                                   m.restrike, m.liveTiming, m.twoOsc);
       if (r.releaseMs > worstRelease) worstRelease = r.releaseMs;
       if (r.hangPeak > 1e-5)
       {
