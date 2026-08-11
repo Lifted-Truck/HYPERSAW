@@ -38,3 +38,5 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
      superseded, promote recurring candidates. Deliberately deferred 2026-08-10 so
      it would not bury the up-propagation pass. -->
 - [L0032] **CANONICAL, HIGH-PRIORITY (flagged for up-propagation):** a detector sharing an assumption with what it measures confirms whatever you expect — 4 instances in one day, each plausible and in the predicted direction; the cure is a control case that MUST read exactly zero, and every calibration mutation asserts its anchor | testing, calibration, epistemics, probes, doctrine, cross-project
+- [L0033] **CANONICAL:** a calibration plant that does NOT fire measured the assertion's coverage boundary — record it, never silently retry until one fires | testing, calibration, coverage, epistemics
+- [L0034] Know which LAYER your fidelity oracle spans before citing it — a change outside the reference's surface gets zero coverage from a green run | oracle, parity, coverage, refactor
