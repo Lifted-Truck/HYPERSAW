@@ -83,8 +83,26 @@ second as the first.** The scanner's own comments record two prior bugs of the
 same family (antiphon-001 reported 12 days overdue; the `ball: none`
 informational note masking a live ask), so this is a recurrence, not a novelty.
 
+**Third facet, found by walking into it 2026-08-11.** The test is
+`m["status"] in TERMINAL` — an **exact string match**. But the corpus is full of
+*decorated* statuses (`responded — ruling below, human-ratified`,
+`accepted — with one reframe…`), because the status line is also how a human
+skims a thread. We filed two closures as `status: closed — <reason>` and both
+stayed open; only bare `status: closed` worked.
+
+So the failure is worse than "unknown statuses fall through". **A status that
+begins with a terminal keyword and adds a clause is silently non-terminal** —
+the most natural thing an author writes — with no feedback of any kind. Two of
+our own threads survived two deliberate attempts to close them.
+
+It also sharpens the fix: matching the **leading token** (normalising on the
+first word before any dash) would close every historical thread that already
+means to be closed, including `tonality-live-001-ratify`'s
+`ratified-with-refinements`, **with no re-filing anywhere**.
+
 **Recommended fix:** keep the closed vocabulary — an open-world status field
-would be worse — but make an unrecognized status **loud**: surface it in the
+would be worse — but match the leading token rather than the whole string, and
+make an unrecognized status **loud**: surface it in the
 sweep as `status not recognized`, distinct from both open and terminal. A
 governor that silently guesses is exactly the failure mode it exists to catch
 in everyone else.
