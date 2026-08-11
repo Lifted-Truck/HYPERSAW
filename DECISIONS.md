@@ -1080,3 +1080,45 @@ that rule is applied here; it does not rewrite the rule. If the distinction is
 worth having everywhere, it belongs upstream in the doctrine repo, not in this
 file.
 
+## ADR-090 — Per-oscillator pan is an IMAGE SHIFT, not a balance (ACCEPTED)
+
+**Date:** 2026-08-11 · **Status:** ACCEPTED (human-ratified). Not yet
+implemented; it is parity-affecting and scoped below.
+
+### Decision
+
+A per-oscillator pan control **offsets every voice's seat** in that
+oscillator's stereo field. It is not a mix-stage balance.
+
+### Why, and why the cheap option was rejected
+
+The cheap option is a balance at the mix stage: `gL = min(1, 1-pan)`,
+`gR = min(1, 1+pan)`. Exactly unity at centre, never boosts, zero parity risk,
+shell-only. It is what a mixer does to a stereo source.
+
+**But HYPERSAW's stereo image is GENERATED, not recorded.** Voices are *seated*
+across the field by `panLayout` / `panScatter` / `panCurve`. Attenuating one
+channel does not move that image — it **deletes the far side of the ensemble**.
+Hard-panning a swarm under a balance law silences the voices seated opposite,
+which is a different instrument, not a different position. Balance is the right
+law for material that arrived stereo; this material did not.
+
+### Consequences, honestly
+
+- **Parity-affecting.** Seats live in `swarm_core.h`, and the reference
+  (`swarmsaw.html`, PROTECTED) must move with it. Goldens that engage pan will
+  re-measure.
+- Composes with the existing seat laws rather than fighting them: a shift is
+  applied to `panBase` before `panScatter`/`panCurve`, so the image's *shape*
+  is preserved and only its centre moves.
+- Edge clamping is the open sub-question: a shifted seat can exceed ±1. Clamp
+  (voices pile at the edge, image compresses) or wrap (voices reappear on the
+  far side, image tears). **Recommend clamp** — compression is a musical result,
+  tearing is not.
+
+### Scope
+
+Its own increment, not folded into B23's. New per-oscillator param, seat offset
+in the core, reference edit, goldens re-measured, and a probe proving the far
+side survives a hard pan — which is exactly what a balance law would fail.
+
