@@ -50,6 +50,40 @@ Correction filed as `notice-samplerate-oracle-correction.md`, asking them to kee
 evidence rather than a gate until it is actually gated here, so criterion 1b gets a date rather
 than an assurance.
 
+## FOUNDATIONS THREADS CLOSED — and we walked into the bug we had reported (2026-08-11)
+
+FOUNDATIONS reported waiting on three of ours. Two were answerable immediately and one is real work.
+
+- **`signal-graph`** — we ratified ADR-088 two days ago and never told them. Closed with the
+  ratification: topology and id block both accepted, their response cited only for what it removed
+  (the retrofit risk), per their own request not to be treated as design input.
+- **`oq15-clap-rescan`** — they asked whether to promote the host measurement to an F2 blocker.
+  **Answered no**, with reasoning: §4 is ratified on the *specification*, so nothing here waits; what
+  the measurement changes is a FUTURE option (params that exist only when their rack does) for a
+  second rack that does not exist; and it would make a phase wait on a human-run, macOS-local,
+  per-host manual test. Better spent on criterion 1b, which we can supply.
+- **`rescan-spike`** — genuinely ours, unscheduled. Reported honestly that the observation step
+  **needs a human at a DAW** and cannot be agent-run; offered to build the instrument (a plugin that
+  changes its exposed param set through the legal cycle) so the manual pass is clicking and reading.
+
+### We reproduced the exact defect we had briefed `autonomous` about
+
+Filing `status: answered` left the thread open — *"answered"* is not in the scanner's terminal set.
+Retrying with `status: closed — <reason>` **also** left it open. Only bare `status: closed` worked,
+because the test is `status in TERMINAL`, an **exact string match**.
+
+That is a third facet, and it is worse than the one we reported: **a status beginning with a
+terminal keyword and adding a clause is silently non-terminal** — which is the most natural thing an
+author writes, and the corpus is full of decorated statuses. Two of our own threads stayed open
+through two deliberate attempts to close them, with no feedback of any kind.
+
+It also sharpens the recommended fix in our brief: matching the **leading token** rather than the
+whole string would close every historical thread that already means to be closed — including
+`tonality-live-001-ratify`'s `ratified-with-refinements` — with no re-filing anywhere. Brief updated.
+
+**Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
+outstanding work rather than an unanswered question.
+
 ## B23 INCREMENT 1 — routing core + oracle, not yet in the audio path (2026-08-10)
 
 Topology and ids both ratified (ADR-088), so the build began — in the order this project has twice
