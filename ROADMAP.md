@@ -50,6 +50,106 @@ Correction filed as `notice-samplerate-oracle-correction.md`, asking them to kee
 evidence rather than a gate until it is actually gated here, so criterion 1b gets a date rather
 than an assurance.
 
+## coreKey CONFORMANCE DATA — the mapping is a dispatch, not a function (2026-08-11)
+
+FOUNDATIONS named the `address.leaf() == coreKey` conformance tool as F2 Stage 1's live item and
+the claim as unproven. Measured our real table rather than waiting.
+
+**Injectivity: proven.** Zero duplicate coreKeys across all 105 instrument params.
+
+**Totality: the claim was mis-shaped.** `coreKey` does not name one owner —
+
+| owner | params |
+|---|---|
+| SwarmCore only | 44 |
+| shell-domain only (reaches NO core) | 16 |
+| SpectraCore only | 15 |
+| FX rack | 8 |
+| multi-owner combinations | 11 |
+| unresolved (`fx1tone`…`fx4tone`) | 4 |
+
+**16 keys reach no core at all** — shell state whose `coreKey` exists purely to be the state wire
+format. A tool asserting "every coreKey is a valid core key" fails on 16 params that are working
+correctly. And 11 keys deliberately fan to *two* engines (`width` → SwarmCore `width` + SPECTRA
+`swidth`), so an address scheme must express "this address fans to these targets" rather than
+assuming one destination.
+
+### Three param-map idioms, not two
+
+`k == "x"` (swarm_core) · `eq(k, "x")` (some cores) · `std::strcmp(k, "x")` (spectra_core).
+
+Our friction list said *two* idioms made a scope audit silently report 0 findings. It is three, and
+**the first pass at the table above — grepping one idiom — reported 27 params as UNCLAIMED that are
+correctly owned by SPECTRA and the rack.** The analysis reproduced the exact defect it was
+documenting. A conformance tool that scans source rather than the registry will under-report and
+look green; that is a stronger argument for Stage 1's registry than the friction-list version was.
+
+### Correction we owed them
+
+Our repeated "N files awaiting their resident to commit" was **wrong** — their outbound side read
+as our inbound debt. Verified independently: nothing uncommitted either direction, all nine of ours
+in `origin/main`, split 9/10 exactly as they said.
+
+Cause worth naming: we had a *convention* to report carry-state and no *derivation* for it, so a
+claim formed once from a governor signal about a different repo survived every repetition. Same
+failure their new `check_inbound_uncommitted` fixes on their side. The roundup memory now says:
+derive it from the tree, or omit the line.
+## OPEN WORK — the CLAP param-rescan host measurement (tracked here, 2026-08-11)
+
+Moved out of `integrations/` and into the roadmap, where work belongs. The FOUNDATIONS exchange is
+**closed** — they accepted, we agreed, and the ball had been "our schedule" for days; leaving it
+open made an unscheduled task look like an unanswered question, which is exactly the confusion that
+produced a week of phantom-debt status lines.
+
+**What it is.** Six cases per host, run through the **legal** cycle
+(`restart()` → `deactivate()` → apply → `clear(host, id, CLAP_PARAM_CLEAR_ALL)` → `rescan(ALL)` →
+`activate()`), never a mid-session `RESCAN_ALL` — that call is illegal per `params.h:328`, and
+measuring it could have produced "hosts do not support dynamic params" and foreclosed a flow the
+spec documents at `params.h:70-77`.
+
+| case | question |
+|---|---|
+| id unchanged | does an existing automation lane keep its points and its binding? |
+| id added | does a new id inherit lane state from a previous instance if `clear()` was skipped? |
+| id removed | does the lane disappear cleanly, orphan, or corrupt the project? |
+| id **reused** for a different param | the one that decides whether append-only is a rule or a convention |
+| each of the above, **after a project reload** | surviving in-session and surviving a reload are different promises |
+| the **clap-wrapper VST3 path** | most hosts meet us through the wrapper, whose parameter model is not CLAP's |
+
+**Priority order if scope must be cut: drop a host before dropping the wrapper row** (their
+instruction, and right — a clean CLAP answer that dies at the wrapper answers nobody's question).
+
+**Blocked on a human at a DAW.** The observation step cannot be agent-run. What *can* be built
+without one is the instrument: a plugin that changes its exposed parameter set on command through
+that cycle, so the manual pass is clicking and reading rather than building. Offered, not promised.
+
+**Nothing depends on it.** ADR-088 §4 is ratified on the specification; this measurement only
+decides whether a *future* rack could use dynamic params instead of a static block.
+
+## F2 STAGE 1 INCREMENT 2 — both conformance reports GREEN (2026-08-11)
+
+FOUNDATIONS shipped `registry_conformance`; we ran it on both real tables. **hypersaw 181 rows**
+(105 base + 76 per-oscillator copies; 29 globals not duplicated) and **swarmfx 17** — C1 arity, C2
+invariants, C3 `address.leaf() == key`, C4 wire format byte-identical to today's. All green.
+
+**Emitter A, and the trap had a second door.** `patch_key` comes from the bytes `state_save`
+actually writes. But our first emitter derived `key` by stripping the `o<k>.` prefix off
+`patch_key` — the same tautology one level down, since C4 would then compare their reconstruction
+against a string built from the column it was checking. Columns are now independently sourced:
+behaviour for `patch_key`, declaration (`tools/registry_decl.py`) for `key`/`global`/ranges.
+
+**Their C2 fired on our real data and was right.** First honest run: RED, *"leaf shadows an
+ancestor scope — id 1002, address `osc1.dist`"*. Our declaration parser ran `\d+` over the
+`kGlobalIds` block *including comments*, slurping digits from `A12`, `ADR-082`, `2026-08-11` → 36
+globals where there are 29, declaring `dist` **both** global and per-oscillator, which really would
+collide on load. That is the case they said they most wanted and could not predict, and it was
+**calibrated on real data by accident** — fired on a table that contained the condition, green once
+removed. Three deliberate plants also reported precisely: `.` in a key → C3, one param
+mis-classified → C4 naming id 1001, truncated dump → C1.
+
+swarmfx names are **proposed**, matching HYPERSAW's existing `coreKey` wherever the concept exists;
+C3 there is a forward constraint only, since that shell keys state on the numeric id.
+
 ## A12 SHIPPED — and it uncovered a third fan-out bug (2026-08-11)
 
 Implementing the ratified A12 scope changes required touching `kGlobalIds`, and checking *how*
