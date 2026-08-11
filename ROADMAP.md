@@ -8,6 +8,41 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## B23 INCREMENT 1 — routing core + oracle, not yet in the audio path (2026-08-10)
+
+Topology and ids both ratified (ADR-088), so the build began — in the order this project has twice
+proven: core plus oracle first, shell integration onto proven ground second (glide, swarmalator).
+
+`src/routing_core.h` — framework-free crosspoint matrix. Dense coefficients, per-slot **initial
+value** (`out_i = in_i + Σ g·m`, the canonical form the lab lacked), acyclicity enforced **on the
+read side** through one named `edgeLive()` that every consumer calls, because the writer set is
+open (preset load, morph, automation) and a guard at the write sites is bypassable by construction.
+**FX-agnostic**: the caller supplies slot processing through a callable, so the matrix owns topology
+and nothing else — which is what lets the oracle measure routing rather than an effect, and is the
+shape that transfers.
+
+`tools/routing_check.cpp` — 7 invariant assertions, green. Deliberately NOT parity against the lab:
+scheme C carries toy effects, so sample parity would mostly measure those.
+
+**Calibration returned two different answers, and only one is a success.**
+- Removing the read-side guard makes assertion 3 **FAIL** (1 → 5). Load-bearing; the oracle catches
+  its loss.
+- Planting the lab's *other* bug — a terminal test that skips the legality check — is a **NO-OP**
+  here. `isTerminal` loops `t > slot`, so illegal destinations are excluded by the **loop bound**,
+  not the check; the bug is not expressible against this shape. Recorded as a finding about the
+  design rather than counted as a second calibration, which is what it would have looked like from
+  outside.
+
+**Build hazard.** CMake did not track `src/routing_core.h` as a dependency of `routing_check`, so
+the first calibration read a **stale binary** and reported two identical failures that were one
+failure twice, plus a "restored" run still red. Plant/restore cycles here must delete the object
+file rather than trust the incremental build — same family as L0032's four detector traps.
+
+**Not yet wired.** The rack is still a fixed serial chain (`fx_rack.h::processStereo`). Increment 2
+is the shell: separate oscillator buses into the matrix, per-slot buffers, terminals summed to
+master, with `setSerialChain()` as the default so it lands inert and the goldens stay the regression
+proof. `routing_check` built but **NOT gated** (`./verify` is protected).
+
 ## MOD LAB REOPENED — morph×mod built, and the matrix was dead (2026-08-05)
 
 **Found first: the mod lab's matrix had not been rendering at all.** `wire('rN', …)`
