@@ -74,6 +74,11 @@ Parity corpus (REPLY DRAFTED 2026-08-09 to FOUNDATIONS'
   on failure. No `-ffast-math`/`-march=native` anywhere; no FTZ/DAZ handling —
   if the library sets flush-to-zero, tails change in the last bits.
 
+Reporting convention (human, 2026-08-10): every session response ends with a
+roundup of what was filed cross-repo and where the ball sits — filings are
+invisible to the human until *their* resident commits them, so an unannounced
+filing is an unread one.
+
 F2 IS OPEN (2026-08-10) — HYPERSAW is the active correspondent. Extraction
 plan reviewed and endorsed; three corrections filed. The one that matters:
 - **`src/swarmfx_clap.cpp` is a SECOND shell** (437 lines, its own CLAP factory,
