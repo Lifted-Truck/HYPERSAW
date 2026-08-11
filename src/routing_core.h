@@ -51,6 +51,13 @@ struct RoutingMatrix
   double slotInit[NSLOT] = {0};                // the `in_i` term
   double outAmount[NSLOT] = {0};               // terminal contribution
 
+  /* A default-constructed matrix connects nothing, and "nothing connected"
+     means every outAmount is 0 — i.e. SILENCE. That is the worst possible
+     way for an initialization slip to fail, so the constructor establishes the
+     serial chain and the zero state stays reachable only by asking for it. The
+     charter's "safety by construction, not by vigilance" applied literally. */
+  RoutingMatrix() { setSerialChain(); }
+
   /* THE legality predicate. Sources may reach anything; a slot may reach only
      a LATER slot. Every consumer calls this — see the header note on why it
      cannot live at the write sites. */
@@ -123,6 +130,59 @@ struct RoutingMatrix
     for (int t = 0; t < NSLOT; t++)
       if (isTerminal(t)) y += outAmount[t] * slotOut[t];
     return y;
+  }
+
+  /* Block-stereo forward pass — the same topology, through the same predicates,
+     for slots that a scalar callable cannot express: the real rack slots are
+     STEREO (a compressor detects on both channels), STATEFUL, and BLOCK-based
+     (a comb needs contiguous samples). It lives here and not in the shell
+     precisely because the shell must never own a second copy of "which edges
+     are live" or "which slot is an output" — that duplication is the bug the
+     header note describes, and re-deriving it against real audio is where it
+     would be least visible.
+
+     Scratch is CALLER-OWNED (`slotL/slotR`, NSLOT buffers of >= n): the audio
+     thread allocates nothing. `proc(slot, L, R, n)` transforms a slot's buffer
+     IN PLACE, which is also what makes an Off slot a bit-exact passthrough —
+     it simply does not touch the gathered input.
+
+     `outL/outR` may alias a source buffer (the shell passes the mix bus as both
+     source and destination). Safe because the output is not written until every
+     slot has gathered; keep that ordering if this is ever restructured. */
+  template <class Proc>
+  void processBlock(const float *const *srcL, const float *const *srcR,
+                    float *const *slotL, float *const *slotR,
+                    float *outL, float *outR, int n, Proc &&proc) const
+  {
+    for (int t = 0; t < NSLOT; t++)
+    {
+      const float init = (float)slotInit[t];
+      for (int i = 0; i < n; i++) { slotL[t][i] = init; slotR[t][i] = init; }
+      for (int f = 0; f < NSRC + NSLOT; f++)
+      {
+        if (!connected(f, t)) continue;
+        const double g = coeff[f][t];
+        const float *aL = f < NSRC ? srcL[f] : slotL[f - NSRC];
+        const float *aR = f < NSRC ? srcR[f] : slotR[f - NSRC];
+        for (int i = 0; i < n; i++)
+        {
+          slotL[t][i] += (float)(g * aL[i]);
+          slotR[t][i] += (float)(g * aR[i]);
+        }
+      }
+      proc(t, slotL[t], slotR[t], n);
+    }
+    for (int i = 0; i < n; i++) { outL[i] = 0.0f; outR[i] = 0.0f; }
+    for (int t = 0; t < NSLOT; t++)
+    {
+      if (!isTerminal(t)) continue;
+      const double a = outAmount[t];
+      for (int i = 0; i < n; i++)
+      {
+        outL[i] += (float)(a * slotL[t][i]);
+        outR[i] += (float)(a * slotR[t][i]);
+      }
+    }
   }
 };
 

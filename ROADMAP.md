@@ -206,6 +206,61 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## B23 INCREMENT 2 — the matrix is in the audio path, and inert (2026-08-11)
+
+`RoutingMatrix<1, kRackSlots>` now drives the FX rack in `process()`; `rack.processStereo` is gone
+from the shell. Three parts:
+
+1. **`processSlot(idx, L, R, n)`** extracted from `processStereo` in `src/fx_rack.h` — pure
+   mechanical refactor, switch body untouched, so the matrix has a block-stereo slot to call.
+2. **`processBlock()`** added to `src/routing_core.h`: the same topology through the same
+   predicates, for slots that a scalar callable cannot express (a compressor detects on both
+   channels; a comb needs contiguous samples). Scratch is caller-owned — the audio thread allocates
+   nothing. It lives in the core, not the shell, so the shell never owns a second copy of "which
+   edges are live"; that duplication is the routing lab's actual bug.
+3. **Shell wiring** with fixed stack scratch and a `kMixChunk` loop, matching the oscillator sum
+   and for the same recorded reason: a heap buffer sized at `activate()` once made audible output
+   conditional on `activate()` having run.
+
+**A default-constructed matrix connects nothing, which means outAmount is 0 everywhere — silence.**
+That is the worst direction for an init slip to fail, so `RoutingMatrix()` now establishes the
+serial chain and the zero state is reachable only by asking for it.
+
+### Bass-mono stays upstream — the reorder was measured and refused
+
+Per-oscillator sources would force bass-mono downstream of the rack (a mid/side fold on the *sum*
+does not decompose per-source). The argument for moving it was that a decorrelating slot could undo
+the mono guarantee. **Measured, and refuted:** Comb at amount 0.9 scales the sub-crossover channel
+difference by 2.2x whether bass-mono is on or off — residual 10.6% vs 11.4% — because it is a
+stereo-*symmetric* filter. No current slot type decorrelates, so there is no correctness case, and
+an audible reorder with no oracle behind it is not one to make on taste. **This increment therefore
+carries one source (the summed, post-bass-mono bus).** Per-oscillator sources are a later increment
+and carry this ordering question as their own decision.
+
+(The first probe reported this backwards: a one-pole at 200 Hz is only 6 dB/oct, so its "low end"
+was full of above-crossover content that bass-mono is *supposed* to leave stereo, and it failed a
+correctly-working crossover. Isolating the band with a Goertzel at the note fundamental gave the
+real answer. Fifth instance of L0032 — the detector shared an assumption with what it measured.)
+
+### The goldens cannot see this, so it needed its own assertion
+
+The 147 parity scenarios render `SwarmCore` directly; the whole plugin mix stage — bass-mono, rack,
+master volume — is downstream of everything they cover. Reading a green parity run as evidence for a
+mix-stage refactor would be assuming exactly the coverage that does not exist (L0031). So
+`routing_check` gained assertion 8: the serial-chain block pass equals `rack.processStereo` **sample
+for sample**, with all four slots active and distinct (an all-Off rack would pass trivially by
+touching nothing). Result **0/1024 samples differ**, reference energy 172.3.
+
+**Calibration — and the useful result is the plant that did not fire.** Fires at 1023/1024: a gather
+coefficient off by 1e-6; zeroing the output buffer before the slots gather (the aliasing hazard, since
+the shell passes the mix bus as both source and destination). **No-op:** removing the `isTerminal`
+filter, because `setSerialChain` leaves `outAmount = 0` on every non-terminal, so summing them adds
+zeros. Assertion 8 does not cover terminal detection at all — assertion 4 does, and that division is
+recorded rather than left to be assumed the other way.
+
+`./verify full` GREEN, all fifteen gates; parity 147/147 worst 4.262e-09; `rtsafety_probe` clean over
+block sizes 33..2048 (up to eight chunks per call) with the new stack scratch.
+
 ## B23 INCREMENT 1 — routing core + oracle, not yet in the audio path (2026-08-10)
 
 Topology and ids both ratified (ADR-088), so the build began — in the order this project has twice
@@ -2254,7 +2309,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | B20 | **Three preset tiers** — **oscillator tier SHIPPED 2026-08-06** (`src/osc_preset.h` + `preset_check` in `./verify full`; format slot-agnostic, globals excluded; plugin wiring deferred to the GUI that calls it). Corner tier unblocked (A11 ruled global), patch tier already exists as CLAP state | § Layout: glide + preset tiers |
 | B21 | **Step glide** — **TESTED IN LAB 2026-08-07**: quantise + q·hysteresis + q·step-time controls in bend-lab; gate paces steps onto a time grid (measured 250 ms commits at qTime 250) only when slower than the law. Remaining: tempo sync + C++ fold with B19's shell wiring. **Scale source answered 2026-08-09**: `hzScalePicker` (root + 12-bit mask, no scale enum) — the shell exposes root + mask, not a scale ID, so named scales stay a UI table |  § Step-glide tested |
 | B22 | **K link AND phase link — two mechanisms** — K link shares a *parameter* (does NOT lock oscillators together); `link` is the *dynamical* inter-swarm coupling that actually does. Wants an ADR before building so the naming distinguishes them | § Re-order |
-| B23 | **RULED 2026-08-10 (ADR-088): dense crosspoint matrix, id block ACCEPTED** (routing at 10000+, topology as patch state). Both halves settled; ids are append-only *by CLAP spec* (`params.h:212`) while the param SET is revisable (`params.h:70-77`) — dynamic params are a live option, not a closed door. Implementation increment not started. Lab **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Initially recommended **C (matrix DAG)**; a 2026-08-09 research probe found the **menu incomplete** (missing sparse connection-slots, reorderable chain, bus model) and the cost table built on an unexamined assumption that every routable quantity needs its own CLAP param. Round 2 (2026-08-09) added D/E/F, the crosspoint initial value, and a corrected cost model (C is **8 automation ids**, not 120). **Still unruled — escalated to FOUNDATIONS**: §3.2 rules modulation routing sparse, §3.5 leaves the signal graph a plain chain | § B23 routing lab · § research probe · § round 2 |
+| B23 | **RULED 2026-08-10 (ADR-088): dense crosspoint matrix, id block ACCEPTED** (routing at 10000+, topology as patch state). Both halves settled; ids are append-only *by CLAP spec* (`params.h:212`) while the param SET is revisable (`params.h:70-77`) — dynamic params are a live option, not a closed door. **Increment 1 (core+oracle) and increment 2 (in the audio path, inert, one source) both landed 2026-08-10/11**; per-oscillator sources are the next increment and carry the bass-mono ordering decision. Lab **SHIPPED 2026-08-09** (`docs/design/routing-lab.html`): three topologies + cost table + morph/mod composition. Initially recommended **C (matrix DAG)**; a 2026-08-09 research probe found the **menu incomplete** (missing sparse connection-slots, reorderable chain, bus model) and the cost table built on an unexamined assumption that every routable quantity needs its own CLAP param. Round 2 (2026-08-09) added D/E/F, the crosspoint initial value, and a corrected cost model (C is **8 automation ids**, not 120). **Still unruled — escalated to FOUNDATIONS**: §3.2 rules modulation routing sparse, §3.5 leaves the signal graph a plain chain | § B23 routing lab · § research probe · § round 2 |
 | B24 | **Master/mixer page** — **INCREMENT 2 SHIPPED 2026-08-09** (mute/solo params 104/105 + per-osc meters, `mixer_check` built-not-gated). **INCREMENT 1 SHIPPED 2026-08-07**: per-osc strips (level+width, fixed-id, both visible at once) + masterVol (id 100, first stride-1000 allocation, unity-exact). Remaining: per-osc pan (LAW UNRULED — balance vs image-shift, see § OPEN), rest of A12 | § B24 increment 1 · § increment 2 |
 | B25 | **Global time scale macro** — one control over the 16 time-domain params (plus the glide laws, echo/room decays and reverb EDT still to land). Multiplicative, with a rule for clamped ranges so it cannot silently stop affecting some controls | § Global time scale |
 | B26 | **Depth-of-depth (mod-on-mod)** — each active routing's depth becomes a destination (`R → (LFO → cutoff).depth`); surfaced per active routing, carries scope, reuses morph hysteresis against threshold chatter; wants the reverse-saw + tempo sync (B16) so the motivating patch works day one | § Mod matrix: depth is a target |

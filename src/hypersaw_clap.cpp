@@ -27,6 +27,7 @@
 #include "gui/hypersaw_gui.h"
 #include "spectra_core.h"
 #include "fx_rack.h"
+#include "routing_core.h"
 #include "hypersaw_clap_entry.h"
 #include "build_stamp.h"   // generated every build (CMake target)
 
@@ -450,6 +451,12 @@ struct Plugin
   } silenceHigher{cores};
   hypersaw::SpectraCore spectra{44100.0};
   hypersaw::FxRack rack;  // ADR-054 internal FX rack (post-oscillator)
+  // B23 crosspoint topology over those slots (ADR-088). One source for now —
+  // the summed, post-bass-mono bus — so this increment is purely "the matrix is
+  // in the audio path and inert". Per-oscillator sources are a later increment
+  // and carry their own decision, because sources upstream of bass-mono is
+  // exactly the ordering question this increment declined to force.
+  hypersaw::RoutingMatrix<1, hypersaw::kRackSlots> routing;
   double engineSel = 0;  // 0 SAW, 1 SPECTRA (ADR-037; shell dispatch)
   bool spectraMode() const { return engineSel != 0; }
   double sampleRate = 44100.0;
@@ -1573,10 +1580,46 @@ struct Plugin
       }
     }
 
-    // Internal FX rack (ADR-054): post-oscillator, post-bass-mono, in place.
-    // All-Off is a bit-exact passthrough (the parity gate). Runs before the
-    // spectrum feed so the visualizer reflects post-FX output.
-    rack.processStereo(outL, outR, (int)nframes);
+    // Internal FX rack (ADR-054), now driven THROUGH the B23 crosspoint matrix
+    // (ADR-088) rather than as a hardcoded series. Post-oscillator,
+    // post-bass-mono; runs before the spectrum feed so the visualizer reflects
+    // post-FX output.
+    //
+    // Bass-mono stays UPSTREAM of the rack. The reorder was considered and
+    // dropped: the argument for moving it was that a decorrelating slot
+    // downstream could undo the mono guarantee, and measurement refuted it —
+    // Comb at amount 0.9 scales the sub-crossover channel difference by 2.2x
+    // whether bass-mono is on or off, leaving the same ~11% residual either
+    // way, because it is a stereo-SYMMETRIC filter. No current slot type
+    // decorrelates, so there is no correctness case, and an audible reorder
+    // with no oracle behind it is not one to make on taste.
+    //
+    // The default topology is setSerialChain(), which reproduces the old
+    // `rack.processStereo` chain BIT-EXACTLY: every live edge carries a
+    // coefficient of exactly 1.0, so each gather is `0.0f + 1.0*x` and the
+    // terminal sum is `0.0f + 1.0*slot3` — both exact in float. That inertness
+    // is what keeps the 147 goldens as this change's regression proof, and
+    // routing_check asserts it against the real rack rather than trusting it.
+    //
+    // Fixed stack scratch + chunk loop, matching the oscillator sum above and
+    // for the same reason: a heap buffer sized at activate() once made audible
+    // output conditional on activate() having run.
+    {
+      float sL[hypersaw::kRackSlots][kMixChunk], sR[hypersaw::kRackSlots][kMixChunk];
+      float *slotL[hypersaw::kRackSlots], *slotR[hypersaw::kRackSlots];
+      for (int t = 0; t < hypersaw::kRackSlots; t++) { slotL[t] = sL[t]; slotR[t] = sR[t]; }
+      for (uint32_t off = 0; off < nframes; off += (uint32_t)kMixChunk)
+      {
+        const uint32_t left = nframes - off;
+        const int m = (int)(left < (uint32_t)kMixChunk ? left : (uint32_t)kMixChunk);
+        const float *srcL[1] = {outL + off};
+        const float *srcR[1] = {outR + off};
+        routing.processBlock(srcL, srcR, slotL, slotR, outL + off, outR + off, m,
+                             [&](int slot, float *L, float *R, int n) {
+                               rack.processSlot(slot, L, R, n);
+                             });
+      }
+    }
 
     // MASTER VOLUME (B24): last in the chain, before the visualizer feed so
     // the meters show what leaves the plugin. One-pole smoothed (~8 ms) with a

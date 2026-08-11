@@ -181,10 +181,24 @@ class FxRack
 
   // Process the stereo bus in place, slot 0 → kRackSlots-1. All-Off is a
   // no-op (bit-exact passthrough — the parity gate).
+  /* The whole rack, slot 0 → 1 → … in order. Unchanged behaviour: it is now a
+     loop over processSlot(), which is the same sequence written once. */
   void processStereo(float *L, float *R, int n)
   {
-    for (auto &s : slots)
+    for (int i = 0; i < kRackSlots; i++) processSlot(i, L, R, n);
+  }
+
+  /* ONE slot, in place (B23 increment 2a). The crosspoint matrix routes each
+     slot its own input and keeps its output, so it cannot use the fixed
+     sequence above — but the per-slot DSP must stay literally the same code, or
+     the routing change and an effect change would land together and neither
+     could be attributed. Extracted mechanically: the switch body below is
+     untouched, only its wrapper moved. The 147 parity goldens are the proof. */
+  void processSlot(int idx, float *L, float *R, int n)
+  {
+    if (idx < 0 || idx >= kRackSlots) return;
     {
+      auto &s = slots[idx];
       switch (s.type)
       {
         case FxType::Off:

@@ -50,6 +50,23 @@ leak_gate() {
   return 1
 }
 
+# M_PI is a POSIX extension, NOT standard C++: MSVC does not define it without
+# _USE_MATH_DEFINES, so it compiles everywhere the authors work and fails only on
+# the Windows leg of CI. That is a 3-minute round trip to learn something a local
+# grep answers instantly, and it has now bitten three times despite the lesson
+# being written down in six files. Prose was not the missing piece; enforcement
+# was. --untracked is load-bearing here for the same reason as in leak_gate: git
+# grep skips new files otherwise, and a brand-new tool file is exactly the case.
+portability_gate() {
+  local hits
+  hits=$(git grep --untracked -nI 'M_PI' -- '*.cpp' '*.h' '*.hpp' 2>/dev/null \
+         | grep -vE '(//|/\*|\*).*M_PI' || true)
+  [ -z "$hits" ] && return 0
+  echo "verify: PORTABILITY — M_PI is undefined under MSVC; use a local kPi constant:" >&2
+  echo "$hits" | sed 's/^/    /' >&2
+  return 1
+}
+
 fast() {
   # ---- Layer-0: seconds, not minutes. CI-blocking. -------------------------
   # Honestly-scoped day-zero oracle: structure + manifest sanity. The real L0
@@ -58,6 +75,7 @@ fast() {
   # a human decision recorded in ROADMAP.md.
   local ok=0
   leak_gate || ok=1          # privacy gate: kit-core, keep it first
+  portability_gate || ok=1   # MSVC-only breakage, caught locally not in CI
 
   # Structure: the canonical docs and the reference implementations exist.
   local f
