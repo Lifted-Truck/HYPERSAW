@@ -143,6 +143,17 @@ full() {
   # Calibrated: a planted (non-elidable) allocation gives 320 hits and exit 1.
   "$build_dir/rtsafety_probe" || return 1
 
+  # PARAMETER SCOPE (A12, 2026-08-11; ADR-089 conditions met). A GLOBAL core
+  # param must reach EVERY oscillator, and a PER-OSC param must reach ONLY its
+  # own. Neither assertion is meaningful alone: "fan everything to everything"
+  # satisfies the first perfectly and destroys addressing, which is why the
+  # second is the vacuity control.
+  # Calibrated: reverting the global fan-out makes assertion 1 FAIL.
+  # Every measurement builds a FRESH plugin instance — plug_reset() clears gates
+  # but not parameter or core state, and this suite was order-dependent until it
+  # did (0.955 s standalone vs 0.034 s after four unrelated renders).
+  "$build_dir/paramscope_check" || return 1
+
   # SAMPLE-RATE INVARIANCE (ADR-009's rule, which nothing enforced until this
   # gate; added 2026-08-11 under ADR-089's delegation). Behaviour declared in
   # SECONDS must not track the sample rate. Named by FOUNDATIONS' F2 criterion

@@ -50,6 +50,57 @@ Correction filed as `notice-samplerate-oracle-correction.md`, asking them to kee
 evidence rather than a gate until it is actually gated here, so criterion 1b gets a date rather
 than an assurance.
 
+## A12 SHIPPED — and it uncovered a third fan-out bug (2026-08-11)
+
+Implementing the ratified A12 scope changes required touching `kGlobalIds`, and checking *how*
+global params reach the cores first found a live, audible defect.
+
+### The bug: "global" meant "oscillator 1's"
+
+`applyParam` routed every core param through `cores[oscOfId(id)]`. `oscOfId()` returns **0 for
+every global id**, so a global core param was written into oscillator 0 **and nowhere else**.
+
+**Measured before the fix:** with the Attack knob at 1.5 s, oscillator 1 reached 90% at **0.955 s**
+while oscillator 2 sat at **0.007 s** — its compiled-in default. Control at the default: both
+0.007 s, so the rig was sound. Every global core param behaved that way, so a two-oscillator patch
+was half-configured and the second half silently ignored the panel.
+
+**Third instance of L0028's shape** — an operation whose intent is "every oscillator" written
+against one — after the note/lifecycle fan-out (PR #242) and pan motion (ADR-086). The word
+*global* in `kGlobalIds` means "not per-oscillator addressable"; the *application* then quietly
+made it mean "oscillator 0's".
+
+### A12 applied
+
+Amp envelope (19–22) and beatMult (23) left `kGlobalIds` and are now per-oscillator, as ratified.
+Inert by construction: identical defaults mean oscillator 2 behaves exactly as before until the new
+ids are touched.
+
+### `paramscope_check`, gated
+
+Two assertions, and **neither is meaningful alone**: a global param must reach every oscillator, and
+a per-oscillator param must reach **only** its own. "Fan everything to everything" satisfies the
+first perfectly while destroying addressing, so the second is the vacuity control.
+
+Calibrated: reverting the fan-out gives `|L-R| mono 0.00000/**0.06737**` — oscillator 2 unfolded —
+and FAILS.
+
+### The probe was order-dependent, and that is a finding about the plugin
+
+The per-oscillator assertion read **0.955 s standalone and 0.034 s** when four unrelated renders ran
+first. Re-ordering made it pass, which is luck rather than a fix. Cause: **`plug_reset()` clears
+gates and MPE bend but does not restore parameter values or core internals**, so scenarios run
+back-to-back in one instance contaminate each other — the same confound that defeated three
+oscillator-drift probes on 2026-08-09.
+
+Every measurement now builds a **fresh plugin instance**, which makes the suite order-independent
+*by construction* rather than by arrangement. Verified: both orderings produce byte-identical
+numbers, and the two oscillators' `|L-R|` now match exactly (0.06737/0.06737) where contamination
+had made them differ.
+
+Worth carrying to F2: a registry extraction will need to know what `reset` actually restores, and
+today the answer is "less than its name implies".
+
 ## A12 / A13 RECOMMENDATIONS (2026-08-11)
 
 Both asked for by the human. Grounded in one principle rather than taste: **a parameter's scope
