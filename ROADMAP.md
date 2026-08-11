@@ -306,6 +306,54 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## FORENSIC NOTE TRACE — FOUNDATIONS ask (c) closed (2026-08-11)
+
+The last open item from their stuck-notes brief. **Capture instead of simulate:** a fuzzer emits the
+event stream it *imagines*, and ours deliberately excludes shapes no host can produce
+(`notefuzz_check.cpp:14-17`), so it can never model a stream the host actually delivered. The
+stuck-note bug survived weeks on exactly that gap.
+
+A 512-entry ring records every note event (type, key, note_id, channel, port, absolute sample
+position). Written from the audio thread as plain stores plus one release store — no allocation, no
+lock, no wall-clock; `rtsafety_probe` stays green over block sizes 33..2048. On panic the GUI thread
+writes the ring plus the live per-core voice tables and `slotOf` to a file under
+`~/Library/Logs/HYPERSAW/`, path derived at runtime (never baked in — a machine-absolute path in a
+tracked file is both an identity leak and wrong on any other machine).
+
+**The dump runs BEFORE panic clears state.** That ordering is the whole feature: a dump taken after
+the clear faithfully records a synth in perfect health and proves nothing.
+
+### Gated, with controls (`trace_check`, sixteenth gate)
+
+Driven through the real plugin via a test hook, not a reimplementation of the ring — a check that
+rebuilds its own subject spans the wrong layer (L0031-B3). Every positive assertion is paired with a
+negative: a dump is a text file full of plausible lines, and "the key is in the file" is satisfied by
+a file that mentions every key.
+
+| assertion | control |
+|---|---|
+| every event captured in order with `note_id` | virgin plugin dumps **0 rows, 0 gated** |
+| voice table shows a gated voice while held | **none** after release + decay |
+| ring keeps the newest 512, drops the rest | oldest `note_id` verified **absent** |
+
+**Calibrated.** Dropping `note_id` fails assertions 2 and 4; clamping the ring index instead of
+masking fails only 4, reporting "oldest dropped=no" — exactly what a clamp does. **The plants must
+force a rebuild:** plant B first reported plant A's failures verbatim because the impl object was
+stale. Asserting a plant's ANCHOR proves the source changed, never that the binary did — a distinct
+trap from L0032's unasserted-replace, and worth its own note.
+
+**Known coverage boundary, recorded not retried (L0033):** `trace_check` calls `dumpForensics()`
+directly, so it never exercises `hostIf.panic`'s dump-before-clear ordering. Nothing would catch its
+reversal. Covering it needs the GUI bridge in the harness; until then that guarantee is prose at the
+panic site, not a gate.
+
+**Interface note for the human:** `hypersaw_test_dump_forensics` was ADDED to
+`src/hypersaw_clap_entry.h`. Additive and test-only — no existing signature changed, not reachable
+from the CLAP surface — but it is an addition to the impl↔entry interface and is flagged rather than
+slipped in.
+
+`./verify full` GREEN, sixteen gates; parity 147/147 worst 4.262e-09.
+
 ## STUCK NOTES — FOUND, REPRODUCED, FIXED (2026-08-11)
 
 The intermittent "notes don't die on key release" report is **confirmed, deterministic, and fixed.**

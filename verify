@@ -153,6 +153,17 @@ full() {
   # Statically linked like state_check; no goldens. (Was built but ungated.)
   "$build_dir/notefuzz_check" || return 1
 
+  # FORENSIC NOTE TRACE (FOUNDATIONS ask (c), 2026-08-11). The stuck-note bug
+  # survived weeks because it could not be REPRODUCED — and a generator never
+  # could have, since it emits the stream it imagines rather than the one the
+  # host delivered. This gates the capture that turns the next field report into
+  # a replayable case: the ring records every note event, wraps correctly, and
+  # the voice table shows a gated voice (the view that would have shown the
+  # orphan at a glance). Calibrated — dropping note_id and clamping the ring
+  # index each make it FAIL. Known boundary: it does NOT cover panic dumping
+  # BEFORE the state clear, which is prose at the panic site, not a gate.
+  "$build_dir/trace_check" || return 1
+
   # REAL-TIME SAFETY (2026-08-06): the audio thread must not allocate. The
   # charter has always said so; nothing enforced it, and an allocation in
   # process() is invisible to every other oracle because the AUDIO IS STILL
