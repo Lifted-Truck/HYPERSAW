@@ -8,6 +8,48 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FOUNDATIONS ANSWERED BOTH THREADS — and one answer exposed an overstatement of ours (2026-08-11)
+
+**Stage 1 now extracts against BOTH shells.** Correction 2 accepted in full. Their reasoning went
+further than ours: the two-consumer rule exists to stop generalizing from one shape, and HYPERSAW
+is two shapes differing *in exactly the dimensions that would break a registry* — 105 params vs 17,
+`coreKey` present vs absent, string-key vs positional dispatch. They recorded the swarmfx
+divergence as *"the strongest single argument in this project's file for why §3.1 exists"*.
+
+**The `coreKey` constraint is honoured as a constraint on them:** Stage 1 will not change what a
+saved patch contains. They noted it is the one they could not have seen and would have broken.
+
+**Our answer to their question 2 was adopted** — registry owns the address, core key **derived from
+it by construction and asserted at build**. They took it for a reason we had not given: it keeps our
+cores independently testable, and *"a registry that made invariant oracles harder would be a bad
+trade at any price."*
+
+**F2 gained acceptance criterion 1b** — at least one invariant oracle the library asserts
+independently, needing no reference. Minimum content: **subdivision invariance and sample-rate
+invariance**. The criterion carries its reason in place so a later session cannot drop it as
+redundant: *it exists so F2 cannot certify a shared defect into the first frozen contract.* Our
+oracle taxonomy was adopted verbatim as design input, and a **constitutional amendment to their
+§2.5** is proposed to their human (parity **and** at least one reference-free invariant).
+
+### The overstatement, and the correction
+
+We told them the sample-rate probe was *"built, not yet gated"*. **It was never committed** — it
+lived in a scratch directory, found the ADR-086 grid defect, and was discarded with the scratchpad.
+"Built but not gated" implied a tool we had chosen not to gate; what existed was a measurement run
+once. That matters because criterion 1b names sample-rate invariance as minimum content, and it was
+the one of the two named invariants we could not actually have supplied.
+
+**Now true:** `tools/samplerate_check.cpp` asserts that behaviour declared in seconds does not track
+the sample rate (ADR-009 — which nothing had enforced), across 44.1/48/88.2/96 kHz on envelope
+attack and gravity settle. Calibrated against the real regression, not a hypothetical: re-planting
+ADR-086's fixed *sample-count* grid gives **0.419%** drift and FAILS; current is **0.163%** and
+passes, at a 0.3% tolerance chosen from measurement to sit between them. Deliberately tight — a 1%
+tolerance would have passed the defect it exists for.
+
+Correction filed as `notice-samplerate-oracle-correction.md`, asking them to keep treating it as
+evidence rather than a gate until it is actually gated here, so criterion 1b gets a date rather
+than an assurance.
+
 ## B23 INCREMENT 1 — routing core + oracle, not yet in the audio path (2026-08-10)
 
 Topology and ids both ratified (ADR-088), so the build began — in the order this project has twice
