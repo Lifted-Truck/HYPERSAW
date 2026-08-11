@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <clap/clap.h>
@@ -218,6 +219,41 @@ int main()
           "the ring keeps the most recent 512 events and drops the rest", d);
   }
 
+  // ---- 5. panic CAPTURES BEFORE IT CLEARS ---------------------------------
+  /* The ordering is the whole feature: a dump taken after the clear records a
+     synth in perfect health. Previously untestable — it lived inline in the GUI
+     lambda — and recorded here as a known boundary rather than pretended over.
+     Now reachable, so the boundary is closed instead of documented.
+
+     Both halves are asserted, because either alone is satisfiable by a bug:
+     a dump showing the gated voice proves capture happened first, and silence
+     afterwards proves the clear still happened at all. */
+  {
+    note(CLAP_EVENT_NOTE_ON, 48, 300);
+    note(CLAP_EVENT_NOTE_ON, 52, 301);
+    run(6);
+    const std::string t = slurp(hypersaw_test_panic(p));
+    const int gatedInDump = countOf(t, "GATED");
+
+    /* Past the release tail, not immediately after. Panic RELEASES the voices
+       (allOff), it does not hard-mute them — measured 0.287 two blocks later,
+       which is a normal release, not a failed clear. Asserting instant silence
+       would have been asserting a behaviour the synth does not have and should
+       not: a panic that truncates the envelope would click. */
+    run(120);
+    double peak = 0;
+    for (int i = 0; i < BLK; i++)
+    {
+      const double m = std::fabs((double)L[i]) > std::fabs((double)R[i])
+                         ? std::fabs((double)L[i]) : std::fabs((double)R[i]);
+      if (m > peak) peak = m;
+    }
+    std::snprintf(d, sizeof(d), "dump taken at panic shows %d gated voices; "
+                                "post-panic peak %.2e", gatedInDump, peak);
+    check(gatedInDump > 0 && peak < 1e-4,
+          "panic captures the stuck state BEFORE clearing it", d);
+  }
+
   /* CALIBRATION.
      FIRES — (A) dropping note_id in recordNote fails assertions 2 AND 4, since
      both read it back; (B) clamping the ring index instead of masking it
@@ -231,13 +267,15 @@ int main()
      — asserting the plant's ANCHOR (which was done) proves the SOURCE changed,
      never that the BINARY did.
 
-     NOT COVERED, recorded rather than retried until something fired (L0033):
-     that panic dumps BEFORE clearing state. This suite calls dumpForensics()
-     directly, so it never exercises hostIf.panic's ordering — and that ordering
-     is the whole feature, since a dump taken after the clear faithfully records
-     a synth in perfect health. Nothing here would catch its reversal. Covering
-     it needs the GUI bridge in the harness; until then the guarantee rests on
-     the comment at the panic site, which is prose, not a gate. */
+     BOUNDARY NOW CLOSED. This suite used to call dumpForensics() directly and
+     never exercised panic's dump-before-clear ordering, which is the whole
+     feature; that was recorded here as uncovered. Assertion 5 now drives the
+     panic path itself (panicWithDump, extracted out of the GUI lambda for
+     exactly this reason) and asserts BOTH halves — the dump sees the gated
+     voice, and the synth is silent afterwards. Calibrated by swapping the two
+     statements, which makes it FAIL at 0 gated voices. Recording a boundary is
+     the honest move when it cannot be closed; it is not a substitute for
+     closing it when it can. */
   p->stop_processing(p);
   p->deactivate(p);
   p->destroy(p);

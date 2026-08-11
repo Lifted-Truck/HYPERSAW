@@ -306,6 +306,27 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## PANIC-ORDERING BOUNDARY CLOSED (2026-08-11)
+
+The coverage boundary recorded one commit earlier is now a gate. `panicWithDump()` extracted from the
+GUI lambda so the ordering is reachable headlessly; `trace_check` assertion 5 drives the real panic
+path and asserts BOTH halves — the dump sees the gated voices (capture happened first) and the synth
+is silent afterwards (the clear still happened).
+
+**Calibrated by swapping the two statements:** 0 gated voices in the dump, with the post-panic peak
+UNCHANGED at 3.34e-05 — so the assertion isolates the ordering specifically, not the clearing.
+
+**The probe corrected an assumption of mine.** The first version asserted silence two blocks after
+panic and failed at 0.287. That is not a failed clear: panic RELEASES voices (`allOff`), it does not
+hard-mute them, and a panic that truncated the envelope would click. Measured past the tail instead.
+Asserting instant silence would have been asserting a behaviour the synth does not have and should
+not.
+
+Recording a boundary is the honest move when it cannot be closed. It is not a substitute for closing
+it when it can.
+
+`./verify full` GREEN, sixteen gates.
+
 ## FORENSIC NOTE TRACE — FOUNDATIONS ask (c) closed (2026-08-11)
 
 The last open item from their stuck-notes brief. **Capture instead of simulate:** a fuzzer emits the
