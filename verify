@@ -143,6 +143,22 @@ full() {
   # Calibrated: a planted (non-elidable) allocation gives 320 hits and exit 1.
   "$build_dir/rtsafety_probe" || return 1
 
+  # SAMPLE-RATE INVARIANCE (ADR-009's rule, which nothing enforced until this
+  # gate; added 2026-08-11 under ADR-089's delegation). Behaviour declared in
+  # SECONDS must not track the sample rate. Named by FOUNDATIONS' F2 criterion
+  # 1b, so it is externally load-bearing as well as ours.
+  # Calibrated against the real regression, not a hypothetical: re-planting
+  # ADR-086's fixed SAMPLE-COUNT grid gives 0.419% drift and FAILS; current is
+  # 0.163% and passes, at a 0.3% tolerance chosen to sit between them. A 1%
+  # tolerance would have passed the defect this exists for.
+  "$build_dir/samplerate_check" || return 1
+
+  # ROUTING MATRIX INVARIANTS (ADR-088). Guards a core that is NOT yet in the
+  # audio path — deliberate, and the same posture glide and swarmalator hold:
+  # the gate is what lets shell integration land on ground already proven.
+  # Calibrated: removing the read-side acyclicity guard makes it FAIL.
+  "$build_dir/routing_check" || return 1
+
   # SUBDIVISION INVARIANCE (ADR-086, gate ratified 2026-08-10). Rendering must
   # not depend on how a buffer is split — a host may send 2048 frames or 33, and
   # the multi-oscillator mix splits further still. None of that is a musical
