@@ -429,17 +429,41 @@ struct Plugin
   {
     for (uint32_t k = 0; k < kNumOsc; k++) cores[k].noteOff(key);
   }
+  /* ONE LOGICAL NOTE, N PHYSICAL VOICES — and the mapping is now CONSTRUCTED,
+     not assumed. Every helper below used to apply oscillator 0's slot index to
+     every core, on the strength of a comment ("note fan-out keeps slot indices
+     aligned"). Nothing enforced it, and it is false: `alloc()`'s tiers 1 and 2
+     read `s.env`, and the amp envelope is PER-OSCILLATOR (A12), so the moment
+     two cores' envelopes differ their tails fade on different schedules, the
+     same note lands on different slots, and a retarget gates the WRONG voice in
+     core k while the real one is orphaned — gated, under a key whose note-off
+     has already been and gone. It never releases. That is the human's
+     intermittent stuck-note report, and FOUNDATIONS' 2026-08-11 brief §2 called
+     the mechanism before it was measured.
+
+     `slotOf[s][k]` is core k's slot for the logical voice that oscillator 0
+     holds at slot s; `slotOf[s][0] == s` by definition. Recorded at note-on,
+     which is the only place a core allocates. */
+  int slotOf[hypersaw::kPoly][kNumOsc];
+  void bindSlots(int slot0, uint32_t k, int slotK)
+  {
+    if (slot0 >= 0 && slot0 < (int)hypersaw::kPoly && k < kNumOsc) slotOf[slot0][k] = slotK;
+  }
   void retargetAll(int slot, int key, double freq, bool keepPhase)
   {
-    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].retargetNote(slot, key, freq, keepPhase);
+    if (slot < 0) return;
+    for (uint32_t k = 0; k < kNumOsc; k++)
+      cores[k].retargetNote(slotOf[slot][k], key, freq, keepPhase);
   }
   void setNoteExprAll(int slot, double v)
   {
-    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setNoteExpr(slot, v);
+    if (slot < 0) return;
+    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setNoteExpr(slotOf[slot][k], v);
   }
   void setNotePressureAll(int slot, double v)
   {
-    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setNotePressure(slot, v);
+    if (slot < 0) return;
+    for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setNotePressure(slotOf[slot][k], v);
   }
   // constructed state matches the reported default above
   struct SilenceHigherOscillators
@@ -603,6 +627,15 @@ struct Plugin
   Held heldStack[16];
   int heldCount = 0;
   int monoSlot = -1;
+  /* Identity-initialised: a slot that was never bound behaves exactly as the
+     old code did rather than indexing on uninitialised memory. The map is a
+     correction to an assumption, so its unset state must be that assumption. */
+  struct InitSlotMap {
+    explicit InitSlotMap(int (*m)[kNumOsc]) {
+      for (uint32_t s = 0; s < hypersaw::kPoly; s++)
+        for (uint32_t k = 0; k < kNumOsc; k++) m[s][k] = (int)s;
+    }
+  } initSlotMap{slotOf};
 
   // Host note identity per swarm slot, for CLAP NOTE_END: hosts use note-end
   // to retire per-note bookkeeping, and without it some (Live via the VST3
@@ -1382,10 +1415,12 @@ struct Plugin
               noteOffAll(core.swarmAt(monoSlot).midi);
             monoSlot = core.noteOn(n->key, freq);
             core.setNoteVelocity(monoSlot, n->velocity);
+            bindSlots(monoSlot, 0, monoSlot);
             for (uint32_t k = 1; k < kNumOsc; k++)
             {
               const int sk = cores[k].noteOn(n->key, freq);
               cores[k].setNoteVelocity(sk, n->velocity);
+              bindSlots(monoSlot, k, sk);   // sk may differ from monoSlot
             }
           }
           retireTag(monoSlot);
@@ -1396,10 +1431,12 @@ struct Plugin
         {
           const int slot = core.noteOn(n->key, freq);
           core.setNoteVelocity(slot, n->velocity);
+          bindSlots(slot, 0, slot);
           for (uint32_t k = 1; k < kNumOsc; k++)
           {
             const int sk = cores[k].noteOn(n->key, freq);
             cores[k].setNoteVelocity(sk, n->velocity);
+            bindSlots(slot, k, sk);   // sk may differ from slot
           }
           retireTag(slot);
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
