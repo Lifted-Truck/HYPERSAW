@@ -50,6 +50,49 @@ Correction filed as `notice-samplerate-oracle-correction.md`, asking them to kee
 evidence rather than a gate until it is actually gated here, so criterion 1b gets a date rather
 than an assurance.
 
+## A12 / A13 RECOMMENDATIONS (2026-08-11)
+
+Both asked for by the human. Grounded in one principle rather than taste: **a parameter's scope
+follows the thing it describes.** A property of a SOUND SOURCE is per-oscillator; a property of the
+PERFORMANCE or the patch is global.
+
+### A12 — which core-owned params go per-oscillator
+
+| param(s) | recommend | why |
+|---|---|---|
+| **amp envelope** (19 attack · 20 decay · 21 sustain · 22 release) | **PER-OSC** | the strongest case on the list. A fast-attack oscillator layered against a slow swell is among the most basic two-oscillator moves there is, and it is per-oscillator in essentially every synth that has two. Sharing one envelope makes the second oscillator a timbre-only layer. |
+| **voiceMono** (32) · **voiceLegato** (34) · **polyGlide** (89) · **glideMode** (90) | **GLOBAL — structurally** | these describe how NOTES ARE ALLOCATED, not how a source sounds. Two oscillators cannot be mono and poly at once: a note either exists or it does not. This is forced, not preferred. |
+| **travel-law family** (33 glide · 11 inertia · 70 inertiaCurve · 75 freqGlide) | **DEFER to B19** | one oscillator snapping while the other slides is genuinely musical, and A1 already ruled per-destination laws linked by default. But B19's shell integration has not landed, and scoping a family before its owner exists is how the first 13 params got mis-scoped. Decide it *with* B19, not before. |
+| **beatMult** (23) · **oversample** | **GLOBAL** | tempo relationship and render quality are patch-level. beatMult flips only if the Kuro rotor goes per-oscillator, which is B22's question, not this one. |
+
+**Cost:** additive only, and only while the `+1000` ids stay unallocated — which they do. The
+envelope move is 4 ids.
+
+### A13 — retrig-off dead starts
+
+**Recommend: document and expose. Do not change the physics.**
+
+1. It is **reference behaviour**, not a port defect — the reference shows the identical 5/20. Our
+   correctness definition is parity, so changing it is a spec change against a protected path.
+2. **Retrigger-off exists to preserve phase continuity.** A dead start is the honest consequence of
+   that choice; removing it partially defeats the feature the user asked for.
+3. But 25% is high enough that it will be reported as a bug, so the fix is not silence — it is
+   making the trade visible at the control, so "off" reads as *phase-continuous, occasionally quiet
+   onset* rather than as breakage.
+
+**If it is ever fixed, use the rotated even spread, not the anti-null redraw.** A redraw-until-not-null
+is a rejection sampler: seed-dependent in a fragile way, unbounded in principle, and it makes
+"same seed → identical output" depend on how many draws were rejected. A deterministic rotated
+spread eliminates clustering while keeping the charter's determinism invariant intact by
+construction. The cheap-looking option is the one that endangers the invariant.
+
+### On A2 (swarmalator)
+
+**Not an open question.** Tabled by human ruling 2026-08-06/07 and it has been surfacing in status
+roundups as though awaiting a decision — twice the human has had to ask why it was mentioned. The
+ROADMAP row now says so explicitly and instructs that it not be listed. Its core and gated oracle
+stay unwired, which is the correct resting state, not a pending task.
+
 ## FOUNDATIONS THREADS CLOSED — and we walked into the bug we had reported (2026-08-11)
 
 FOUNDATIONS reported waiting on three of ours. Two were answerable immediately and one is real work.
@@ -2098,7 +2141,7 @@ below remain the evidence.** Update it in the same change that changes an item's
 | # | Item | Where |
 |---|---|---|
 | A1 | **Bend inertia fold** — FULLY RULED 2026-08-06: laws 1–4 (5 cut), constant-rate default, quantise as a modifier, per-destination laws linked by default. B19 buildable | § Pitch-bend inertia; `docs/design/bend-lab.html` |
-| A2 | **Swarmalator** — **TABLED 2026-08-06 (human, low priority)**. Measured as SAW's phase axis + two terms (reduces exactly at J=0 **and** drift=0). Shape corrected: a **toggle** choosing which system owns pan (pan cannot have two sources), with depth controls behind it — not a blend slider. Revisit later | § Swarmalator is SAW + two terms |
+| A2 | **Swarmalator — DEFERRED by human ruling 2026-08-07** ("table it for now and revisit down the line, not very high priority"). NOT an open question and NOT awaiting the human; do not surface it in status roundups. Core + `swarmalator_check` stay gated and unwired, which is the correct resting state. Revisit only on a fresh human ask | § Swarmalator tabled |
 | A3 | **Shape lab fold** — mandate rulings: fold mode and carrier purity both leave saw territory deliberately | § Lab campaign 2 item 6 |
 | A4 | **ITD max 0.6 → 0.3** — proposed on measurement (metrics saturate above 0.15 ms); wants an ear A/B first | § Open questions 2026-08-03 #1 |
 | A5 | **AP freq 700 Hz** (super-width mode D) — arbitrary, never measured; A/B in the width lab and pin | § Open questions 2026-08-03 #2 |
@@ -2108,8 +2151,8 @@ below remain the evidence.** Update it in the same change that changes an item's
 | A9 | **Mod source polarity** — ANSWERED 2026-08-05 by the reachability probe: zero routings fully unreachable, two half-unreachable (`R → Kboost`, `ENV → Kboost`), now marked in the matrix rather than rejected. Only residual question if you want it: should `Kboost` stop being half-wave rectified | § Rejected routings |
 | A10 | **Morph-owned routing semantics** — RULED 2026-08-06: **per-corner depths per cell**. Each morph-owned cell holds four depths; a flip swaps which is live. Implemented + measured | § Morph-owned = per-corner depths |
 | A11 | **Morph corner scope** — RULED 2026-08-06: **global** — one corner holds every per-oscillator parameter of *both* oscillators. Unblocks B20 | § Morph corners are global |
-| A12 | **Which of the 13 core-owned params become per-oscillator?** — width/mono/inertia clearly yes; the amp envelope arguably; oversample/beatMult/glide-family probably patch-level. Additive only while their +1000 ids stay unallocated | § Re-order: master/mixer page first |
-| A13 | **Retrig-off dead starts** — reference physics (random-phase nulls under slow detune beating; reference shows identical 5/20). Options: document / anti-null redraw (reference edit + ADR) / rotated even spread | § Chord retrigger resolved |
+| A12 | **RECOMMENDATION FILED 2026-08-11** (§ A12/A13 recommendations). Envelope per-osc; mono/legato/polyGlide/glideMode global by structure; travel-law family deferred to B19; beatMult+oversample global. **Which of the 13 core-owned params become per-oscillator?** — width/mono/inertia clearly yes; the amp envelope arguably; oversample/beatMult/glide-family probably patch-level. Additive only while their +1000 ids stay unallocated | § Re-order: master/mixer page first |
+| A13 | **RECOMMENDATION FILED 2026-08-11**: document + expose, do not change the physics; if ever fixed use rotated even spread, never anti-null redraw. **Retrig-off dead starts** — reference physics (random-phase nulls under slow detune beating; reference shows identical 5/20). Options: document / anti-null redraw (reference edit + ADR) / rotated even spread | § Chord retrigger resolved |
 
 ### B · Queued build work
 
