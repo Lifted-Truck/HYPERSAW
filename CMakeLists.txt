@@ -195,6 +195,15 @@ endif()
 
 # mixer_check: per-oscillator mute/solo actually gate the mix (B24, 2026-08-09).
 # Not yet in ./verify — that is a protected path and needs a human gate.
+# registry_dump: emits our parameter tables for FOUNDATIONS' registry_conformance
+# (F2 Stage 1 increment 2). Links BOTH shells — the instrument and swarmfx —
+# because the conformance run covers both.
+add_executable(registry_dump tools/registry_dump.cpp)
+target_link_libraries(registry_dump PRIVATE ${PROJECT_NAME}-impl SWARMFX-impl)
+if(NOT MSVC)
+  target_compile_options(registry_dump PRIVATE -O2)
+endif()
+
 # paramscope_check: a parameter's SCOPE must be what it claims — globals reach
 # every oscillator, per-osc params reach only their own (ADR-089 conditions met).
 add_executable(paramscope_check tools/paramscope_check.cpp)
