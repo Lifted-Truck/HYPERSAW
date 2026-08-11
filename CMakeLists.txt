@@ -163,6 +163,14 @@ endif()
 # Links the plugin impl, like rtsafety_probe — it drives the real CLAP event
 # path rather than a core in isolation, because the bug lived in the event
 # fan-out, which a core-level test cannot see.
+# samplerate_check: behaviour declared in SECONDS must not track the sample
+# rate (ADR-009). Core-level, no plugin link.
+add_executable(samplerate_check tools/samplerate_check.cpp)
+target_include_directories(samplerate_check PRIVATE src)
+if(NOT MSVC)
+  target_compile_options(samplerate_check PRIVATE -O2)
+endif()
+
 # routing_check: the B23 crosspoint matrix (ADR-088) before it enters the audio
 # path — core + oracle first, same order the glide and swarmalator ports used.
 add_executable(routing_check tools/routing_check.cpp)
