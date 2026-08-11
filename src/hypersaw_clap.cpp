@@ -302,6 +302,14 @@ static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified 
    there rather than buried here, because a param in the wrong class is wrong
    permanently. */
 constexpr clap_id kGlobalIds[] = {
+    // A12 (human-ratified 2026-08-11): the amp envelope (19-22) and beatMult
+    // (23) LEFT this list. Envelope, because a fast-attack oscillator layered
+    // against a slow swell is a basic two-oscillator move and one shared
+    // envelope makes the second oscillator a timbre-only layer. beatMult,
+    // because it is a parameter OF the tempo-grid detune law and `detune`/`law`
+    // are already per-oscillator — so an oscillator could pick the law but not
+    // its own grid. bpm stays host-owned and global; beatMult is the per-source
+    // ratio to it.
     15, 40, 41,                                  // output & image
     // NB: 14 "width" left this list 2026-08-07 (A12, human-ruled: "oscillators
     // will independently need their own width controls"). It is a SwarmCore
@@ -313,10 +321,10 @@ constexpr clap_id kGlobalIds[] = {
     // two oscillators be balanced against each other. A patch-level master
     // volume, if wanted, is a separate new param (the stride-1000 amendment
     // leaves room for one).
-    19, 20, 21, 22,                              // amp envelope (voice-level, not per-osc)
+                                 // amp envelope (voice-level, not per-osc)
     32, 33, 34, 38, 75, 89, 90, 11, 70,          // voice & glide behaviour
     57, 58, 59, 60, 61, 62, 63, 64, 96, 97, 98, 99,  // FX rack
-    23, 88,                                      // tempo grid, oversampling
+    88,                                      // tempo grid, oversampling
     100, 101, 102, 103,                          // masterVol + global pitch
 };
 constexpr bool isGlobalId(clap_id id)
@@ -1165,7 +1173,20 @@ struct Plugin
       // ADR-082: ids in a higher block address that oscillator's core. Osc 0
       // keeps every id it had, so this line is unchanged for existing patches.
       const uint32_t osc = oscOfId(id);
-      if (osc < kNumOsc) cores[osc].setParam(d->coreKey, applied);
+      // A GLOBAL core param means "the same value in every oscillator", not
+      // "oscillator 0's value". oscOfId() returns 0 for every global id, so
+      // this line used to write the Attack knob into cores[0] and nowhere else
+      // — measured: with attack at 1.5 s, oscillator 1 reached 90% at 0.955 s
+      // while oscillator 2 sat at 0.007 s, its compiled-in default. Every
+      // global core param behaved that way, so a two-oscillator patch was half
+      // configured and the second half silently ignored the panel.
+      // Third instance of the same shape (after the note/lifecycle fan-out and
+      // pan motion): an operation whose intent is "every oscillator" written
+      // against one. See L0028.
+      if (isGlobalId(id))
+        for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setParam(d->coreKey, applied);
+      else if (osc < kNumOsc)
+        cores[osc].setParam(d->coreKey, applied);
       spectra.setParam(d->coreKey, applied);  // shared-name knobs mirror; unknown keys no-op
     }
   }

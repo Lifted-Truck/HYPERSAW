@@ -195,6 +195,14 @@ endif()
 
 # mixer_check: per-oscillator mute/solo actually gate the mix (B24, 2026-08-09).
 # Not yet in ./verify — that is a protected path and needs a human gate.
+# paramscope_check: a parameter's SCOPE must be what it claims — globals reach
+# every oscillator, per-osc params reach only their own (ADR-089 conditions met).
+add_executable(paramscope_check tools/paramscope_check.cpp)
+target_link_libraries(paramscope_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(paramscope_check PRIVATE -O2)
+endif()
+
 add_executable(mixer_check tools/mixer_check.cpp)
 target_link_libraries(mixer_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
