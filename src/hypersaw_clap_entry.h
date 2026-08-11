@@ -21,4 +21,9 @@ extern "C"
      checking spans the wrong layer — L0031). Returns a pointer valid until the
      next call, or NULL if the dump could not be written. */
   const char *hypersaw_test_dump_forensics(const clap_plugin_t *p, const char *why);
+
+  /* TEST HOOK — runs the GUI panic button's exact path (capture, then clear) so
+     an oracle can assert the ORDERING, which is the part that makes the capture
+     worth having. Returns the dump path, or NULL. */
+  const char *hypersaw_test_panic(const clap_plugin_t *p);
 }

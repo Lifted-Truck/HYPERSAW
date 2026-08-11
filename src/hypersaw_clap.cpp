@@ -591,6 +591,25 @@ struct Plugin
     return out.string();
   }
 
+  /* Panic: capture, THEN clear. The ordering is the whole feature — a dump
+     taken after the clear faithfully records a synth in perfect health and
+     proves nothing, and panic is precisely the human's tell that the bug just
+     happened. Extracted from the GUI lambda so the ordering is reachable from a
+     headless oracle; when it lived inline it was guarded only by a comment,
+     which trace_check recorded as a known coverage boundary rather than
+     pretending to cover. */
+  void panicWithDump()
+  {
+    lastDumpPath = dumpForensics("panic");
+    allOffAll();
+    spectra.allOff();
+    rack.reset();
+    heldCount = 0;
+    monoSlot = -1;
+    pendingEndCount = 0;
+    for (auto &t : tags) t.active = false;
+  }
+
   hypersaw::FxRack rack;  // ADR-054 internal FX rack (post-oscillator)
   // B23 crosspoint topology over those slots (ADR-088). One source for now —
   // the summed, post-bass-mono bus — so this increment is purely "the matrix is
@@ -2248,19 +2267,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   // control at all before 2026-08-03, so a stuck voice meant deleting the
   // device. Clears both engines, every note tag (including the pending-END
   // queue), the mono held-stack, and the FX rack's tails.
-  hostIf.panic = [pl]() {
-    // BEFORE the clear, not after. Panic is the human's tell that the bug just
-    // happened; dumping afterwards would faithfully record a synth in perfect
-    // health and prove nothing. This ordering IS the feature.
-    pl->lastDumpPath = pl->dumpForensics("gui-panic");
-    pl->allOffAll();
-    pl->spectra.allOff();
-    pl->rack.reset();
-    pl->heldCount = 0;
-    pl->monoSlot = -1;
-    pl->pendingEndCount = 0;
-    for (auto &t : pl->tags) t.active = false;
-  };
+  hostIf.panic = [pl]() { pl->panicWithDump(); };
   hostIf.getBuildId = []() { return std::string(HYPERSAW_BUILD_STAMP); };
   hostIf.setVizOsc = [pl](uint32_t k) { pl->vizOsc.store(k, std::memory_order_relaxed); };
   hostIf.getStateJson = [pl]() { return pl->stateJson(); };
@@ -2402,7 +2409,15 @@ const clap_plugin_factory_t s_factory = {factory_get_plugin_count, factory_get_p
 
 extern "C"
 {
-  const char *hypersaw_test_dump_forensics(const clap_plugin_t *p, const char *why)
+  const char *hypersaw_test_panic(const clap_plugin_t *p)
+{
+  static std::string held;
+  self(p)->panicWithDump();
+  held = self(p)->lastDumpPath;
+  return held.empty() ? nullptr : held.c_str();
+}
+
+const char *hypersaw_test_dump_forensics(const clap_plugin_t *p, const char *why)
 {
   static std::string held;
   held = self(p)->dumpForensics(why ? why : "test");
