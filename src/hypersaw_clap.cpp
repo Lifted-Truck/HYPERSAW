@@ -20,6 +20,7 @@
 #include <cmath>
 #include <atomic>
 #include <string>
+#include <filesystem>
 #include <clap/clap.h>
 #include <clapwrapper/vst3.h>
 
@@ -474,6 +475,122 @@ struct Plugin
     }
   } silenceHigher{cores};
   hypersaw::SpectraCore spectra{44100.0};
+  /* FORENSIC NOTE TRACE (FOUNDATIONS brief ask (c), 2026-08-11).
+     The stuck-note bug took weeks because it could not be REPRODUCED, and no
+     generator was ever going to reproduce it: a fuzzer emits the event stream
+     it imagines, and ours deliberately excludes shapes no host can produce
+     (notefuzz_check.cpp:14-17). So it can never model a stream the host
+     actually delivered. Capture instead of simulate — then a field report
+     becomes a replayable regression case instead of an anecdote.
+
+     Written from the AUDIO THREAD: plain stores into a fixed array plus one
+     release store. No allocation, no lock, no wall-clock — the charter and
+     rtsafety_probe both forbid all three. Read from the GUI thread on panic;
+     a torn read of a single record is acceptable here, because this is a
+     diagnostic and making it exact would cost the audio thread something real.
+     kTraceLen is a power of two so the index is a mask, not a modulo. */
+  struct NoteTrace
+  {
+    uint64_t pos;      // absolute sample position: block steady time + offset
+    uint16_t type;     // CLAP event type
+    int16_t key;
+    int32_t noteId;
+    int16_t channel, port;
+    float velocity;
+  };
+  static constexpr uint32_t kTraceLen = 512;   // a few seconds of dense play
+  static_assert((kTraceLen & (kTraceLen - 1)) == 0, "kTraceLen must be a power of two");
+  NoteTrace trace[kTraceLen] = {};
+  std::atomic<uint64_t> traceWrite{0};         // total ever written; & (len-1) indexes
+  uint64_t blockPos = 0;                       // steady time of the block in flight
+  std::string lastDumpPath;
+
+  void recordNote(const clap_event_header_t *ev, const clap_event_note_t *n)
+  {
+    const uint64_t w = traceWrite.load(std::memory_order_relaxed);
+    NoteTrace &r = trace[w & (kTraceLen - 1)];
+    r.pos = blockPos + ev->time;
+    r.type = (uint16_t)ev->type;
+    r.key = (int16_t)n->key;
+    r.noteId = n->note_id;
+    r.channel = (int16_t)n->channel;
+    r.port = (int16_t)n->port_index;
+    r.velocity = (float)n->velocity;
+    traceWrite.store(w + 1, std::memory_order_release);
+  }
+
+  /* Write the trace and the live voice tables to a file, and return its path.
+     MAIN/GUI THREAD ONLY — this opens a file, which the audio thread may never
+     do. It reads state the audio thread is concurrently writing and does not
+     lock: a diagnostic that stalls the audio thread to describe it is worse
+     than a diagnostic with one torn row.
+
+     The path is derived at RUNTIME, never baked in — a machine-absolute path in
+     a tracked file is both an identity leak and wrong on any other machine. */
+  std::string dumpForensics(const char *why)
+  {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path dir;
+#ifdef __APPLE__
+    if (const char *home = std::getenv("HOME")) dir = fs::path(home) / "Library" / "Logs" / "HYPERSAW";
+#endif
+    if (dir.empty()) dir = fs::temp_directory_path(ec) / "HYPERSAW";
+    fs::create_directories(dir, ec);
+    // Named by the trace counter, not by a clock: the charter bans wall-clock
+    // reads in the core, and a monotonic counter also sorts correctly.
+    const uint64_t w = traceWrite.load(std::memory_order_acquire);
+    const fs::path out = dir / ("panic-" + std::to_string(w) + ".txt");
+    std::FILE *f = std::fopen(out.string().c_str(), "w");
+    if (!f) return {};
+
+    std::fprintf(f, "HYPERSAW forensic dump\nreason: %s\nbuild: %s\nsample rate: %.1f\n",
+                 why, HYPERSAW_BUILD_STAMP, sampleRate);
+    std::fprintf(f, "engine: %s  mono: %d  legato: %d  monoSlot: %d  heldCount: %d\n",
+                 spectraMode() ? "SPECTRA" : "SAW", (int)voiceMono, (int)voiceLegato,
+                 monoSlot, heldCount);
+
+    std::fprintf(f, "\n-- held stack --\n");
+    for (int i = 0; i < heldCount; i++) std::fprintf(f, "  [%d] key %d\n", i, heldStack[i].key);
+
+    /* The voice tables per core, side by side with slotOf. This is the exact
+       view that would have shown the stuck-note orphan at a glance: a gated
+       voice in core 1 whose key appears in no held stack, at a slot the shell
+       is not addressing. */
+    std::fprintf(f, "\n-- voices (shell slot -> each core's own slot) --\n");
+    for (int i = 0; i < hypersaw::kPoly; i++)
+    {
+      bool any = false;
+      for (uint32_t k = 0; k < kNumOsc; k++)
+        if (cores[k].swarmAt(i).gate || cores[k].swarmAt(i).env > 1e-4) any = true;
+      if (!any && !tags[i].active) continue;
+      std::fprintf(f, "  %2d:", i);
+      for (uint32_t k = 0; k < kNumOsc; k++)
+      {
+        const auto &v = cores[k].swarmAt(slotOf[i][k]);
+        std::fprintf(f, "  core%u[slot %d] midi %3d %s env %.4f |", k, slotOf[i][k],
+                     v.midi, v.gate ? "GATED" : "  off", v.env);
+      }
+      std::fprintf(f, "  tag %s key %d note_id %d\n", tags[i].active ? "active" : "  --",
+                   tags[i].key, tags[i].noteId);
+    }
+
+    std::fprintf(f, "\n-- last %u note events, oldest first (pos = absolute sample) --\n",
+                 (unsigned)(w < kTraceLen ? w : kTraceLen));
+    const uint64_t first = w > kTraceLen ? w - kTraceLen : 0;
+    for (uint64_t n = first; n < w; n++)
+    {
+      const NoteTrace &r = trace[n & (kTraceLen - 1)];
+      const char *t = r.type == CLAP_EVENT_NOTE_ON ? "ON   "
+                    : r.type == CLAP_EVENT_NOTE_OFF ? "OFF  "
+                    : r.type == CLAP_EVENT_NOTE_CHOKE ? "CHOKE" : "?????";
+      std::fprintf(f, "  pos %10llu  %s key %3d  note_id %5d  ch %d  port %d  vel %.3f\n",
+                   (unsigned long long)r.pos, t, r.key, r.noteId, r.channel, r.port, r.velocity);
+    }
+    std::fclose(f);
+    return out.string();
+  }
+
   hypersaw::FxRack rack;  // ADR-054 internal FX rack (post-oscillator)
   // B23 crosspoint topology over those slots (ADR-088). One source for now —
   // the summed, post-bass-mono bus — so this increment is purely "the matrix is
@@ -1336,6 +1453,7 @@ struct Plugin
       case CLAP_EVENT_NOTE_ON:
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
+        recordNote(ev, n);
         // MIDI 1.0: note-on velocity 0 IS a note-off, and the AU wrapper
         // forwards controller 0x90-vel-0 releases verbatim (ADR-038). This
         // synth ignores velocity, so without the remap such a release struck
@@ -1453,6 +1571,7 @@ struct Plugin
       {
         // Single note-off path (spectra dispatch lives inside handleNoteOff;
         // the vel-0 NOTE_ON remap above routes through the same code).
+        recordNote(ev, reinterpret_cast<const clap_event_note_t *>(ev));
         handleNoteOff(reinterpret_cast<const clap_event_note_t *>(ev));
         break;
       }
@@ -1536,6 +1655,10 @@ struct Plugin
     float *outL = p->audio_outputs[0].data32[0];
     float *outR = p->audio_outputs[0].data32[1];
     const uint32_t nframes = p->frames_count;
+    // Absolute sample position of this block, for the forensic trace. Hosts may
+    // report steady_time as -1 when they cannot supply it, so fall back to a
+    // local running count — the trace's ORDERING stays meaningful either way.
+    blockPos = p->steady_time >= 0 ? (uint64_t)p->steady_time : blockPos + nframes;
     const uint32_t nev = p->in_events->size(p->in_events);
 
     uint32_t frame = 0, evIndex = 0;
@@ -2126,6 +2249,10 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   // device. Clears both engines, every note tag (including the pending-END
   // queue), the mono held-stack, and the FX rack's tails.
   hostIf.panic = [pl]() {
+    // BEFORE the clear, not after. Panic is the human's tell that the bug just
+    // happened; dumping afterwards would faithfully record a synth in perfect
+    // health and prove nothing. This ordering IS the feature.
+    pl->lastDumpPath = pl->dumpForensics("gui-panic");
     pl->allOffAll();
     pl->spectra.allOff();
     pl->rack.reset();
@@ -2275,7 +2402,14 @@ const clap_plugin_factory_t s_factory = {factory_get_plugin_count, factory_get_p
 
 extern "C"
 {
-  bool hypersaw_entry_init(const char *) { return true; }
+  const char *hypersaw_test_dump_forensics(const clap_plugin_t *p, const char *why)
+{
+  static std::string held;
+  held = self(p)->dumpForensics(why ? why : "test");
+  return held.empty() ? nullptr : held.c_str();
+}
+
+bool hypersaw_entry_init(const char *) { return true; }
   void hypersaw_entry_deinit(void) {}
   const void *hypersaw_entry_get_factory(const char *factory_id)
   {

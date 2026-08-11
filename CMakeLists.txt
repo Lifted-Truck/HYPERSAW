@@ -266,6 +266,16 @@ if(NOT MSVC)
   target_compile_options(notefuzz_check PRIVATE -O2)
 endif()
 
+# trace_check: the forensic note trace (FOUNDATIONS ask (c)). Links the impl so
+# it can trigger the REAL dump path through the test hook rather than rebuilding
+# the ring in the test — a check that reimplements its own subject spans the
+# wrong layer (L0031).
+add_executable(trace_check tools/trace_check.cpp)
+target_link_libraries(trace_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(trace_check PRIVATE -O2)
+endif()
+
 # Track E0 force-core oracle (host-side tool, not shipped): forcecore vs the
 # effect labs' population trajectories + L0-14/15/17/19/20 population criteria.
 add_executable(force_check tools/force_check.cpp)
