@@ -1,0 +1,129 @@
+/*
+ * routing_core.h — the B23 crosspoint routing matrix (ADR-088), framework-free.
+ *
+ * A slot may be fed from any SOURCE and from any EARLIER slot. Each crosspoint
+ * carries a continuous coefficient; each slot carries an INITIAL VALUE, so
+ * `out_i = in_i + Σ g_ki · m_k` — the canonical crosspoint form (Brandtsegg,
+ * Saue & Johansen, NIME 2011), which the routing lab's scheme C lacked until
+ * the amendment.
+ *
+ * WHY DENSE AND NOT A SPARSE EDGE LIST. Quantum morph interpolates VALUES, and
+ * in a dense table a coefficient of 0 *is* "not connected" — so connecting and
+ * disconnecting are one continuous motion. Every sparse representation stores
+ * topology as discrete structure, making an edge add/remove a hard cut. That is
+ * what decided ADR-088; the cost argument (88 patch-state values, 8 automation
+ * ids) merely failed to disqualify it.
+ *
+ * ACYCLICITY IS ENFORCED ON THE READ SIDE, ALWAYS. A slot may only read
+ * strictly earlier slots, so one forward pass is always correct and no runtime
+ * cycle detection is needed — an audio thread cannot afford it. The legality
+ * test lives in `edgeLive()` and every consumer calls it: the signal sum, the
+ * output sum, the terminal test and any renderer of the graph. It is NOT
+ * enforced at the editor, because the writer set is open — preset load, morph
+ * corners and automation all write topology, so a guard on the write path is
+ * bypassable by construction. (The routing lab proved this the expensive way:
+ * a guard in the select handler let a backwards edge through when set directly
+ * on the model, and a second copy of the "is this slot consumed?" logic that
+ * skipped the check silently removed a slot from the output.)
+ *
+ * FX-AGNOSTIC BY CONSTRUCTION. This owns the topology and nothing else — the
+ * caller supplies slot processing through a callable. That keeps the matrix
+ * testable against a trivial stand-in slot (so the oracle measures ROUTING and
+ * never an effect), and it is the shape that transfers: a routing facility that
+ * names an effect type is not a routing facility.
+ */
+#pragma once
+
+#include <cstdint>
+
+namespace hypersaw
+{
+
+template <int NSRC, int NSLOT>
+struct RoutingMatrix
+{
+  static_assert(NSRC + NSLOT <= 32, "crosspoint mask is a uint32");
+
+  // Bit layout of inFrom[slot]: bits [0, NSRC) are sources; bit NSRC+e is
+  // slot e. One word per destination keeps a whole row in a register.
+  uint32_t inFrom[NSLOT] = {0};
+  double coeff[NSRC + NSLOT][NSLOT] = {{0}};   // crosspoint gain, [from][to]
+  double slotInit[NSLOT] = {0};                // the `in_i` term
+  double outAmount[NSLOT] = {0};               // terminal contribution
+
+  /* THE legality predicate. Sources may reach anything; a slot may reach only
+     a LATER slot. Every consumer calls this — see the header note on why it
+     cannot live at the write sites. */
+  static constexpr bool edgeLive(int from, int to)
+  {
+    return from < NSRC ? true : (from - NSRC) < to;
+  }
+
+  bool connected(int from, int to) const
+  {
+    return edgeLive(from, to) && (inFrom[to] & (1u << from)) != 0;
+  }
+
+  /* The default topology: a plain serial chain, source 0 → slot 0 → slot 1 →
+     … → out. Reproduces the pre-routing rack exactly, which is what lets the
+     matrix land inert and keeps the goldens as the regression proof. */
+  void setSerialChain()
+  {
+    for (int t = 0; t < NSLOT; t++)
+    {
+      inFrom[t] = 0;
+      slotInit[t] = 0;
+      outAmount[t] = (t == NSLOT - 1) ? 1.0 : 0.0;
+      for (int f = 0; f < NSRC + NSLOT; f++) coeff[f][t] = 0.0;
+    }
+    for (int s = 0; s < NSRC; s++) { inFrom[0] |= (1u << s); coeff[s][0] = 1.0; }
+    for (int t = 1; t < NSLOT; t++)
+    {
+      inFrom[t] |= (1u << (NSRC + t - 1));
+      coeff[NSRC + t - 1][t] = 1.0;
+    }
+  }
+
+  /* A slot nobody reads is an output. Computed rather than stored so it cannot
+     disagree with the edges — the lab's bug was a second copy of exactly this
+     question that skipped the legality test. */
+  bool isTerminal(int slot) const
+  {
+    // The loop bound `t > slot` is what enforces legality here — an edge out of
+    // `slot` into a LATER slot is legal by definition, so `connected()`'s
+    // acyclicity test can never reject one of these. Verified by planting the
+    // lab's actual bug (the raw bit test, no legality check) and finding it a
+    // NO-OP against this shape. `connected()` is kept anyway because it also
+    // tests the presence bit and because a future change to the bound would
+    // otherwise silently lose the check — but the protection is structural, and
+    // claiming the call provides it would be a comment that lies.
+    for (int t = slot + 1; t < NSLOT; t++)
+      if (connected(NSRC + slot, t)) return false;
+    return true;
+  }
+
+  /* One forward pass. `src[i]` are the source samples; `proc(slot, x)` returns
+     that slot's output for input x. Returns the summed terminal output.
+     Allocation-free and branch-simple: this runs on the audio thread. */
+  template <class Proc>
+  double process(const double *src, Proc &&proc) const
+  {
+    double slotOut[NSLOT];
+    for (int t = 0; t < NSLOT; t++)
+    {
+      double x = slotInit[t];
+      for (int f = 0; f < NSRC + NSLOT; f++)
+      {
+        if (!connected(f, t)) continue;
+        x += coeff[f][t] * (f < NSRC ? src[f] : slotOut[f - NSRC]);
+      }
+      slotOut[t] = proc(t, x);
+    }
+    double y = 0;
+    for (int t = 0; t < NSLOT; t++)
+      if (isTerminal(t)) y += outAmount[t] * slotOut[t];
+    return y;
+  }
+};
+
+}  // namespace hypersaw
