@@ -17,6 +17,8 @@
 #include "../src/routing_core.h"
 #include "../src/fx_rack.h"
 
+constexpr double kPi = 3.141592653589793;
+
 static int failures = 0;
 static void check(bool ok, const char *what, const char *detail)
 {
@@ -178,8 +180,12 @@ int main()
     for (int i = 0; i < N; i++)
     {
       const double t = (double)i / 44100.0;
-      aL[i] = bL[i] = (float)(0.3 * std::sin(2 * M_PI * 220 * t));
-      aR[i] = bR[i] = (float)(0.3 * std::sin(2 * M_PI * 331 * t));
+      // kPi, not M_PI: M_PI is a POSIX extension, not standard C++, and MSVC
+      // does not define it without _USE_MATH_DEFINES. The Windows leg caught
+      // this; the rest of the tree already uses a local constant for exactly
+      // this reason, so match it rather than add a platform define.
+      aL[i] = bL[i] = (float)(0.3 * std::sin(2 * kPi * 220 * t));
+      aR[i] = bR[i] = (float)(0.3 * std::sin(2 * kPi * 331 * t));
     }
 
     direct.processStereo(aL.data(), aR.data(), N);
