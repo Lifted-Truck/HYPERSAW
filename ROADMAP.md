@@ -94,6 +94,29 @@ Cause worth naming: we had a *convention* to report carry-state and no *derivati
 claim formed once from a governor signal about a different repo survived every repetition. Same
 failure their new `check_inbound_uncommitted` fixes on their side. The roundup memory now says:
 derive it from the tree, or omit the line.
+## F2 STAGE 1 INCREMENT 2 — both conformance reports GREEN (2026-08-11)
+
+FOUNDATIONS shipped `registry_conformance`; we ran it on both real tables. **hypersaw 181 rows**
+(105 base + 76 per-oscillator copies; 29 globals not duplicated) and **swarmfx 17** — C1 arity, C2
+invariants, C3 `address.leaf() == key`, C4 wire format byte-identical to today's. All green.
+
+**Emitter A, and the trap had a second door.** `patch_key` comes from the bytes `state_save`
+actually writes. But our first emitter derived `key` by stripping the `o<k>.` prefix off
+`patch_key` — the same tautology one level down, since C4 would then compare their reconstruction
+against a string built from the column it was checking. Columns are now independently sourced:
+behaviour for `patch_key`, declaration (`tools/registry_decl.py`) for `key`/`global`/ranges.
+
+**Their C2 fired on our real data and was right.** First honest run: RED, *"leaf shadows an
+ancestor scope — id 1002, address `osc1.dist`"*. Our declaration parser ran `\d+` over the
+`kGlobalIds` block *including comments*, slurping digits from `A12`, `ADR-082`, `2026-08-11` → 36
+globals where there are 29, declaring `dist` **both** global and per-oscillator, which really would
+collide on load. That is the case they said they most wanted and could not predict, and it was
+**calibrated on real data by accident** — fired on a table that contained the condition, green once
+removed. Three deliberate plants also reported precisely: `.` in a key → C3, one param
+mis-classified → C4 naming id 1001, truncated dump → C1.
+
+swarmfx names are **proposed**, matching HYPERSAW's existing `coreKey` wherever the concept exists;
+C3 there is a forward constraint only, since that shell keys state on the numeric id.
 
 ## A12 SHIPPED — and it uncovered a third fan-out bug (2026-08-11)
 
