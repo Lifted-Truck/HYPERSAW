@@ -63,10 +63,38 @@ PERFORMANCE or the patch is global.
 | **amp envelope** (19 attack · 20 decay · 21 sustain · 22 release) | **PER-OSC** | the strongest case on the list. A fast-attack oscillator layered against a slow swell is among the most basic two-oscillator moves there is, and it is per-oscillator in essentially every synth that has two. Sharing one envelope makes the second oscillator a timbre-only layer. |
 | **voiceMono** (32) · **voiceLegato** (34) · **polyGlide** (89) · **glideMode** (90) | **GLOBAL — structurally** | these describe how NOTES ARE ALLOCATED, not how a source sounds. Two oscillators cannot be mono and poly at once: a note either exists or it does not. This is forced, not preferred. |
 | **travel-law family** (33 glide · 11 inertia · 70 inertiaCurve · 75 freqGlide) | **DEFER to B19** | one oscillator snapping while the other slides is genuinely musical, and A1 already ruled per-destination laws linked by default. But B19's shell integration has not landed, and scoping a family before its owner exists is how the first 13 params got mis-scoped. Decide it *with* B19, not before. |
-| **beatMult** (23) · **oversample** | **GLOBAL** | tempo relationship and render quality are patch-level. beatMult flips only if the Kuro rotor goes per-oscillator, which is B22's question, not this one. |
+| **oversample** | **GLOBAL** | render quality is patch-level. |
+| **beatMult** (23) | **PER-OSC — recommendation CORRECTED 2026-08-11** | see below. |
 
 **Cost:** additive only, and only while the `+1000` ids stay unallocated — which they do. The
-envelope move is 4 ids.
+envelope move is 4 ids, beatMult 1 more.
+
+#### beatMult — a correction, and why the first answer was wrong
+
+Originally recommended GLOBAL, "because tempo relationship is patch-level". That was
+pattern-matching on the word *tempo* without reading what the parameter does, and the human asking
+*"what is beatmult though?"* is what exposed it.
+
+**What it actually is.** `beatMult` ("Grid Cycles/Beat", 0.25–8.0) is a parameter **of the
+tempo-grid detune law** (law 3, ADR-022). Under that law each voice's frequency offset is snapped
+to a multiple of `u = (bpm/60) × beatMult`. Because the beat rate between two detuned voices *is*
+their frequency difference in Hz, snapping every offset to a multiple of `u` makes **every pairwise
+beat rate an exact multiple of `u`** — the swarm's shimmer becomes tempo-locked pulsation instead
+of arbitrary drift. At 120 bpm, beatMult 1 is one beat-cycle per beat; 2 is eighths; 0.25 is a
+bar-long swell.
+
+**Why the scope flips.** `detune` (4) and `law` (5) are already **per-oscillator**. `beatMult` is a
+parameter *of that law*, so today an oscillator can choose the tempo-grid law independently but
+cannot choose its own grid. The genuinely global quantity here is **`bpm`**, which is host-owned
+transport and correctly global; `beatMult` is the per-source *ratio* to it.
+
+**And the musical case is the one this instrument exists for:** two oscillators both on the
+tempo-grid law at different divisions — one pulsing quarters, one eighths — is a polyrhythmic
+shimmer. Forcing them onto one grid deletes it for no reason.
+
+By the same principle used for everything else in this table — *scope follows the thing the
+parameter describes* — beatMult describes how **this oscillator's** detune relates to the beat.
+**Per-oscillator.**
 
 ### A13 — retrig-off dead starts
 
