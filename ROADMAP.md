@@ -94,6 +94,38 @@ Cause worth naming: we had a *convention* to report carry-state and no *derivati
 claim formed once from a governor signal about a different repo survived every repetition. Same
 failure their new `check_inbound_uncommitted` fixes on their side. The roundup memory now says:
 derive it from the tree, or omit the line.
+## OPEN WORK — the CLAP param-rescan host measurement (tracked here, 2026-08-11)
+
+Moved out of `integrations/` and into the roadmap, where work belongs. The FOUNDATIONS exchange is
+**closed** — they accepted, we agreed, and the ball had been "our schedule" for days; leaving it
+open made an unscheduled task look like an unanswered question, which is exactly the confusion that
+produced a week of phantom-debt status lines.
+
+**What it is.** Six cases per host, run through the **legal** cycle
+(`restart()` → `deactivate()` → apply → `clear(host, id, CLAP_PARAM_CLEAR_ALL)` → `rescan(ALL)` →
+`activate()`), never a mid-session `RESCAN_ALL` — that call is illegal per `params.h:328`, and
+measuring it could have produced "hosts do not support dynamic params" and foreclosed a flow the
+spec documents at `params.h:70-77`.
+
+| case | question |
+|---|---|
+| id unchanged | does an existing automation lane keep its points and its binding? |
+| id added | does a new id inherit lane state from a previous instance if `clear()` was skipped? |
+| id removed | does the lane disappear cleanly, orphan, or corrupt the project? |
+| id **reused** for a different param | the one that decides whether append-only is a rule or a convention |
+| each of the above, **after a project reload** | surviving in-session and surviving a reload are different promises |
+| the **clap-wrapper VST3 path** | most hosts meet us through the wrapper, whose parameter model is not CLAP's |
+
+**Priority order if scope must be cut: drop a host before dropping the wrapper row** (their
+instruction, and right — a clean CLAP answer that dies at the wrapper answers nobody's question).
+
+**Blocked on a human at a DAW.** The observation step cannot be agent-run. What *can* be built
+without one is the instrument: a plugin that changes its exposed parameter set on command through
+that cycle, so the manual pass is clicking and reading rather than building. Offered, not promised.
+
+**Nothing depends on it.** ADR-088 §4 is ratified on the specification; this measurement only
+decides whether a *future* rack could use dynamic params instead of a static block.
+
 ## F2 STAGE 1 INCREMENT 2 — both conformance reports GREEN (2026-08-11)
 
 FOUNDATIONS shipped `registry_conformance`; we ran it on both real tables. **hypersaw 181 rows**
