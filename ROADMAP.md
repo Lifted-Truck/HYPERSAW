@@ -50,6 +50,51 @@ Correction filed as `notice-samplerate-oracle-correction.md`, asking them to kee
 evidence rather than a gate until it is actually gated here, so criterion 1b gets a date rather
 than an assurance.
 
+## coreKey CONFORMANCE DATA — the mapping is a dispatch, not a function (2026-08-11)
+
+FOUNDATIONS named the `address.leaf() == coreKey` conformance tool as F2 Stage 1's live item and
+the claim as unproven. Measured our real table rather than waiting.
+
+**Injectivity: proven.** Zero duplicate coreKeys across all 105 instrument params.
+
+**Totality: the claim was mis-shaped.** `coreKey` does not name one owner —
+
+| owner | params |
+|---|---|
+| SwarmCore only | 44 |
+| shell-domain only (reaches NO core) | 16 |
+| SpectraCore only | 15 |
+| FX rack | 8 |
+| multi-owner combinations | 11 |
+| unresolved (`fx1tone`…`fx4tone`) | 4 |
+
+**16 keys reach no core at all** — shell state whose `coreKey` exists purely to be the state wire
+format. A tool asserting "every coreKey is a valid core key" fails on 16 params that are working
+correctly. And 11 keys deliberately fan to *two* engines (`width` → SwarmCore `width` + SPECTRA
+`swidth`), so an address scheme must express "this address fans to these targets" rather than
+assuming one destination.
+
+### Three param-map idioms, not two
+
+`k == "x"` (swarm_core) · `eq(k, "x")` (some cores) · `std::strcmp(k, "x")` (spectra_core).
+
+Our friction list said *two* idioms made a scope audit silently report 0 findings. It is three, and
+**the first pass at the table above — grepping one idiom — reported 27 params as UNCLAIMED that are
+correctly owned by SPECTRA and the rack.** The analysis reproduced the exact defect it was
+documenting. A conformance tool that scans source rather than the registry will under-report and
+look green; that is a stronger argument for Stage 1's registry than the friction-list version was.
+
+### Correction we owed them
+
+Our repeated "N files awaiting their resident to commit" was **wrong** — their outbound side read
+as our inbound debt. Verified independently: nothing uncommitted either direction, all nine of ours
+in `origin/main`, split 9/10 exactly as they said.
+
+Cause worth naming: we had a *convention* to report carry-state and no *derivation* for it, so a
+claim formed once from a governor signal about a different repo survived every repetition. Same
+failure their new `check_inbound_uncommitted` fixes on their side. The roundup memory now says:
+derive it from the tree, or omit the line.
+
 ## A12 SHIPPED — and it uncovered a third fan-out bug (2026-08-11)
 
 Implementing the ratified A12 scope changes required touching `kGlobalIds`, and checking *how*
