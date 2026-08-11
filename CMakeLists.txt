@@ -163,6 +163,14 @@ endif()
 # Links the plugin impl, like rtsafety_probe — it drives the real CLAP event
 # path rather than a core in isolation, because the bug lived in the event
 # fan-out, which a core-level test cannot see.
+# routing_check: the B23 crosspoint matrix (ADR-088) before it enters the audio
+# path — core + oracle first, same order the glide and swarmalator ports used.
+add_executable(routing_check tools/routing_check.cpp)
+target_include_directories(routing_check PRIVATE src)
+if(NOT MSVC)
+  target_compile_options(routing_check PRIVATE -O2)
+endif()
+
 # subdiv_check: rendering must not depend on how a buffer is subdivided
 # (ADR-086). Core-level, so no plugin link.
 add_executable(subdiv_check tools/subdiv_check.cpp)
