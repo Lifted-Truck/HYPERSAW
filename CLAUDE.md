@@ -90,8 +90,9 @@ Track E effects labs `swarmfilter.html`, `swarmphaser.html`, `swarmtime.html`
 (shared force system, ADR-034), `filter_core.h` / `notch_core.h` (E1 effects),
 `swarmalator_core.h` (swarmalator). Build/test = `./verify fast|full` (fifteen
 gates: nine parity/trajectory chains — parity · trajectory · force · spectra ·
-filter · notch · swarmalator · glide · time — plus seven behavioural/invariant
-probes: state · notefuzz · rtsafety · subdiv · mpe · preset · waveshape). This Mac: Command Line Tools only, CMake
+filter · notch · swarmalator · glide · time — plus nine behavioural/invariant
+probes: state · notefuzz · rtsafety · subdiv · samplerate · routing · mpe ·
+preset · waveshape). This Mac: Command Line Tools only, CMake
 with `-G "Unix Makefiles"`, absolute build paths (sandbox resets cwd) — see
 the global CLAUDE.md audio-plugin section before any build/install/validate.
 

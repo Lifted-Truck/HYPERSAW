@@ -1024,3 +1024,59 @@ only because the human noticed the two threads were the same question.
 **Not implemented.** This ADR records the ruling; the increment that builds it
 is scoped in ROADMAP.
 
+## ADR-089 — Gate changes are asymmetric: adding is delegated, weakening is not
+
+**Date:** 2026-08-11 · **Status:** accepted. Human: *"I'm just going to have to
+trust your judgment on those gates because I don't really have any insight into
+them."*
+
+### The problem with taking that at face value
+
+The charter requires a human decision before "editing `./verify` or the gates it
+runs". Its purpose is that **a weakened gate is invisible** — nothing goes red,
+the suite still prints GREEN, and the loss is silent. A human who cannot inspect
+the gate cannot supply that check, so accepting the delegation unchanged would
+remove the safeguard rather than relocate it.
+
+### The asymmetry the charter does not draw
+
+Two operations are covered by one rule and they carry opposite risk:
+
+| operation | effect on the suite | who decides |
+|---|---|---|
+| **adding** a gate | strictly stricter — can only turn green→red, never red→green | **agent may proceed**, with calibration recorded |
+| **weakening** a threshold, **skipping**, **xfail**, **removing**, or **narrowing** a gate | strictly looser — can turn red→green silently | **always the human**, no exceptions, no delegation |
+
+Adding a gate cannot hide a regression; it can only expose one or cost time.
+Every failure mode the original rule protects against lives on the second row.
+
+### Conditions on the delegated half
+
+A gate may be added without asking only if all hold, and each is recorded in the
+gate's own source so a later reader can audit without re-deriving:
+
+1. **Calibrated** — proven RED on the defect it exists for and GREEN on restore.
+   A gate never shown to fail is decoration.
+2. **Threshold from measurement**, with the regression's magnitude on record.
+   `samplerate_check`'s 0.3% sits between a measured 0.163% and 0.419%; a 1%
+   tolerance would have passed its own defect.
+3. **Vacuity control** — a case that must read exactly zero, or a distinctness
+   check, so it cannot pass with the feature absent.
+4. **Deterministic**, and cheap enough to state (`routing_check` 0.00 s,
+   `samplerate_check` 0.02 s against a 3–4 minute suite).
+5. **Exclusions declared loudly** in the gate's own output — `subdiv_check`
+   prints pan motion as KNOWN and names it in its summary line.
+
+### Applied
+
+`samplerate_check` and `routing_check` are gated. `./verify full` runs **18**
+gates.
+
+### Not amended: the charter itself
+
+`CLAUDE.md` above §Domain is the invariant harness layer and is explicitly not
+edited per-project. This ADR records a project-level working agreement about how
+that rule is applied here; it does not rewrite the rule. If the distinction is
+worth having everywhere, it belongs upstream in the doctrine repo, not in this
+file.
+
