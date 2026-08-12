@@ -10,7 +10,7 @@
  *  - doubles for all state math; the SINE table is Float32Array in the
  *    reference, so it is float here (f32-rounded values, double interp).
  *  - output buffers are f32 read-modify-write per store, matching JS typed
- *    array semantics (accumulate across swarms, then tanh in a second pass).
+ *    array semantics (accumulate across voices, then tanh in a second pass).
  *  - mulberry32 shared via forcecore (ADR-034); JS int seed semantics.
  *  - reference literals kept: kTau 6.283185307, kPiRef 3.14159265.
  *
@@ -35,7 +35,7 @@ class SpectraCore
 {
  public:
   // kSPoly raised from the reference's 4 to 8 (2026-07-18 polyphony report).
-  // Must stay <= SwarmCore::kPoly: the shell's VoiceTag/NOTE_END array is
+  // Must stay <= SwarmCore::kPoly: the shell's NoteTag/NOTE_END array is
   // sized by kPoly and indexed by the active core's slot.
   // kPMax raised from the reference's 24 to 32 (ADR-040, human request) — a
   // range extension; the reference arithmetic is untouched and the goldens
@@ -88,7 +88,7 @@ class SpectraCore
   explicit SpectraCore(double sampleRate) : sr(sampleRate)
   {
     for (int i = 0; i <= 4096; i++) SINE[i] = (float)std::sin((double)i / 4096 * 2 * kPiFullS);
-    for (auto &s : swarms)
+    for (auto &s : voices)
     {
       std::memset(s.phase, 0, sizeof(s.phase));
       std::memset(s.vf, 0, sizeof(s.vf));
@@ -146,11 +146,11 @@ class SpectraCore
   SSwarm &alloc()
   {
     SSwarm *best = nullptr;
-    for (auto &s : swarms)
+    for (auto &s : voices)
       if (!s.gate && s.env < 1e-3)
         if (!best || s.age < best->age) best = &s;
     if (best) return *best;
-    for (auto &s : swarms)
+    for (auto &s : voices)
       if (!best || s.age < best->age) best = &s;
     return *best;
   }
@@ -177,24 +177,24 @@ class SpectraCore
         s.phase[k * kMMax + m] = (p.retrig != 0) ? 0.0 : forcecore::rngNext(s.rngState);
     }
     (void)M;
-    return (int)(&s - &swarms[0]);
+    return (int)(&s - &voices[0]);
   }
   void noteOff(int midi)
   {
-    for (auto &s : swarms)
+    for (auto &s : voices)
       if (s.gate && s.midi == midi) s.gate = 0;
   }
   void allOff()
   {
-    for (auto &s : swarms)
+    for (auto &s : voices)
       s.gate = 0;
   }
-  const SSwarm &swarmAt(int i) const { return swarms[i]; }
+  const SSwarm &voiceAt(int i) const { return voices[i]; }
   double partialAmp(int k) const { return (k >= 0 && k < kPMax) ? amp[k] : 0.0; }
   const SSwarm *focus() const
   {
     const SSwarm *best = nullptr;
-    for (const auto &s : swarms)
+    for (const auto &s : voices)
       if ((s.gate || s.env > 1e-3) && (!best || s.age > best->age)) best = &s;
     return best;
   }
@@ -298,7 +298,7 @@ class SpectraCore
       outL[i] = 0;
       outR[i] = 0;
     }
-    for (auto &s : swarms)
+    for (auto &s : voices)
     {
       if (!s.gate && s.env < 1e-4) continue;
       int tick = globalTick;
@@ -400,7 +400,7 @@ class SpectraCore
   int centerIdx = 0;
   long noteCounter = 0;
   int globalTick = 0;
-  SSwarm swarms[kSPoly];
+  SSwarm voices[kSPoly];
 
   double *paramSlot(const char *k)
   {

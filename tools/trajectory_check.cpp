@@ -433,7 +433,7 @@ int main()
       double lo = 1e9, hi = 0;
       for (int i = 0; i < 8; i++)
       {
-        const auto &sw = c.swarmAt(i);
+        const auto &sw = c.voiceAt(i);
         if (!sw.gate) continue;
         lo = std::min(lo, sw.f0cur);
         hi = std::max(hi, sw.f0cur);
@@ -453,7 +453,7 @@ int main()
       double lo2 = 1e9, hi2 = 0;
       for (int i = 0; i < 8; i++)
       {
-        const auto &sw = c2.swarmAt(i);
+        const auto &sw = c2.voiceAt(i);
         if (!sw.gate) continue;
         lo2 = std::min(lo2, sw.f0cur);
         hi2 = std::max(hi2, sw.f0cur);
@@ -782,9 +782,9 @@ int main()
     for (long off = 0; off < (long)(2.5 * kSR); off += kBlock)
     {
       c.render(L.data(), R.data(), kBlock);
-      envMin = std::min(envMin, c.swarmAt(slot).env);
+      envMin = std::min(envMin, c.voiceAt(slot).env);
     }
-    const double cents = 1200 * std::log2(c.swarmAt(slot).f0 / 440.0);
+    const double cents = 1200 * std::log2(c.voiceAt(slot).f0 / 440.0);
     check(std::fabs(cents) <= 1.0, "ADR-026 glide reaches target within 1c (12 tau)", cents);
     check(envMin > 0.5, "ADR-026 legato retarget keeps the envelope up", envMin);
 
@@ -796,8 +796,8 @@ int main()
     for (long off = 0; off < (long)(0.5 * kSR); off += kBlock) c2.render(L.data(), R.data(), kBlock);
     c2.retargetNote(s2, 69, 440.0, false);
     c2.render(L.data(), R.data(), kBlock);
-    check(c2.swarmAt(s2).f0 < 260.0, "ADR-026 non-legato glide starts from current pitch",
-          c2.swarmAt(s2).f0);
+    check(c2.voiceAt(s2).f0 < 260.0, "ADR-026 non-legato glide starts from current pitch",
+          c2.voiceAt(s2).f0);
 
     // Super-width: width 1.5 widens (|L-R| energy up vs width 1.0) and stays
     // finite/bounded; width <= 1 is covered by parity.

@@ -41,7 +41,7 @@ static const clap_plugin_descriptor_t s_desc = {
     "Coupled-oscillator swarm effects: resonator bank / notch swarm on external audio",
     &s_fx_features[0]};
 
-static const char *const kEngineLabels[] = {"Resonator Bank", "Notch Swarm", "Tap Delay",
+static const char *const kEngineLabels[] = {"Resonator Bank", "Notch Voice", "Tap Delay",
                                             "FDN Room"};
 static const char *const kDistLabels[] = {"even", "gaussian", "cauchy"};
 static const char *const kPlaceLabels[] = {"ERB", "log", "harmonic"};
