@@ -260,6 +260,15 @@ if(NOT MSVC)
   target_compile_options(paramleak_probe PRIVATE -O2)
 endif()
 
+# steal_check: WHICH voice dies when the pool is full. notefuzz proves no voice
+# HANGS and proves it whether the victim is oldest, newest or random — steal
+# priority was entirely unpinned until this (FOUNDATIONS seam question 1).
+add_executable(steal_check tools/steal_check.cpp)
+target_link_libraries(steal_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(steal_check PRIVATE -O2)
+endif()
+
 add_executable(notefuzz_check tools/notefuzz_check.cpp)
 target_link_libraries(notefuzz_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
