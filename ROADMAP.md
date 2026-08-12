@@ -306,6 +306,51 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## ROADMAPPED — K gain compensation · master meter · dump hygiene (2026-08-12)
+
+Three items deferred deliberately, with the measurement that justifies the first already taken so a
+later session does not re-derive it.
+
+### K1 — coherence gain compensation (param, default OFF)
+
+**Human, 2026-08-12:** *"I really like the -K behavior, but it does have the predictable effect of
+cutting the overall amplitude... This may be psychoacoustic more than an actual decrease in level."*
+
+**MEASURED, and it is not psychoacoustic.** n=7, detune 0.28, 2 s render, 0.6 s settle discarded:
+
+| K | RMS | vs K=+1 | crest |
+|---|---|---|---|
+| −1.0 | 0.0316 | **−15.4 dB** | 2.06 |
+| −0.5 | 0.0413 | −13.1 dB | 2.20 |
+| 0.0 | 0.0821 | −7.1 dB | 3.65 |
+| +0.5 | 0.0739 | −8.1 dB | 3.40 |
+| +1.0 | 0.1867 | 0 dB | 1.69 |
+
+Peak falls comparably (0.065 → 0.316), so it is not a crest-factor illusion. **The curve is NOT
+monotonic** — K=+0.5 sits below K=0 — which is the design-relevant finding: *a gain law written as a
+function of K would have to encode that wiggle and would still be wrong the moment `n`, `detune` or a
+fold law moved coherence.* Drive compensation from MEASURED coherence, not from K.
+
+Build notes for whoever picks this up: new param defaulting to **0 = off**, so the 147 goldens stay
+green by construction and the superset carries its own oracle (L0031-B2); the AMOUNT is the control,
+because full flatness erases an expressive dimension and the right value is an ear call; smoothing
+declared in SECONDS (ADR-009) or R's control-rate updates become zipper noise; gate is a K sweep
+asserting RMS flat within a stated band, with compensation-off as the must-differ control, calibrated
+against the table above. **Caveat on the measurement:** `R` was sampled from the last block only and
+one reading (K=−0.2, R=0.576) looks like an outlier — a time-averaged coherence measure is needed
+before R is trusted as a gain source. The RMS column is sound; the R column is indicative only.
+
+### K2 — master level meter
+
+Requested alongside K1 and the natural companion to it: it is what lets a human SEE whether the
+compensation matches what their ear reports. Per-oscillator meters already exist (`applyOscGainAndMeter`).
+
+### K3 — the oracle pollutes the evidence directory
+
+`trace_check` writes dumps to `~/Library/Logs/HYPERSAW/` on every `./verify` run, interleaved with
+real field captures — seven of eleven files in one survey were ours. It makes a human's capture hard
+to find and invites diagnosing a test artifact as a field one. Route test dumps to a temp directory.
+
 ## EXPRESSIVE CHORDS — the note stream is the host's, and the dump was half-blind (2026-08-12)
 
 Field report: "with expressive chords on I'm incapable of holding sustained notes at all", heard as a
