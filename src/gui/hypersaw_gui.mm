@@ -16,6 +16,7 @@ struct HypersawGui::Impl
 {
   GuiHost host;
   std::unique_ptr<choc::ui::WebView> web;
+  void *parentView = nullptr;
 
   explicit Impl(GuiHost h) : host(std::move(h))
   {
@@ -41,7 +42,19 @@ struct HypersawGui::Impl
   }
 };
 
-HypersawGui::HypersawGui(GuiHost host) : impl(new Impl(std::move(host))) {}
+HypersawGui::HypersawGui(GuiHost host) : impl(new Impl(std::move(host)))
+{
+  /* Installed here, not in Impl's constructor: it needs `impl` to exist so it
+     can read parentView, which attachToParent fills in later. Resigning to the
+     PARENT rather than to nil matters — nil leaves the window with no first
+     responder, and Live does not necessarily route keys anywhere useful then. */
+  impl->host.releaseKeyFocus = [this]() {
+    if (!impl->parentView) return;
+    NSView *parent = (__bridge NSView *)impl->parentView;
+    if (NSWindow *w = [parent window])
+      if ([w firstResponder] != parent) [w makeFirstResponder:parent];
+  };
+}
 
 HypersawGui::~HypersawGui() { delete impl; }
 
@@ -54,6 +67,15 @@ bool HypersawGui::attachToParent(void *parentView)
   [child setFrame:[parent bounds]];
   [child setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
   [parent addSubview:child];
+
+  /* THE FIX for the 2026-08-12 lingering-note report. A WKWebView becomes first
+     responder on click and then keeps it, so every subsequent keystroke goes to
+     us instead of to Live — and Live, which generates the computer-keyboard
+     notes, stops seeing key-ups. We give focus back to the host's view after any
+     interaction that does not need text entry (the JS side decides which). We
+     cannot make the host send the note-off it never generated; we can stop being
+     the reason it never generates one. */
+  impl->parentView = parentView;
   return true;
 }
 

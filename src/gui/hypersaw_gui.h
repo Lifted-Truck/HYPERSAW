@@ -90,6 +90,13 @@ struct GuiHost
   std::function<void()> panic;                          // all-off, both engines + rack
   std::function<std::string()> getBuildId;               // git short hash, GUI corner
   std::function<std::string()> getHostHint;              // host-misconfiguration notice, or empty
+  /* Hand keyboard focus back to the host's view. Live routes computer-keyboard
+     notes to whichever view is first responder, so while our webview holds it
+     Live sees the key DOWN and not the key UP — measured 2026-08-12 as note
+     durations 64-115 ms with Live focused vs 137-518 ms with the plugin focused,
+     zero overlap, releases batched onto identical sample positions. Nothing in
+     the DSP can fix a note-off the host never sends. */
+  std::function<void()> releaseKeyFocus;
   std::function<std::string()> getStateJson;             // full provenance dump
   std::function<bool(const std::string &)> applyStateJson;
 };

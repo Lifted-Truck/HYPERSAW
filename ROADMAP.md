@@ -306,6 +306,38 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## KEY-FOCUS PASSTHROUGH — the cause, not the hatch (2026-08-12)
+
+The lingering-note report, fixed at its source rather than mitigated. A WKWebView becomes first
+responder on click and keeps it, so Live — which generates the computer-keyboard notes — stops seeing
+key-UPS and its note-offs arrive late and batched.
+
+**Measured before building** (`panic-38.txt`, real field capture): note durations **64-115 ms with
+Live focused vs 137-518 ms with the plugin focused, zero overlap**, 4x; every ON matched by an OFF, so
+nothing was ever stuck; and two keys pressed 7 samples apart released at the **identical sample**,
+which individual key-ups cannot produce.
+
+`GuiHost::releaseKeyFocus` hands first responder back to the HOST's view (not to nil — nil leaves the
+window with no first responder and Live need not route keys anywhere useful) after any interaction
+that does not need text entry. The JS side decides which: inputs, selects and textareas keep focus.
+
+**Shipped with an in-place toggle**, "pass keys to host", default ON. The point is that the human can
+feel the difference without a reinstall — **a fix nobody can turn off is a fix nobody can evaluate.**
+
+**Honest limit:** this is macOS/Cocoa only. `hypersaw_gui_win.cpp` has no equivalent, so the Windows
+leg still holds focus; whether Windows hosts suffer the same is unmeasured, not assumed absent.
+
+### Also roadmapped: bass-mono ordering wants research (human direction)
+
+B23 increment 3 is blocked on where bass-mono sits relative to the FX rack. Our measurement showed no
+current slot decorrelates (Comb scales the sub-crossover channel difference 2.2x with bass-mono on OR
+off), so there is no correctness case for moving it — but that is an argument from OUR rack's present
+contents, not from how the problem is solved elsewhere. **Human ruled 2026-08-12: research it.**
+Worth asking of the prior art: where do shipping instruments put a bass-mono/elliptic stage relative
+to insert effects, and is it conventionally pre- or post-FX?
+
+`./verify full` GREEN, nineteen gates.
+
 ## ROADMAPPED — K gain compensation · master meter · dump hygiene (2026-08-12)
 
 Three items deferred deliberately, with the measurement that justifies the first already taken so a

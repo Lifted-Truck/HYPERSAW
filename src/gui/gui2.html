@@ -155,6 +155,7 @@ if (!window.hzGetParams) {   /* standalone/dev mocks */
   window.hzSetVizOsc = async () => {};
   window.hzGetBuild = async () => 'dev';
   window.hzGetHostHint = async () => '';
+  window.hzReleaseKeyFocus = async () => 0;
   window.hzPanic = async () => 0;
   let t = 0;
   window.hzGetViz = async () => { t += 0.03;
@@ -173,6 +174,7 @@ const bridge = {
   setVizOsc: (k) => window.hzSetVizOsc(k),
   getBuild: () => window.hzGetBuild(),
   getHostHint: () => window.hzGetHostHint ? window.hzGetHostHint() : Promise.resolve(''),
+  releaseKeyFocus: () => window.hzReleaseKeyFocus ? window.hzReleaseKeyFocus() : Promise.resolve(0),
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
   panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
@@ -190,6 +192,34 @@ document.addEventListener('keydown', e => {
   if (a && a.blur) a.blur();
   bridge.panic().catch(() => {});
 });
+/* KEY FOCUS PASSTHROUGH (2026-08-12). While this webview is first responder,
+   Live's computer-keyboard notes lose their key-UPS to us and note-offs arrive
+   late and batched — measured 4x longer note durations with the plugin focused,
+   zero overlap with the host-focused case. After any interaction that does not
+   need text entry we hand focus back, so the host keeps generating releases.
+   TOGGLEABLE so it can be A/B'd in place: the whole point is that the human can
+   feel the difference without a reinstall, and a fix nobody can turn off is a
+   fix nobody can evaluate. */
+let hzPassKeys = true;
+function hzMaybeRelease(ev) {
+  if (!hzPassKeys) return;
+  const t = ev && ev.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+  bridge.releaseKeyFocus().catch(() => {});
+}
+document.addEventListener('pointerup', hzMaybeRelease, true);
+document.addEventListener('click', hzMaybeRelease, true);
+{ const tabs = document.getElementById('tabs');
+  const lab = document.createElement('label');
+  lab.style.cssText = 'margin-left:10px;font-size:10px;opacity:.75;cursor:pointer';
+  lab.title = 'Hand keyboard focus back to the host after clicks. Off = this window keeps '
+            + 'focus, which is what makes computer-keyboard notes linger in Live.';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.checked = true;
+  cb.addEventListener('change', () => { hzPassKeys = cb.checked; });
+  lab.appendChild(cb); lab.appendChild(document.createTextNode(' pass keys to host'));
+  if (tabs) tabs.appendChild(lab); }
+
 { const pb = document.getElementById('panicBtn');
   if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); }); }
 const OSC_STRIDE = 1000;
