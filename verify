@@ -164,6 +164,24 @@ full() {
   # BEFORE the state clear, which is prose at the panic site, not a gate.
   "$build_dir/trace_check" || return 1
 
+  # WHICH VOICE DIES when the pool is full (FOUNDATIONS seam question 1,
+  # 2026-08-11). notefuzz proves no voice HANGS — and proves it whether the
+  # victim is the oldest, the newest, or random. Steal priority was entirely
+  # unpinned, so a seam changing steal order would have left every gate green.
+  # Pins all three alloc() tiers separately. Thresholds are MEASURED leakage
+  # floors (a render where the note never sounded), not chosen numbers.
+  # Calibrated: stealing the newest fails assertion 1; deleting tier 2 fails
+  # assertion 2 with the held note dead at 0.005 and the released tail alive at
+  # 0.091 — the exact musical harm the tier exists to prevent.
+  "$build_dir/steal_check" || return 1
+
+  # NOTE_END DELIVERY (L0022). Built and calibrated for the bug where
+  # emitNoteEnds ignored try_push's return and destroyed an END forever under
+  # output-buffer pressure — four rounds of wrong fixes before it was found.
+  # It has been sitting OUTSIDE the gate set ever since, which is worse than
+  # absent: a built, passing probe reads as coverage. Wired 2026-08-11.
+  "$build_dir/endprobe" || return 1
+
   # REAL-TIME SAFETY (2026-08-06): the audio thread must not allocate. The
   # charter has always said so; nothing enforced it, and an allocation in
   # process() is invisible to every other oracle because the AUDIO IS STILL

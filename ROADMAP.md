@@ -306,6 +306,55 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## STEAL PRIORITY PINNED · endprobe GATED (2026-08-11)
+
+Two of the three gaps our own answer to FOUNDATIONS' seam question 4 exposed. Eighteen gates now.
+
+### `steal_check` — WHICH voice dies
+
+Nothing pinned it. `notefuzz_check` proves no voice *hangs*, and proves it whether the victim is the
+oldest, the newest, or picked at random — **a seam that changed steal order would have left all
+sixteen gates green.** This pins all three `alloc()` tiers as behaviour: a free slot is used before
+anything is stolen; a releasing tail is taken before any held note; only when every slot is gated
+does the oldest held note die.
+
+**Two probe defects found before any code defect** — both caught by refusing a marginal result:
+
+1. The 17th note was MIDI 59, *below* the measured octave, so its 2nd harmonic landed exactly on
+   MIDI 71 — a note the probe counts as a survivor. It would have read the intruder as proof the
+   victim's neighbour lived. Moved above the range; harmonics only go up.
+2. Assertion 2 left release at 5 ms and idled 46 ms before stealing, so the "releasing tail" had
+   already faded below the free threshold and the slot was tier-1 FREE. **The assertion was passing
+   through the wrong tier and would have stayed green with tier 2 deleted.** Release stretched to
+   800 ms.
+
+**Thresholds are measured, not chosen.** A silenced bin never reads zero — neighbours leak into it —
+so the floor comes from a render where the note genuinely never sounded. The first version guessed 5%
+and got 5.1%, which L0024 says means the detector is wrong: the Goertzel was unwindowed, and a
+rectangular window's sidelobes put ~5% of a neighbour 15.6 Hz away into the victim's bin. Hann-
+windowed, the victim reads **0.00579 against a 0.00716 floor** — below the floor, i.e. genuinely gone.
+
+**Calibrated, and the tiers fail separately.** Stealing the newest fails assertion 1 only (victim
+stays at 0.125). Deleting tier 2 fails assertion 2 only, *inverted*: the held note collapses to
+**0.00493** while the released tail rings on at **0.09051** — a note the player is holding dies while
+a decaying tail survives. That is the exact musical harm we described to FOUNDATIONS in seam answer 1,
+now demonstrated rather than argued.
+
+### `endprobe` wired
+
+Built and calibrated for L0022 — where `emitNoteEnds` ignored `try_push`'s return and destroyed a
+NOTE_END forever under output-buffer pressure, after four rounds of wrong fixes. It has been outside
+the gate set ever since. **A built, passing probe that nothing runs is worse than an absent one,
+because its existence reads as coverage.**
+
+`./verify full` GREEN, eighteen gates; parity 147/147 worst 4.262e-09.
+
+### Still open from seam question 4
+
+The panic-END defect: `panicWithDump()` zeroes `pendingEndCount` and clears every tag without
+emitting the ENDs it owed, so a host tracking `note_id`s is left holding identities that never end.
+Same class as L0022, different door. Next.
+
 ## PANIC-ORDERING BOUNDARY CLOSED (2026-08-11)
 
 The coverage boundary recorded one commit earlier is now a gate. `panicWithDump()` extracted from the
