@@ -36,6 +36,8 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 
 - [L0035] **CANONICAL:** correct OUTPUT does not imply correct PROTOCOL — obligations to a consumer (lifecycle events, acks, cleanup) are a second observable surface with its own coverage; every path that can DISCARD an obligation is the thing to enumerate, and the cure is making the discharging path the only route | oracles, protocol, events, plugins, coverage, doctrine, cross-project
 
+- [L0036] **CANONICAL:** PIN YOUR REFUSALS — a deliberate absence needs a test or it becomes an accidental presence; assert that the withheld operation has no route, that the deliberately-open case still validates, and that the uncovered boundary is named | testing, design, invariants, doctrine, cross-project
+
 <!-- CONSOLIDATED 2026-08-11: 34 -> 30 entries. L0011/L0021/L0034 -> L0031 (they
      stated one claim four ways, which is a retrieval problem, not four lessons);
      L0014 -> L0016 (it always described itself as L0016's spectral case); L0003
