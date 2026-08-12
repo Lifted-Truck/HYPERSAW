@@ -306,6 +306,49 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## BASS-MONO RESEARCH — the prior art says "neither"; it is a SLOT (2026-08-12)
+
+Human ruled the ordering wanted research rather than our single measurement. Run, and it dissolves
+the question we were asking.
+
+**Serum 2 ships this exact feature as a positionable UTILITY MODULE inside its FX rack** — convert to
+mono below a frequency, placed as a slot rather than fixed anywhere. **Mastering convention puts
+stereo-imaging work LATE** (corrective EQ → compression → additive EQ → saturation → stereo imaging →
+limiting), which is the opposite end from where ours sits today.
+
+So the answer to "pre-rack or post-rack?" is **neither: the field makes it user-positionable**, and
+our binary framing was the error. Both my earlier measurement (no current slot decorrelates, so no
+correctness case to move it) and the reorder I declined were arguments inside a frame the prior art
+does not share.
+
+### The recommendation, and why it is cheap
+
+**Make bass-mono an FX slot type.** We already have the slot mechanism (ADR-054) and B23's matrix
+(ADR-088) makes position arbitrary by construction — a slot can be fed from anywhere and read by
+anything. This is "reduce, never invent": it removes a fixed stage AND removes the ordering decision
+rather than answering it, and it unblocks per-oscillator sources, which is what the ordering question
+was blocking in the first place.
+
+Consequences to weigh before building:
+- The existing ids 40/41 (`bassMonoOn`, crossover) would become slot params, or stay as a legacy
+  fixed stage defaulting off. **State compatibility decides this, not taste** — every saved preset
+  carries 40/41.
+- A new slot type is a superset and needs its own invariant oracle (L0031-B2); the existing
+  `bassorder`-style measurement (channel difference at the note fundamental, Goertzel-isolated)
+  becomes that gate.
+- Parity is untouched either way: the goldens render `SwarmCore` and never reach the mix stage.
+
+**Not built. Recommendation recorded for a ruling.**
+
+Sources: Serum 2 Utility module (koherentdnb.com), mastering chain order (masteringthemix.com,
+producergrid.com, genesismixlab.com).
+
+### Branch hygiene, done 2026-08-12
+
+**173 dead remote branches deleted**, each verified first to add no file `main` lacks and to be zero
+commits ahead. `origin/main` is now the only remote branch. This is the L0004 hazard removed at
+source rather than guarded against: a merged branch that no longer exists cannot be pushed to.
+
 ## KEY-FOCUS PASSTHROUGH — the cause, not the hatch (2026-08-12)
 
 The lingering-note report, fixed at its source rather than mitigated. A WKWebView becomes first
