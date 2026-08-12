@@ -34,6 +34,8 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0032] **CANONICAL, HIGH-PRIORITY (flagged for up-propagation):** a detector sharing an assumption with what it measures confirms whatever you expect — 4 instances in one day, each plausible and in the predicted direction; the cure is a control case that MUST read exactly zero, and every calibration mutation asserts its anchor | testing, calibration, epistemics, probes, doctrine, cross-project ALSO: asserting a plant's anchor proves the SOURCE changed, not the BINARY — a stale object makes a plant 'fire' exactly as predicted (3 occurrences); and when the subject is a REPORT not a signal, the control must be a negative assertion.
 - [L0033] **CANONICAL:** a calibration plant that does NOT fire measured the assertion's coverage boundary — record it, never silently retry until one fires | testing, calibration, coverage, epistemics
 
+- [L0035] **CANONICAL:** correct OUTPUT does not imply correct PROTOCOL — obligations to a consumer (lifecycle events, acks, cleanup) are a second observable surface with its own coverage; every path that can DISCARD an obligation is the thing to enumerate, and the cure is making the discharging path the only route | oracles, protocol, events, plugins, coverage, doctrine, cross-project
+
 <!-- CONSOLIDATED 2026-08-11: 34 -> 30 entries. L0011/L0021/L0034 -> L0031 (they
      stated one claim four ways, which is a retrieval problem, not four lessons);
      L0014 -> L0016 (it always described itself as L0016's spectral case); L0003
