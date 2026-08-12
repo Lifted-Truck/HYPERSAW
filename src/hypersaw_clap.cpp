@@ -503,6 +503,7 @@ struct Plugin
   NoteTrace trace[kTraceLen] = {};
   std::atomic<uint64_t> traceWrite{0};         // total ever written; & (len-1) indexes
   uint64_t blockPos = 0;                       // steady time of the block in flight
+  uint64_t tracePos = 0;                       // local monotonic sample count, never host-supplied
   std::string lastDumpPath;
 
   void recordNote(const clap_event_header_t *ev, const clap_event_note_t *n)
@@ -1690,10 +1691,17 @@ struct Plugin
     float *outL = p->audio_outputs[0].data32[0];
     float *outR = p->audio_outputs[0].data32[1];
     const uint32_t nframes = p->frames_count;
-    // Absolute sample position of this block, for the forensic trace. Hosts may
-    // report steady_time as -1 when they cannot supply it, so fall back to a
-    // local running count — the trace's ORDERING stays meaningful either way.
-    blockPos = p->steady_time >= 0 ? (uint64_t)p->steady_time : blockPos + nframes;
+    /* Absolute sample position for the forensic trace. NEVER derived from
+       steady_time alone: the first real field dump (2026-08-12, Live via the
+       VST3 wrapper) came back with every pos under 512 and NON-MONOTONIC —
+       327, 146, 451, 17 — because the host reports steady_time as 0 every
+       block, so `pos` was just the in-block offset and events from different
+       blocks interleaved meaninglessly. The one column a replay depends on was
+       the one that was wrong, and it was wrong in the only environment that
+       matters. Count blocks locally and ALWAYS advance; use steady_time only
+       as a bonus when the host supplies something plausible. */
+    tracePos += nframes;
+    blockPos = p->steady_time > 0 ? (uint64_t)p->steady_time : tracePos;
     const uint32_t nev = p->in_events->size(p->in_events);
 
     uint32_t frame = 0, evIndex = 0;

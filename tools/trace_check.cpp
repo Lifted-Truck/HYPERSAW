@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <cstdlib>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -128,7 +129,11 @@ int main()
       proc.frames_count = BLK;
       proc.in_events = &evl.in;
       proc.out_events = &outEv;
-      proc.steady_time = blk++ * BLK;
+      // 0 every block: exactly what the field host reports, and what broke the
+      // first dump's timeline. A harness that supplies a tidy counter here tests
+      // an environment nobody ships into.
+      proc.steady_time = 0;
+      blk++;
       p->process(p, &proc);
       evl.ev.clear();
     }
@@ -217,6 +222,34 @@ int main()
                   rows, newestKept ? "yes" : "no", oldestDropped ? "yes" : "no");
     check(rows == 512 && newestKept && oldestDropped,
           "the ring keeps the most recent 512 events and drops the rest", d);
+  }
+
+  // ---- 4b. the timeline ADVANCES ACROSS BLOCKS ----------------------------
+  /* The first real field dump had every pos under 512 and non-monotonic: the
+     host reported steady_time as 0 every block, so pos was only the in-block
+     offset and events from different blocks interleaved. The column a replay
+     most depends on was the one that was broken, in the only environment that
+     counts — and nothing here noticed, because this harness supplies a tidy
+     increasing steady_time that the field does not. So: drive it the way the
+     field does. */
+  {
+    blk = 0;   // steady_time will be forced to 0 below, mimicking the wrapper
+    note(CLAP_EVENT_NOTE_ON, 40, 900);
+    run(1);
+    for (int i = 0; i < 6; i++) { note(CLAP_EVENT_NOTE_OFF, 40, 900); note(CLAP_EVENT_NOTE_ON, 40, 900); run(1); }
+    const std::string t = dump("timeline");
+    // Parse the pos column and require it to be non-decreasing AND to exceed
+    // one block — either alone is satisfiable by the broken version.
+    std::vector<unsigned long long> pos;
+    for (size_t i = t.find("  pos "); i != std::string::npos; i = t.find("  pos ", i + 1))
+      pos.push_back(std::strtoull(t.c_str() + i + 6, nullptr, 10));
+    bool monotonic = true;
+    for (size_t i = 1; i < pos.size(); i++) if (pos[i] < pos[i - 1]) monotonic = false;
+    const unsigned long long span = pos.empty() ? 0 : pos.back() - pos.front();
+    std::snprintf(d, sizeof(d), "%zu events, monotonic=%s, span %llu samples (>1 block = %d)",
+                  pos.size(), monotonic ? "yes" : "no", span, BLK);
+    check(pos.size() > 6 && monotonic && span > (unsigned long long)BLK,
+          "the trace timeline advances across blocks, not just within one", d);
   }
 
   // ---- 5. panic CAPTURES BEFORE IT CLEARS ---------------------------------
