@@ -260,6 +260,16 @@ if(NOT MSVC)
   target_compile_options(paramleak_probe PRIVATE -O2)
 endif()
 
+# kstuck_probe: the 2026-08-12 field report — a note that fails to die at, or
+# after, high coupling. Every note-lifecycle oracle we have runs at ONE value of
+# K, so the coupling axis is untested for lifecycle in an instrument whose whole
+# thesis is the coupling.
+add_executable(kstuck_probe tools/kstuck_probe.cpp)
+target_link_libraries(kstuck_probe PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(kstuck_probe PRIVATE -O2)
+endif()
+
 # steal_check: WHICH voice dies when the pool is full. notefuzz proves no voice
 # HANGS and proves it whether the victim is oldest, newest or random — steal
 # priority was entirely unpinned until this (FOUNDATIONS seam question 1).
