@@ -70,7 +70,14 @@
   .note { color:var(--dim); font-size:10.5px; }
 </style></head><body>
 
-<div class="tabs" id="tabs"></div>
+<!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
+     writes a forensic dump), it is reachable from gui.html, and it was simply
+     absent here — so in the interface that actually ships it did not exist.
+     L0023 again: a feature whose control is missing is a feature that is not
+     shipped, and no audio oracle can see the difference. Reported by the human
+     2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
+     stuck note that panic is precisely the escape hatch for. -->
+<div class="tabs" id="tabs"><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster"><h2>XY — x=detune · y=pull K <span class="oscSel" id="oscSelMain"></span></h2>
@@ -147,6 +154,7 @@ if (!window.hzGetParams) {   /* standalone/dev mocks */
   window.hzGesture = async () => {};
   window.hzSetVizOsc = async () => {};
   window.hzGetBuild = async () => 'dev';
+  window.hzPanic = async () => 0;
   let t = 0;
   window.hzGetViz = async () => { t += 0.03;
     const n = 7, phase = [];
@@ -165,7 +173,23 @@ const bridge = {
   getBuild: () => window.hzGetBuild(),
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
+  panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
 };
+
+/* Escape = panic, matching gui.html (ADR-032). Deliberately guarded so it does
+   not fire while a text field is focused. This matters more here than it looks:
+   the stuck notes being hunted are triggered by the PLUGIN HAVING FOCUS, so the
+   escape hatch has to work from the keyboard while focus is exactly where the
+   problem is. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const a = document.activeElement;
+  if (a && a.tagName === 'INPUT' && a.type === 'text') return;
+  if (a && a.blur) a.blur();
+  bridge.panic().catch(() => {});
+});
+{ const pb = document.getElementById('panicBtn');
+  if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); }); }
 const OSC_STRIDE = 1000;
 let editOsc = 0, numOsc = 1, globalIds = null;
 const lastParams = {};
