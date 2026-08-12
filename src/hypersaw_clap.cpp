@@ -601,13 +601,29 @@ struct Plugin
   void panicWithDump()
   {
     lastDumpPath = dumpForensics("panic");
+    /* RETIRE the outstanding notes; do not DISCARD them. This used to do
+       `pendingEndCount = 0` and clear every tag directly, which destroyed every
+       NOTE_END the host was owed — a host tracking `note_id`s was left holding
+       identities that never end, and nothing downstream could recover them
+       because the tag carrying the identity was already gone.
+
+       Same class as L0022 (an END obligation destroyed rather than delivered),
+       reached through a different door: there the host REFUSED the push and the
+       tag was retired anyway; here the tag was dropped before a push was ever
+       attempted. Found 2026-08-11 while answering FOUNDATIONS' question about
+       which END cases their seam had not modeled — the question forced a read
+       of this function and the defect was sitting in it.
+
+       retireTag() moves each active tag into pendingEnds (respecting its cap)
+       and clears `active`, so the blanket clear this replaced is redundant as
+       well as wrong. emitNoteEnds then delivers them on following blocks, with
+       the try_push retry L0022 installed. */
+    for (int i = 0; i < hypersaw::kPoly; i++) retireTag(i);
     allOffAll();
     spectra.allOff();
     rack.reset();
     heldCount = 0;
     monoSlot = -1;
-    pendingEndCount = 0;
-    for (auto &t : tags) t.active = false;
   }
 
   hypersaw::FxRack rack;  // ADR-054 internal FX rack (post-oscillator)

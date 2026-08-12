@@ -66,6 +66,31 @@ int main(){
                 got > 0 ? "OK  " : "FAIL", got);
     if (got == 0) viol++;
   }
+  // PANIC MUST PAY ITS DEBTS (2026-08-11). It used to zero pendingEndCount and
+  // clear every tag, destroying every NOTE_END the host was owed — a host
+  // tracking note_ids was left holding identities that never end. Same class as
+  // the rejected-push bug above, reached through a different door, and
+  // INVISIBLE to every other gate because the AUDIO is correct either way: the
+  // notes do stop. Only the host's bookkeeping is corrupted.
+  {
+    const size_t before = gEnds.size();
+    { EvList e;
+      for (int k = 0; k < 4; k++)
+        e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON, 0, (int16_t)(60 + k), -1));
+      run(e); }
+    blocks(0.10);
+    const size_t duringHold = gEnds.size();
+    hypersaw_test_panic(p);                 // the GUI panic button's exact path
+    blocks(0.30);                           // blocks for emitNoteEnds to deliver in
+    const int got = (int)(gEnds.size() - duringHold);
+    // The control: nothing may have been emitted while the keys were still
+    // held, or "4 ENDs after panic" could be four the hold itself leaked.
+    const int leakedWhileHeld = (int)(duringHold - before);
+    std::printf("%s panic pays its END debts: %d delivered after panic, %d leaked while held\n",
+                (got == 4 && leakedWhileHeld == 0) ? "OK  " : "FAIL", got, leakedWhileHeld);
+    if (got != 4 || leakedWhileHeld != 0) viol++;
+  }
+
   std::printf(viol? "endprobe: FAIL (END for a held key -> wrapper poison)\n"
                   : ends? "endprobe: PASS\n" : "endprobe: FAIL (no END at all)\n");
   p->stop_processing(p); p->deactivate(p); p->destroy(p);

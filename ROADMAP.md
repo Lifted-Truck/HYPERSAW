@@ -306,6 +306,36 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## PANIC PAYS ITS END DEBTS — the third gap closed (2026-08-11)
+
+The last of the three gaps our own answer to FOUNDATIONS' seam question 4 exposed. **All three
+closed; Stage 4's re-point was recorded on their side as gated on exactly these.**
+
+`panicWithDump()` did `pendingEndCount = 0` and cleared every tag directly, **destroying every
+NOTE_END the host was owed.** A host tracking `note_id`s was left holding identities that never end,
+unrecoverably — the tag carrying the identity was already gone.
+
+Same class as L0022 (an END obligation destroyed rather than delivered), reached through a different
+door: there the host REFUSED the push and the tag was retired anyway; here the tag was dropped before
+a push was ever attempted.
+
+**It was invisible to every gate, and would have stayed invisible, because the AUDIO is correct
+either way** — the notes do stop. Only the host's bookkeeping is corrupted. No listening test finds
+this; no parity scenario touches it. It surfaced only because FOUNDATIONS asked which END cases their
+seam had not modeled, and answering honestly required reading the function.
+
+**Fix:** `for (int i = 0; i < kPoly; i++) retireTag(i);` before the clear. `retireTag` moves each
+active tag into `pendingEnds` (respecting its cap) and clears `active`, so the blanket clear it
+replaced was redundant as well as wrong. `emitNoteEnds` then delivers them with L0022's try_push
+retry.
+
+**Gated** in `endprobe`: hold four notes, panic, assert four ENDs arrive — with the control that
+nothing leaked while the keys were still held, since "4 ENDs after panic" could otherwise be four the
+hold itself emitted. **Calibrated:** restoring the old discard gives `0 delivered after panic` and
+takes endprobe RED.
+
+`./verify full` GREEN, eighteen gates; parity 147/147 worst 4.262e-09.
+
 ## STEAL PRIORITY PINNED · endprobe GATED (2026-08-11)
 
 Two of the three gaps our own answer to FOUNDATIONS' seam question 4 exposed. Eighteen gates now.
