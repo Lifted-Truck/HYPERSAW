@@ -306,6 +306,54 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## gui2 FX PAGE — and 29 controls that were silently dead (2026-08-12)
+
+First cluster off the integration checklist. Chosen over Envelope on purpose: **Envelope and Voice
+are the two clusters nearest FOUNDATIONS' territory** (`env` drives `alloc()`'s tiers; mono/legato IS
+their Stage 2 seam), while the FX rack is one they explicitly left home — and it is the only thing
+blocking the bass-mono-as-slot work already ratified. Ratified work that cannot proceed beats a
+cluster that merely sits high on a list.
+
+gui2: **18 -> 30 params.** Four slots, type/amount/tone each.
+
+### The bug found before a line of the panel was written
+
+The shell dispatches these by **RAW id** (`id >= 57 && id <= 64`), not by base id, because the rack is
+ONE object shared by the patch. gui.html's FX controls were **not** marked `data-fixed`, so `effId()`
+remapped them (57 -> 1057) whenever a non-first oscillator was selected, no dispatch branch matched,
+and the control silently did nothing.
+
+**With oscillator 2 selected in gui.html, the entire FX rack was dead.** And it was not alone —
+the same shape covered the whole SPECTRA surface (44-55), its ADSR (65-68) and the engine selector:
+**29 controls in total.** Every oracle green throughout, because the audio path is correct and the
+events simply never arrive. L0028's role-vs-instance, reached through the GUI rather than the event
+loop.
+
+### The gate derives patch-scope from the shell, and took three tries to get right
+
+`gui_reach.py` now parses the dispatch itself rather than carrying a hand-written list, so a new
+raw-id family is covered the day it is written. **Two semantic anchors, both learned by being
+wrong:**
+
+1. The body must dispatch to a **shared object** (`rack`/`spectra`/`engineSel`) — the bare
+   `id >= N && id <= M` shape also appears in range clamps, and matching the pattern alone derived
+   **47** params including per-oscillator `dissolve` and `width`.
+2. The branch must **return**. `if (id == 14) spectra.setParam("swidth", …)` touches a shared object
+   and then FALLS THROUGH to the per-oscillator core — `width` is dual-scope, and pinning it would
+   have broken per-oscillator width.
+
+Also: `findall`, not `search` — line 1394 carries two ranges and `search` silently dropped the second
+(the SPECTRA ADSR).
+
+Three wrong derivations, each caught by checking the output against a fact already known (`width` is
+per-oscillator). A set derived from a pattern rather than from its meaning is L0032 one level up from
+a probe.
+
+Calibrated: unpinning any single patch-scope control takes it RED, naming the control.
+
+`./verify full` GREEN, nineteen gates + reachability. Verified in the artifact: `pg-FX` and the pinned
+controls are in the embedded gui2 HTML.
+
 ## THE SHIPPING GUI REACHES 18 OF 105 PARAMS (2026-08-12)
 
 Checking the one thing the bass-mono build order said to check first found something much larger

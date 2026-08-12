@@ -215,7 +215,7 @@
            still loads and plays — engineOptionGuard rebuilds a labelled
            selector for it rather than stranding the patch behind a control
            that no longer exists. Restoring the picker is this comment block. -->
-      <div class="row" id="engineRow" style="display:none"><label>engine</label><select data-p="43" id="engineSel">
+      <div class="row" id="engineRow" style="display:none"><label>engine</label><select data-p="43" data-fixed="1" id="engineSel">
         <option value="0">SAW</option>
       </select><output></output></div>
       <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1"><output>7</output></div>
@@ -247,21 +247,21 @@
 
     <div class="cluster">
       <h2>Spectra</h2>
-      <div class="row"><label>partials</label><input type="range" data-p="44" min="1" max="32" step="1"><output>12</output></div>
-      <div class="row"><label>amp tilt</label><input type="range" data-p="45" min="0.5" max="2" step="0.01"><output>1.00</output></div>
-      <div class="row"><label>stretch</label><input type="range" data-p="46" min="0" max="1" step="0.01"><output>0.00</output></div>
-      <div class="row"><label>cloud</label><input type="range" data-p="47" min="1" max="7" step="1"><output>5</output></div>
-      <div class="row"><label>cloud width</label><input type="range" data-p="48" min="0" max="1" step="0.01"><output>0.25</output></div>
-      <div class="row"><label>width tilt</label><input type="range" data-p="49" min="-1" max="1" step="0.01"><output>0.00</output></div>
-      <div class="row"><label>width law</label><select data-p="50">
+      <div class="row"><label>partials</label><input type="range" data-p="44" data-fixed="1" min="1" max="32" step="1"><output>12</output></div>
+      <div class="row"><label>amp tilt</label><input type="range" data-p="45" data-fixed="1" min="0.5" max="2" step="0.01"><output>1.00</output></div>
+      <div class="row"><label>stretch</label><input type="range" data-p="46" data-fixed="1" min="0" max="1" step="0.01"><output>0.00</output></div>
+      <div class="row"><label>cloud</label><input type="range" data-p="47" data-fixed="1" min="1" max="7" step="1"><output>5</output></div>
+      <div class="row"><label>cloud width</label><input type="range" data-p="48" data-fixed="1" min="0" max="1" step="0.01"><output>0.25</output></div>
+      <div class="row"><label>width tilt</label><input type="range" data-p="49" data-fixed="1" min="-1" max="1" step="0.01"><output>0.00</output></div>
+      <div class="row"><label>width law</label><select data-p="50" data-fixed="1">
         <option value="0">cents</option><option value="1">Hz</option>
       </select><output></output></div>
-      <div class="row"><label>cascade</label><input type="range" data-p="51" min="0" max="1" step="0.01"><output>0.00</output></div>
-      <div class="row"><label>sub level</label><input type="range" data-p="53" min="0" max="1" step="0.01"><output>0%</output></div>
-      <div class="row"><label>sub wave</label><input type="range" data-p="54" min="0" max="1" step="0.01"><output>sine</output></div>
-      <div class="row"><label>sub oct</label><input type="range" data-p="55" min="-3" max="-1" step="1"><output>−1</output></div>
+      <div class="row"><label>cascade</label><input type="range" data-p="51" data-fixed="1" min="0" max="1" step="0.01"><output>0.00</output></div>
+      <div class="row"><label>sub level</label><input type="range" data-p="53" data-fixed="1" min="0" max="1" step="0.01"><output>0%</output></div>
+      <div class="row"><label>sub wave</label><input type="range" data-p="54" data-fixed="1" min="0" max="1" step="0.01"><output>sine</output></div>
+      <div class="row"><label>sub oct</label><input type="range" data-p="55" data-fixed="1" min="-3" max="-1" step="1"><output>−1</output></div>
       <div class="togs">
-        <label><input type="checkbox" data-p="52"> sub osc</label>
+        <label><input type="checkbox" data-p="52" data-fixed="1"> sub osc</label>
       </div>
     </div>
 
@@ -310,10 +310,10 @@
       <!-- SPECTRA ADSR (ADR-055): own knobs, own reference defaults (4ms/180ms).
            SAW rows above are SAW_ONLY, these are SPECTRA_ONLY — one Envelope
            cluster shows the engine-appropriate set. -->
-      <div class="row"><label>attack</label><input type="range" data-p="65" min="-3" max="0.301" step="0.001" data-log10="1" data-time="1"><output>4.0ms</output></div>
-      <div class="row"><label>decay</label><input type="range" data-p="66" min="-2.3" max="0.602" step="0.001" data-log10="1" data-time="1"><output>0.18s</output></div>
-      <div class="row"><label>sustain</label><input type="range" data-p="67" min="0" max="1" step="0.01"><output>1.00</output></div>
-      <div class="row"><label>release</label><input type="range" data-p="68" min="-2.3" max="0.903" step="0.001" data-log10="1" data-time="1"><output>0.18s</output></div>
+      <div class="row"><label>attack</label><input type="range" data-p="65" data-fixed="1" min="-3" max="0.301" step="0.001" data-log10="1" data-time="1"><output>4.0ms</output></div>
+      <div class="row"><label>decay</label><input type="range" data-p="66" data-fixed="1" min="-2.3" max="0.602" step="0.001" data-log10="1" data-time="1"><output>0.18s</output></div>
+      <div class="row"><label>sustain</label><input type="range" data-p="67" data-fixed="1" min="0" max="1" step="0.01"><output>1.00</output></div>
+      <div class="row"><label>release</label><input type="range" data-p="68" data-fixed="1" min="-2.3" max="0.903" step="0.001" data-log10="1" data-time="1"><output>0.18s</output></div>
       <!-- Per-voice envelope + scatter (2026-08-03, human): these shape the
            ENVELOPE, so they belong here rather than in Drift, which is now
            purely pitch variation. The display below shows what they do — each
@@ -347,26 +347,26 @@
 
     <div class="cluster">
       <h2>FX rack</h2>
-      <div class="row"><label>slot 1</label><select data-p="57">
+      <div class="row"><label>slot 1</label><select data-p="57" data-fixed="1">
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
-      <div class="row"><label>amount</label><input type="range" data-p="58" min="0" max="1" step="0.01"><output>0.50</output></div>
-      <div class="row"><label>· tone</label><input type="range" data-p="96" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
-      <div class="row"><label>slot 2</label><select data-p="59">
+      <div class="row"><label>amount</label><input type="range" data-p="58" data-fixed="1" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="96" data-fixed="1" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
+      <div class="row"><label>slot 2</label><select data-p="59" data-fixed="1">
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
-      <div class="row"><label>amount</label><input type="range" data-p="60" min="0" max="1" step="0.01"><output>0.50</output></div>
-      <div class="row"><label>· tone</label><input type="range" data-p="97" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
-      <div class="row"><label>slot 3</label><select data-p="61">
+      <div class="row"><label>amount</label><input type="range" data-p="60" data-fixed="1" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="97" data-fixed="1" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
+      <div class="row"><label>slot 3</label><select data-p="61" data-fixed="1">
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
-      <div class="row"><label>amount</label><input type="range" data-p="62" min="0" max="1" step="0.01"><output>0.50</output></div>
-      <div class="row"><label>· tone</label><input type="range" data-p="98" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
-      <div class="row"><label>slot 4</label><select data-p="63">
+      <div class="row"><label>amount</label><input type="range" data-p="62" data-fixed="1" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="98" data-fixed="1" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
+      <div class="row"><label>slot 4</label><select data-p="63" data-fixed="1">
         <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option>
       </select><output></output></div>
-      <div class="row"><label>amount</label><input type="range" data-p="64" min="0" max="1" step="0.01"><output>0.50</output></div>
-      <div class="row"><label>· tone</label><input type="range" data-p="99" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
+      <div class="row"><label>amount</label><input type="range" data-p="64" data-fixed="1" min="0" max="1" step="0.01"><output>0.50</output></div>
+      <div class="row"><label>· tone</label><input type="range" data-p="99" data-fixed="1" min="0" max="1" step="0.01" title="Comb: resonance — ring length (0.5 = the ADR-071 default). Not yet read by the other slot types."><output>0.50</output></div>
     </div>
 
     <div class="cluster drift">
