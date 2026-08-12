@@ -306,6 +306,44 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## VOICE VOCABULARY — the field's terms, and ours were inverted (2026-08-12)
+
+FOUNDATIONS' prior-art probe (question 6, ours) ruled: **"voice" is the physical DSP resource an
+engine allocates; the logical unit is the NOTE.** They applied it to their seam types same-day. We
+never checked ours — and ours was worse than unapplied, it was **inverted**.
+
+| was | held | now |
+|---|---|---|
+| `VoiceTag {noteId, port, channel, key}` | a NOTE identity | `NoteTag` |
+| `Swarm` | the thing `alloc()` allocates and steals — i.e. THE VOICE | `Voice` |
+| `swarms[]` / `swarmAt()` | the voice pool | `voices[]` / `voiceAt()` |
+| "Voice: Mono" / "Voice: Legato" (32/34) | NOTE-level policy | "Mono" / "Legato" |
+| "Per-Voice Env" (94) | per-MEMBER-within-a-voice — a FOURTH meaning | "Per-Partial Env" |
+
+**Our `Swarm` was the voice and we never called it that; our `VoiceTag` was a note and we did.**
+Four distinct meanings rode on one word, and this correspondence inherited the confusion — including
+three turns spent hunting a "stuck voice" while the human was describing a late NOTE-off.
+
+Maps onto the prior art the probe surfaced (Roland Patch -> Tone -> Partial): our oscillator is the
+Tone, a `Voice` is what one note allocates in it, and the coupled members inside are Partials —
+which is why `voiceEnv`, indexing `s.onsD[i]` per member, needed the fourth name.
+
+### Deliberately NOT renamed, and why
+
+- **`SwarmCore` / `SwarmSynth` / `Swarmalator` kept.** These name the swarm CONCEPT — the coupled
+  oscillator model that is this instrument's thesis — not the allocation unit. `SwarmCore` is the
+  engine that owns voices; that is accurate under the new vocabulary, not a leftover.
+- **Param state KEYS kept** (`voiceMono`, `voiceLegato`, `voiceEnv`). Only the DISPLAY names changed.
+  A key rename would break every saved preset and every saved host session; state compatibility
+  outranks naming purity, and the resulting key/label mismatch is the cheaper wrong thing.
+- **No protected path touched** — SPEC.md and swarmsaw.html contain zero references to any renamed
+  symbol, checked before starting rather than discovered during.
+
+### Proof it is a rename
+
+`./verify full` GREEN, nineteen gates. **parity 147/147, worst 4.262e-09 — unchanged to the digit.**
+A pure rename that moved a sample would show there.
+
 ## PANIC PAYS ITS END DEBTS — the third gap closed (2026-08-11)
 
 The last of the three gaps our own answer to FOUNDATIONS' seam question 4 exposed. **All three

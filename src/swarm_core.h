@@ -189,7 +189,7 @@ constexpr double kPiFull = 3.141592653589793;
 class SwarmCore
 {
  public:
-  struct Swarm
+  struct Voice
   {
     double phase[kMaxV], driftS[kMaxV], couple[kMaxV], vf[kMaxV], eff[kMaxV], mom[kMaxV];
     double f0 = 220, f0cur = 220;
@@ -245,7 +245,7 @@ class SwarmCore
       }
       for (int i = 0; i < T; i++) hb[i] /= g;
     }
-    for (auto &s : swarms)
+    for (auto &s : voices)
     {
       std::memset(s.phase, 0, sizeof(s.phase));
       std::memset(s.driftS, 0, sizeof(s.driftS));
@@ -287,10 +287,10 @@ class SwarmCore
     // Checked BEFORE alloc: alloc() can steal a voice that is still gated, and
     // asking afterwards would misreport whether anything was actually held.
     bool anotherHeld = false;
-    for (const auto &sw : swarms)
+    for (const auto &sw : voices)
       if (sw.gate) { anotherHeld = true; break; }
-    Swarm &s = alloc();
-    const int slot = (int)(&s - &swarms[0]);
+    Voice &s = alloc();
+    const int slot = (int)(&s - &voices[0]);
     initVoice(s, midi, f);
     // ADR-076 poly glide: start at the last-played pitch and glide to this
     // one. Deliberately NOT gated on whether that note is still sounding —
@@ -315,7 +315,7 @@ class SwarmCore
   // With p.glide <= 0 the pitch change is immediate.
   void retargetNote(int slot, int midi, double f, bool legatoKeepPhase)
   {
-    Swarm &s = swarms[slot];
+    Voice &s = voices[slot];
     if (!legatoKeepPhase)
     {
       const double keepF0 = s.f0, keepF0cur = s.f0cur;
@@ -346,7 +346,7 @@ class SwarmCore
     lastNoteF = f;   // ADR-076: mono retargets update the memory too
   }
 
-  void initVoice(Swarm &s, int midi, double f)
+  void initVoice(Voice &s, int midi, double f)
   {
     s.midi = midi;
     s.f0 = f;
@@ -434,7 +434,7 @@ class SwarmCore
   void setNoteExpr(int slot, double semis)
   {
     if (slot < 0 || slot >= kPoly) return;
-    swarms[slot].noteTune = semis == 0.0 ? 1.0 : std::pow(2.0, semis / 12.0);
+    voices[slot].noteTune = semis == 0.0 ? 1.0 : std::pow(2.0, semis / 12.0);
   }
 
   // ADR-084 velocity + MPE pressure -> per-voice gain (superset; both default
@@ -444,38 +444,38 @@ class SwarmCore
   // raw multiply would zipper.
   void setNoteVelocity(int slot, double v)
   {
-    if (slot >= 0 && slot < kPoly) swarms[slot].vel = std::max(0.0, std::min(1.0, v));
+    if (slot >= 0 && slot < kPoly) voices[slot].vel = std::max(0.0, std::min(1.0, v));
   }
   void setNotePressure(int slot, double v)
   {
-    if (slot >= 0 && slot < kPoly) swarms[slot].press = std::max(0.0, std::min(1.0, v));
+    if (slot >= 0 && slot < kPoly) voices[slot].press = std::max(0.0, std::min(1.0, v));
   }
 
   void noteOff(int midi)
   {
-    for (auto &s : swarms)
+    for (auto &s : voices)
       if (s.gate && s.midi == midi) s.gate = 0;
   }
 
   void allOff()
   {
-    for (auto &s : swarms) s.gate = 0;
+    for (auto &s : voices) s.gate = 0;
   }
 
   // Read-only accessors for the shell (viz feed; NOTE_END bookkeeping).
   // Not used by the DSP path; parity-neutral.
   int centerIndex() const { return centerIdx; }
-  const Swarm &swarmAt(int i) const { return swarms[i]; }
+  const Voice &voiceAt(int i) const { return voices[i]; }
   double panBaseAt(int i) const { return panBase[i]; }  // viz feed (voice map)
   // Effective pan for the viz: the motion-modulated seat when pan motion is
   // live, the base seat otherwise (the motion block only writes panEffV while
   // panMotion > 0.001, so panEffV would go stale the moment motion stops).
   double panEffAt(int i) const { return p.panMotion > 0.001 ? panEffV[i] : panBase[i]; }
 
-  const Swarm *focus() const
+  const Voice *focus() const
   {
-    const Swarm *best = nullptr;
-    for (const auto &s : swarms)
+    const Voice *best = nullptr;
+    for (const auto &s : voices)
       if ((s.gate || s.env > 1e-3) && (!best || s.age > best->age)) best = &s;
     return best;
   }
@@ -497,9 +497,9 @@ class SwarmCore
     gravCount = 0;
     const double g = p.grav;
     if (g < 0.005) return;
-    Swarm *act[kPoly];
+    Voice *act[kPoly];
     int na = 0;
-    for (auto &s : swarms)
+    for (auto &s : voices)
       if (s.gate) act[na++] = &s;
     if (na < 2) return;
     // insertion sort ascending by f0cur (stable; matches JS sort for the
@@ -510,7 +510,7 @@ class SwarmCore
     for (int a = 0; a < na - 1; a++)
       for (int b = a + 1; b < na; b++)
       {
-        Swarm *lo = act[a], *hi = act[b];
+        Voice *lo = act[a], *hi = act[b];
         const double r = hi->f0cur / lo->f0cur;
         const double oct = std::floor(std::log2(r));
         const double rf = r / std::pow(2, oct);
@@ -582,7 +582,7 @@ private:
     {
       const double dtB = (double)frames / sr;
       const int pmode = (int)p.panMode;
-      const Swarm *cdFoc = focus();
+      const Voice *cdFoc = focus();
       if (pmode == 1) { panSweepPh += 0.1 * dtB; panSweepPh -= std::floor(panSweepPh); }
       const double sweep = pmv * std::sin(kTau * panSweepPh);
       for (int i = 0; i < n; i++)
@@ -643,7 +643,7 @@ private:
     const int osSub = p.oversample > 0.5 ? 2 : 1;   // ADR-075
     const bool ensOn = p.onsetScatter > 0;         // ADR-077
     const bool vEnvOn = p.voiceEnv > 0.5;          // ADR-078
-    for (auto &s : swarms)
+    for (auto &s : voices)
     {
       if (!s.gate && s.env < 1e-4)
       {
@@ -883,7 +883,7 @@ private:
       outL[smp] = (float)std::tanh((double)outL[smp]);
       outR[smp] = (float)std::tanh((double)outR[smp]);
     }
-    const Swarm *foc = focus();
+    const Voice *foc = focus();
     if (foc) std::memcpy(lastPhase, foc->phase, sizeof(lastPhase));   // ADR-062 keep-phase snapshot
   }
 
@@ -1134,7 +1134,7 @@ public:
     }
   }
 
-  Swarm &alloc()
+  Voice &alloc()
   {
     // Three-tier steal policy (ADR-083, deliberate divergence from the JS
     // reference's steal-oldest). The reference steals the oldest voice
@@ -1149,24 +1149,24 @@ public:
     //   3) only when every slot is GATED: oldest held note (unavoidable).
     // Tiers 1 and 3 match the reference exactly; goldens never overflow the
     // pool, so parity is untouched (verified: 147/147 unchanged).
-    Swarm *best = nullptr;
-    for (auto &s : swarms)
+    Voice *best = nullptr;
+    for (auto &s : voices)
       if (!s.gate && s.env < 1e-3)
         if (!best || s.age < best->age) best = &s;
     if (best) return *best;
-    for (auto &s : swarms)
+    for (auto &s : voices)
       if (!s.gate)
         if (!best || s.env < best->env || (s.env == best->env && s.age < best->age))
           best = &s;
     if (best) return *best;
-    for (auto &s : swarms)
+    for (auto &s : voices)
       if (!best || s.age < best->age) best = &s;
     return *best;
   }
 
   static double erb(double f) { return 24.7 * (4.37 * f / 1000 + 1); }
 
-  void controlTick(Swarm &s)
+  void controlTick(Voice &s)
   {
     // ADR-084: ~20 ms pressure smoothing, seconds -> per-tick coefficient
     s.pressSm += (s.press - s.pressSm) * (1 - std::exp(-(kTick / sr) / 0.02));
@@ -1532,7 +1532,7 @@ public:
   double xmin = 0;  // lowest raw x, for the root anchor (ADR-068)
   bool tiltHP = false;  // tone-tilt sign (ADR-060), set each control tick
   uint32_t grng = 1;
-  Swarm swarms[kPoly];
+  Voice voices[kPoly];
 };
 
 }  // namespace hypersaw

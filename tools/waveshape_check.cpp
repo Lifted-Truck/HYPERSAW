@@ -188,7 +188,7 @@ int main()
       for (int note = 0; note < 300; note++)
       {
         const int sl = c.noteOn(45, 110.0);
-        const auto &sw = c.swarmAt(sl);
+        const auto &sw = c.voiceAt(sl);
         double mean = 0;
         for (int i = 0; i < 7; i++) mean += sw.onsD[i];
         mean /= 7;
@@ -229,7 +229,7 @@ int main()
         if (b > 40) for (int i = 0; i < 512; i++) pk = std::max(pk, (double)std::fabs(L[i])); }
       c.noteOff(45);
       for (int b = 0; b < 13; b++) c.render(L.data(), R.data(), 512);
-      const auto &sw = c.swarmAt(sl);
+      const auto &sw = c.voiceAt(sl);
       double lo = 1e9, hi = -1e9;
       for (int i = 0; i < 7; i++) { lo = std::min(lo, sw.onsE[i]); hi = std::max(hi, sw.onsE[i]); }
       int dead = -1;
@@ -269,7 +269,7 @@ int main()
     double pole = 0;
     for (int i = 0; i < kPoly; i++)
     {
-      const auto &sw = c.swarmAt(i);
+      const auto &sw = c.voiceAt(i);
       if (sw.gate || sw.env >= 1e-9) live++;
       pole = std::max(pole, std::fabs(sw.lpL) + std::fabs(sw.lpR));
     }

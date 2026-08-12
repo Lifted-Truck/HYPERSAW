@@ -123,9 +123,9 @@ static const ParamDef kParams[] = {
     {31, "absK", "Absolute K", 0, 1, 0, true, kOffOn},
     // Voice mode (ADR-026): mono/glide/legato are SHELL note-routing plus the
     // core's glide param; octave is a pure shell transpose.
-    {32, "voiceMono", "Voice: Mono", 0, 1, 0, true, kOffOn},
+    {32, "voiceMono", "Mono", 0, 1, 0, true, kOffOn},
     {33, "glide", "Glide (s)", 0, 2.0, 0, false, nullptr},
-    {34, "voiceLegato", "Voice: Legato", 0, 1, 1, true, kOffOn},
+    {34, "voiceLegato", "Legato", 0, 1, 1, true, kOffOn},
     {35, "octave", "Octave", -2, 2, 0, true, nullptr},
     // Transposition suite (ADR-027): all four combine into ONE live core tune
     // factor — the pitch knob bends sounding notes, not just new ones.
@@ -230,7 +230,7 @@ static const ParamDef kParams[] = {
     {92, "onsetAlpha", "Timing Correction", 0, 1.5, 0.25, false, nullptr},
     {93, "attackScatter", "Attack Scatter", 0, 1, 0, false, nullptr},
     // ADR-078 per-voice envelopes. Off = one shared envelope (reference path).
-    {94, "voiceEnv", "Per-Voice Env", 0, 1, 0, true, kOffOn},
+    {94, "voiceEnv", "Per-Partial Env", 0, 1, 0, true, kOffOn},
     {95, "relScatter", "Release Scatter", 0, 1, 0, false, nullptr},
     // Per-slot SECOND axis for the FX rack (2026-08-03) — ADR-071 deferred the
     // comb's resonance "until the rack grows per-slot param pages"; this is it.
@@ -563,12 +563,12 @@ struct Plugin
     {
       bool any = false;
       for (uint32_t k = 0; k < kNumOsc; k++)
-        if (cores[k].swarmAt(i).gate || cores[k].swarmAt(i).env > 1e-4) any = true;
+        if (cores[k].voiceAt(i).gate || cores[k].voiceAt(i).env > 1e-4) any = true;
       if (!any && !tags[i].active) continue;
       std::fprintf(f, "  %2d:", i);
       for (uint32_t k = 0; k < kNumOsc; k++)
       {
-        const auto &v = cores[k].swarmAt(slotOf[i][k]);
+        const auto &v = cores[k].voiceAt(slotOf[i][k]);
         std::fprintf(f, "  core%u[slot %d] midi %3d %s env %.4f |", k, slotOf[i][k],
                      v.midi, v.gate ? "GATED" : "  off", v.env);
       }
@@ -794,13 +794,13 @@ struct Plugin
   // to retire per-note bookkeeping, and without it some (Live via the VST3
   // wrapper) withhold retriggering a pitch until they believe the previous
   // note ended — the 2026-07-18 "retrigger doesn't overlap" report.
-  struct VoiceTag
+  struct NoteTag
   {
     int32_t noteId = -1;
     int16_t port = -1, channel = -1, key = -1;
     bool active = false;
   };
-  VoiceTag tags[hypersaw::kPoly];
+  NoteTag tags[hypersaw::kPoly];
   // RETIRED TAGS AWAITING NOTE_END (2026-07-31, the mono-poison bug). A mono
   // retarget — and a poly voice steal — OVERWRITES tags[slot] with the new
   // note, so the old note's identity is gone before emitNoteEnds could ever
@@ -810,7 +810,7 @@ struct Plugin
   // key through a fresh on/off/END — the human's exact diagnostic. Every
   // overwrite of an active tag now queues the old identity here; emitNoteEnds
   // flushes the queue unconditionally each block.
-  VoiceTag pendingEnds[2 * hypersaw::kPoly];
+  NoteTag pendingEnds[2 * hypersaw::kPoly];
   int pendingEndCount = 0;
   void retireTag(int slot)
   {
@@ -866,7 +866,7 @@ struct Plugin
       // sounding regardless (hosts do not gate our audio). The re-press guard
       // below still covers the one residual ordering hazard: an off and a
       // re-press of the SAME key landing in the same block.
-      const bool dead = spectraMode() ? !spectra.swarmAt(i).gate : !core.swarmAt(i).gate;
+      const bool dead = spectraMode() ? !spectra.voiceAt(i).gate : !core.voiceAt(i).gate;
       if (!dead) continue;
       // RE-PRESS GUARD (2026-07-31, the stuck-note bug): if this key+channel is
       // still HELD in another slot, do NOT end it yet. Hosts without real note
@@ -885,8 +885,8 @@ struct Plugin
         if (j == i || !tags[j].active) continue;
         if (tags[j].key != tags[i].key || tags[j].channel != tags[i].channel) continue;
         const bool jDead = spectraMode()
-                               ? (!spectra.swarmAt(j).gate && spectra.swarmAt(j).env < 1e-4)
-                               : (!core.swarmAt(j).gate && core.swarmAt(j).env < 1e-4);
+                               ? (!spectra.voiceAt(j).gate && spectra.voiceAt(j).env < 1e-4)
+                               : (!core.voiceAt(j).gate && core.voiceAt(j).env < 1e-4);
         if (!jDead) { keyStillHeld = true; break; }
       }
       if (keyStillHeld) continue;
@@ -976,14 +976,14 @@ struct Plugin
     int nm = 0;
     for (int i = 0; i < hypersaw::kPoly && nm < 16; i++)
     {
-      const int gate = spectraMode() ? spectra.swarmAt(i).gate : vc.swarmAt(i).gate;
-      const double env = spectraMode() ? spectra.swarmAt(i).env : vc.swarmAt(i).env;
+      const int gate = spectraMode() ? spectra.voiceAt(i).gate : vc.voiceAt(i).gate;
+      const double env = spectraMode() ? spectra.voiceAt(i).env : vc.voiceAt(i).env;
       // 1e-9, not 1e-4: the render skip-test also uses 1e-4, so a voice just
       // under it was invisible to the monitor while still being rendered. The
       // human hit a note that was audible and ABSENT from the tab (2026-08-03,
       // SAW, no FX), so the monitor must never be the thing that is silent.
       if (!gate && env < 1e-9) continue;
-      v.nmMidi[nm] = spectraMode() ? spectra.swarmAt(i).midi : vc.swarmAt(i).midi;
+      v.nmMidi[nm] = spectraMode() ? spectra.voiceAt(i).midi : vc.voiceAt(i).midi;
       v.nmGate[nm] = gate;
       v.nmEnv[nm] = env;
       nm++;
@@ -1461,7 +1461,7 @@ struct Plugin
           if (heldStack[i].key != n->key) heldStack[w++] = heldStack[i];
         heldCount = w;
       }
-      if (monoSlot >= 0 && core.swarmAt(monoSlot).midi == n->key)
+      if (monoSlot >= 0 && core.voiceAt(monoSlot).midi == n->key)
       {
         if (heldCount > 0)
         {
@@ -1545,7 +1545,7 @@ struct Plugin
           }
           const bool anotherHeld = heldCount > 0;
           if (heldCount < 16) heldStack[heldCount++] = {n->key, freq};
-          const bool voiceGated = monoSlot >= 0 && core.swarmAt(monoSlot).gate;
+          const bool voiceGated = monoSlot >= 0 && core.voiceAt(monoSlot).gate;
           if (anotherHeld && voiceGated)
           {
             const bool keep = voiceLegato != 0;
@@ -1565,8 +1565,8 @@ struct Plugin
             // Only a GATED voice is force-released here: a ringing RELEASE tail
             // has gate == 0, so the intended tail-overlap behaviour above is
             // untouched.
-            if (monoSlot >= 0 && core.swarmAt(monoSlot).gate)
-              noteOffAll(core.swarmAt(monoSlot).midi);
+            if (monoSlot >= 0 && core.voiceAt(monoSlot).gate)
+              noteOffAll(core.voiceAt(monoSlot).midi);
             monoSlot = core.noteOn(n->key, freq);
             core.setNoteVelocity(monoSlot, n->velocity);
             bindSlots(monoSlot, 0, monoSlot);
@@ -1636,7 +1636,7 @@ struct Plugin
         for (int i = 0; i < hypersaw::kPoly; i++)
         {
           if (!tags[i].active) continue;
-          const VoiceTag &t = tags[i];
+          const NoteTag &t = tags[i];
           if ((x->note_id == -1 || x->note_id == t.noteId) &&
               (x->port_index == -1 || x->port_index == t.port) &&
               (x->channel == -1 || x->channel == t.channel) &&

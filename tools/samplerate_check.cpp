@@ -87,7 +87,7 @@ static double gravitySeconds(double sr)
     double f[2] = {0, 0};
     int k = 0;
     for (int i = 0; i < 16 && k < 2; i++)
-      if (c.swarmAt(i).gate) f[k++] = c.swarmAt(i).f0cur;
+      if (c.voiceAt(i).gate) f[k++] = c.voiceAt(i).f0cur;
     if (f[0] > 0 && std::fabs(1200.0 * std::log2(f[1] / f[0]) - 386.3137) < 0.5)
       return (done + blk) / sr;
   }

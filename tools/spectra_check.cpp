@@ -218,7 +218,7 @@ int main(int argc, char **argv)
       saw.render(L, R2, kBlock);
       spc.render(L, R2, kBlock);
       worstR = std::max(worstR,
-                        std::fabs(saw.swarmAt(sawSlot).R - spc.swarmAt(spcSlot).R[0]));
+                        std::fabs(saw.voiceAt(sawSlot).R - spc.voiceAt(spcSlot).R[0]));
     }
     check(worstR <= 1e-9, "P=1 gate (ADR-037a): SAW vs SPECTRA R tick-locked, worst dR=%g",
           worstR);
