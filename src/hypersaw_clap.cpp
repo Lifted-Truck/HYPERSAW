@@ -504,6 +504,20 @@ struct Plugin
   std::atomic<uint64_t> traceWrite{0};         // total ever written; & (len-1) indexes
   uint64_t blockPos = 0;                       // steady time of the block in flight
   uint64_t tracePos = 0;                       // local monotonic sample count, never host-supplied
+
+  /* HOST-MPE DETECTION. Live gates MPE behind a PER-DEVICE toggle the plugin
+     cannot set and cannot read. With it off, an expressive device's stream
+     arrives FLATTENED — every note on channel 0, no note expressions — and the
+     result is retriggered blips where the player expects sustain. That cost two
+     multi-round investigations here (2026-07-19 bend, 2026-08-12 Expressive
+     Chords), and the human found it both times, not the oracle.
+
+     We cannot turn the toggle on. We CAN notice its absence: notes arriving with
+     zero note expressions AND never leaving channel 0 is the signature. Plain
+     single-channel MIDI looks identical, which is why the hint is phrased as a
+     possibility and never as an error — a diagnosis the user can dismiss beats a
+     defect they cannot find. Relaxed stores; these are counters, not state. */
+  std::atomic<uint32_t> sawNotes{0}, sawExprs{0}, sawNonZeroChan{0};
   std::string lastDumpPath;
 
   void recordNote(const clap_event_header_t *ev, const clap_event_note_t *n)
@@ -528,7 +542,21 @@ struct Plugin
 
      The path is derived at RUNTIME, never baked in — a machine-absolute path in
      a tracked file is both an identity leak and wrong on any other machine. */
-  std::string dumpForensics(const char *why)
+/* Empty string = nothing to say. Deliberately silent until enough notes have
+     arrived to be sure: a hint that fires on the first note would fire on every
+     load, and a warning that is usually wrong gets ignored when it is right. */
+  std::string hostHint() const
+  {
+    const uint32_t n = sawNotes.load(std::memory_order_relaxed);
+    if (n < 24) return {};
+    if (sawExprs.load(std::memory_order_relaxed) > 0) return {};
+    if (sawNonZeroChan.load(std::memory_order_relaxed) > 0) return {};
+    return "No note expressions received on any channel. If you are playing an "
+           "MPE controller or an expressive device, MPE is probably OFF for this "
+           "plugin in your host - per-note pitch and pressure will be flattened.";
+  }
+
+    std::string dumpForensics(const char *why)
   {
     namespace fs = std::filesystem;
     std::error_code ec;
@@ -1510,6 +1538,8 @@ struct Plugin
       {
         auto *n = reinterpret_cast<const clap_event_note_t *>(ev);
         recordNote(ev, n);
+        sawNotes.fetch_add(1, std::memory_order_relaxed);
+        if (n->channel > 0) sawNonZeroChan.fetch_add(1, std::memory_order_relaxed);
         // MIDI 1.0: note-on velocity 0 IS a note-off, and the AU wrapper
         // forwards controller 0x90-vel-0 releases verbatim (ADR-038). This
         // synth ignores velocity, so without the remap such a release struck
@@ -1632,6 +1662,7 @@ struct Plugin
         break;
       }
       case CLAP_EVENT_NOTE_EXPRESSION:
+        sawExprs.fetch_add(1, std::memory_order_relaxed);
       {
         // MPE per-note pitch (ADR-036): hosts deliver per-note bend as the
         // TUNING expression in relative semitones; CLAP wildcard matching
@@ -1942,6 +1973,12 @@ void plug_stop_processing(const clap_plugin_t *p)
 }
 void plug_reset(const clap_plugin_t *p)
 {
+  // The host-MPE counters describe the CURRENT note stream, so a reset clears
+  // them: after a transport reset the evidence for "no expressions have arrived"
+  // has to be re-earned, or the hint would report a stream that is over.
+  self(p)->sawNotes.store(0, std::memory_order_relaxed);
+  self(p)->sawExprs.store(0, std::memory_order_relaxed);
+  self(p)->sawNonZeroChan.store(0, std::memory_order_relaxed);
   auto *pl = self(p);
   pl->allOffAll();
   for (double &b : pl->mpeBendSemis) b = 0.0;
@@ -2313,6 +2350,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   // queue), the mono held-stack, and the FX rack's tails.
   hostIf.panic = [pl]() { pl->panicWithDump(); };
   hostIf.getBuildId = []() { return std::string(HYPERSAW_BUILD_STAMP); };
+  hostIf.getHostHint = [pl]() { return pl->hostHint(); };
   hostIf.setVizOsc = [pl](uint32_t k) { pl->vizOsc.store(k, std::memory_order_relaxed); };
   hostIf.getStateJson = [pl]() { return pl->stateJson(); };
   hostIf.applyStateJson = [pl](const std::string &s) { return pl->applyStateJson(s); };
@@ -2453,7 +2491,14 @@ const clap_plugin_factory_t s_factory = {factory_get_plugin_count, factory_get_p
 
 extern "C"
 {
-  const char *hypersaw_test_panic(const clap_plugin_t *p)
+  const char *hypersaw_test_host_hint(const clap_plugin_t *p)
+{
+  static std::string held;
+  held = self(p)->hostHint();
+  return held.c_str();
+}
+
+const char *hypersaw_test_panic(const clap_plugin_t *p)
 {
   static std::string held;
   self(p)->panicWithDump();

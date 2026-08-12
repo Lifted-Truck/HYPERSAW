@@ -141,6 +141,11 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   web->bind("hzGetBuild", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getBuildId ? host.getBuildId() : std::string("?"));
   });
+  web->bind("hzGetHostHint", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    // Empty, not "?": absent hint means NOTHING TO SAY. A placeholder here would
+    // render as a permanent warning badge on every load.
+    return choc::value::createString(host.getHostHint ? host.getHostHint() : std::string());
+  });
   web->bind("hzGetParams", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getParamsJson());
   });

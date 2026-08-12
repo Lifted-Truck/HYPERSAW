@@ -26,4 +26,8 @@ extern "C"
      an oracle can assert the ORDERING, which is the part that makes the capture
      worth having. Returns the dump path, or NULL. */
   const char *hypersaw_test_panic(const clap_plugin_t *p);
+
+  /* TEST HOOK — the host-misconfiguration hint, empty when there is nothing to
+     say. Exposed so the DETECTION can be gated; the GUI presentation cannot be. */
+  const char *hypersaw_test_host_hint(const clap_plugin_t *p);
 }

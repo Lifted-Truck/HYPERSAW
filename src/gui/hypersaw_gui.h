@@ -89,6 +89,7 @@ struct GuiHost
   std::function<void(uint32_t)> setVizOsc;               // visuals follow the GUI's active osc
   std::function<void()> panic;                          // all-off, both engines + rack
   std::function<std::string()> getBuildId;               // git short hash, GUI corner
+  std::function<std::string()> getHostHint;              // host-misconfiguration notice, or empty
   std::function<std::string()> getStateJson;             // full provenance dump
   std::function<bool(const std::string &)> applyStateJson;
 };

@@ -154,6 +154,7 @@ if (!window.hzGetParams) {   /* standalone/dev mocks */
   window.hzGesture = async () => {};
   window.hzSetVizOsc = async () => {};
   window.hzGetBuild = async () => 'dev';
+  window.hzGetHostHint = async () => '';
   window.hzPanic = async () => 0;
   let t = 0;
   window.hzGetViz = async () => { t += 0.03;
@@ -171,6 +172,7 @@ const bridge = {
   gesture: (id, b) => window.hzGesture(id, b),
   setVizOsc: (k) => window.hzSetVizOsc(k),
   getBuild: () => window.hzGetBuild(),
+  getHostHint: () => window.hzGetHostHint ? window.hzGetHostHint() : Promise.resolve(''),
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
   panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
@@ -480,6 +482,25 @@ window.addEventListener('load', async () => {
   try {
     const el = document.createElement('div');
     el.textContent = 'gui2 · build ' + await bridge.getBuild();
+    /* Host-misconfiguration notice. Polled rather than pushed because it can only
+       become true after the user plays — and it is phrased as a possibility, never
+       an error: plain single-channel MIDI is indistinguishable from a flattened
+       MPE stream, so a confident warning would be wrong for anyone not using an
+       expressive controller. A hint you can dismiss beats a defect you cannot find. */
+    setInterval(async () => {
+      let h = '';
+      try { h = await bridge.getHostHint(); } catch (e) { return; }
+      let n = document.getElementById('hostHint');
+      if (!h) { if (n) n.remove(); return; }
+      if (!n) {
+        n = document.createElement('div');
+        n.id = 'hostHint';
+        n.style.cssText = 'margin:4px 8px;padding:5px 8px;border-radius:4px;background:#2a2416;'
+                        + 'color:#e8c46a;font-size:11px;line-height:1.35;border:1px solid #5a4a1e';
+        document.getElementById('tabs').insertAdjacentElement('afterend', n);
+      }
+      n.textContent = '⚠ ' + h;
+    }, 2000);
     el.style.cssText = 'position:fixed;right:6px;bottom:4px;font-size:9px;color:#7f8899;opacity:.6;pointer-events:none';
     document.body.appendChild(el);
   } catch (e) {}

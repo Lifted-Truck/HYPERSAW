@@ -252,6 +252,61 @@ int main()
           "the trace timeline advances across blocks, not just within one", d);
   }
 
+  // ---- 4c. the host-MPE hint fires only on the flattened signature ---------
+  /* Live gates MPE per device; with it off an expressive stream arrives
+     flattened and sustained notes become blips. That cost two multi-round
+     investigations, both ended by the human rather than by any gate. We cannot
+     set the toggle; we can notice its absence. Three controls, because a
+     warning that is usually wrong is worse than none: it must stay SILENT below
+     the evidence threshold, silent when note expressions arrive, and silent when
+     any note uses a member channel. */
+  {
+    auto fresh = [&]() { p->reset(p); run(2); };
+    auto play = [&](int n, int channel, bool withExpr) {
+      for (int i = 0; i < n; i++)
+      {
+        clap_event_note_t nt{};
+        nt.header.size = sizeof(nt); nt.header.type = CLAP_EVENT_NOTE_ON;
+        nt.header.space_id = CLAP_CORE_EVENT_SPACE_ID; nt.header.time = 0;
+        nt.note_id = -1; nt.port_index = 0; nt.channel = (int16_t)channel;
+        nt.key = (int16_t)(60 + (i % 5)); nt.velocity = 0.8;
+        store.push_back(nt); evl.ev.push_back(&store.back().header);
+        if (withExpr)
+        {
+          static std::vector<clap_event_note_expression_t> ex; ex.reserve(256);
+          clap_event_note_expression_t e{};
+          e.header.size = sizeof(e); e.header.type = CLAP_EVENT_NOTE_EXPRESSION;
+          e.header.space_id = CLAP_CORE_EVENT_SPACE_ID; e.header.time = 0;
+          e.expression_id = CLAP_NOTE_EXPRESSION_TUNING;
+          e.note_id = -1; e.port_index = 0; e.channel = (int16_t)channel;
+          e.key = (int16_t)(60 + (i % 5)); e.value = 0.0;
+          ex.push_back(e); evl.ev.push_back(&ex.back().header);
+        }
+        run(1);
+      }
+    };
+    fresh(); play(8, 0, false);
+    const std::string few = hypersaw_test_host_hint(p);
+    fresh(); play(30, 0, false);
+    const std::string flat = hypersaw_test_host_hint(p);
+    fresh(); play(30, 0, true);
+    const std::string withE = hypersaw_test_host_hint(p);
+    fresh(); play(30, 3, false);
+    const std::string memberCh = hypersaw_test_host_hint(p);
+
+    std::snprintf(d, sizeof(d), "8 notes:%s | 30 flat:%s | 30 with expr:%s | 30 on ch3:%s",
+                  few.empty() ? "silent" : "FIRES", flat.empty() ? "SILENT" : "fires",
+                  withE.empty() ? "silent" : "FIRES", memberCh.empty() ? "silent" : "FIRES");
+    check(few.empty() && !flat.empty() && withE.empty() && memberCh.empty(),
+          "the MPE-off hint fires ONLY on the flattened signature", d);
+
+    // Leave a clean slate: this block gates 30 notes, and without clearing them
+    // their tails inflate assertion 5's post-panic measurement. A test that
+    // silently changes the next test's starting state is a shared-fixture bug.
+    hypersaw_test_panic(p);
+    run(8);
+  }
+
   // ---- 5. panic CAPTURES BEFORE IT CLEARS ---------------------------------
   /* The ordering is the whole feature: a dump taken after the clear records a
      synth in perfect health. Previously untestable — it lived inline in the GUI
