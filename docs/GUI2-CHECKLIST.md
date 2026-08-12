@@ -10,7 +10,7 @@ first, reasoning that integrating features one at a time beats retrofitting them
 silently dropped. That reasoning is sound and this list is its missing half: the inventory that makes
 "one at a time" auditable rather than hopeful. gui2's 18/105 is an in-progress state, not a defect.
 
-**Coverage today:** `gui.html` 102/105 · `gui2.html` 18/105. Gated by `tools/gui_reach.py`, which
+**Coverage today:** `gui.html` 102/105 · `gui2.html` **30/105** (FX rack landed 2026-08-12). Gated by `tools/gui_reach.py`, which
 fails the build only when a param is reachable in NO gui, and prints per-GUI coverage every run.
 
 **Note the asymmetry:** gui2 is not a strict subset. It already has mute/solo (104/105), per-oscillator
@@ -79,18 +79,18 @@ Mono/legato/glide — the note-lifecycle surface. Second because the stuck-note 
 
 Blocks the ratified bass-mono-as-a-slot work outright: a slot type in a rack with no picker is unreachable by construction (L0023). 12 params, and Comp/Comb are already-built cores nobody can select.
 
-- [ ] `57` **fx1type** — FX1 Type
-- [ ] `58` **fx1amt** — FX1 Amount
-- [ ] `96` **fx1tone** — FX1 Tone
-- [ ] `59` **fx2type** — FX2 Type
-- [ ] `60` **fx2amt** — FX2 Amount
-- [ ] `97` **fx2tone** — FX2 Tone
-- [ ] `61` **fx3type** — FX3 Type
-- [ ] `62` **fx3amt** — FX3 Amount
-- [ ] `98` **fx3tone** — FX3 Tone
-- [ ] `63` **fx4type** — FX4 Type
-- [ ] `64` **fx4amt** — FX4 Amount
-- [ ] `99` **fx4tone** — FX4 Tone
+- [x] `57` **fx1type** — FX1 Type
+- [x] `58` **fx1amt** — FX1 Amount
+- [x] `96` **fx1tone** — FX1 Tone
+- [x] `59` **fx2type** — FX2 Type
+- [x] `60` **fx2amt** — FX2 Amount
+- [x] `97` **fx2tone** — FX2 Tone
+- [x] `61` **fx3type** — FX3 Type
+- [x] `62` **fx3amt** — FX3 Amount
+- [x] `98` **fx3tone** — FX3 Tone
+- [x] `63` **fx4type** — FX4 Type
+- [x] `64` **fx4amt** — FX4 Amount
+- [x] `99` **fx4tone** — FX4 Tone
 
 
 ### Output & perception — 17 params
