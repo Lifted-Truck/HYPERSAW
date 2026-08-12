@@ -77,6 +77,16 @@ fast() {
   leak_gate || ok=1          # privacy gate: kit-core, keep it first
   portability_gate || ok=1   # MSVC-only breakage, caught locally not in CI
 
+  # GUI REACHABILITY (L0023, third occurrence — the one that became a gate).
+  # A param with no control anywhere ships fully implemented, fully tested,
+  # host-automatable and ABSENT FROM THE PRODUCT, and no audio oracle can see it
+  # because the audio path is correct. It has cost: FX types 0..5 with dropdowns
+  # offering 0..3 for two weeks; a panic button missing from the shipping GUI;
+  # and gui2 reaching 18 of 105 params while being someone's daily driver.
+  # Gates the unambiguous case (unreachable EVERYWHERE); prints per-GUI coverage
+  # so the renovation gap stays visible instead of forgotten again.
+  python3 tools/gui_reach.py || ok=1
+
   # Structure: the canonical docs and the reference implementations exist.
   local f
   for f in SPEC.md ACCEPTANCE.md ROADMAP.md DECISIONS.md README.md CLAUDE.md \
