@@ -306,6 +306,45 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## BASS-MONO AS A SLOT — RATIFIED 2026-08-12; build notes before anyone starts
+
+Human ratified the research recommendation: **bass-mono becomes an FX slot type.** Not yet built.
+Three things settled here so a fresh session does not re-derive or mis-decide them.
+
+### 1. State compatibility — RULED, and it is not taste
+
+**Keep the legacy fixed stage exactly as it is, and ADD the slot type.** ids 40/41 (`bassMonoOn`,
+crossover) sit in every saved preset and every saved host session; changing what they do, or where
+they apply, silently alters sound the user already committed to. The superset-with-inert-defaults
+pattern this project uses everywhere else applies unchanged: the new slot type defaults to absent, so
+**every existing preset renders bit-identically by construction**, and positioning is opt-in.
+
+The cost is two routes to one effect, which is a real wart. It is the cheaper wrong thing than
+breaking saved work, and the same trade we took on the param display-name rename.
+
+### 2. The L0023 trap is LIVE here, and it is the reason to check the GUI FIRST
+
+A new slot type is exactly the change L0023 describes: **widen the type range without widening the
+control and the feature ships fully implemented, fully tested, host-automatable, and unreachable.**
+That has already happened once in this repo — FX types 0..5 shipped with dropdowns offering 0..3, for
+two weeks, with every oracle green.
+
+**Check before writing DSP:** does the shipping interface (gui2) even expose an FX slot TYPE selector?
+A grep for the existing type names found none, which if confirmed means the new slot has nowhere to
+appear AND the existing Comp/Comb types may be unreachable there too. Establish that first; a slot
+type is worthless in an interface with no slot picker.
+
+### 3. The oracle it must arrive with
+
+A new slot type is a superset (L0031-B2), so it lands with its own invariant gate in the same commit.
+The measurement already exists in shape: channel difference at the note fundamental, Goertzel-isolated,
+with a floor taken from a render where the note never sounded — the `bassorder` probe from 2026-08-11
+and the technique `steal_check` uses. Parity is untouched either way; the goldens render `SwarmCore`
+and never reach the mix stage.
+
+**Ordering for the build:** GUI reachability -> slot type + oracle -> then per-oscillator sources
+(B23 increment 3), which this unblocks.
+
 ## BASS-MONO RESEARCH — the prior art says "neither"; it is a SLOT (2026-08-12)
 
 Human ruled the ordering wanted research rather than our single measurement. Run, and it dissolves
