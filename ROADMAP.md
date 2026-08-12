@@ -306,6 +306,47 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## THE SHIPPING GUI REACHES 18 OF 105 PARAMS (2026-08-12)
+
+Checking the one thing the bass-mono build order said to check first found something much larger
+than the thing it was checking for.
+
+**gui2 has three pages — MAIN, MIX, OSC. There is no FX page at all.** And the human's installed
+bundle is gui2 (verified by `pg-MIX` in the binary). Measured with `tools/gui_reach.py`:
+
+| GUI | reaches |
+|---|---|
+| `gui.html` | **102 / 105** |
+| `gui2.html` | **18 / 105** |
+
+`HYPERSAW_GUI2` defaults **OFF** in CMake, so gui2 is the experimental renovation — and it became
+someone's daily driver anyway.
+
+**What this reframes.** ADSR is unreachable, so during the 2026-08-12 "the envelope is killed"
+investigation the human could not have inspected or adjusted the envelope, and we compared against
+Serum without either of us noticing. `bassMono`/crossover (40/41) are unreachable, so the ordering
+question ratified hours earlier concerns a feature that GUI cannot switch on. The whole FX rack is
+unreachable — four slots, six types, including the Comp and Comb cores that were real work. So is
+gravity (the known L0023 instance), topology, glide, the fold laws, onset scatter, super-width and
+the entire SPECTRA surface.
+
+### `gui_reach.py` — L0023 finally became enforcement
+
+Third occurrence, and prose prevented none of the first two. **Gated:** a param reachable in NO gui
+is a build failure — the unambiguous case, and the original bug. **Reported, not gated:** per-GUI
+coverage, printed on every run, because failing the build over an in-progress renovation would block
+all work while a number nobody sees is prose with extra steps. The exempt list carries a reason per
+entry, so adding to it is a visible decision rather than a silent omission (L0036).
+
+Calibrated: a param declared with no control anywhere takes it RED.
+
+### Consequence for the bass-mono build order
+
+**Adding a bass-mono slot type to a rack the shipping GUI cannot reach would be pointless.** The
+recorded order (GUI reachability -> slot type + oracle -> B23 increment 3) holds, and step one is now
+a much bigger question than a dropdown: **does gui2 get completed, or does gui.html ship until it
+is?** That is the human's call and it gates the rest.
+
 ## BASS-MONO AS A SLOT — RATIFIED 2026-08-12; build notes before anyone starts
 
 Human ratified the research recommendation: **bass-mono becomes an FX slot type.** Not yet built.
