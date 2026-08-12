@@ -551,6 +551,26 @@ struct Plugin
                  spectraMode() ? "SPECTRA" : "SAW", (int)voiceMono, (int)voiceLegato,
                  monoSlot, heldCount);
 
+    /* THE PATCH, because "the envelope sounds wrong" is unanswerable without it.
+       The 2026-08-12 Expressive Chords report needed attack/decay/sustain/release
+       to separate "the host sent short notes" from "our envelope mis-renders long
+       ones", and the dump did not carry them — so the capture settled the note
+       STREAM and left the sound unexplained. A forensic dump that records the
+       input but not the configuration answers only half of any question. */
+    std::fprintf(f, "\n-- patch (the params that shape what you hear) --\n");
+    {
+      static const int kWanted[] = {1, 4, 6, 8, 14, 17, 19, 20, 21, 22, 32, 34, 42, 94};
+      for (int id : kWanted)
+      {
+        const ParamDef *d0 = findParam((clap_id)id);
+        if (!d0) continue;
+        std::fprintf(f, "  %-14s", d0->coreKey);
+        for (uint32_t k = 0; k < kNumOsc; k++)
+          std::fprintf(f, "  osc%u %-9.4f", k, cores[k].getParam(d0->coreKey));
+        std::fprintf(f, "\n");
+      }
+    }
+
     std::fprintf(f, "\n-- held stack --\n");
     for (int i = 0; i < heldCount; i++) std::fprintf(f, "  [%d] key %d\n", i, heldStack[i].key);
 
