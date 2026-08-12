@@ -306,6 +306,40 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## EXPRESSIVE CHORDS — the note stream is the host's, and the dump was half-blind (2026-08-12)
+
+Field report: "with expressive chords on I'm incapable of holding sustained notes at all", heard as a
+ghost chord of tiny plucks. Two of our hypotheses died on the capture; the third could not be tested
+because the dump did not record the patch.
+
+**REFUTED — polyphony exhaustion.** Peak simultaneously held: **5**, against kPoly 16. Never close.
+**REFUTED — short host notes.** 180 note-pairs: min 64, median 169, max 651 ms; **zero under 60 ms**.
+**REFUTED — MPE / velocity.** Every event channel 0, `note_id -1`, velocities 0.66-0.79.
+
+**What the capture DOES show: whole chords released at one exact sample** — 18 four-note and 15
+five-note chords, each with every OFF on a single sample position. Fingers cannot produce that. The
+device generates the releases: hold a key, Expressive Chords re-voices, and the entire previous chord
+is released in unison. That is why sustain is impossible, and our synth is rendering exactly the
+stream it is handed.
+
+### The dump recorded the input and not the configuration
+
+"The envelope sounds wrong" is unanswerable without attack/decay/sustain/release, and the dump did
+not carry them — so the capture settled the note STREAM and left the SOUND unexplained. **A forensic
+dump that records the input but not the configuration answers only half of any question**, and this
+is the second defect the tool's own field use has exposed in it (the first was the timeline).
+
+`dumpForensics` now writes a patch block: n, detune, K, dissolve, width, vol, ADSR, mono, legato,
+panScatter, voiceEnv — per oscillator, so a diverged pair is visible at a glance.
+
+### Known, not fixed: the oracle pollutes the evidence directory
+
+`trace_check` writes dumps to `~/Library/Logs/HYPERSAW/` on every `./verify` run, interleaved with
+real field captures — seven of eleven files in one survey were ours. It makes a human's capture hard
+to find and invites diagnosing a test artifact. Queued.
+
+`./verify full` GREEN, nineteen gates.
+
 ## VOICE VOCABULARY — the field's terms, and ours were inverted (2026-08-12)
 
 FOUNDATIONS' prior-art probe (question 6, ours) ruled: **"voice" is the physical DSP resource an
