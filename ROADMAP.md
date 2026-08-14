@@ -337,7 +337,7 @@ reconciliation, because this page sits exactly on the round's headline contested
 
 ### F-C — quantum-morph routing demo: REVIEWED (external, provenance below)
 
-`docs/design/routing-morph-demo.html` — received 2026-08-14 from the human, authored with another
+`docs/received/routing-morph-demo.html` — received 2026-08-14 from the human, authored with another
 agent ("L2 construction"; references a spec namespace `QM-0` not yet in this repo — the spec doc is
 inbound after an outage on that agent's side). L0009 triage: no ADR-number collisions (QM-0 is its
 own namespace); no machine-absolute paths; committed verbatim, unedited.
@@ -380,6 +380,15 @@ is a spec question, flagged now so it does not get decided by whoever writes cod
   audit, now with a concrete artifact; cell/param corners are patch state in the ruled 10000+ block.
 - The flip engine itself is generic across cells and params — nothing FX-specific — which is
   evidence FOR the human's position on the contested seam and belongs in the reconciliation.
+
+**Placement note (and a self-caught red).** The demo first landed in `docs/design/`, where the
+lab-load gate executes every script block under stub DOM globals — it went RED on
+`devicePixelRatio`, a browser global the stubs lack. The demo is not broken; the placement was.
+`docs/received/` now exists for verbatim external artifacts: they are not ours to edit, so they must
+not sit under a gate whose only remedy is editing them. Our own labs stay in `docs/design/` and stay
+gated. (Also recorded: the red was found AFTER an unguarded push — the verify ran on a semicolon,
+not a gate, and the PR went up before the result was read. The fix commit follows the red by
+minutes, but the order was wrong and is logged as such.)
 
 **Sequencing:** F-A lab first (no dependencies) → QM-0 spec triage on arrival (L0009 discipline) →
 F-B routing lab informed by both → possible third lab if QM-0 wants its own bench.
