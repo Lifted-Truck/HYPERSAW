@@ -1,0 +1,649 @@
+# seams.yaml — HYPERSAW seam map, round 2026-08-13
+#
+# Drawn 2026-08-14 by the governing agent, from this repo, its ADRs, ROADMAP,
+# and the integrations/hypersaw exchange channel — and from nothing in any
+# other project's audit layer.
+#
+# DISCLOSURE (per the kickoff's isolation section): this agent has read the
+# FOUNDATIONS<->HYPERSAW exchange channel (integrations/hypersaw/) extensively,
+# which the brief marks fair game. It has NOT read FOUNDATIONS/audits/, the
+# seam-registry-and-census doc, seam_render.py, or FOUNDATIONS DECISIONS.md
+# (briefs quoted decision NUMBERS into our channel; the file itself was never
+# opened — one grep aimed at it earlier this session failed on a shell glob
+# and returned nothing). The registry.yaml header notes it lives canonically
+# in FOUNDATIONS/audits/; only the issued copy in seam-grammar/ was read.
+#
+# Retrofit posture, per brief §9: NOW is rust-laced and declared so. Nothing
+# here is laundered.
+
+project: HYPERSAW
+agent: governing
+date: 2026-08-14
+registry_snapshot: registry.yaml@2026-08-14
+level_applicability: both
+
+ecosystem:
+  seams:
+    # ---- FOUNDATIONS ------------------------------------------------------
+    - id: E:HYPERSAW+FOUNDATIONS/registry
+      counterpart: FOUNDATIONS
+      category: state
+      direction: bidirectional
+      contract: FILE
+      contract_home: FOUNDATIONS
+      state_now: partial
+      state_intended: live
+      crosses: [param declarations, hierarchical addresses, coreKey conformance data, registry dumps]
+      mine: [the shipping kParams table, raw-id patch-scope dispatch, GUI reachability of every param]
+      yours: [address grammar, registry representation, conformance checker]
+      converged_when: >
+        The shell's param surface is generated from the library registry and the
+        hand-maintained kParams table is deleted; conformance is a build gate,
+        not a campaign.
+      tension: >
+        The raw-id patch-scope families (57-64, 96-99, id 43) are DISPATCH
+        semantics, not address semantics — a param's address does not say
+        whether its handler returns or falls through. That distinction silently
+        killed 29 GUI controls (2026-08-12) and I do not know whether the
+        address grammar can express it.
+
+    - id: E:HYPERSAW+FOUNDATIONS/voice
+      counterpart: FOUNDATIONS
+      category: midi
+      direction: bidirectional
+      contract: LIB
+      contract_home: FOUNDATIONS
+      state_now: partial
+      state_intended: live
+      crosses: [note-identity invariant, NoteTable types, slotOf evidence, ring-buffer histories, END policy]
+      mine: [engine steal tiers reading envelope state, slotOf until the re-point, END delivery including under panic and host refusal]
+      yours: [note identity and lifecycle types, binding legality, the end-only-exit property]
+      converged_when: >
+        Shell note bookkeeping IS the library NoteTable, and the shadow-diff of
+        real captured histories against slotOf shows zero divergence.
+      tension: >
+        Same-key retrigger policy and per-engine free-condition timing are not
+        pinned by any gate on my side; a re-point could change either without an
+        oracle objecting. Declared to the counterpart 2026-08-11; still true.
+
+    - id: E:HYPERSAW+FOUNDATIONS/parity
+      counterpart: FOUNDATIONS
+      category: meta
+      direction: bidirectional
+      contract: FILE
+      contract_home: FOUNDATIONS
+      state_now: live
+      state_intended: live
+      crosses: [parity corpus briefs, donated oracle shapes, knowledge lessons, calibration doctrine, sample panic dumps]
+      mine: [nineteen local gates, corpus generation from the protected prototypes, the lesson library]
+      yours: [conformance tooling, mutation-testing practice, audit-loop promotion]
+      converged_when: >
+        A re-point increment can be verified end to end by gates both sides
+        already run, with no one-off harness written for the occasion.
+
+    - id: "?:HYPERSAW/mod-routing-supply"
+      counterpart: FOUNDATIONS
+      category: mod
+      direction: FOUNDATIONS -> HYPERSAW
+      contract: API
+      contract_home: FOUNDATIONS
+      state_now: planned
+      state_intended: live
+      crosses: [five-tuple route declarations, endpoint kinds, coupling models]
+      mine: [which destinations exist including per-partial populations, what a mod slot means in my UI]
+      yours: [routing representation, depth and curve and scope math, the feedback-semantics ruling]
+      converged_when: >
+        HYPERSAW's mod matrix (which does not exist yet) declares routes against
+        the library layer and owns zero routing logic of its own.
+      tension: >
+        Population destinations — all partials of a voice, with a distribution
+        ACROSS them — have no spelling in the five-tuple. Scope selects WHICH; a
+        distribution says HOW MUCH EACH. This is the axis the instrument is
+        about, and it is the one route I know I will want that cannot be written.
+
+    - id: "?:HYPERSAW/signal-graph"
+      counterpart: FOUNDATIONS
+      category: audio
+      direction: bidirectional
+      contract: API
+      contract_home: FOUNDATIONS
+      state_now: absent
+      state_intended: partial
+      crosses: [typed port declarations, port-manifest type checks]
+      mine: [crosspoint routing math, per-edge gain where zero IS disconnection, per-node initial values, read-side strictly-earlier ordering]
+      yours: [port type taxonomy, build-time connectivity checking, the explicit refusal to carry routing]
+      converged_when: >
+        Our graph declares typed ports for connectivity checking while gain,
+        node constants and ordering remain in the matrix — or a ruled reversal
+        deliberately moves routing into the library and this entry is rewritten.
+      tension: >
+        THE CONTESTED SEAM OF THIS MAP. The human has said FX routing and
+        module management feel like exactly what the plumbing library exists to
+        supply. ADR-088 ruled the dense crosspoint matrix ours, for a reason
+        (morph interpolates values; a coefficient of zero IS disconnection, so
+        connect and disconnect are continuous). The library's stated position is
+        that its manifest declares connectivity only and gain/constants/ordering
+        are explicitly not carried. Three parties, three positions. I am
+        declaring what IS, not resolving it: today nothing crosses.
+
+    - id: "?:HYPERSAW/preset-cascade"
+      counterpart: FOUNDATIONS
+      category: state
+      direction: FOUNDATIONS -> HYPERSAW
+      contract: LIB
+      contract_home: FOUNDATIONS
+      state_now: planned
+      state_intended: live
+      crosses: [scoped save and load, basis snapshots, rebase policies]
+      mine: [oscillator-tier preset semantics, the legacy versioned key=value chunk and its compatibility promise]
+      yours: [scope tree, cascade and rebase math, boundary-crossing policies]
+      converged_when: >
+        Oscillator-tier presets are cascade scopes and every legacy patch loads
+        bit-identically through the new path.
+      tension: >
+        Our preset tier is slot-agnostic by design (B20); whether that maps onto
+        a scope TREE or fights it is unexamined.
+
+    - id: "?:HYPERSAW/library-link"
+      counterpart: FOUNDATIONS
+      category: build
+      direction: FOUNDATIONS -> HYPERSAW
+      contract: LIB
+      contract_home: FOUNDATIONS
+      state_now: planned
+      state_intended: live
+      crosses: [header-only library, version pin]
+      mine: [vendored pin policy, CMake integration, the MSVC portability gate]
+      yours: [header hygiene across MSVC, versioning discipline]
+      converged_when: >
+        The shell includes pinned library headers and all three CI platforms
+        build green with no per-project patching.
+
+  nulls:
+    - boundary: HYPERSAW+FOUNDATIONS
+      category: theory
+      note: >
+        No theory crosses or is imagined as a commitment. Scale quantization is
+        a patch-state MASK by ruling (the mask is the truth, the name is UI);
+        consonance gravity is core physics, not a query. A future advisory
+        consult for basin targets is conceivable and deliberately not declared.
+    - boundary: HYPERSAW+PLAINSYNTH
+      category: audio
+      note: No direct boundary exists or is imagined; all flows route via FOUNDATIONS.
+    - boundary: HYPERSAW+PLAINSYNTH
+      category: mod
+      note: No direct boundary exists or is imagined.
+    - boundary: HYPERSAW+PLAINSYNTH
+      category: midi
+      note: No direct boundary exists or is imagined.
+    - boundary: HYPERSAW+PLAINSYNTH
+      category: state
+      note: No direct boundary exists or is imagined.
+    - boundary: HYPERSAW+PLAINSYNTH
+      category: theory
+      note: No direct boundary exists or is imagined.
+    - boundary: HYPERSAW+PLAINSYNTH
+      category: build
+      note: No direct boundary exists or is imagined.
+    - boundary: HYPERSAW+PLAINSYNTH
+      category: meta
+      note: >
+        Declared null with one eye open. Our donated oracle shapes (public
+        surface, Goertzel on output) may reach PLAINSYNTH — but only relayed
+        through FOUNDATIONS, which is that seam, not this one. If their map
+        draws a direct seam to us, that mismatch is a finding.
+
+internal:
+  seams:
+    # ---- container <-> host ----------------------------------------------
+    - id: C:IO@host
+      site: [container, host]
+      category: audio
+      rate: audio
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: >
+        CLAP-first entry (static impl lib + exported entry) wrapped to VST3/AU
+        by clap-wrapper; a hand-rolled shell that predates the library.
+      disposition: exempt
+      state_intended: off-contract
+      crosses: [stereo out, block subdivision, sample-rate changes]
+      converged_when: >
+        Either a ruled re-homing into the library container, or a ruled
+        permanent exemption; today CLAP-first is deliberate (ADR-002) and
+        re-homing is an open human question, so intended state honestly equals
+        now.
+      tension: >
+        Exempt here means deliberate TODAY, not forever. Whether HYPERSAW ever
+        becomes a hosted payload is unruled and this map does not pre-rule it.
+
+    - id: "?:HYPERSAW/host-events"
+      site: [container, host]
+      category: midi
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: >
+        handleEvent switch: note on/off/choke, vel-0-as-note-off remap
+        (ADR-038), per-channel MPE bend latch, note expressions.
+      disposition: promote
+      state_intended: partial
+      crosses: [note events, note expressions, MIDI bend, flattened-MPE detection counters]
+      converged_when: >
+        The vel-0 remap and bend latch are declared transformer stages in the
+        event pipeline rather than branches of a switch.
+
+    - id: "?:HYPERSAW/host-automation"
+      site: [container, host]
+      category: mod
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: >
+        Param value events through applyParam: per-oscillator ids by stride,
+        globals fanned to every core, and raw-id patch-scope families (FX,
+        SPECTRA, engine selector) whose branches return.
+      disposition: promote
+      state_intended: live
+      crosses: [param value events, gestures, outbound param pushes to the host]
+      converged_when: >
+        Dispatch is derived from registry declarations, and patch-scope is a
+        declared property rather than an if-range that a GUI must know to pin.
+      tension: >
+        The outbound half (drainQueue pushing param events to the host) is the
+        L0022 flood path; any contract here must preserve the try_push retry.
+
+    - id: "?:HYPERSAW/host-state"
+      site: [container, host]
+      category: state
+      rate: event
+      thread: main
+      rt_safe: false
+      state_now: off-contract
+      glue: Versioned key=value state chunk; small-chunk policy (paths, not payloads).
+      disposition: promote
+      state_intended: live
+      crosses: [state chunks, preset tiers, frozen param ids]
+      converged_when: >
+        Save/load runs through the scoped cascade and every existing chunk still
+        loads bit-identically.
+
+    - id: "?:HYPERSAW/bundle-load"
+      site: [container, host]
+      category: build
+      rate: event
+      thread: main
+      rt_safe: false
+      state_now: live
+      state_intended: live
+      crosses: [VST3/AU bundles, codesign seal, AU registrar cache]
+      converged_when: >
+        Already works; converged means the seal re-sign stays a POST_BUILD step
+        so a broken seal can never again read as a code bug. Declared because
+        this boundary has silently eaten three debugging rounds.
+
+    # ---- note lifecycle ---------------------------------------------------
+    - id: C:VOICE@note-fanout
+      site: [note-fanout, swarm-core]
+      category: midi
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: >
+        Hand-rolled NoteTag[16] + slotOf[s][k] binding map + pendingEnds queue;
+        the library NoteTable mirrors this and is proven against models, not
+        wired.
+      disposition: promote
+      state_intended: live
+      crosses: [note identity, per-core slot bindings, retarget and expression fan-out, END obligations]
+      converged_when: >
+        The fan-out helpers read library bindings and the panic-shaped
+        identity-loss bug has no spelling here either.
+
+    - id: "?:HYPERSAW/spectra-notes"
+      site: [note-fanout, spectra-core]
+      category: midi
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: Direct spectra.noteOn/noteOff; plain poly, no MPE tuning (ADR-037/038).
+      disposition: promote
+      state_intended: partial
+      crosses: [note events, shared tag table]
+      converged_when: >
+        SPECTRA notes flow through the same identity layer as SAW notes.
+      tension: >
+        SPECTRA-facing work is deprioritised behind the GUI renovation by
+        ROADMAP ruling; intended state is partial on purpose, not neglect.
+
+    # ---- params to engines -----------------------------------------------
+    - id: C:PARAM@swarm-cores
+      site: [container, swarm-core]
+      category: state
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: kParams table rows applied as coreKey string setParam calls, globals fanned to all cores.
+      disposition: promote
+      state_intended: live
+      crosses: [param values, per-oscillator stride addressing, global fan-out]
+      converged_when: >
+        Core-facing keys are derived from registry addresses and the string
+        double-entry (id table + coreKey) collapses to one declaration.
+
+    - id: "?:HYPERSAW/spectra-params"
+      site: [container, spectra-core]
+      category: state
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: >
+        Same table; SPECTRA owns its own ADSR ids (65-68) because sharing the
+        SAW ids would push the wrong reference default (ADR-055).
+      disposition: promote
+      state_intended: live
+      crosses: [param values, engine-specific defaults]
+      converged_when: >
+        Engine-specific defaults are registry facts, so an oracle that builds
+        the core directly and the shipped shell cannot diverge silently.
+
+    # ---- audio path -------------------------------------------------------
+    - id: C:ENGINE@swarm-render
+      site: [swarm-core, container]
+      category: audio
+      rate: audio
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: Direct render() calls into the mix bus; fixed stack chunk sum with per-osc gain and meters.
+      disposition: promote
+      state_intended: partial
+      crosses: [rendered blocks, per-oscillator gain and meter taps]
+      converged_when: >
+        The engine declares hostable port sets; whether HYPERSAW adopts the
+        container remains a separate ruling.
+
+    - id: C:ENGINE@spectra-render
+      site: [spectra-core, container]
+      category: audio
+      rate: audio
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: Direct render() into the same bus, selected by engine id 43.
+      disposition: promote
+      state_intended: partial
+      crosses: [rendered blocks]
+      converged_when: As swarm-render.
+
+    - id: "?:HYPERSAW/mix-source"
+      site: [container, routing-matrix]
+      category: audio
+      rate: audio
+      thread: audio
+      rt_safe: true
+      state_now: live
+      state_intended: partial
+      crosses: [post-bass-mono mix bus as source zero]
+      converged_when: >
+        Per-oscillator sources feed the matrix directly (B23 increment 3) and
+        the summed bus stops being the only source; bass-mono becomes a slot
+        type per the ratified ruling.
+
+    - id: C:FXCHAIN@mix-stage
+      site: [routing-matrix, fx-rack]
+      category: audio
+      rate: audio
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: >
+        RoutingMatrix processBlock gathers each slot's input by crosspoint
+        coefficient (zero IS disconnection — chosen so morph can interpolate
+        topology continuously), adds per-node initial values, enforces
+        acyclicity by read-side strictly-earlier ordering, sums terminals.
+      disposition: exempt
+      state_intended: off-contract
+      crosses: [per-slot gathered buffers, crosspoint gains, node constants, terminal sums]
+      converged_when: >
+        Either the ruled position holds (matrix is HYPERSAW novelty; library
+        checks types only) and this stays exempt with sign-off — or the human's
+        plumbing vision is ruled INTO the library, the three carried properties
+        (gain, node constants, ordering) get a contract home, and this becomes
+        promote. The sign-off request IS this entry.
+      tension: >
+        Same contested seam as the ecosystem signal-graph entry, seen from
+        inside. The dense-table property the matrix exists for is exactly the
+        property a connectivity-only manifest cannot carry.
+
+    - id: "?:HYPERSAW/rack-out"
+      site: [fx-rack, container]
+      category: audio
+      rate: audio
+      thread: audio
+      rt_safe: true
+      state_now: live
+      state_intended: live
+      crosses: [terminal-summed stereo, pre master-volume]
+      converged_when: Already converged; master volume and meters stay downstream.
+
+    - id: "?:HYPERSAW/rack-params"
+      site: [container, fx-rack]
+      category: state
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: off-contract
+      glue: >
+        Raw-id dispatch (57-64 type/amount, 96-99 tone) to one shared rack;
+        patch-scope, so every GUI control must pin data-fixed or die silently.
+      disposition: promote
+      state_intended: live
+      crosses: [slot types, amounts, tone axis]
+      converged_when: >
+        Patch-scope is a declared registry property and the GUI pin rule is
+        derived, not remembered.
+
+    - id: "?:HYPERSAW/rack-note-feed"
+      site: [container, fx-rack]
+      category: midi
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: live
+      state_intended: live
+      crosses: [note-on key and frequency for per-note comb lines]
+      converged_when: >
+        Survives any note-lifecycle re-point unchanged; the rack hears notes,
+        never identities.
+
+    - id: "?:HYPERSAW/topology-state"
+      site: [container, routing-matrix]
+      category: state
+      rate: event
+      thread: audio
+      rt_safe: true
+      state_now: planned
+      state_intended: live
+      crosses: [crosspoint coefficients, out amounts, slot initial values as patch state at the ruled 10000+ id block]
+      converged_when: >
+        Topology saves and loads as patch state and a default-constructed matrix
+        still cannot mean silence.
+
+    - id: "?:HYPERSAW/morph-topology"
+      site: [container, routing-matrix]
+      category: mod
+      rate: block
+      thread: audio
+      rt_safe: true
+      state_now: planned
+      state_intended: live
+      crosses: [interpolated topology values from morph corners]
+      converged_when: >
+        A morph between two topologies is a continuous gain surface with no
+        hard cuts — the property the dense table was chosen to make possible.
+      tension: >
+        The consumer (quantum-morph work) is future; this seam exists in the map
+        because the matrix's whole design argument is this seam.
+
+    # ---- GUI --------------------------------------------------------------
+    - id: "?:HYPERSAW/gui-bridge"
+      site: [gui, container]
+      category: state
+      rate: event
+      thread: main
+      rt_safe: false
+      state_now: live
+      state_intended: live
+      crosses: [param writes and gestures, state json, build stamp]
+      converged_when: >
+        Controls land with their params (gated), patch-scope pins are derived
+        (gated), and the bridge stays a thin adapter.
+
+    - id: "?:HYPERSAW/gui-diagnostics"
+      site: [gui, container]
+      category: meta
+      rate: block
+      thread: main
+      rt_safe: false
+      state_now: live
+      state_intended: live
+      crosses: [viz rings that may drop samples, forensic dump trigger, MPE-off hint, key-focus passthrough]
+      converged_when: >
+        Taps remain back-pressure-free by construction; a tap that can refuse is
+        the L0022 bug with a wider blast radius.
+
+    - id: "?:HYPERSAW/gui-panic"
+      site: [gui, container]
+      category: midi
+      rate: event
+      thread: main
+      rt_safe: false
+      state_now: live
+      state_intended: live
+      crosses: [all-notes-off, capture-before-clear ordering]
+      converged_when: >
+        Panic pays its END debts through whatever identity layer exists; the
+        ordering stays gated.
+
+    - id: "?:HYPERSAW/gui-embed"
+      site: [gui, container]
+      category: build
+      rate: event
+      thread: main
+      rt_safe: false
+      state_now: live
+      state_intended: live
+      crosses: [codegen byte-array of the GUI html, the GUI2 build toggle]
+      converged_when: >
+        The embedded artifact is verified by decoding, never by grepping the
+        byte array — already practice, wants a gate.
+
+    # ---- engine pair ------------------------------------------------------
+    - id: "?:HYPERSAW/shared-force-core"
+      site: [swarm-core, spectra-core]
+      category: build
+      rate: event
+      thread: main
+      rt_safe: false
+      state_now: live
+      state_intended: live
+      crosses: [shared force-system header (ADR-034)]
+      converged_when: >
+        Both engines keep passing the force oracle after any refactor of either.
+
+  nulls:
+    - boundary: [container, host]
+      category: theory
+      note: No theory crosses the host boundary.
+    - boundary: [container, host]
+      category: meta
+      note: >
+        Diagnostics stay local; forensic dumps go to the filesystem, never
+        through host channels.
+    - boundary: [note-fanout, container]
+      category: audio
+      note: Note bookkeeping carries no signal.
+    - boundary: [note-fanout, container]
+      category: mod
+      note: Performance expressions are midi here; no mod routing exists.
+    - boundary: [note-fanout, container]
+      category: state
+      note: Tags and held stack are transient by design; never persisted.
+    - boundary: [note-fanout, container]
+      category: theory
+      note: Nothing theoretical crosses.
+    - boundary: [note-fanout, container]
+      category: build
+      note: Compiled into the shell; no artifact boundary.
+    - boundary: [note-fanout, container]
+      category: meta
+      note: Forensics reads its tables through the container's dump path, declared under gui-diagnostics.
+    - boundary: [swarm-core, container]
+      category: mod
+      note: >
+        No mod matrix exists; coupling dynamics are core novelty, opaque by the
+        opacity rule. When a matrix lands, per-partial destinations become a
+        seam here — declared as a future in the ecosystem mod tension.
+    - boundary: [swarm-core, container]
+      category: theory
+      note: >
+        Consonance gravity pulls toward just intervals as core physics, not as
+        a theory query. A future advisory consult for basin targets is
+        conceivable; none is imagined as a commitment.
+    - boundary: [swarm-core, container]
+      category: meta
+      note: Introspection (voiceAt) is read by the container's diagnostics, declared there.
+    - boundary: [spectra-core, container]
+      category: mod
+      note: As swarm-core; no matrix exists.
+    - boundary: [spectra-core, container]
+      category: theory
+      note: Nothing theoretical crosses.
+    - boundary: [spectra-core, container]
+      category: meta
+      note: As swarm-core.
+    - boundary: [routing-matrix, container]
+      category: midi
+      note: The matrix hears no notes; the rack's per-note feed bypasses it deliberately.
+    - boundary: [routing-matrix, container]
+      category: theory
+      note: Nothing theoretical crosses.
+    - boundary: [routing-matrix, container]
+      category: build
+      note: Header-only, compiled in; no artifact boundary.
+    - boundary: [routing-matrix, container]
+      category: meta
+      note: Its oracle drives it directly in tests; no runtime meta flow.
+    - boundary: [fx-rack, container]
+      category: mod
+      note: Slot amount/tone arrive as params (state); no mod routing exists.
+    - boundary: [fx-rack, container]
+      category: theory
+      note: Nothing theoretical crosses.
+    - boundary: [fx-rack, container]
+      category: build
+      note: Compiled in; no artifact boundary.
+    - boundary: [fx-rack, container]
+      category: meta
+      note: Rack state appears in forensic dumps via the container; declared there.
+    - boundary: [gui, container]
+      category: audio
+      note: >
+        Viz rings are diagnostics (meta), not an audio path: lossy by design,
+        never in the signal chain.
+    - boundary: [gui, container]
+      category: mod
+      note: The XY pad writes params (state); the GUI does no mod routing.
+    - boundary: [gui, container]
+      category: theory
+      note: >
+        The scale picker lives in a design lab today, not the plugin GUI; when
+        it ships, the mask is patch state by ruling, not a theory flow.
