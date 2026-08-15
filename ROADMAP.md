@@ -8,6 +8,71 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FEEDBACK LAB — the survey's hypotheses made audible and survivable (2026-08-15)
+
+Human: *"maybe we should spin up a feedback lab (with a master limiter and an audio killswitch)."*
+`docs/design/feedback-lab.html`, in the lab sweep, `./verify fast` GREEN. (Sequenced after the
+four-agent feedback survey, whose ROADMAP entry is on the `route-inertia-decided` branch.)
+
+**The loop runs in ONE AudioWorklet, not a node graph, and that is why it can answer anything.** The
+question the bench exists for is **delay granularity** — 1 sample vs our 16-sample tick vs a
+64-sample vector vs a block — and a Web Audio node graph **cannot express one sample**: its own
+minimum feedback delay is a 128-frame render quantum, which is the very quantity under test. A bench
+built from nodes would have measured its own host (L0031: an oracle spanning the wrong layer
+certifies nothing).
+
+**Three independent safety mechanisms, with the backstop kept SEPARATE from the musical control** as
+the survey requires:
+1. **Loop gain starts at zero** — no-input practice: come up from silence until you can just hear it.
+2. **A brickwall limiter that cannot be switched off**, with a gain-reduction meter so you can see it
+   working rather than trust it.
+3. **An auto-kill on the PRE-limiter signal** (hot for 400 ms). Measured before the limiter on
+   purpose: by the time the post-limiter signal looks wrong, the limiter is already holding back
+   something enormous. Plus **spacebar kills from anywhere** — a safety control you have to aim at is
+   not one.
+
+### Both safety mechanisms VERIFIED, and verified in silence
+
+The design has a happy consequence: `kill` zeroes only the OUTPUT while the loop keeps running
+internally, so the safety devices can be tested **without making a sound on the human's machine**.
+Driven in the browser with kill engaged throughout:
+
+| test | result |
+|---|---|
+| killed output is actually silent | **max spectrum bin = 0**, every bin |
+| auto-kill fires on runaway (gain 1.2, no saturator, no lowpass) | **tripped = true**, UI reads `TRIPPED` |
+
+**A safety device that has never fired is not a safety device.** Both fired.
+
+### What the bench is set up to settle
+
+- **OQ #23 made audible** — sweep granularity at fixed loop gain and hear where a resonance becomes
+  an echo, instead of citing Bitwig and Csound at each other.
+- **The occluded frequency shift** (Berdahl, ~3 Hz for ≥3 dB) — find the gain where it just sustains,
+  toggle the shift, watch the margin meter.
+- **Our own ζ correction** — set a gain stable at ζ = 1, then lower ζ. If an underdamped spring on a
+  feedback edge really adds loop gain, it runs away untouched. **The falsifier for a claim we filed
+  with FOUNDATIONS is now a slider.**
+- **Margin is reported from the LIMITER, not guessed from the gain slider**, because gain alone
+  cannot know the loop's margin — the stabilisers change it, which is the entire question.
+
+### A null result, recorded as a null
+
+A quick paired test at loop gain 0.95 (lowpass in loop, saturator off) gave **ring-out of exactly 0
+both with and without the 3 Hz shift** — 0.95 is *below* the sustain threshold for that
+configuration, so the test could not discriminate. Honest information (a lowpass costs energy every
+pass, so sustain needs gain above 1) but **not** a measurement of the Berdahl effect, and not
+recorded as one. The threshold sweep needs more wall-clock than a browser eval budget allows.
+
+### Lead process failure, third occurrence
+
+This entry was nearly lost the same way twice before: the first attempt anchored on the survey
+section, which lives only on an unmerged branch, so the write failed **while the lab itself committed
+anyway**. Same shape as the #291 near-miss. The asserted anchor did its job for the third time; the
+habit of branching from `main` and then anchoring on un-merged prose is the thing that has not been
+fixed. **Standing correction: check `grep -n "^## " ROADMAP.md` on the current branch before writing
+an anchor, not after.**
+
 ## INERTIA EVERYWHERE + SEMI-GRADUAL MORPH + REVERB RESEARCH (2026-08-15)
 
 Three human items. Report: `docs/reports/2026-08-15-supersaw-reverb-research.md`.
