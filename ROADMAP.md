@@ -306,6 +306,93 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## FX OVERHAUL · MODULAR ROUTING · QUANTUM-MORPH DEMO REVIEW (2026-08-14)
+
+Three human directives filed together, plus the review of an external demo. All three converge on
+the same contested boundary the seam audit just mapped (`?:HYPERSAW/signal-graph`,
+`C:FXCHAIN@mix-stage`) — sequencing below respects the audit reconciliation and the inbound spec.
+
+### F-A — FX system overhaul (human directive)
+
+**SPACE is dissolved as a page.** It was intended for the reverb, and the reverb should be an FX
+module like any other. Consequences: the gui2 `SPACE` stub tab retires when the FX overhaul lands;
+the E3 reverb work (robust reverb + Kuramoto delays) retargets to FX modules rather than a page.
+
+**Each FX module gets an expanded view, and most get a small built-in visualizer.** The current FX
+page (four type/amount/tone rows) is the reachability increment, not the destination.
+
+**Deliverable: an FX-page lab** (`docs/design/` — spec-in-code per ADR-003) exploring module boxes,
+expanded views, per-module viz, and the reverb-as-module fold. Not yet built.
+
+### F-B — modular routing page (human directive)
+
+A fully modular page with a **visual routing system**: FX arrangeable in series or parallel, and
+**oscillators routed independently**. This is B23's UI half — the crosspoint matrix (ADR-088) is
+already in the audio path with per-oscillator sources as the next increment, and topology-as-patch-
+state ruled at ids 10000+. The bass-mono-as-slot ruling rides along.
+
+**Deliverable: a routing lab.** Not yet built — deliberately sequenced AFTER the QM-0 spec arrives
+(below), because the morph law shapes what the routing UI must express, and after the seam-audit
+reconciliation, because this page sits exactly on the round's headline contested seam.
+
+### F-C — quantum-morph routing demo: REVIEWED (external, provenance below)
+
+`docs/received/routing-morph-demo.html` — received 2026-08-14 from the human, authored with another
+agent ("L2 construction"; references a spec namespace `QM-0` not yet in this repo — the spec doc is
+inbound after an outage on that agent's side). L0009 triage: no ADR-number collisions (QM-0 is its
+own namespace); no machine-absolute paths; committed verbatim, unedited.
+
+**What it is.** Six modules in fixed rank order (SRC→DRV→FLT→DLY→VRB→MST), an upper-triangular send
+matrix (15 cells), and ~12 module params. Every cell and param holds one value per morph corner
+(A/B/C/D). An XY field computes bilinear corner weights; each slot picks its corner by
+**Gumbel-argmax**: `sal·log(w)/T + gumbel_noise`, with temperature `T`, per-slot salience, and a
+**coupling knob** that swaps per-slot noise for group-shared noise (whole module flips coherently).
+Seeded `mulberry32`. Zero-send rows are **normalled to master** (dashed). Commits quantize to
+beat/bar; params glide ~8 ms, routing ~140 ms.
+
+**Convergences worth naming (independent arrivals, audit-loop grade):**
+1. **Upper-triangular sends over a fixed rank order IS our acyclicity rule** — a row sends only to
+   later columns, exactly `routing_core.h`'s read-side strictly-earlier ordering. Two agents, same
+   shape, unshared derivation.
+2. **Normalling is the dual of our computed `isTerminal`** — both DERIVE output-ness from edges
+   rather than declaring it. Consistent with the no-`is_output` ruling.
+3. **mulberry32, seeded, reshuffle-explicit** — the core's own RNG discipline (SPEC §5.7).
+
+**The divergence the spec must rule on.** ADR-088 chose the dense table because *morph interpolates
+coefficients continuously — zero IS disconnection, so connect/disconnect is one motion*. The demo
+morphs **discretely**: winner-take-all per cell with noise, then a short gain glide, committed on
+musical time. The dense per-corner table is still the right substrate for both, but they are two
+different morph LAWS — continuous blend vs stochastic assignment — and ADR-088's stated rationale
+was the first while this demo demonstrates the second. They can coexist (T→0 approaches nearest-
+corner; the commit glide is itself interpolation between committed states), but **which is canonical
+is a spec question, flagged now so it does not get decided by whoever writes code first.**
+
+**Adoption concerns for the QM-0 spec** (recorded so the lab tests them):
+- Discrete `FLT type` flips (LP→HP) will click through filter state even with the gain glide; wants
+  a dual-path crossfade strategy stated, not assumed.
+- `sum < 0.01` normalling is a threshold discontinuity; the glide masks it in the demo, but the spec
+  should say whether it wants hysteresis.
+- Beat/bar commits read transport — fine (the tempo-grid law already does), but the determinism
+  contract must be stated: same seed + same transport → identical flips.
+- All glide constants in SECONDS (ADR-009); commit scheduling lives in the shell's tempo grid, never
+  the core (no wall-clock).
+- The morph surface (XY, T, coupling, glides) is the `?:HYPERSAW/morph-topology` seam from the
+  audit, now with a concrete artifact; cell/param corners are patch state in the ruled 10000+ block.
+- The flip engine itself is generic across cells and params — nothing FX-specific — which is
+  evidence FOR the human's position on the contested seam and belongs in the reconciliation.
+
+**Placement note (and a self-caught red).** The demo first landed in `docs/design/`, where the
+lab-load gate executes every script block under stub DOM globals — it went RED on
+`devicePixelRatio`, a browser global the stubs lack. The demo is not broken; the placement was.
+`docs/received/` now exists for verbatim external artifacts: they are not ours to edit, so they must
+not sit under a gate whose only remedy is editing them. Our own labs stay in `docs/design/` and stay
+gated. (Also recorded: the red was found AFTER an unguarded push — the verify ran on a semicolon,
+not a gate, and the PR went up before the result was read. The fix commit follows the red by
+minutes, but the order was wrong and is logged as such.)
+
+**Sequencing:** F-A lab first (no dependencies) → QM-0 spec triage on arrival (L0009 discipline) →
+F-B routing lab informed by both → possible third lab if QM-0 wants its own bench.
+
 ## gui2 FX PAGE — and 29 controls that were silently dead (2026-08-12)
 
 First cluster off the integration checklist. Chosen over Envelope on purpose: **Envelope and Voice
