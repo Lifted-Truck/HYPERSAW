@@ -88,6 +88,11 @@ fast() {
   # control that silently never appears — the 29-dead-controls failure with the
   # arrow reversed, invisible to every audio oracle either way.
   python3 tools/presentation_check.py || ok=1
+
+  # GENERATED CONTROLS ARE CURRENT. gui2's controls are generated FROM the
+  # presentation table, so an edited table with stale markup shows yesterday's
+  # declarations — invisible to every audio oracle, which is why it is gated.
+  python3 tools/gen_gui_controls.py --check || ok=1
   portability_gate || ok=1   # MSVC-only breakage, caught locally not in CI
 
   # GUI REACHABILITY (L0023, third occurrence — the one that became a gate).
