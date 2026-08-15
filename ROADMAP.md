@@ -8,6 +8,88 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## INERTIA EVERYWHERE + SEMI-GRADUAL MORPH + REVERB RESEARCH (2026-08-15)
+
+Three human items. Report: `docs/reports/2026-08-15-supersaw-reverb-research.md`.
+
+### Reverb research — one finding inverts the coupling-K question
+
+Sentiment (weak evidence, good for defaults): **hall and plate** for supersaws, **high-cut on the
+send** near-universally, **pre-delay 20-40 ms**, decay 2-4 s breakdown / 0.8-1.5 s drop, **shimmer
+cautioned against**. Reese: the reverb taboo was a **vinyl-cutting phase constraint, not a sonic
+one** — modern practice allows it on a sustained Reese with the **low end kept mono**, which is
+exactly what our bass-mono crossover (ids 40/41) already provides. Saw arps: the signature move is a
+**reverb ducked by the dry signal**.
+
+The technical half is stronger and it lands on a decision we have open. There is a decades-old
+schism — **Lexicon made tail chorusing integral** (deliberate pitch movement to break up unpleasant
+resonances) while **Quantec deliberately avoided it** for realism. The mechanism: modulated delay
+lengths **break up the static interference patterns that produce metallic ringing** — which is
+precisely `FX-7`'s fail criterion — and the dose-response is documented: small modulation smooths,
+large modulation wobbles pitch.
+
+**The HYPERSAW-specific consequence, filed as a HYPOTHESIS not a finding.** Reverb modulation exists
+to de-correlate a source that is too static. **A supersaw is the least static source there is** — the
+instrument already de-correlates before the reverb sees it. So Lexicon-style tails solve a problem
+our source already solved, twice, which is how you get a wash. Therefore:
+
+> **Modulation depth should scale with (1 − order parameter), NOT with K.** At high K the swarm locks
+> and the source goes static — exactly the condition modulation is medicine for. At low K the source
+> is already beating and tail modulation is redundant.
+
+**That inverts the intuitive reading of the coupling-K decision**, which was to couple them directly.
+Falsifiable cheaply in the reverb lab: hold a chord, sweep K with modulation fixed, and hear whether
+the metallic onset tracks rising K.
+
+### Inertia as a property of a ROUTE, not a destination
+
+Human: add spring inertia elsewhere, with **two controls** (rate and damping) — *"maybe we could even
+add it to any modulation in the matrix."*
+
+**The generalisation is the right one, and it is cheaper than it looks.** Inertia belongs on the
+**route**, not the destination: put it on a mod-matrix edge and every source→destination pair can
+have it without N implementations. That also lands squarely on FOUNDATIONS' `mod_routing.h`
+five-tuple, where a route is already a first-class object — so this is a fold toward their doorframe
+rather than away from it. The two sliders the human asked for are already the bend lab's model
+(`springF`, `zeta`); the fold is to reuse `Inertia` as a general modulation post-processor rather
+than write a second spring.
+
+Candidate destinations worth auditioning, roughly by expected musical payoff:
+- **K itself** — the most on-thesis: a coupling that *settles* into coherence with overshoot is a
+  physical system finding order, which is the instrument's whole premise.
+- **Detune / spread** — the swarm breathing open and closed.
+- **Morph position** — springy corner-to-corner travel; composes with the mode below.
+- **Filter cutoff** — the classic, and the one users will expect.
+- **Width / pan** — inertial image movement.
+- **FX slot mix** — springy wet/dry, once the rack owns dry/wet (approved above).
+
+**Two cautions to design against rather than discover.** (1) A spring is a second-order system with
+state **per route per voice** — memory grows as routes × polyphony, and that is a real budget, not a
+rounding error. (2) A spring on a route in a graph that may contain **cycles** interacts directly
+with OQ #23; inertia on a feedback edge is a second-order system inside a loop, and its stability is
+not obvious. **Inertia on routes should not land before #23 is ruled** — same reasoning that parked
+feedback in the lab.
+
+### Quantum morph — semi-gradual mode, and we have already built the mechanism
+
+Human: alongside all-quantum and quantum/gradual, add a **quantum/semi-gradual** mode that **jumps
+slider values in discrete chunks at the set refresh rate** (constant · per-note · tempo-synced).
+
+**We built this mechanism in a different lab and can reuse it rather than invent it.** `bend-lab.html`
+already has a **time-gated quantiser**: `q·step time` gates when a step may COMMIT, so the underlying
+law keeps moving continuously while the *emitted* value only changes on the gate. Applied to morph
+position that is exactly semi-gradual — the morph travels, the sliders step. The bend lab's own
+comment describes the resulting character as a **glissando run**, which is the right word for what
+this does to a morph.
+
+So the three modes are one axis with different gate settings, not three implementations:
+**all-quantum** = instant (no gate), **gradual** = continuous (gate always open), **semi-gradual** =
+gated at the refresh rate. The refresh sources the human named — constant Hz, per-note, tempo-synced —
+are the same three the rest of the instrument already uses.
+
+Sequenced behind the FX slot contract and OQ #23; recorded now so it is designed rather than
+remembered.
+
 ## FX SLOT CONTRACT — the human sent it back to the drawing board, and was right (2026-08-15)
 
 Human on the Notch finding: *"the shape of an issue that we need a universal solution for instead of
