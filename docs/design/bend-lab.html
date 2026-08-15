@@ -194,7 +194,7 @@ class Inertia {
   constructor(rate, lane) { this.sr = rate; this.lane = lane; this.x = 0; this.v = 0; this.y = 0; this.D = 0; }
   reset(v) { this.x = v; this.v = 0; this.y = v; this.D = 0;
             this.q = v; this.qStep = undefined; this.qFlips = 0; this.qT = 1e9; }
-  step(t, p) {
+  step(t, p, base = 0) {
     const dt = 1 / this.sr;
     // Move distance, peak-held since the last arrival. Constant-time glide
     // needs it (velocity = distance/time, latched at the start of the move)
@@ -259,7 +259,7 @@ class Inertia {
         this.x += Math.max(-s, Math.min(s, d)); break;
       }
     }
-    return this.quantise(p);
+    return this.quantise(p, base);
   }
   /* ---- SCALE QUANTISE (human proposal 2026-08-06) ------------------------
      Deliberately a MODIFIER, not a sixth law: the law's dynamics run
@@ -277,10 +277,32 @@ class Inertia {
        * it does NOTHING to a deliberate wide vibrato (+-60 cents: 20 changes
          at every setting) and SHOULD not: that motion is meant to step.
      So hysteresis is a fix for one specific artefact, not a general smoother. */
-  quantise(p) {
+  /* `base` is the ABSOLUTE pitch this lane's value is measured FROM: 0 for the
+     note lane (whose value already IS the pitch) and the sounding note's MIDI
+     for a bend lane (whose value is an OFFSET).
+
+     THE BUG THIS FIXES (human report 2026-08-15, confirmed): quantise treated the
+     bend lane's offset as an absolute pitch class, so a centred wheel was only
+     representable when the scale happened to contain the pitch class at -root.
+     Measured across all twelve roots with the major mask, wheel at rest: D, E,
+     F#, A and B snapped to -1 semitone. FIVE OF TWELVE — the report's "only with
+     certain scales", exactly. Spring did not cause it, it revealed it: only then
+     does the wheel come to rest at 0 and the 8-cent hysteresis park it on the
+     wrong step.
+
+     The fix is to snap the SOUNDING PITCH (base + offset) and emit the offset
+     that lands there. Centre-is-centre stops being a special case and becomes
+     structural: at rest the wheel asks for base, which is in the scale whenever
+     the played note is. It also composes — "both" no longer quantises twice in
+     two different coordinate systems.
+
+     Deliberate consequence, not an oversight: playing a note OUTSIDE the scale
+     with quantise on pulls it in even at rest. That is what "quantise the
+     sounding pitch" means, and it is what the note lane already did. */
+  quantise(p, base = 0) {
     const q = p.quant | 0;
     if (!q) { this.q = this.x; return this.x; }
-    const semis = this.x;                       // lane units are semitones
+    const semis = base + this.x;                // ABSOLUTE pitch, not the offset
     let best = Math.round(semis), bestD = Infinity;
     if (q === 2 && p.scaleMask) {
       // nearest allowed scale degree, searching a couple of octaves either way
@@ -309,8 +331,8 @@ class Inertia {
     if (this.qStep !== undefined && best !== this.qStep && !gateOpen) best = this.qStep;
     if (best !== this.qStep) { this.qStep = best; this.qFlips = (this.qFlips || 0) + 1;
                                this.qT = 0; }
-    this.q = best;
-    return best;
+    this.q = best - base;
+    return best - base;   // back into this lane's units
   }
 }
 
@@ -476,7 +498,10 @@ class BendBench {
         // MPE routes the wheel to the NEWEST sounding note only; every other
         // note keeps the bend it was left holding.
         if (P.mpe && this.newest) this.newest.bendTgt = this.bendTarget;
-        if (P.applyTo !== 1) this.bendAct = this.bend.step(this.bendTarget, P);
+        // A global wheel bends every sounding note; quantising needs ONE reference,
+        // and the newest note is the one the player is steering.
+        if (P.applyTo !== 1) this.bendAct = this.bend.step(this.bendTarget, P,
+                                                          this.newest ? this.newest.midi : 0);
         else { this.bend.reset(this.bendTarget); this.bendAct = this.bendTarget; }
         histT[histW & HMASK] = this.bendTarget;
         histA[histW & HMASK] = P.mpe && this.newest ? this.newest.bendAct : this.bendAct;
@@ -484,7 +509,7 @@ class BendBench {
         for (const nt of this.notes) {
           if (!nt.gate && nt.env < 1e-4) continue;
           if (P.mpe)
-            nt.bendAct = (P.applyTo !== 1) ? nt.bend.step(nt.bendTgt, P) : nt.bendTgt;
+            nt.bendAct = (P.applyTo !== 1) ? nt.bend.step(nt.bendTgt, P, nt.midi) : nt.bendTgt;
           nt.stCur = (P.applyTo !== 0) ? nt.pitch.step(nt.midi, P) : nt.midi;
           for (let i = 0; i < n; i++) nt.driftPh[i] += 0.4 * (0.7 + 0.6 * i / n) * TICK / sr;
           this.updVf(nt);

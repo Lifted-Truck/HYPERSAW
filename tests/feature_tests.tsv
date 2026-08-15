@@ -51,7 +51,7 @@ SWM-2	OSC	The swarm	agentic	RULING	adr-058	waveshape_check	waveshape morph is co
 CPL-1	OSC	The coupling	agentic	RULING	spec	force_check	coupling K drives the population toward the ruled order parameter
 CPL-2	OSC	The coupling	human	RULING	human	manual	K sweep is musically continuous — no zipper, no sudden collapse
 DRF-1	OSC	Drift	agentic	RULING	spec	glide_check	glide/inertia laws match the bend lab, parity within L0
-DRF-2	OSC	Drift	agentic	RULING	hypersaw	none	bend quantisation: a centred wheel reads centre in EVERY scale (open bug, root!=C)
+DRF-2	OSC	Drift	agentic	RULING	human	none	bend quantisation snaps the SOUNDING pitch, not the offset — a centred wheel reads centre in every scale (fixed 2026-08-15, wants a gate)
 SPC-1	OSC	Spectra	agentic	RULING	spec	spectra_check	SPECTRA engine matches the reference
 SPC-2	OSC	Spectra	agentic	RULING	adr-057	parity_check	SPECTRA transposition is exact at the octave
 FX-1	FX	FX rack	agentic	RULING	adr-054	routing_check	the slot chain routes in the declared order
