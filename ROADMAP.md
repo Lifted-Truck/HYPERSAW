@@ -8,6 +8,38 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## BEND QUANTISER FIXED — human ratified the recommendation (2026-08-15)
+
+**Protected path edited under explicit human go-ahead.** `bend-lab.html`'s `quantise()` now snaps the
+**sounding pitch** (`base + offset`) and emits the offset that lands there, instead of treating a
+bend OFFSET as an absolute pitch class.
+
+`step(t, p, base = 0)` carries the reference: **0** for the note lane (whose value already *is* the
+pitch, so its behaviour is unchanged — verified: `x = 64.4 -> 64`), **`nt.midi`** for a per-note MPE
+bend, and **the newest sounding note** for the global wheel, since a global bend needs one reference
+and the newest note is the one the player is steering.
+
+**Verified against the original measurement, by executing the real class** (brace-matched out of the
+lab, not a re-implementation — a re-implementation would agree with itself):
+
+| | before | after |
+|---|---|---|
+| roots where a centred wheel is not centred | **D, E, F♯, A, B** | **none** |
+| +1.6 st from C, C major | — | 2 (D) |
+| +0.4 st from C, C major | — | 0 (stays C) |
+| note lane, x = 64.4 | 64 | 64 (unchanged) |
+
+**Centre-is-centre is now structural rather than a special case**: at rest the wheel asks for `base`,
+which is in the scale whenever the played note is. "Both" also stops quantising twice in two
+coordinate systems.
+
+**Deliberate consequence, recorded rather than discovered later:** playing a note OUTSIDE the scale
+with quantise on now pulls it in *at rest*. That is what "quantise the sounding pitch" means, and it
+is what the note lane already did — the two lanes now agree instead of disagreeing.
+
+`DRF-2` stays in the test table as a gap: the behaviour is fixed, **the gate is not written**, and a
+fix without a gate is how this returns.
+
 ## FEATURE TEST TABLE — the other half of the MVP plan, seeded from what already runs (2026-08-15)
 
 `tests/feature_tests.tsv` + `tools/test_table_check.py`, gated in `./verify fast`.
