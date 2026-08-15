@@ -237,6 +237,15 @@ full() {
   # Calibrated: removing the read-side acyclicity guard makes it FAIL.
   "$build_dir/routing_check" || return 1
 
+  # NOTCH REACHABLE AS A RACK SLOT (parallel-streams round, stream A). NotchCore
+  # itself was fully oracle-covered (notch_check, below) but unreachable from
+  # the shipping FX rack — nothing in the product could ever select it. Drives
+  # the real plugin through the CLAP factory: a slot set to Notch with a
+  # non-zero amount must measurably change the output spectrum, WITH a
+  # must-read-nothing control (Off must equal the no-slot case, bit-exact).
+  # Calibrated: making the Notch case a no-op makes it FAIL — see the trace.
+  "$build_dir/notchslot_check" || return 1
+
   # SUBDIVISION INVARIANCE (ADR-086, gate ratified 2026-08-10). Rendering must
   # not depend on how a buffer is split — a host may send 2048 frames or 33, and
   # the multi-oscillator mix splits further still. None of that is a musical

@@ -23,7 +23,10 @@
 
 #include <cmath>
 #include <cstring>
+#include <memory>
 #include <vector>
+
+#include "notch_core.h"
 
 namespace hypersaw
 {
@@ -32,7 +35,10 @@ constexpr int kRackSlots = 4;
 
 // Effect types. Off is the inert default; Drive/Filter/Gain are the increment-1
 // placeholders (kept — order is audible with them); Comp and Comb (ADR-071) are
-// the first REAL cores, transcribed from the detune-lab prototype.
+// REAL cores transcribed from the detune-lab prototype; Notch (added for the
+// parallel-streams round) is the Track E1.2 swarm-herded notch cascade
+// (notch_core.h), ported and oracle-covered (notch_check) but previously
+// unreachable from the rack — this slot is what makes it selectable.
 enum class FxType : int
 {
   Off = 0,
@@ -41,6 +47,9 @@ enum class FxType : int
   Gain = 3,    // level        — amount 0.5 = unity, 0 = silence, 1 = +6 dB
   Comp = 4,    // lab comp+limiter: amount = strength; 0.98 brickwall always on
   Comb = 5,    // polyphonic per-note Karplus-Strong comb: amount = wet mix
+  Notch = 6,   // swarm-herded notch cascade (NotchCore): amount -> core's own
+               // dry/wet `mix` param; population/topology stay at core defaults
+               // until the rack grows a per-slot param page for them.
 };
 
 // Comb bank size: one tuned line per sounding note, stolen oldest-first past 8.
@@ -78,6 +87,11 @@ class FxRack
     compAtk = 1.0 - std::exp(-1.0 / (6.3576e-5 * sr));
     compRel = 1.0 - std::exp(-1.0 / (1.5106e-2 * sr));
     compEnv = 0;
+    // Notch (Track E1.2): one NotchCore per slot, (re)constructed here — main
+    // thread only, never in processSlot (RT-safety: NotchCore's ctor allocates
+    // nothing itself, but rebuilding it fresh at the new sr is still an
+    // allocation-shaped operation and belongs where the comb buffers are sized).
+    for (auto &n : notch) n = std::make_unique<NotchCore>(sr);
     // Declick constants in SECONDS, converted here (ADR-009). 6 ms is long
     // enough to be inaudible as a step and short enough that a retuned line is
     // back before the next note; 30 ms smooths the 1/activeLines normaliser,
@@ -322,6 +336,21 @@ class FxRack
           }
           break;
         }
+        case FxType::Notch:
+        {
+          // Swarm-herded notch cascade (notch_core.h), driven as a bus effect
+          // via processExternal — NOT render(), which is the self-generating
+          // exciter path used by the standalone NotchCore oracle. `amount`
+          // drives the core's own dry/wet `mix` (cheap: `mix` is not one of
+          // the keys that trigger rebuild() in NotchCore::setParam, so this is
+          // a plain per-block store, not a rebuild). In place is safe: for
+          // each sample processExternal reads inL/inR into `dry` BEFORE it
+          // writes outL/outR, so L==inL and R==inR aliasing does not read a
+          // value this same call already overwrote.
+          notch[idx]->setParam("mix", s.amount);
+          notch[idx]->processExternal(L, R, L, R, n);
+          break;
+        }
       }
     }
   }
@@ -359,6 +388,11 @@ class FxRack
   };
   Slot slots[kRackSlots];
   Comb combs[kCombLines];
+  // One NotchCore per slot (main-thread constructed, see setSampleRate). A
+  // slot never in Notch mode still owns a live core doing nothing — cheap
+  // (a handful of doubles) and it keeps processSlot allocation-free forever,
+  // rather than lazily constructing on first use from the audio thread.
+  std::unique_ptr<NotchCore> notch[kRackSlots];
   double sr = 44100;
   // Comp state — coefficients derived from SECONDS constants in setSampleRate
   // (ADR-009); these defaults are the 44.1 kHz values so a shell that never
