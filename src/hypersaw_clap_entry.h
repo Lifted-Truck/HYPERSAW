@@ -30,4 +30,16 @@ extern "C"
   /* TEST HOOK — the host-misconfiguration hint, empty when there is nothing to
      say. Exposed so the DETECTION can be gated; the GUI presentation cannot be. */
   const char *hypersaw_test_host_hint(const clap_plugin_t *p);
+
+  /* TEST HOOKS — note-bookkeeping introspection for the FOUNDATIONS
+     note-lifecycle conformance suite (their R5). Read-only windows onto the tag
+     table and voice gate, plus ONE shipped mutator (retireTag). Deliberately
+     NOT a second note-on path: the suite's notes arrive as real CLAP events
+     through the real process(), so what is certified is the shell we ship. */
+  int hypersaw_test_poly(void);
+  bool hypersaw_test_tag_at(const clap_plugin_t *p, int slot, int32_t *note_id, int16_t *port,
+                            int16_t *channel, int16_t *key);
+  bool hypersaw_test_retire_slot(const clap_plugin_t *p, int slot, int32_t *note_id, int16_t *port,
+                                 int16_t *channel, int16_t *key);
+  bool hypersaw_test_slot_gated(const clap_plugin_t *p, int slot);
 }

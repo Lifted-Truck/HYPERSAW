@@ -228,6 +228,21 @@ if(NOT MSVC)
   target_compile_options(notchslot_check PRIVATE -O2)
 endif()
 
+# conformance_check: FOUNDATIONS' note-lifecycle conformance suite (their R5),
+# run against OUR tag tables. OPTIONAL BY CONSTRUCTION — their headers are
+# vendored to a gitignored path because this repo is public and theirs is
+# private (human ruling 2026-08-15), so the target simply does not exist where
+# they are absent, which is every CI runner. `./verify` reports it SKIPPED
+# there rather than pretending the check ran.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs/vendor/foundations/note_conformance.h")
+  add_executable(conformance_check tools/conformance_check.cpp)
+  target_link_libraries(conformance_check PRIVATE ${PROJECT_NAME}-impl)
+  target_include_directories(conformance_check PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs/vendor")
+  if(NOT MSVC)
+    target_compile_options(conformance_check PRIVATE -O2)
+  endif()
+endif()
+
 add_executable(rtsafety_probe tools/rtsafety_probe.cpp)
 target_link_libraries(rtsafety_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)

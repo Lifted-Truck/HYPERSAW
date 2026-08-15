@@ -2513,6 +2513,57 @@ const char *hypersaw_test_dump_forensics(const clap_plugin_t *p, const char *why
   return held.empty() ? nullptr : held.c_str();
 }
 
+/* ---- note-bookkeeping introspection, for the FOUNDATIONS conformance suite --
+   These are READ-ONLY windows plus ONE shipped mutator (retireTag). They exist
+   so an external suite can assert our tag tables without the adapter
+   reimplementing any of the behaviour under test: the notes themselves still
+   arrive as real CLAP events through the real process() path, and the steal
+   decision still happens where it lives (swarm_core.h alloc()). An adapter that
+   recomputed "who should have been stolen" would be an oracle checking its own
+   copy of the rule (L0031). */
+
+int hypersaw_test_poly(void) { return (int)hypersaw::kPoly; }
+
+bool hypersaw_test_tag_at(const clap_plugin_t *p, int slot, int32_t *note_id, int16_t *port,
+                          int16_t *channel, int16_t *key)
+{
+  if (slot < 0 || slot >= (int)hypersaw::kPoly) return false;
+  const auto &t = self(p)->tags[slot];
+  if (note_id) *note_id = t.noteId;
+  if (port) *port = t.port;
+  if (channel) *channel = t.channel;
+  if (key) *key = t.key;
+  return t.active;
+}
+
+/* Calls the SHIPPED retireTag() — the same function a steal and a mono retarget
+   call — and reports the identity it took. Returns false when the slot held
+   nothing, which is what makes the suite's no-double-END case meaningful: the
+   second call must find an inactive tag and yield no identity. */
+bool hypersaw_test_retire_slot(const clap_plugin_t *p, int slot, int32_t *note_id, int16_t *port,
+                               int16_t *channel, int16_t *key)
+{
+  if (slot < 0 || slot >= (int)hypersaw::kPoly) return false;
+  auto *s = self(p);
+  const auto before = s->tags[slot];
+  s->retireTag(slot);
+  if (!before.active) return false;
+  if (note_id) *note_id = before.noteId;
+  if (port) *port = before.port;
+  if (channel) *channel = before.channel;
+  if (key) *key = before.key;
+  return true;
+}
+
+/* Gate state of the logical voice at `slot`, read from oscillator 0's voice —
+   `slotOf[slot][0] == slot` by definition. "Released" for the steal cases means
+   gate == 0, which is exactly the predicate alloc()'s tiers read. */
+bool hypersaw_test_slot_gated(const clap_plugin_t *p, int slot)
+{
+  if (slot < 0 || slot >= (int)hypersaw::kPoly) return false;
+  return self(p)->core.voiceAt(slot).gate != 0;
+}
+
 bool hypersaw_entry_init(const char *) { return true; }
   void hypersaw_entry_deinit(void) {}
   const void *hypersaw_entry_get_factory(const char *factory_id)
