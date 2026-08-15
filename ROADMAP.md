@@ -8,6 +8,100 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## BEND LAB BUG CONFIRMED — the quantiser treats a bend OFFSET as an absolute pitch (2026-08-15)
+
+**Human report:** with spring + inertia applied to the mod wheel (or "both"), the wheel does not
+always return to centre; suspected pitch quantisation, and suspected scale-dependent. **Both halves
+of that hypothesis are correct.** Reproduced deterministically from `bend-lab.html:280` `quantise()`
+— no ear, no timing, no audio needed.
+
+`quantise()` snaps the lane value to the nearest allowed **scale degree**, computed as
+`mask[((c - root) % 12 + 12) % 12]`. That is correct for the NOTE lane, where the value is an
+absolute pitch. **The bend lane's value is a RELATIVE offset in semitones**, and the same code
+treats offset 0 as pitch class 0 — so a centred wheel is only representable when the scale happens
+to contain the pitch class at `-root`. Where it does not, the nearest legal offsets are ±1 and the
+tie resolves downward.
+
+Measured across all twelve roots with the major mask, wheel at rest (offset exactly 0):
+
+| root | C | C♯ | **D** | D♯ | **E** | F | **F♯** | G | G♯ | **A** | A♯ | **B** |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| snaps to | 0 | 0 | **−1** | 0 | **−1** | 0 | **−1** | 0 | 0 | **−1** | 0 | **−1** |
+
+**Five of twelve roots**, which is exactly the "only with certain scales" the report describes.
+
+**Spring does not cause it — it reveals it.** Only with spring does the wheel actually come to rest
+at 0 and stay there; the default `q·hysteresis` of 8 cents then parks it on the wrong step. While
+you are dragging, the value is never at rest, so nothing looks stuck.
+
+**NOT FIXED — `bend-lab.html` is a protected path** (the prototypes ARE the reference; an edit there
+is a spec change). **Recommended ruling: quantise the ABSOLUTE sounding pitch (note + bend), not
+the bend offset.** A released wheel then yields the played note, which is in the scale whenever the
+note is, so centre-is-centre becomes structural rather than a special case — and it composes
+correctly with "both", which today quantises twice in two different coordinate systems.
+**Falsifier for the whole diagnosis:** set root = C and the off-centre rest disappears at every
+other setting.
+
+## MAILBOX — my run report never reached them, and "committed" was not the property that mattered
+
+FOUNDATIONS filed `notice-conformance-suite-defect`: they **confirmed and fixed** the Case 2
+short-circuit we reported (`ok = ok && owed.take(a.end(hs[i]))` → evaluate first, combine after) and
+**pinned it** with a new case asserting *a red run must drive the adapter exactly as often as a
+green run*, calibrated by reverting the fix (`green=12 red=8`). Their note: their own planted
+adapters all failed their FIRST case, so none ever exercised the state after a red — *"the
+checks-that-cannot-fire class in a costume we had not seen."*
+
+**But the notice opens by saying our run report had not arrived, and they were right.** I committed
+it (`803087a`) onto whatever branch happened to be checked out in their repo — `feat/distribution-axis`
+— so it was committed, and invisible on their main. Their rule 7 says *a filing is FILED when it is
+COMMITTED*; **the property that actually matters is committed TO MAIN.** Committing onto a
+correspondent's unrelated feature branch couples your filing to their unrelated work and can strand
+it indefinitely. Cherry-picked to their main as `af31e51`, their branch restored untouched; the
+branch turned out to contain nothing but my stranded commit. **This is the fifth instance of the
+same race and the first where the write really was committed** — so the rule needs the stronger
+form, and that goes back to them.
+
+**Re-pulled their fixed suite (`fa1907f`) and re-ran: byte-identical result** — 6 passed, 2 pinned
+red, ledger 38/38. Confirms their fix and our orphan fix were independent causes, and that our two
+reds never depended on their defect.
+
+## QUEUE — four design items from the human (2026-08-15), none started
+
+**Q1 · Routing feedback.** Adding feedback to the routing system is not a matrix change, it is a
+change of mathematical object: the current model is a DAG enforced by strict upper-triangularity
+(`legal()`, one copy, serving both matrix and graph), and every guarantee we have rests on that.
+Considerations: (a) a cycle needs a **unit-delay seam** — one block or one sample — and *where* it
+sits is audible, not cosmetic; (b) **stability is no longer structural** — loop gain > 1 diverges,
+so it needs a measured bound or a limiter in the loop, and "measured" means a probe, not a
+reassurance; (c) **latency reporting** changes, which is host-visible; (d) the FX pool's fixed rank
+order stops being a topological sort, so `normalling` and the "no cable list" property need
+re-deriving; (e) **denormals** in a decaying loop, which is a real CPU cliff; (f) the oracle
+question — parity cannot see any of this, so it wants an invariant probe (inject an impulse, assert
+bounded energy) of the kind L0031 names.
+**Recommendation: a feedback SEND with an explicit one-block delay and a hard-capped loop gain,
+prototyped in the routing lab before any core change** — the lab is where the topology argument is
+cheap.
+
+**Q2 · NORM default for stranded modules.** Agreed, and the asymmetry is real: normalling-to-MST is
+right for a SOURCE (an oscillator with no cable should still be heard — silence would read as
+broken) and wrong for a **stranded FX module**, which has nothing to process and should contribute
+nothing. Proposal: **normalling applies to nodes with no INPUT (sources), not to nodes with no
+output.** An FX slot with no input defaults to 0 and shows as inert rather than as a silent
+mystery. Lab change first, then `routing_core.h`.
+
+**Q3 · Shape Lab edit modes.** Two asked for: (a) a **bar/step mode** — drag vertical bars at the
+divider-width resolution, i.e. the shape quantised to the current subdivision, which is a different
+editing *model* from breakpoints rather than a different mouse binding; (b) **shift+select multiple
+anchors** with group move/scale. Note (a) and (b) interact: a bar edit is a constrained multi-anchor
+move, so building selection first makes bars cheaper.
+
+**Q4 · LFO morphing + a proper random/stray LFO.** Morphing between LFOs is the same question the
+morph-law bench asked of the dense table — **interpolate the SHAPE or cross-fade the OUTPUT** — and
+they differ audibly at speed; the bench already exists and should answer it rather than a guess.
+The random LFO needs deciding as a *family*, not a checkbox: sample-and-hold, smoothed/drunk
+(bounded random walk), and true drift are three different instruments, and all three must be
+**seeded** — no wall-clock, per the domain invariant — so that a preset recalls the same wander.
+
 ## CONFORMANCE RUN DONE — 6/8, and both first diagnoses were wrong (2026-08-15)
 
 Human ruled the vendoring question (headers untracked, gate SKIPs). Adapter built, suite run,
