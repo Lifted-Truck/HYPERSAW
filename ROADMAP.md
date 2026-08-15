@@ -8,6 +8,58 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FX SLOT CONTRACT — the human sent it back to the drawing board, and was right (2026-08-15)
+
+Human on the Notch finding: *"the shape of an issue that we need a universal solution for instead of
+a patchwork… go back to the drawing board and consider the most hygienic alternatives that can be
+applied universally."* Proposal at `docs/proposals/fx-slot-contract.md`. **The survey is worse than
+the Notch case suggested.**
+
+**`amount` means four different things across six slots**, with three different identity points:
+
+| slot | `amount` means | no-op value |
+|---|---|---|
+| Drive | dry/wet | 0 |
+| Filter | cutoff severity | 0 (open) |
+| Gain | level | **0.5** unity; 0 = silence |
+| Comp | strength | **none** — 0.98 brickwall always on |
+| Comb | wet mix | 0 |
+| Notch | core's internal `mix` | **none** — measured −5.4 dB, mono |
+
+**And the evidence is one-sided: five of six rows are DOCUMENTATION. Exactly one was ever measured —
+Notch — and it was wrong.** We should not assume the other five are right; we should assume they are
+unmeasured. That asymmetry is the whole argument for a probe over a patch.
+
+**Proposed rule:** the rack owns dry/wet, slots produce wet only —
+`out = (mix == 0) ? in : lerp(in, slot.wet(in), mix)`. `mix = 0` early-outs, so **passthrough is
+bit-identical by construction rather than by each slot remembering to honour it** — a rule the rack
+enforces cannot be broken by a new slot type, which is exactly the property the current design lacks
+and the reason Notch could ship wrong. `amount` stops carrying bypass duty and becomes per-slot
+character, which makes Gain's 0.5-unity and Comp's always-on brickwall ordinary rather than
+anomalous.
+
+**Where a naive crossfade would be wrong, recorded so the universal rule is not a patchwork with
+extra steps:** dry+compressed is *parallel compression*, not less compression, and dry+lowpass is a
+shelf — so `mix` and `amount` are genuinely different axes and both must exist; blending against a
+*delayed* wet signal comb-filters, so latency must be declared and the slot either compensated or
+marked wet-only; and image/level are separate promises (Notch collapsed stereo; Gain legitimately
+changes level). Hence a per-type declaration:
+`{identity_at, blends_dry, changes_image, changes_level, latency_samples}`.
+
+**The gate is the part that prevents recurrence.** `slotcontract_check` drives the real rack for
+EVERY slot type: bit-identical passthrough at `identity_at`; stereo image preserved under
+decorrelated input (L 220 / R 330 — the input that caught Notch) unless declared; level within
+tolerance unless declared; declared latency matches measured group delay. A new slot cannot ship
+without a declaration, and a declaration that lies fails the build.
+
+**Same shape as the two artefacts landed this week** — declare the contract as data, enforce it with
+a gate that reads the declaration — which is a reason to prefer it rather than a coincidence.
+
+**Three rulings needed** (in the proposal): ratify the rule; wet-only vs delay-compensated for latent
+slots (recommend wet-only first); confirm `mix` defaults to 1 so saved patches are unchanged.
+**Nothing is built until they land — but the probe is worth running regardless**, because it answers
+the question we currently cannot: how many of the other five documented contracts are also fiction.
+
 ## BEND QUANTISER FIXED — human ratified the recommendation (2026-08-15)
 
 **Protected path edited under explicit human go-ahead.** `bend-lab.html`'s `quantise()` now snaps the
