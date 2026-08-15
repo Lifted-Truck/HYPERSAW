@@ -14,6 +14,14 @@ build-*/
 # local-only alias map for private siblings (ADR-014)
 PRIVATE-NOTES.md
 
+# FOUNDATIONS' conformance headers, vendored locally and NEVER committed: this
+# repo is public and theirs is private, so tracking them would publish a private
+# sibling's source (human ruling 2026-08-15). Our ADAPTER over them is ours and
+# IS tracked (tools/conformance_check.cpp) — only their code is excluded. The
+# gate degrades visibly: ./verify prints SKIPPED when these are absent, which is
+# what public CI will always see.
+libs/vendor/foundations/
+
 # Quantum Morph specs + demo — reference a private sibling by real name; kept
 # local-only until aliased (relocated from repo root 2026-07-22; ROADMAP tracks
 # the plan). Un-ignore once the private names are aliased for tracking.

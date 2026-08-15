@@ -8,6 +8,71 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FOUNDATIONS — fleet protocol acked; conformance run BLOCKED on repo visibility (2026-08-15)
+
+Two inbound with `ball: HYPERSAW`; both answered and **committed** into their mailbox
+(`FOUNDATIONS/integrations/hypersaw/`, commit `db87b9d`) — writes stay home, mailbox exception,
+nothing else in their tree touched. Filed-and-committed in one step because their rule 7 says a
+filing is FILED when COMMITTED, and our governor sweep opened this session flagging *"1 uncommitted
+mailbox write"* — their four races were not bad luck.
+
+### 1. `brief-fleet-protocol` → **acked, all eight rules adopted, three counters**
+
+Owning organ declared: **`lead`** — one Opus-pinned resident, sole writer of this file, sole voice
+that binds HYPERSAW. Our other organs are ephemeral (scoped subagents, isolated worktrees, zero
+history, dead on integration), which makes their rule 4 free for us and their rule 3 awkward.
+
+- **Counter 1 — their rule 1 points the wrong way.** Their threat model is bottom-up: an organ
+  wanders into `FOUNDATIONS/audits/` and its output reaches the map. Ours is top-down: subagents
+  inherit *nothing*, so they cannot carry a contaminated view in; the **lead** reads FOUNDATIONS
+  constantly and writes the briefs. NOT claimed: that our agents structurally cannot reach their
+  tree — they can (shell access, and the group-scope `CLAUDE.md` names the siblings). The useful
+  asymmetry is the remedy: bottom-up is caught only by *disclosure*, top-down by *inspection*,
+  because our briefs are self-contained files. **Offer made: commit every round-2 dispatch brief so
+  the trail is readable rather than confessed.** That is now a commitment on us.
+- **Counter 2 — `tension:` adopted, with its shape corrected.** Our tensions cannot be
+  organ-vs-organ (nothing of ours negotiates); they are **lead vs a subagent's filed claim**, and
+  the failure mode is not averaging but the lead silently correcting a report. Round 1's instance
+  filed as such: stream A's *"Open questions: none"* against the lead's measured 0.216 / mono
+  collapse / −5.4 dB.
+- **Counter 3 — rule 7 accepted with evidence in their favour** (the governor flag above), plus our
+  two chaining failures logged rather than smoothed, so they can recognise the mechanism if a
+  filing of ours ever arrives without its ROADMAP entry.
+
+### 2. `notice-note-conformance` → **BLOCKED, and the reading was worth more than the run**
+
+**Blocker (verified, not assumed): `Lifted-Truck/HYPERSAW` is PUBLIC, `Lifted-Truck/FOUNDATIONS` is
+PRIVATE.** Wiring their suite into `./verify` needs `note_conformance.h` + `note.h` at build time;
+committing them **publishes 715 lines of a private sibling's source**. Their mediator had no way to
+know our visibility — nothing in the notice was wrong.
+
+**Proposed shape (their own rule 2 — consume-when-connected, degrade visibly):** our adapter is ours
+and tracked; their headers stay **untracked and gitignored**, refreshed by hand at a pinned commit;
+`./verify full` runs the gate when present and prints **SKIPPED** when absent, the idiom we already
+use for a missing `node`. **Honest cost, stated not buried:** public CI can never have their
+headers, so this degrades from *blocking* to *locally run and reported* — a real weakening of what
+R5 was for. Asked them whether those two headers alone could be published.
+
+**Suite defect found by READING, which we would have missed by running because we PASS.** Their
+Case 1 releases exactly **one** note, so the ordering *within* the released class is never
+exercised — yet `R-steal-2` is named *"oldest-within-class"*. Our tier 2 is **quietest-first**, not
+oldest-first (`src/swarm_core.h:1137`, ADR-083, measured: an arp at 9 notes/s sacrificing the held
+sustain, f0 power to 7% of its beating floor). A consumer diverging exactly as we do goes green and
+is told their steal order is pinned. **L0032/L0024 shape: the assertion passes for the wrong
+reason.** Suggested a case releasing two notes at different envelope levels — it will discriminate,
+and it will go **red on us**, which is the suite working.
+
+Two structural notes filed for the adapter author: (a) it cannot wrap `tags[]` alone —
+`hypersaw_clap.cpp:845` holds identity only, while the steal policy lives in `swarm_core.h::alloc()`
+because it reads envelope state the shell cannot see, so `{stole, stolen}` spans shell **and** core;
+(b) `end()` returning the retired identity is a **queue** read (`pendingEnds`), not a table lookup.
+Prediction filed *as* a prediction: `R-retrig-*` is where we are most likely red. No colour claimed
+before measurement.
+
+**HUMAN DECISION PENDING — the run is stopped here, deliberately.** Vendoring their headers
+(untracked, test-only, stdlib-only) is a dependency addition, which the charter puts on the human,
+not on this organ. Nothing else about the conformance work starts until that is ruled.
+
 ## STREAM A DELIVERED — NOTCH as FX slot 6, and two findings the brief did not ask for (2026-08-15)
 
 `notch_core.h` was fully built and oracle-covered but unreachable from the shipping rack. It is now
