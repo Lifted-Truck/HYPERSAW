@@ -1,0 +1,216 @@
+<!doctype html>
+<!-- fx-page-lab — F-A: the FX page's shape, before any of it touches gui2.
+     HYPERSAW, 2026-08-15. Spec-in-code per ADR-003.
+
+     WHAT THIS EXPLORES (the human's directive, 2026-08-14): SPACE dissolves as
+     a page — the reverb is an FX MODULE like any other. Each module gets a
+     compact box with a small LIVE visualizer, and an expanded view. The pool,
+     rank order, params, chars and salience defaults are QM-3's (§2-§3), so the
+     page being felt out here is the page the ruled morph law will inhabit —
+     boxes carry a corner-ownership strip as a placeholder for QM's census
+     colouring, and every control row shows its QM slot-mode chip (AUTO today).
+
+     WHAT THIS IS NOT: an audio audition (the routing lab F-B owns that, where
+     the matrix matters) and not a routing UI (send matrix deliberately absent —
+     one lab, one question: what does a MODULE feel like?).
+
+     L0026: all state above all wiring. No devicePixelRatio (stubs lack it). -->
+<html><head><meta charset="utf-8"><title>FX Page Lab — modules, mini-viz, expanded views</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151f; --panel2:#161b28; --line:#2a3040;
+    --dim:#7f8899; --text:#cdd6e4; --teal:#5ff2e0; --amber:#ffc24b;
+    --cA:#f2b134; --cB:#ff4d6d; --cC:#4cc9f0; --cD:#7ae582; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text);
+    font:12px/1.45 ui-monospace,Menlo,monospace; padding:12px 16px; max-width:1160px; margin:0 auto; }
+  h1 { font-size:16px; } .sub { color:var(--dim); font-size:11px; margin-bottom:12px; }
+  .rack { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:10px; }
+  .mod { background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden;
+    transition:box-shadow .15s; }
+  .mod.expanded { grid-column:1 / -1; box-shadow:0 0 0 1px var(--amber); }
+  .mod.bypassed .body { opacity:.38; }
+  .mhead { display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--panel2);
+    cursor:pointer; border-bottom:1px solid var(--line); }
+  .mhead b { font-size:12px; } .mhead .rank { color:var(--dim); font-size:10px; }
+  .mhead .exp { margin-left:auto; color:var(--dim); font-size:10px; }
+  .corner-strip { display:flex; height:3px; }
+  .corner-strip i { flex:1; }
+  .pw { width:11px; height:11px; border-radius:50%; border:1px solid var(--dim); cursor:pointer; flex:none; }
+  .pw.on { background:var(--teal); border-color:var(--teal); }
+  .body { padding:8px 10px; }
+  canvas.viz { display:block; width:100%; background:#0d1017; border:1px solid #1c2230;
+    border-radius:5px; margin-bottom:7px; }
+  .row { display:grid; grid-template-columns:52px 1fr 44px 34px; gap:6px; align-items:center; margin:4px 0; }
+  .row label { color:var(--dim); font-size:10px; }
+  .row output { font-size:10px; text-align:right; }
+  .chip { font-size:8px; color:var(--dim); border:1px solid var(--line); border-radius:3px;
+    text-align:center; padding:1px 0; cursor:default; }
+  .chip.q { color:var(--cB); border-color:var(--cB); }
+  input[type=range] { width:100%; height:14px; }
+  .seg { display:flex; gap:3px; } .seg button { flex:1; background:#1a2130; border:1px solid var(--line);
+    color:var(--dim); border-radius:4px; font:9px ui-monospace,monospace; padding:2px 0; cursor:pointer; }
+  .seg button[aria-pressed="true"] { color:#0b0e13; background:var(--teal); border-color:var(--teal); }
+  .xnotes { display:none; color:var(--dim); font-size:11px; padding:4px 2px 0; line-height:1.5; }
+  .mod.expanded .xnotes { display:block; }
+  .mod.expanded .body { display:grid; grid-template-columns:1.1fr 1fr; gap:12px; }
+  .mod.expanded canvas.viz { height:150px; }
+  .mst { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px;
+    margin-top:10px; display:flex; gap:14px; align-items:center; color:var(--dim); font-size:11px; }
+  .findings { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:12px; margin-top:12px; font-size:12px; line-height:1.6; }
+  .findings h2 { font-size:12px; color:var(--amber); margin-bottom:6px; }
+  b.k { color:var(--teal); }
+</style></head><body>
+
+<h1>FX Page Lab</h1>
+<div class="sub">QM-3 pool in rank order · each module: compact box + live mini-viz + click header to expand ·
+reverb is a module, not a page (SPACE dissolved) · corner strip + slot-mode chips are the morph panel's
+landing sites. No audio here on purpose — the routing lab owns audition.</div>
+
+<div class="rack" id="rack"></div>
+
+<div class="mst">MST — master bus · safety limiter (not morphable, not shown as a module: QM-3 §4 keeps it
+out of the manifest, so the page must not present it as one) · meters land here (K2)</div>
+
+<div class="findings">
+  <h2>Layout findings (edit as they accrue)</h2>
+  1. <b class="k">The mini-viz earns its pixels</b> — with seven modules visible, the curve IS the
+  identity; names become secondary. The viz must be LIVE (redraw on every param) or it reads as an icon.<br>
+  2. <b class="k">char belongs in the header</b>, not the body — switching flanger→phaser changes what
+  the module IS; burying it below the fold makes the box lie.<br>
+  3. <b class="k">Expanded view = same controls, more resolution</b> — not more controls. Params hidden
+  until expansion would recreate the L0023 trap inside one page.<br>
+  4. <b class="k">The corner strip wants to be the census</b> — under QUANTUM each module's strip shows
+  its owning corner(s); under GRADUAL it blends. One glyph serves both laws.<br>
+  5. <b class="k">Two drives at opposite ranks need visual kinship + rank labels</b> — DRV1/DRV2 share a
+  curve shape; the rank badge is what tells you which side of the space modules you are on.
+</div>
+
+<script>
+'use strict';
+/* ---- all state above all wiring (L0026) ---- */
+const CORNERS=['#f2b134','#ff4d6d','#4cc9f0','#7ae582'];
+/* QM-3 §3 manifests, verbatim ids/ranges/saliences; viz = per-kind drawer */
+const MODS=[
+ {id:'DRV1',rank:1,name:'drive',viz:'drive',chars:['soft','fold','asym'],
+  params:[{id:'drive',min:0,max:1,v:.35,sal:1.5},{id:'tone',min:500,max:12000,v:4000,log:1,sal:1.0,fmt:'hz'}]},
+ {id:'FLT1',rank:2,name:'filter',viz:'filter',chars:['LP','BP','HP','NOTCH'],
+  params:[{id:'cutoff',min:40,max:16000,v:1200,log:1,sal:2.5,fmt:'hz'},{id:'res',min:.5,max:20,v:1.5,log:1,sal:1.2,fmt:'q'}]},
+ {id:'FLT2',rank:3,name:'filter',viz:'filter',chars:['LP','BP','HP','NOTCH'],
+  params:[{id:'cutoff',min:40,max:16000,v:400,log:1,sal:2.5,fmt:'hz'},{id:'res',min:.5,max:20,v:4,log:1,sal:1.2,fmt:'q'}]},
+ {id:'CHO',rank:4,name:'modulation',viz:'lfo',chars:['chorus','flanger','phaser'],
+  params:[{id:'rate',min:.05,max:8,v:.8,log:1,sal:1.0,fmt:'hz2'},{id:'depth',min:0,max:1,v:.5,sal:.8},{id:'regen',min:0,max:.9,v:.2,sal:.8}]},
+ {id:'DLY',rank:5,name:'delay',viz:'taps',chars:['stereo','pingpong'],
+  params:[{id:'time',min:30,max:900,v:375,log:1,sal:1.0,fmt:'ms'},{id:'fb',min:0,max:.85,v:.45,sal:1.0},{id:'damp',min:500,max:12000,v:4000,log:1,sal:.8,fmt:'hz'}]},
+ {id:'VRB',rank:6,name:'reverb',viz:'decay',chars:['plate','hall','chamber'],
+  params:[{id:'decay',min:.2,max:12,v:2.4,log:1,sal:1.0,fmt:'s'},{id:'damp',min:800,max:14000,v:5000,log:1,sal:.8,fmt:'hz'},{id:'predelay',min:0,max:120,v:20,sal:.8,fmt:'ms'}]},
+ {id:'DRV2',rank:7,name:'drive · glue',viz:'drive',chars:['tape','clip','fold'],
+  params:[{id:'drive',min:0,max:1,v:.2,sal:1.5},{id:'tilt',min:-6,max:6,v:0,sal:1.2,fmt:'db'}]}];
+MODS.forEach(m=>{m.active=true;m.char=0;m.expanded=false;
+  m.owner=Math.floor(Math.abs(Math.sin(m.rank*7.13))*4);});
+const FMT={hz:v=>v>=1000?(v/1000).toFixed(1)+'k':Math.round(v)+'Hz',hz2:v=>v.toFixed(2)+'Hz',
+  ms:v=>Math.round(v)+'ms',s:v=>v.toFixed(1)+'s',q:v=>'Q'+v.toFixed(1),db:v=>(v>0?'+':'')+v.toFixed(1)+'dB'};
+const fmt=(p,v)=>p.fmt?FMT[p.fmt](v):v.toFixed(2);
+const toSlider=(p,v)=>p.log?Math.log(v/p.min)/Math.log(p.max/p.min):(v-p.min)/(p.max-p.min);
+const fromSlider=(p,x)=>p.log?p.min*Math.pow(p.max/p.min,x):p.min+x*(p.max-p.min);
+const $=s=>document.querySelector(s);
+
+/* ---- per-kind live visualizers: the curve IS the module's identity ---- */
+function drawViz(m){
+  const cv=m._cv; if(!cv)return;
+  const ctx=cv.getContext('2d'),W=300,H=m.expanded?150:56;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#5ff2e0';ctx.lineWidth=1.6;ctx.beginPath();
+  const P={};m.params.forEach(p=>P[p.id]=p.v);
+  if(m.viz==='drive'){
+    const d=P.drive??.3,ch=m.chars[m.char];
+    for(let i=0;i<=60;i++){const x=i/60*2-1;let y;
+      const g=1+d*6;
+      if(ch==='fold'){y=Math.sin(x*g*1.5);}
+      else if(ch==='clip'){y=Math.max(-0.8,Math.min(0.8,x*g));}
+      else if(ch==='asym'){y=Math.tanh(x*g+d*0.8)-Math.tanh(d*0.8);}
+      else{y=Math.tanh(x*g);}
+      const px=i/60*W,py=H/2-y*H*.42;
+      i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  } else if(m.viz==='filter'){
+    const fc=P.cutoff,q=P.res,ty=m.chars[m.char];
+    for(let i=0;i<=80;i++){const f=40*Math.pow(400,i/80);const r=f/fc;let mag;
+      if(ty==='LP')mag=1/Math.sqrt(Math.pow(1-r*r,2)+Math.pow(r/q,2));
+      else if(ty==='HP')mag=r*r/Math.sqrt(Math.pow(1-r*r,2)+Math.pow(r/q,2));
+      else if(ty==='BP')mag=(r/q)/Math.sqrt(Math.pow(1-r*r,2)+Math.pow(r/q,2));
+      else{mag=Math.abs(1-r*r)/Math.sqrt(Math.pow(1-r*r,2)+Math.pow(r/q,2));}
+      const db=Math.max(-30,Math.min(24,20*Math.log10(Math.max(1e-4,mag))));
+      const px=i/80*W,py=H*.62-db/54*H;
+      i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  } else if(m.viz==='lfo'){
+    const rt=P.rate,dp=P.depth,ch=m.chars[m.char];
+    for(let i=0;i<=80;i++){const t=i/80*2*Math.PI*Math.max(1,rt);
+      let y=Math.sin(t);if(ch==='phaser')y=Math.sign(Math.sin(t))*Math.pow(Math.abs(Math.sin(t)),.5);
+      const px=i/80*W,py=H/2-y*dp*H*.4;
+      i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  } else if(m.viz==='taps'){
+    ctx.stroke();
+    const tm=P.time,fb=P.fb,pp=m.chars[m.char]==='pingpong';
+    for(let k=0;k<6;k++){const a=Math.pow(fb,k);if(a<0.02)break;
+      const x=20+(tm/900)*(W-40)*(k+1)/2.2;if(x>W-4)break;
+      ctx.fillStyle='rgba(95,242,224,'+(a*.9)+')';
+      const yb=pp?(k%2?H*.2:H*.55):H*.3;
+      ctx.fillRect(x,yb,4,H*.35);}
+    ctx.beginPath();
+  } else if(m.viz==='decay'){
+    const dc=P.decay,pd=P.predelay;
+    const px0=(pd/120)*W*.18;
+    ctx.moveTo(2,H*.85);ctx.lineTo(px0+2,H*.85);ctx.lineTo(px0+5,H*.12);
+    for(let i=0;i<=60;i++){const t=i/60*3;const y=Math.exp(-3*t/dc);
+      ctx.lineTo(px0+5+i/60*(W-px0-10),H*.12+(1-y)*H*.73);}
+  }
+  ctx.stroke();
+  if(m.expanded){ctx.fillStyle='#7f8899';ctx.font='9px monospace';
+    ctx.fillText(m.viz==='filter'?'40Hz — 16k, ±24dB':m.viz==='drive'?'transfer curve, in — out':
+      m.viz==='taps'?'tap energy vs time':m.viz==='decay'?'decay envelope':'one LFO cycle',6,H-5);}
+}
+
+function render(){
+  const rack=$('#rack');rack.innerHTML='';
+  MODS.forEach(m=>{
+    const d=document.createElement('div');
+    d.className='mod'+(m.expanded?' expanded':'')+(m.active?'':' bypassed');
+    const strip='<div class="corner-strip">'+CORNERS.map((c,k)=>
+      '<i style="background:'+(k===m.owner?c:'#1a2130')+'"></i>').join('')+'</div>';
+    let rows='';
+    m.params.forEach((p,pi)=>{
+      rows+='<div class="row"><label>'+p.id+'</label>'
+        +'<input type="range" min="0" max="1" step="0.002" value="'+toSlider(p,p.v)+'" data-p="'+pi+'">'
+        +'<output>'+fmt(p,p.v)+'</output>'
+        +'<div class="chip" title="QM slot mode — AUTO: continuous params follow the global Continuous switch (ruled: GRADUAL default). σ='+p.sal+'">AUTO</div></div>';});
+    const chars='<div class="seg" data-seg="1">'+m.chars.map((c,ci)=>
+      '<button data-c="'+ci+'" aria-pressed="'+(ci===m.char)+'">'+c+'</button>').join('')+'</div>';
+    d.innerHTML=strip
+      +'<div class="mhead"><div class="pw'+(m.active?' on':'')+'" title="active — bypass is a crossfaded pass-through, never a mute (QM-3 §1.4)"></div>'
+      +'<b>'+m.id+'</b><span class="rank">r'+m.rank+' · '+m.name+'</span>'
+      +'<span class="exp">'+(m.expanded?'collapse':'expand')+'</span></div>'
+      +'<div class="body"><div><canvas class="viz" width="300" height="'+(m.expanded?150:56)+'"></canvas>'+chars+'</div>'
+      +'<div>'+rows
+      +'<div class="xnotes">char is a ROUTING-class slot (commits on beat, glides '
+      +'140 ms, never rebuilds — parallel structures crossfade). Params are param-class (8 ms). '
+      +'The corner strip above is the census landing site: QUANTUM colours it by owning corner, '
+      +'GRADUAL blends it. FROZEN/PINNED land as chip states on each row.</div></div></div>';
+    m._cv=d.querySelector('canvas');
+    d.querySelector('.mhead').addEventListener('click',e=>{
+      if(e.target.classList.contains('pw'))return;
+      m.expanded=!m.expanded;MODS.forEach(o=>{if(o!==m)o.expanded=false;});render();});
+    d.querySelector('.pw').addEventListener('click',()=>{m.active=!m.active;render();});
+    d.querySelectorAll('input[type=range]').forEach(sl=>{
+      sl.addEventListener('input',()=>{const p=m.params[+sl.dataset.p];
+        p.v=fromSlider(p,+sl.value);
+        sl.parentElement.querySelector('output').textContent=fmt(p,p.v);
+        drawViz(m);});});
+    d.querySelectorAll('[data-c]').forEach(b=>{
+      b.addEventListener('click',()=>{m.char=+b.dataset.c;render();});});
+    rack.appendChild(d);
+    drawViz(m);
+  });
+}
+render();
+</script>
+</body></html>
