@@ -8,6 +8,44 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## STREAM B DELIVERED — F-B modular routing lab (2026-08-15)
+
+`docs/design/routing-lab-modular.html` (398 lines) + its trace. First completed item of the first
+parallel round under the ratified rung 3.
+
+**What it does:** the QM-3 §2 pool as an editable upper-triangular send matrix with a live topology
+graph; the five §5 ledger patches as one-click presets; **OSC1/OSC2 as independent source rows** —
+the human's per-oscillator routing directive previewed in UI and labelled as ahead of the C++
+increment. `setSerialChain()` reproduced verbatim from `routing_core.h` as the reset state, so the
+lab's starting topology is not a fiction.
+
+**Lead verification, run independently rather than taken on report:** `./verify fast` GREEN;
+lab-load sweep GREEN at **19 labs**, 0 broken. Checked by hand that no second copy of the legality
+rule exists (one `legal()` serves both the matrix build and the graph draw — `routing_core.h`'s own
+header names duplicated legality as the historical bug), and that a `devicePixelRatio` grep hit was
+the comment stating the constraint, not a usage.
+
+**Two open questions it surfaced rather than resolved**, both correct calls: whether normalling
+should visually apply to the OSC preview rows (QM-3 never mentions them, so applying it is a design
+call, not a spec fact); and cable-colour-by-sender exhausting distinguishable hues around row 7-8,
+left unfixed because resolving it likely means reserving colour for corner-ownership and moving
+sender identity to another channel — outside a routing lab's scope.
+
+**Round-1 assessment of the pattern, which is what was actually being tested:** the brief held. The
+agent honoured every out-of-scope boundary (no `src/`, no ROADMAP), structured around
+`routing_core.h`'s own warning about duplicated legality logic, rejected copying the received demo's
+two-function split for that reason, refused an invented constraint (extending the pool's rank rule
+to the OSC rows) because `edgeLive()` says sources reach anything, and wrote a trace unprompted in
+the project's format. **The disciplines this project paid for in bugs transferred to a zero-history
+agent through the REPO, not through the brief.**
+
+**Lead process failure, logged rather than smoothed:** this entry was nearly lost. The first attempt
+anchored on a ROADMAP section that lives only on the unmerged rung-3 branch, the assertion failed —
+and the surrounding command chain still committed and opened the PR, so #291 went up with the lab
+but without its record. Second occurrence this session of a chain letting work proceed past a failed
+step (the first was a `;` where a `&&` belonged). The asserted anchor did its job both times; the
+chaining around it did not.
+
 ## FOUNDATIONS ANSWERED BOTH THREADS — and one answer exposed an overstatement of ours (2026-08-11)
 
 **Stage 1 now extracts against BOTH shells.** Correction 2 accepted in full. Their reasoning went
