@@ -8,6 +8,78 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FEEDBACK EDGE SCAN — the saturator is the whole ballgame (2026-08-15)
+
+`tools/feedback_scan.mjs --edge`, run on the fixed lab. The metric is the one the survey argued for:
+not *is it stable* but **how wide the playable region is** — the gain range between "a burst still
+rings" (source OFF) and "auto-kill trips or the output pins".
+
+```
+config                          sustains at   runs away at   EDGE WIDTH
++ saturator                     0.715         1.114          0.399
++ lowpass + saturator           0.715         1.114          0.399
++ spring z=2.0 (overdamped)     0.979         1.016          0.037
++ spring z=1.0 (critical)       0.986         1.007          0.021
++ spring z=0.4                  0.993         1.002          0.009
++ spring z=0.15 (underdamped)   0.997         1.000          0.003
+gran 512 (buffer)               0.975         0.997          0.022
+gran 256 (block)                0.987         1.000          0.013
+gran 64  (vector)               0.997         1.000          0.003
+gran 16  (our tick)             never         1.000          —
+gran 1   (sample)               never         1.000          —
+bare loop / lowpass only        never         1.000          —
+```
+
+### 1. Saturation is the only thing that creates a playable region — by 10x
+
+**0.399 with a saturator; ≤ 0.037 for everything else.** Without one the loop goes from silence to
+runaway with essentially no dial in between. Traced directly: **at gain 1.05 with no saturator the
+loop reaches 6x10⁹ and trips the auto-kill; at 1.2 it reaches 7x10³².** With the saturator it settles
+into a **bounded limit cycle** — still stable at 1.2, output 0.98.
+
+This is analog practice confirmed quantitatively, and it is the survey's "bounded gain" half of
+OQ #23 with a number attached: **the limiter is not what makes feedback playable, saturation in the
+loop is.** The limiter only stops it hurting you.
+
+### 2. The lowpass contributes NOTHING measurable — a clean negative
+
+`+ lowpass 6k` alone is identical to bare (never sustains, runs away at 1.000), and
+`+ lowpass + saturator` is **identical to saturator alone, to three decimals**. The DX7's
+"smoothing in the loop is a stabiliser" did not reproduce here. Honest caveat rather than a
+contradiction: a one-pole at 6 kHz barely touches a 110 Hz source, whereas the DX7's two-sample
+average is drastic relative to its content. The claim is not refuted — **our test of it was weak**,
+and a fair test needs the cutoff near the signal.
+
+### 3. The ζ ordering is monotonic — the recommendation stands, our stated REASON was wrong
+
+Sustain rises and width collapses as damping falls: **0.037 → 0.021 → 0.009 → 0.003** for
+ζ = 2.0 → 1.0 → 0.4 → 0.15. A twelve-fold collapse.
+
+But we filed the claim as *"an underdamped spring ADDS loop gain at its resonant frequency"*, and
+that is **not** what the data shows: the runaway point barely moves (1.016 → 1.000). What actually
+happens is that **the playable window collapses** — the loop goes from silent to runaway inside a
+0.003 gain window, which is unplayable rather than unstable. **Clamp ζ ≥ 1 stands; the justification
+must be corrected in the filing.**
+
+### 4. LONGER loop delay = WIDER playable region, monotonically
+
+**0.003 → 0.013 → 0.022** for 64 → 256 → 512 samples, and **1-sample and 16-sample have no playable
+region at all.** That points the *opposite* way to the "block-rate is too coarse" complaint we
+recorded from Bitwig: coarser feedback was more playable here, not less.
+
+Stated with its limit: this is **audio-rate** feedback of a 110 Hz source, and 1–64 samples are all
+far shorter than one period (400 samples), so they are not musically "delays" at all — they are
+filters. It does not settle OQ #23, whose edges carry control signals. What it does support is the
+**gain-bounding half**: short-delay feedback has no playable region *without* a saturator.
+
+### Two measurement defects found and fixed, both self-inflicted
+
+- **The source was still running.** `edge()` inherited `src = 0.25`, so the measured tail was full of
+  source at every gain and `sustains(0)` returned TRUE — a loop with no loop, sustaining.
+- **The auto-kill destroyed the observable.** Runaway was being read from the tail, but the kill
+  zeroes output, so a tripped config reads 0.000 and looks like silence. Runaway is now read from the
+  **trip flag**, and sustain is searched only *below* the runaway point.
+
 ## SWELLING UNDERTONES — scanned, and the dominant cause was our own bug (2026-08-15)
 
 Human report from playing the feedback lab: *"a lot of settings seem to result in swelling

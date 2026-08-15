@@ -145,3 +145,115 @@ const worst = rows.filter(r => r.label !== ctl.label)
                   .slice(0, 5);
 console.log('Strongest undertone producers (sub fraction x swell):');
 for (const r of worst) console.log(`  ${pad(r.label, 34)} ${(r.subFrac*100).toFixed(1)}%  ${isFinite(r.swell)?r.swell.toFixed(2)+'×':'∞'}`);
+
+
+/* =====================================================================
+   EDGE MODE (`--edge`) — the measurement the survey actually asked for.
+   =====================================================================
+   Practitioners do not describe good feedback as "stable". They describe a
+   WIDE, CONTROLLABLE REGION NEAR THE THRESHOLD — gain brought up "until you can
+   just hear it", a resonance knob prized for approaching self-oscillation
+   without committing. So the number worth optimising is not whether the loop is
+   safe, it is how much of the dial sits between "just sustains" and "gone".
+
+     sustain gain   lowest loop gain where a burst is still ringing at the end,
+                    with the SOURCE OFF so nothing is propping it up.
+     runaway gain   lowest loop gain that trips the auto-kill or pins the output.
+     EDGE WIDTH     runaway - sustain. The playable region. Bigger is better,
+                    and a stabiliser that only shifts both numbers up together
+                    has bought nothing.
+
+   This is also the honest test of Berdahl: if a small frequency shift buys gain
+   margin, the SUSTAIN gain must RISE when it is switched on. */
+function ringsAtEnd(params){
+  const { out, auto } = render({ ...params, src: 0 }, 2.5);
+  // Burst is 20 ms at the very start; the last fifth is pure loop, nothing else.
+  const tail = out.subarray(Math.floor(out.length * 0.8));
+  let e = 0;
+  for (let i = 0; i < tail.length; i++) e += tail[i] * tail[i];
+  const rms = Math.sqrt(e / tail.length);
+  return { rms, auto };
+}
+
+function bisect(pred, lo, hi, iters = 9){
+  if (!pred(hi)) return null;              // never happens even at max gain
+  if (pred(lo)) return lo;
+  for (let i = 0; i < iters; i++){
+    const mid = (lo + hi) / 2;
+    if (pred(mid)) hi = mid; else lo = mid;
+  }
+  return +((lo + hi) / 2).toFixed(3);
+}
+
+function edge(label, over){
+  /* SOURCE OFF. The first version inherited BASE.src = 0.25, so the tail was full
+     of source signal at every gain and `sustains(0)` came back TRUE — a loop with
+     no loop, sustaining. The burst is the only excitation; what rings afterwards
+     is the loop or nothing. */
+  const base = { ...BASE, ...over, burst: 0, src: 0 };
+  // burst is fired by the processor's own message path, so poke p.burst directly
+  const withBurst = g => {
+    const params = { ...base, gain: g };
+    const proc = new registered();
+    Object.assign(proc.p, params);
+    proc.p.burst = Math.floor(SR * 0.02);
+    let auto = false;
+    proc.port.postMessage = m => { if (m && m.autokill) auto = true; };
+    const N = 128, blocks = Math.floor(2.5 * SR / N);
+    const L = new Float32Array(N), R = new Float32Array(N);
+    let e = 0, n = 0, peak = 0;
+    for (let b = 0; b < blocks; b++){
+      proc.process([], [[L, R]]);
+      if (b > blocks * 0.8){
+        for (let i = 0; i < N; i++){ e += L[i] * L[i]; n++; const a = Math.abs(L[i]); if (a > peak) peak = a; }
+      }
+    }
+    return { rms: Math.sqrt(e / Math.max(1, n)), auto, peak };
+  };
+  /* RUNAWAY IS READ FROM THE AUTO-KILL, NEVER FROM THE TAIL. The kill zeroes the
+     output, so a post-trip tail reads 0.000 and looks like silence — the observer
+     destroying the observable. A config that trips has runaway AT that gain and
+     no measurable sustain above it, which is why sustain is searched only below
+     the runaway point. */
+  const runs = g => { const r = withBurst(g); return r.auto || r.peak >= 0.98; };
+  const gr = bisect(runs, 0, 1.2);
+  const ceiling = gr === null ? 1.2 : gr;
+  const sustains = g => { const r = withBurst(g); return !r.auto && r.rms > 0.005; };
+  const gs = bisect(sustains, 0, ceiling);
+  return { label, sustain: gs, runaway: gr,
+           width: (gs !== null && gr !== null) ? +(gr - gs).toFixed(3) : null };
+}
+
+if (process.argv.includes('--edge')){
+  console.log('\nEDGE MODE — sustain gain, runaway gain, and the playable width between them\n');
+  const cfgs = [
+    ['bare loop (no stabilisers)',      { lpOn:0, satOn:0, shOn:0, spOn:0 }],
+    ['+ saturator',                     { lpOn:0, satOn:1, shOn:0, spOn:0 }],
+    ['+ lowpass 6k',                    { lpOn:1, satOn:0, shOn:0, spOn:0 }],
+    ['+ lowpass + saturator',           { lpOn:1, satOn:1, shOn:0, spOn:0 }],
+    ['+ shift 3 Hz',                    { lpOn:0, satOn:0, shOn:1, shHz:3 }],
+    ['+ shift 12 Hz',                   { lpOn:0, satOn:0, shOn:1, shHz:12 }],
+    ['+ shift 3 Hz + lowpass',          { lpOn:1, satOn:0, shOn:1, shHz:3 }],
+    ['+ spring z=2.0 (overdamped)',     { lpOn:0, satOn:0, spOn:1, spF:40, spZ:2.0 }],
+    ['+ spring z=1.0 (critical)',       { lpOn:0, satOn:0, spOn:1, spF:40, spZ:1.0 }],
+    ['+ spring z=0.4',                  { lpOn:0, satOn:0, spOn:1, spF:40, spZ:0.4 }],
+    ['+ spring z=0.15 (underdamped)',   { lpOn:0, satOn:0, spOn:1, spF:40, spZ:0.15 }],
+    ['gran 1 sample',                   { lpOn:0, satOn:0, gran:1 }],
+    ['gran 16 (our tick)',              { lpOn:0, satOn:0, gran:16 }],
+    ['gran 64 (vector)',                { lpOn:0, satOn:0, gran:64 }],
+    ['gran 256 (block)',                { lpOn:0, satOn:0, gran:256 }],
+    ['gran 512 (buffer)',               { lpOn:0, satOn:0, gran:512 }],
+  ];
+  const res = cfgs.map(([l, o]) => edge(l, o));
+  console.log(pad('config', 32) + pad('sustains at', 14) + pad('runs away at', 15) + 'EDGE WIDTH');
+  console.log('-'.repeat(74));
+  for (const r of res){
+    console.log(pad(r.label, 32) +
+      pad(r.sustain === null ? 'never' : r.sustain.toFixed(3), 14) +
+      pad(r.runaway === null ? 'never' : r.runaway.toFixed(3), 15) +
+      (r.width === null ? '—' : r.width.toFixed(3)));
+  }
+  const ranked = res.filter(r => r.width !== null).sort((a, b) => b.width - a.width);
+  console.log('\nWidest playable region:');
+  for (const r of ranked.slice(0, 4)) console.log(`  ${pad(r.label, 32)} ${r.width.toFixed(3)}`);
+}
