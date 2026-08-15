@@ -8,6 +8,44 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FEEDBACK EVIDENCE FILED — and a correction to our own brief (2026-08-15)
+
+`brief-feedback-evidence.md` (`6328039`, verified on their origin/main). Four findings consolidated
+into one filing because they are one position, not four notes.
+
+**The main one: OQ #23's three options all answer the same half.** Every stable feedback architecture
+surveyed uses **enforced minimum delay** (computability) *and* **bounded gain plus smoothing**
+(stability) — orthogonal, and the robust ones use both. #23 covers only the first. Sent with the
+measurement: **no saturator → gain 1.05 reaches 6×10⁹ and trips, 1.2 reaches 7×10³²; with one, a
+stable limit cycle at 1.2.** Recommends a **companion ruling** that a feedback edge must declare a
+bounded gain and carry a bounded nonlinearity, because a delay rule alone licenses a computable loop
+that still destroys the instrument.
+
+**Option (b) is not a peer** — a cyclic graph has no topological ordering, so "fixed evaluation
+order" *is* unit delay with the insertion point chosen by a sort nobody controls. Sharpens their own
+filed preference from taste into structure.
+
+**A correction to something WE filed.** `brief-route-inertia` told them an underdamped spring **adds
+loop gain at its resonant frequency**. Measured, that is false — the runaway point barely moves
+(1.016 → 1.000). What collapses, twelve-fold and monotonically, is the **playable window** (0.037 →
+0.003 as ζ goes 2.0 → 0.15). **The clamp ζ ≥ 1 stands; the reason we gave them was wrong.** Filed as
+a correction rather than left sitting in their file as evidence — a wrong justification in a
+provider's decision record is worse than no justification, because it gets cited.
+
+**Offered the edge-width metric** (runaway − sustain) because *"is it stable"* cannot distinguish a
+good feedback facility from a dead one, and a stabiliser that shifts both numbers up together has
+bought nothing. Offered as a metric, explicitly not as a result.
+
+**Two more checks-that-cannot-fire for the class they are collecting, both ours:** the shifter
+selecting the wrong sideband **while the lab's own spectrum display showed it the whole time** — *a
+visualisation is not a check* — and our undertone detector reading 18.5% on its own zero-gain
+control.
+
+**What we told them does NOT transfer**, stated in the filing rather than left for them to discover:
+the scans are audio-rate on a 110 Hz source while their edges carry control; `tanh` is one saturator,
+not a family; the lowpass null is a **weak test**, not a refutation of the DX7 smoothing claim; and
+edge width is one rig, one source, one pitch.
+
 ## FEEDBACK EDGE SCAN — the saturator is the whole ballgame (2026-08-15)
 
 `tools/feedback_scan.mjs --edge`, run on the fixed lab. The metric is the one the survey argued for:
