@@ -8,6 +8,46 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## PRESENTATION TABLE — the first MVP increment, and it publishes our scopes (2026-08-15)
+
+`src/param_presentation.tsv` + `tools/presentation_check.py`, gated in `./verify fast`.
+**181 rows: 29 `global` + 76 `osc1` + 76 `osc2`** — the same decomposition FOUNDATIONS' registry
+conformance reported on our own tables (105 base + 76 per-oscillator; 29 globals not duplicated),
+arrived at independently from the shell.
+
+**This is the artefact D1 ruled into existence.** `ParamDesc` carries structure (address, id, type,
+cadence, ranges, `mod_min`/`mod_max`); presentation — label, page, group, widget, unit — is ours and
+lives here, because the standing GUI criterion says styling is separable from structure and one
+record carrying both breaks exactly that.
+
+**Keyed on address, enforced structurally: there is no `id` column, and the gate fails if one
+appears.** Their caution was *"a page/group name that is also a dispatch fact is how the two get
+fused again."* Worth naming plainly: **gui.html binds every control with `data-p="<numeric id>"`, so
+that fusion is already in our tree** — this table is the shape that replaces it. A rule enforced by
+the absence of a column cannot be broken by a careless row.
+
+**We also declined to carry `patch_scope`, and the reason is the same ruling turned on ourselves.**
+The first draft had the column, and it read **56 rows against the shell's 31** — because deriving it
+here meant re-implementing a rule that `gui_reach.py` already owns, with two semantic anchors that
+took three wrong versions to settle. Patch-scope is dispatch, not presentation and not location
+(their D2); it has an owner; a decorative second copy is how the two disagree later. **The wrong
+number was the evidence, not the argument.**
+
+**Seeded, not invented.** Group and widget are mined from `gui.html` — the GUI that already reaches
+102/105 — so the table starts as what we ship rather than a guess. **Honest gaps are counted every
+run**: 5 rows at `page=TODO`, 5 `(ungrouped)`. Silence would read as complete.
+
+**Calibrated three ways**, each fired: drop a row → names the missing param; add an `id` column →
+names the fusion; lie about a scope → *"scope column says 'global', address says 'osc2'"*.
+
+**This publishes the scope prefixes FOUNDATIONS asked for** — `global`, `osc1`, `osc2`, as address
+prefixes rather than an enumerated type, compatible by construction with their F3+ criterion that a
+category naming its instances is sealed. Owed filing: point them at it.
+
+**What it unblocks:** the ~75 gui2 controls become *generated from a declaration* rather than
+hand-placed, which is the whole of D1's answer and the reason the MVP is not 75 controls of scar
+tissue.
+
 ## MVP DEPENDENCIES ANSWERED — and the queue runs the OTHER way (2026-08-15)
 
 All five asks answered plus D0 accepted (`response-mvp-dependencies.md`, their DECISIONS #89). The
