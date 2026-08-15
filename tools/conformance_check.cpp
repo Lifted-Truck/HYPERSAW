@@ -199,6 +199,16 @@ struct ShellAdapter
     run(e);
   }
 
+  /* quiesce() — their optional between-case hook (R-fill ruling, 2026-08-15).
+     We offer it because we are exactly the consumer it was added for: our voices
+     outlive their identities, so without it a case is measured against tails the
+     previous case left ringing.
+     It drains TIME ONLY. It deliberately does NOT force notes off: a note still
+     gated between cases is one the suite has not released, and silencing it
+     behind the suite's back would corrupt the very state the hook exists to
+     clean. Quiescing means "let outstanding tails finish", never "panic". */
+  void quiesce() { drain(64); }
+
   // Let released voices actually finish, so a freed slot is free. Bounded: a
   // drain that could spin forever would turn a lifecycle bug into a hang.
   void drain(int blocks)
@@ -429,9 +439,16 @@ int main()
      Their own fixture cannot see it — a table has no envelope.
      Drift in either direction exits non-zero: a new failure is a regression, and
      a pinned one turning green means this record is stale. */
-  static const char *const kExpectedRuledFail[] = {"R-end-1"};
-  static const char *const kExpectedDiverge[] = {"R-steal-1d", "R-steal-2", "R-retrig-1d"};
-  constexpr int kNRuled = (int)(sizeof(kExpectedRuledFail) / sizeof(kExpectedRuledFail[0]));
+  /* NO expected ruled failures. R-end-1 became a pass when FOUNDATIONS removed
+     the fill's no-steal assertion (their fill ruling, 2026-08-15) — it had been
+     a PRECONDITION ("the pool starts empty") smuggled into a case about identity
+     accounting. This array is deliberately left empty rather than deleted: the
+     drift check below turns any new ruled failure into a red naming it. */
+  static const char *const kExpectedRuledFail[] = {nullptr};
+  static const char *const kExpectedDiverge[] = {"R-steal-1d", "R-steal-2", "R-retrig-1d",
+                                                "R-end-1d"};
+  // 0 — the array holds only a nullptr placeholder (see above).
+  constexpr int kNRuled = 0;
   constexpr int kNDiv = (int)(sizeof(kExpectedDiverge) / sizeof(kExpectedDiverge[0]));
 
   const auto listed = [](const char *name, const char *const *set, int n) {

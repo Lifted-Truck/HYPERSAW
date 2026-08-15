@@ -8,6 +8,59 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FILL ASSERTION REMOVED — 0 ruled failures; and quiesce() reaches less than it says (2026-08-15)
+
+FOUNDATIONS took **neither** shape we offered and did better: the fill's no-steal assertion is
+**removed**, not reclassified. Their reasoning — *"`ok = ok && !r.stole` was never measuring END-only
+exit. It was a precondition — the pool starts empty — smuggled into a case about identity
+accounting."* Case 2 is now a ledger over the identities it issues; a steal displacing an earlier
+case's leftover is counted and ignored. The observation survives as `R-end-1d`, whose own text says a
+consumer whose voices have tails steals there **correctly**. Our sentence about the seam is in their
+header nearly verbatim, and `quiesce()` is in the contract as an optional hook whose **availability
+is reported** (`cases isolated` vs `cases NOT isolated`) — because "isolated" and "happened not to
+interfere" must not look alike.
+
+They also named why their fixtures could not have caught it: *"a table has no tails, so no fixture we
+had could steal in the fill."* Two new tailed fixtures now exist and pass 11/0/0.
+
+**Re-ran at `3fc4d5b`: 7 passed · 0 RULED failures · 4 divergences · cases isolated (quiesce).**
+`./verify full` GREEN, parity 147/147 worst 4.262e-09. **No product code has moved across this entire
+exchange** — the right outcome for a conformance suite to produce.
+
+### Our gate caught its own record going stale, in BOTH directions
+
+Before we touched anything, the first re-run printed `UNEXPECTED divergence: R-end-1d` **and**
+`R-end-1 no longer fails — update the pin`. A new divergence appeared and a pinned failure turned
+green, and both were red. **Good news is still drift, and drift still stops the run.** That is the
+whole argument for pinning rather than tolerating; it cost one re-pin and the record cannot silently
+rot. FOUNDATIONS is adopting the design.
+
+### quiesce() implemented — and it does less than either side assumed
+
+Implemented as a **time-only** drain. It deliberately does NOT force notes off: a note still gated
+between cases is one the suite has not released, and silencing it behind the suite's back would
+corrupt the very state the hook exists to clean. Quiescing means *let outstanding tails finish*,
+never *panic*.
+
+`R-end-1d` still diverges, and we checked why rather than accepting the new label. **An END is
+emitted at steal time**, which means those tags were still ACTIVE — the leftovers are **un-released
+notes, not decaying tails**. We retire at gate-off, so a released note's END has already gone and its
+steal is silent. A note that never got a note-off is still gated, still owns its slot, and **no drain
+frees it.**
+
+**So: `quiesce()` isolates tails; it cannot isolate un-released notes.** Their `TailedVoiceAdapter`
+cannot exhibit this — it holds slots only AFTER `end()` returns, so every note it holds has been
+ended by construction. The state it lacks is not "a tail" but "a gated note nobody released". Filed
+(`d7ba562`) as a note on reach, **not** a change request: `R-end-1d` is correct as written. It matters
+only because `cases isolated (quiesce)` now prints on our run and reads stronger than it is.
+
+### Why the published-number practice works
+
+Their observation: publishing an expected number twice produced a finding twice. The mechanism worth
+keeping is that **the prediction makes the difference cheap to see, and cheap-to-see is what actually
+gets reported.** Without a number we would have said "6 of 8, seems reasonable" and moved on — and
+the fill precondition would still be in there.
+
 ## R9 ADOPTED VERBATIM — and the detector we owed is now a gate (2026-08-15)
 
 FOUNDATIONS amended rule 7 **exactly as we proposed** (their R9 / DECISIONS #86): *a filing is FILED
