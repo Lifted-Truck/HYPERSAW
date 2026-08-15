@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>SWARM✱ feedback lab — the loop, made audible and survivable</title>
+<style>
+  :root{--bg:#0e1113;--panel:#161b1e;--ink:#e6ecee;--dim:#8b979c;--rule:#242c30;
+        --hot:#e0674a;--cool:#5fb8c4;--gold:#d9a94a;--ok:#63c48d;
+        --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+        --sans:ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);padding:20px 22px 60px}
+  h1{font-size:20px;margin:0 0 4px;letter-spacing:.01em}
+  .rev{float:right;font:11px/1.4 var(--mono);color:var(--dim)}
+  .tagline{color:var(--dim);max-width:72rem;margin:0 0 18px;font-size:13px}
+  .tagline b{color:var(--ink)}
+  .danger{background:#2a1512;border:1px solid var(--hot);border-radius:8px;padding:12px 14px;
+          margin:0 0 18px;max-width:72rem}
+  .danger b{color:var(--hot)}
+  .kill{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 18px}
+  button{font:600 13px var(--sans);color:#0e1113;background:var(--cool);border:0;border-radius:6px;
+         padding:9px 16px;cursor:pointer}
+  button:hover{filter:brightness(1.1)}
+  button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  #killBtn{background:var(--hot);color:#fff;font-size:15px;padding:13px 26px;letter-spacing:.02em}
+  #killBtn.armed{background:#3a1e19;color:var(--hot);border:1px solid var(--hot)}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(19rem,1fr));gap:14px;max-width:78rem}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:13px 15px}
+  .panel h2{font:600 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--cool);
+            margin:0 0 10px;padding-bottom:7px;border-bottom:1px solid var(--rule)}
+  .panel.safety h2{color:var(--hot)}
+  .row{display:flex;align-items:center;gap:9px;margin:7px 0}
+  .row label{flex:0 0 8.5rem;font-size:12px;color:var(--dim)}
+  .row input[type=range]{flex:1;min-width:5rem}
+  .row output{flex:0 0 4.2rem;font:11px var(--mono);text-align:right;color:var(--ink)}
+  .row select{flex:1;background:#0e1113;color:var(--ink);border:1px solid var(--rule);
+              border-radius:4px;padding:4px 6px;font:12px var(--sans)}
+  .chk{display:flex;align-items:center;gap:7px;margin:7px 0;font-size:12px;color:var(--dim)}
+  .hint{font-size:11.5px;color:var(--dim);margin:9px 0 0;line-height:1.45}
+  .hint b{color:var(--ink)}
+  .meter{height:14px;background:#0b0e10;border:1px solid var(--rule);border-radius:3px;
+         overflow:hidden;position:relative;margin:3px 0 9px}
+  .meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .05s linear}
+  .meter.gr i{background:var(--gold)}
+  .meter.mar i{background:var(--cool)}
+  .meter b{position:absolute;right:5px;top:0;font:10px/14px var(--mono);color:var(--ink);
+           text-shadow:0 0 3px #000}
+  .mlab{font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  canvas{width:100%;height:110px;display:block;background:#0b0e10;border:1px solid var(--rule);
+         border-radius:4px;margin-top:8px}
+  .state{font:11px var(--mono);color:var(--dim);margin-top:9px}
+  .state span{color:var(--gold)}
+</style></head><body>
+
+<div class="rev">rev <span id="revdate">…</span> · fp <span id="revfp">…</span></div>
+<h1>SWARM✱ feedback lab</h1>
+<p class="tagline">The four-agent survey (2026-08-15) produced hypotheses that only ears can settle,
+and feedback is the one area where being wrong is <i>loud</i>. This bench makes the loop audible with
+two things the survey said must exist and must be <b>separate</b>: a <b>limiter as a safety
+backstop</b> and an <b>attenuator as the musical control</b> — because "never let the thing that saves
+you be the thing you play". The whole loop runs in one AudioWorklet rather than a node graph, because
+the question this lab exists to answer is about <b>delay granularity</b>, and a node graph cannot
+express one sample.</p>
+
+<div class="danger">
+  <b>Safety, by construction.</b> Loop gain starts at <b>zero</b> — the universal practice from
+  no-input mixing is to bring it up from silence until you can just hear it. A brickwall limiter is
+  <b>always on</b> and cannot be disabled. An <b>auto-kill</b> fires if the pre-limiter signal stays
+  hot for 400&nbsp;ms, on the assumption that a runaway you have to reach for is a runaway that
+  already hurt. <b>Spacebar kills audio</b> from anywhere on the page.
+</div>
+
+<div class="kill">
+  <button id="killBtn">◼ KILL AUDIO &nbsp;<span style="opacity:.7;font-weight:400">(space)</span></button>
+  <button id="startBtn">▶ start</button>
+  <button id="pluckBtn">✦ excite</button>
+  <span class="state">state <span id="stateTxt">stopped</span> · autokill <span id="akTxt">armed</span></span>
+</div>
+
+<div class="cols">
+
+  <div class="panel safety">
+    <h2>Safety — not a musical control</h2>
+    <div class="mlab">output peak</div>
+    <div class="meter"><i id="mPeak"></i><b id="tPeak">−∞</b></div>
+    <div class="mlab">limiter gain reduction</div>
+    <div class="meter gr"><i id="mGR"></i><b id="tGR">0.0 dB</b></div>
+    <div class="mlab">loop margin — headroom before runaway</div>
+    <div class="meter mar"><i id="mMar"></i><b id="tMar">—</b></div>
+    <p class="hint">The <b>margin</b> meter is the point of the bench. Practitioners describe playable
+    feedback as a <b>wide, controllable region near the threshold</b>, not a stable system — so the
+    thing worth designing is how much of the dial sits in that region. Watch where margin collapses as
+    you raise loop gain, and whether the stabilisers below <b>widen</b> that region or merely move it.</p>
+  </div>
+
+  <div class="panel">
+    <h2>The loop</h2>
+    <div class="row"><label>loop gain</label><input type="range" id="gain" min="0" max="1.2" step="0.005" value="0"><output id="gain_o"></output></div>
+    <div class="row"><label>delay</label><select id="gran">
+      <option value="1">1 sample — Reaktor / VCV / Pd</option>
+      <option value="16" selected>16 samples — our control tick</option>
+      <option value="64">64 samples — Max/MSP signal vector</option>
+      <option value="256">256 samples — a block</option>
+      <option value="512">512 samples — Bitwig-ish buffer</option>
+    </select></div>
+    <div class="row"><label>extra delay</label><input type="range" id="extra" min="0" max="80" step="0.5" value="0"><output id="extra_o"></output></div>
+    <p class="hint"><b>This is OQ #23 made audible.</b> The survey found the field splits by what
+    travels on the edge: block-granular <b>audio</b> feedback draws complaints (Bitwig ~5.33 ms),
+    control-rate cycle lag draws none (Csound). Sweep the granularity at a fixed loop gain and hear
+    where it stops being a resonance and starts being an echo.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Stabilisers — do they widen the edge?</h2>
+    <div class="chk"><label><input type="checkbox" id="lpOn" checked> lowpass in the loop</label></div>
+    <div class="row"><label>cutoff</label><input type="range" id="lpF" min="200" max="18000" step="50" value="6000"><output id="lpF_o"></output></div>
+    <div class="chk"><label><input type="checkbox" id="shOn"> frequency shift in the loop</label></div>
+    <div class="row"><label>shift</label><input type="range" id="shHz" min="-30" max="30" step="0.25" value="3"><output id="shHz_o"></output></div>
+    <div class="chk"><label><input type="checkbox" id="satOn" checked> saturator in the loop</label></div>
+    <p class="hint"><b>The frequency shift is the occluded one.</b> Berdahl et al. (JASA 2012)
+    measured ~3&nbsp;Hz buying ≥3&nbsp;dB of gain margin, because no frequency can re-enter the loop at
+    exactly its own phase. Massive X ships a shifter inside its feedback loop and sells it as a tone
+    colour. <b>Test it directly:</b> find the loop gain where it just sustains, then toggle the shift
+    and see whether the margin meter moves. The <b>lowpass</b> is the DX7's two-sample average
+    generalised — documented as anti-oscillation, not timbre.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Spring in the loop — testing our own correction</h2>
+    <div class="chk"><label><input type="checkbox" id="spOn"> inertia on the loop signal</label></div>
+    <div class="row"><label>rate</label><input type="range" id="spF" min="0.5" max="200" step="0.5" value="40"><output id="spF_o"></output></div>
+    <div class="row"><label>damping ζ</label><input type="range" id="spZ" min="0.15" max="2" step="0.01" value="1"><output id="spZ_o"></output></div>
+    <p class="hint">We filed route inertia with the caution that <i>"a spring on a feedback edge is a
+    second-order system inside a loop"</i>. The survey sharpened it into a claim: <b>a spring with
+    ζ&nbsp;&lt;&nbsp;1 does not smooth — it ADDS gain at its resonant frequency</b>, so underdamped
+    inertia on a feedback edge is a destabiliser. <b>The falsifier is right here:</b> set a loop gain
+    that is stable at ζ&nbsp;=&nbsp;1, then lower ζ. If the claim holds, the loop runs away without
+    you touching the gain.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Source</h2>
+    <div class="row"><label>voices</label><input type="range" id="nv" min="1" max="9" step="1" value="5"><output id="nv_o"></output></div>
+    <div class="row"><label>detune</label><input type="range" id="det" min="0" max="40" step="0.5" value="12"><output id="det_o"></output></div>
+    <div class="row"><label>pitch</label><input type="range" id="pit" min="30" max="76" step="1" value="45"><output id="pit_o"></output></div>
+    <div class="row"><label>drive level</label><input type="range" id="src" min="0" max="1" step="0.005" value="0.25"><output id="src_o"></output></div>
+    <p class="hint">A small detuned swarm, because the instrument's own material is what the loop will
+    actually see. <b>Excite</b> sends a burst and then silences the source, so you can hear what the
+    loop sustains on its own — the honest test of whether it is self-oscillating or merely resonating.
+    Drive level 0 plus a burst is the closest thing here to a no-input desk.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Spectrum</h2>
+    <canvas id="scope" width="900" height="220"></canvas>
+    <p class="hint">Runaway has a look before it has a volume: one bin climbing away from its
+    neighbours. Watch the display, not the meter — the meter tells you it already happened.</p>
+  </div>
+
+</div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   feedback-lab — the loop lives in ONE AudioWorklet, deliberately.
+
+   WHY NOT A NODE GRAPH. The question this bench exists to answer is about DELAY
+   GRANULARITY: whether a feedback edge carries one sample, one control tick, one
+   vector or one block of lag. A Web Audio node graph cannot express one sample —
+   its own minimum feedback delay is a render quantum (128), which is the very
+   quantity under test. Building the loop in a worklet is the only way the bench
+   can measure the thing it claims to measure (L0031: an oracle spanning the
+   wrong layer certifies nothing).
+
+   SAFETY IS STRUCTURAL, NOT PROCEDURAL. Three independent mechanisms, because
+   a feedback bench that can hurt you is a badly designed bench:
+     1. loop gain starts at ZERO (no-input practice: come up from silence);
+     2. a brickwall limiter that cannot be switched off — the survey's rule that
+        the backstop must be SEPARATE from the musical control;
+     3. an auto-kill that trips when the PRE-limiter signal stays hot, because by
+        the time the post-limiter signal looks wrong the limiter is already
+        holding back something enormous.
+--------------------------------------------------------------------------- */
+const PROC = `
+class FBLoop extends AudioWorkletProcessor {
+  static get parameterDescriptors(){ return []; }
+  constructor(){
+    super();
+    this.sr = sampleRate;
+    this.buf = new Float32Array(1 << 16);   // power of two: cheap wrap, no modulo
+    this.mask = this.buf.length - 1;
+    this.w = 0;
+    this.ph = new Float32Array(16);
+    this.lp = 0;
+    this.sp1 = 0; this.sp2 = 0;             // spring state (position, velocity)
+    // Hilbert pair: two allpass chains ~90 degrees apart, path B delayed one
+    // sample. Standard 2-path design; approximate near DC and Nyquist, which is
+    // stated in the UI rather than hidden — a shifter that lies about its own
+    // accuracy would poison the very hypothesis this bench tests.
+    this.ca = [0.6923877778065,0.9360654322959,0.9882295226860,0.9987488452737];
+    this.cb = [0.4021921162426,0.8561710882420,0.9722909545651,0.9952884791278];
+    this.ax = this.ca.map(()=>[0,0]); this.ay = this.ca.map(()=>[0,0]);
+    this.bx = this.cb.map(()=>[0,0]); this.by = this.cb.map(()=>[0,0]);
+    this.bz = 0; this.osc = 0;
+    this.env = 0; this.gr = 1; this.hot = 0; this.peak = 0; this.grMin = 1;
+    this.p = { gain:0, gran:16, extra:0, lpOn:1, lpF:6000, shOn:0, shHz:3,
+               satOn:1, spOn:0, spF:40, spZ:1, nv:5, det:12, pit:45, src:0.25,
+               kill:1, burst:0 };
+    this.port.onmessage = e => {
+      if (e.data.burst) { this.p.burst = Math.floor(this.sr * 0.02); return; }
+      Object.assign(this.p, e.data);
+    };
+  }
+  ap(c, xs, ys, x){                     // one 2nd-order allpass section
+    const y = c*c*(x + ys[1]) - xs[1];
+    xs[1] = xs[0]; xs[0] = x; ys[1] = ys[0]; ys[0] = y;
+    return y;
+  }
+  process(_inputs, outputs){
+    const out = outputs[0], L = out[0], R = out[1] || out[0];
+    const p = this.p, n = L.length;
+    const f0 = 440 * Math.pow(2, (p.pit - 69) / 12);
+    const lpC = Math.exp(-2 * Math.PI * p.lpF / this.sr);
+    // Spring coefficients from SECONDS, never hand-tuned per-sample constants
+    // (ADR-009's trap): w is rad/s, zeta is dimensionless, dt is 1/sr.
+    const w = 2 * Math.PI * p.spF, dt = 1 / this.sr, z = p.spZ;
+    let peak = 0, grMin = 1;
+
+    for (let i = 0; i < n; i++){
+      // ---- source: a small detuned swarm ----------------------------------
+      let s = 0;
+      const nv = p.nv | 0;
+      for (let v = 0; v < nv; v++){
+        const d = (v - (nv - 1) / 2) * p.det;                  // cents
+        const f = f0 * Math.pow(2, d / 1200);
+        this.ph[v] += f / this.sr;
+        if (this.ph[v] >= 1) this.ph[v] -= 1;
+        s += 2 * this.ph[v] - 1;                               // naive saw: this
+      }                                                         // bench is about
+      s /= Math.max(1, nv);                                     // the LOOP, not
+      let drive = p.src;                                        // the oscillator
+      if (this.p.burst > 0){ drive = 0.9; this.p.burst--; }
+
+      // ---- read the loop at the chosen granularity ------------------------
+      const dly = Math.max(1, (p.gran | 0) + Math.round(p.extra * this.sr / 1000));
+      let fb = this.buf[(this.w - dly) & this.mask];
+
+      // ---- stabilisers, in the loop ---------------------------------------
+      if (p.lpOn){ this.lp = fb * (1 - lpC) + this.lp * lpC; fb = this.lp; }
+
+      if (p.shOn){                       // single-sideband shift via Hilbert pair
+        let a = fb, b = this.bz; this.bz = fb;
+        for (let k = 0; k < 4; k++) a = this.ap(this.ca[k], this.ax[k], this.ay[k], a);
+        for (let k = 0; k < 4; k++) b = this.ap(this.cb[k], this.bx[k], this.by[k], b);
+        this.osc += p.shHz / this.sr;
+        if (this.osc >= 1) this.osc -= 1; else if (this.osc < 0) this.osc += 1;
+        const t = 2 * Math.PI * this.osc;
+        fb = a * Math.cos(t) - b * Math.sin(t);
+      }
+
+      if (p.spOn){                       // damped 2nd-order spring ON the loop
+        const acc = w * w * (fb - this.sp1) - 2 * z * w * this.sp2;
+        this.sp2 += acc * dt; this.sp1 += this.sp2 * dt;
+        fb = this.sp1;
+      }
+
+      if (p.satOn) fb = Math.tanh(fb * 1.4);
+
+      // ---- close the loop --------------------------------------------------
+      let x = s * drive + fb * p.gain;
+      if (!isFinite(x)) x = 0;           // a NaN in a feedback buffer is forever
+      this.buf[this.w] = x;
+      this.w = (this.w + 1) & this.mask;
+
+      // ---- SAFETY: measured pre-limiter, so the trip sees the real size ----
+      const a0 = Math.abs(x);
+      if (a0 > peak) peak = a0;
+      this.env = Math.max(a0, this.env * 0.9995);
+      if (this.env > 1.6) this.hot++; else this.hot = Math.max(0, this.hot - 2);
+
+      // brickwall: always on, never a control
+      const over = a0 * this.gr;
+      if (over > 0.98) this.gr = 0.98 / a0;
+      else this.gr = Math.min(1, this.gr + 0.00004);
+      if (this.gr < grMin) grMin = this.gr;
+
+      const y = p.kill ? 0 : x * this.gr;
+      L[i] = y; R[i] = y;
+    }
+
+    if (this.hot > this.sr * 0.4){       // ~400 ms hot -> pull the plug
+      this.p.kill = 1; this.hot = 0;
+      this.port.postMessage({ autokill: true });
+    }
+    this.peak = peak; this.grMin = grMin;
+    this.port.postMessage({ peak, gr: grMin });
+    return true;
+  }
+}
+registerProcessor('fbloop', FBLoop);
+`;
+
+const $ = id => document.getElementById(id);
+let ctx = null, node = null, analyser = null, running = false;
+
+const P = { gain:0, gran:16, extra:0, lpOn:1, lpF:6000, shOn:0, shHz:3, satOn:1,
+            spOn:0, spF:40, spZ:1, nv:5, det:12, pit:45, src:0.25, kill:1 };
+
+function send(){ if (node) node.port.postMessage(P); }
+
+async function start(){
+  if (ctx) { await ctx.resume(); return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const url = URL.createObjectURL(new Blob([PROC], { type: 'application/javascript' }));
+  await ctx.audioWorklet.addModule(url);
+  node = new AudioWorkletNode(ctx, 'fbloop', { outputChannelCount: [2] });
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  node.connect(analyser);
+  analyser.connect(ctx.destination);
+  node.port.onmessage = e => {
+    if (e.data.autokill){ P.kill = 1; paintKill(); $('akTxt').textContent = 'TRIPPED'; }
+    if (e.data.peak !== undefined) meters(e.data.peak, e.data.gr);
+  };
+  running = true;
+  $('stateTxt').textContent = 'running';
+  send();
+}
+
+function meters(peak, gr){
+  const db = peak > 1e-5 ? 20 * Math.log10(peak) : -100;
+  $('mPeak').style.width = Math.max(0, Math.min(100, (db + 60) / 60 * 100)) + '%';
+  $('mPeak').style.background = db > -1 ? 'var(--hot)' : db > -8 ? 'var(--gold)' : 'var(--ok)';
+  $('tPeak').textContent = db <= -99 ? '−∞' : db.toFixed(1) + ' dB';
+  const grDb = -20 * Math.log10(Math.max(1e-4, gr));
+  $('mGR').style.width = Math.min(100, grDb / 24 * 100) + '%';
+  $('tGR').textContent = grDb.toFixed(1) + ' dB';
+  /* MARGIN is reported from the LIMITER, not guessed from the gain slider. Gain
+     alone cannot know the loop's margin — the stabilisers change it, which is the
+     entire question. Sustained gain reduction means the loop is already producing
+     more than the output can hold: margin is gone. */
+  const margin = Math.max(0, 1 - grDb / 12);
+  $('mMar').style.width = (margin * 100) + '%';
+  $('tMar').textContent = grDb < 0.2 ? 'clear' : margin <= 0 ? 'GONE' : (margin * 100).toFixed(0) + '%';
+}
+
+function paintKill(){
+  const b = $('killBtn');
+  b.classList.toggle('armed', !!P.kill);
+  b.textContent = P.kill ? '◼ AUDIO KILLED — click to allow' : '◼ KILL AUDIO';
+  $('stateTxt').textContent = P.kill ? 'killed' : (running ? 'running' : 'stopped');
+  send();
+}
+
+/* Bind every slider/checkbox generically so a control cannot be added to the
+   markup and silently left unwired — the 29-dead-controls failure, in miniature. */
+const NUM = ['gain','extra','lpF','shHz','spF','spZ','nv','det','pit','src'];
+const FMT = { gain:v=>v.toFixed(3), extra:v=>v.toFixed(1)+' ms', lpF:v=>(v/1000).toFixed(1)+' kHz',
+              shHz:v=>v.toFixed(2)+' Hz', spF:v=>v.toFixed(0)+' Hz', spZ:v=>v.toFixed(2),
+              nv:v=>v.toFixed(0), det:v=>v.toFixed(1)+' ¢', pit:v=>'midi '+v.toFixed(0),
+              src:v=>v.toFixed(3) };
+for (const id of NUM){
+  const el = $(id), out = $(id + '_o');
+  const paint = () => { P[id] = +el.value; if (out) out.textContent = FMT[id](+el.value); send(); };
+  el.addEventListener('input', paint); paint();
+}
+for (const id of ['lpOn','shOn','satOn','spOn']){
+  const el = $(id);
+  const paint = () => { P[id] = el.checked ? 1 : 0; send(); };
+  el.addEventListener('change', paint); paint();
+}
+$('gran').addEventListener('change', e => { P.gran = +e.target.value; send(); });
+
+$('startBtn').addEventListener('click', async () => {
+  await start();
+  if (P.kill){ P.kill = 0; $('akTxt').textContent = 'armed'; paintKill(); }
+});
+$('killBtn').addEventListener('click', () => { P.kill = P.kill ? 0 : 1; paintKill(); });
+$('pluckBtn').addEventListener('click', async () => {
+  await start();
+  if (P.kill){ P.kill = 0; paintKill(); }
+  if (node) node.port.postMessage({ burst: 1 });
+});
+// Spacebar kills from anywhere — a safety control you have to aim at is not one.
+addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT'){
+    e.preventDefault(); P.kill = 1; paintKill();
+  }
+});
+
+const cv = $('scope'), cx = cv.getContext('2d');
+function draw(){
+  requestAnimationFrame(draw);
+  cx.fillStyle = '#0b0e10'; cx.fillRect(0, 0, cv.width, cv.height);
+  if (!analyser) return;
+  const b = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(b);
+  const n = b.length, w = cv.width / n;
+  for (let i = 0; i < n; i++){
+    const h = b[i] / 255 * cv.height;
+    cx.fillStyle = b[i] > 235 ? '#e0674a' : b[i] > 190 ? '#d9a94a' : '#5fb8c4';
+    cx.fillRect(i * w, cv.height - h, Math.max(1, w - 0.5), h);
+  }
+}
+draw();
+paintKill();
+
+// rev stamp: document.lastModified + a fingerprint of this script, both read at
+// load, so neither can drift from what is running. Uses lastModified rather than
+// a HEAD fetch — the lab-load gate has no `fetch`, and it caught exactly that.
+(function(){
+  const dt = document.getElementById('revdate');
+  if (dt){
+    const m = new Date(document.lastModified), pad = n => String(n).padStart(2, '0');
+    dt.textContent = isNaN(m.getTime()) ? '?'
+      : m.getFullYear() + '-' + pad(m.getMonth() + 1) + '-' + pad(m.getDate()) +
+        ' ' + pad(m.getHours()) + ':' + pad(m.getMinutes());
+  }
+  const fp = document.getElementById('revfp');
+  if (fp){
+    let h = 5381;
+    const src = document.currentScript ? document.currentScript.textContent : PROC;
+    for (let i = 0; i < src.length; i++) h = ((h << 5) + h + src.charCodeAt(i)) | 0;
+    fp.textContent = (h >>> 0).toString(16).slice(0, 7);
+  }
+})();
+</script>
+</body></html>
