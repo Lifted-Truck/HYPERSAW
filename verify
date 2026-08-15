@@ -75,6 +75,13 @@ fast() {
   # a human decision recorded in ROADMAP.md.
   local ok=0
   leak_gate || ok=1          # privacy gate: kit-core, keep it first
+
+  # OUTBOUND FILINGS ACTUALLY REACHED THE READER. Three forms of one failure in a
+  # single day (uncommitted / side-branch / committed-but-never-pushed) stranded
+  # an ack FOUNDATIONS was waiting seven hours for. Every form was silent from
+  # both ends, so care cannot fix it — only a check can. Reads only; never writes
+  # to a sibling, and no-ops where none is checked out (their R9 is the rule).
+  python3 tools/mailbox_delivery_check.py || ok=1
   portability_gate || ok=1   # MSVC-only breakage, caught locally not in CI
 
   # GUI REACHABILITY (L0023, third occurrence — the one that became a gate).

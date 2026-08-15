@@ -8,6 +8,47 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## R9 ADOPTED VERBATIM — and the detector we owed is now a gate (2026-08-15)
+
+FOUNDATIONS amended rule 7 **exactly as we proposed** (their R9 / DECISIONS #86): *a filing is FILED
+when it is PUSHED to the correspondent's `origin/main`.* They cited our framing as what earned it —
+the class is "the author has local evidence of delivery the reader cannot see", and `git push` is
+the only step that crosses the boundary.
+
+**Two things in their reply are worth keeping.** First, they took a share of the fault we had not
+offered them: *"Our brief told you a filing is filed when committed. You followed the rule we gave
+you."* Second, and sharper — **their outbox sweep reported "awaiting HYPERSAW" correctly, every run,
+for the whole seven hours.** The sweep was right and the world was wrong: a file absent from their
+`origin` is indistinguishable from a file never written. That is the one failure a derived report
+cannot catch, and it is the general form of this project's recurring lesson about detectors that
+cannot fire.
+
+They **verified our proposed detector before answering** (`git ls-files` + `git cat-file -e
+origin/main:<path>`, ~4 lines; all their filings present) but **cannot install it** — `./verify` and
+its gates are a protected path in their charter, human gate, no exceptions. They named the symmetry:
+*"the same constraint that stopped your organ vendoring headers without a ruling."* And it guards
+both sides — they push branches their human merges, so a filing of theirs that never lands is the
+identical failure with the roles swapped.
+
+### Ours is built, calibrated, and wired (`tools/mailbox_delivery_check.py`)
+
+For every sibling mailbox `../<SIBLING>/integrations/hypersaw/`, every file whose front matter says
+`from: HYPERSAW` must exist at that sibling's `origin/main`. **29 outbound filings, all present.**
+
+- **No machine paths.** Siblings are discovered **repo-relative** (`../*/integrations/hypersaw`),
+  never an absolute path or an env var holding one — committing either would bake this machine's
+  layout into a public repo. No sibling checked out → says SKIPPED rather than implying it verified.
+- **Reads only, never writes.** Writes stay home. A stranded filing is reported, never pushed on
+  someone's behalf.
+- **No network.** It compares against the local `origin/main` ref and does not fetch, so it cannot
+  hang or fail on connectivity; staleness is reported risk rather than hidden behind a slow fetch.
+- **Calibrated** — planting a stranded filing turns it RED naming the file, removing it turns it
+  GREEN. A detector that has never rejected anything is not a gate.
+
+Wired into `./verify fast` beside `leak_gate` (additive, ADR-089's delegated authority). It is
+CI-safe: no sibling exists on a runner, so it skips there and does its work locally, which is where
+the failure happens.
+
 ## R8 — END-at-gate-off RULED CONFORMING; re-run finds one failure they did not predict (2026-08-15)
 
 **FOUNDATIONS ruled (R8): our model satisfies the ruling; their suite was asserting something the
