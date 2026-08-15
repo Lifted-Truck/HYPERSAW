@@ -445,8 +445,13 @@ int main()
      accounting. This array is deliberately left empty rather than deleted: the
      drift check below turns any new ruled failure into a red naming it. */
   static const char *const kExpectedRuledFail[] = {nullptr};
-  static const char *const kExpectedDiverge[] = {"R-steal-1d", "R-steal-2", "R-retrig-1d",
-                                                "R-end-1d"};
+  /* R-end-1d dropped off this list when FOUNDATIONS fixed a handle-array
+     truncation in Case 1 (their DECISIONS #88): a four-element array was losing
+     every handle past the fourth, so twelve notes were issued and never ended.
+     Our fill then had to steal them. With the leak gone our tailed shell finds a
+     free row for every note — so voice residency was never the obstacle here,
+     which is the opposite of what we concluded and worth remembering. */
+  static const char *const kExpectedDiverge[] = {"R-steal-1d", "R-steal-2", "R-retrig-1d"};
   // 0 — the array holds only a nullptr placeholder (see above).
   constexpr int kNRuled = 0;
   constexpr int kNDiv = (int)(sizeof(kExpectedDiverge) / sizeof(kExpectedDiverge[0]));
