@@ -8,6 +8,76 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FEEDBACK FIELD SURVEY — and OQ #23 is missing a half (2026-08-15)
+
+Four-agent research swarm at the human's request. Report:
+`docs/reports/2026-08-15-feedback-field-survey.md`.
+
+**The headline is about the QUESTION, not the options.** Every stable feedback architecture surveyed
+uses one of **two** bounding strategies, and the robust ones use both because they are orthogonal:
+**(1) a structurally enforced minimum delay** makes the loop *computable* (Max/MSP one vector,
+Bitwig one block, Reaktor/VCV/Pd one sample, Csound one k-cycle); **(2) bounded loop gain plus
+smoothing inside the loop** makes it *stable* (DX7's eight power-of-two steps and two-sample average,
+Karplus-Strong's sub-unity-at-every-frequency loop filter, FDN's unitary matrix, analog's attenuator
+plus limiter).
+
+**OQ #23's three options are all answers to (1). None answers (2)** — and the survey says (2) is
+where real systems fail. **The natural experiment is Reaktor:** sample-accurate feedback with the
+gain bound pushed onto the user, and documented `+INF/-INF/NaN` overflow as the result. The DX7
+cannot blow up and is remembered for the sound. **Recommend telling FOUNDATIONS that #23 needs a
+companion ruling** requiring every feedback edge to declare a bounded gain and carry smoothing.
+
+**Option (b) is not a peer of (a) and (c)** — verified, not relayed: a directed graph with a cycle has
+no topological ordering, so "fixed evaluation order" must break the cycle somewhere, which *is* a
+unit delay placed implicitly by the sort. It does not hide its cost; it **pays the identical cost at
+a location nobody chose.**
+
+**Disconfirming evidence against the option we endorsed twice, recorded as such.** Block-granular
+**audio** feedback draws complaints (Bitwig's Grid, ~5.33 ms, "not a substitute for serious
+building"; Pd users defeat Max's vector with `[block~ 1]`), while control-rate cycle lag draws none
+(Csound's init/performance-pass convention). **Our modulation is control-rate on a 16-sample tick, so
+we are on the uncomplained-about side — stated as an inference, unmeasured.** The honest question is
+not "which option" but **"what travels on our feedback edges?"**
+
+### Occluded solutions
+
+- **A frequency shift inside the loop buys gain margin** — Berdahl et al. (JASA 2012), ~3 Hz for
+  ≥3 dB, because no frequency re-enters at its own phase. **Cross-confirmed from two directions:** the
+  acoustic-control literature measures it, and **Massive X ships a frequency shifter inside its
+  feedback loop** — sold as a tone colour, not as the stabiliser it is. **A Kuramoto swarm is already
+  a population of frequency-shifted copies of itself.**
+- **Chaos inside an atomic node instead of cycles in the graph** (Lorenz/Rössler/Chua as a source
+  type). **And we already are one:** our order parameter, phases and phase-velocity spread are
+  living, deterministic, seedable signals **already computed in the audio path**. Exposing them as
+  modulation sources delivers what people build feedback loops to get, **with no cycle at all** —
+  which may shrink #23 enough that a conservative ruling costs little.
+- **Unitary feedback matrices** guarantee FDN stability by construction; whether a *modulation*
+  matrix could be constrained the same way is unexplored. Speculative transfer, not a recommendation.
+
+### A correction to our own filed decision
+
+Smoothing in a loop is a **stabiliser**, not a tone control (DX7's average is documented as
+anti-oscillation). **A spring with ζ < 1 does the opposite — it ADDS gain at its resonant
+frequency.** So route inertia with low damping on a feedback edge is a destabiliser. The caution we
+filed this morning said *"its stability is not obvious"*; it should say **an underdamped spring on a
+feedback edge adds loop gain and must be prohibited or clamped to ζ ≥ 1.** Owed as a follow-up
+filing.
+
+### The tension nobody resolves, and it is a design target
+
+**DSP theory optimises for guaranteed stability; performance practice optimises for a wide,
+controllable region NEAR instability** — gain staged up "until you can just hear it", the resonance
+knob prized for approaching self-oscillation without committing, the TB-303 valued because it never
+quite oscillates. **A design that hears only the DSP literature will be provably stable and musically
+dead, and its own tests will not notice.** Two corollaries: put a controllable attenuator INSIDE the
+loop so gain is a modulation target (analog practice notes filter resonance already is exactly
+this), and keep the limiter as a backstop **distinct** from the musical control.
+
+**Gaps the agents reported rather than filled:** no evidence any commercial mod matrix documents
+refusing cycles (prohibition is implicit — the UI just does not expose it); unverified how Phase
+Plant / Vital / Pigments / Serum break zero-delay cycles internally; and "feedback patches do not
+recall identically" is **inference, not evidence** — worth measuring on our own seeded system.
+
 ## INERTIA DECIDED — a property of the ROUTE, filed as extraction evidence (2026-08-15)
 
 Human: *"Feel free to lock in your decision about inertia and file a brief."* Decided and filed
