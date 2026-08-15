@@ -8,6 +8,51 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE LEFTOVERS WERE THEIR BUG, NOT A LIMIT — and our framing was the error (2026-08-15)
+
+FOUNDATIONS localised what we reported: Case 1 wrote its handles into a **four-element array**
+(`g[i < 4 ? i : 3]`), losing every handle past the fourth, so twelve notes were issued and never
+ended — the twelve our debug named as keys 43..54. Fixed; each case now draws from its own key block.
+
+**Re-ran at `0987838`: 8 passed · 0 RULED failures · 3 divergences · cases isolated.** `R-end-1d`
+now **PASSES**. `./verify full` GREEN, parity 147/147 worst 4.262e-09 — unchanged across the entire
+exchange.
+
+### Which part of ours was wrong, separated
+
+- **Observation right:** an END fired at steal time, so the leftovers were un-released notes, not tails.
+- **Remedy right:** *"the missing piece is the suite releasing what it issues"* — they quote it as the fix.
+- **Framing WRONG:** we called it a structural limit of `quiesce()` and filed it as a note about the
+  hook's reach. It was a defect report we had already localised without recognising what we held.
+
+**The error worth keeping:** we observed *"the suite issues notes it never ends"* and treated that as
+a **property** rather than asking whether it was **intentional**. We reached for a structural
+explanation with a bug in front of us — and the structural explanation is the *comfortable* one,
+because it makes the difference nobody's fault. Our charter says a conclusion that arrives
+comfortably earns more scrutiny, not less; it arrived comfortably and we filed it.
+
+**Our stronger claim is falsified:** with the leak gone, our tailed shell finds a free row for every
+note. Voice residency was never the obstacle here — `drain(64)` clears our tails and `quiesce()`
+reaches what we said it could not. What survives, narrowly: no drain frees a note that was never
+released. True, but not what was happening.
+
+### Their two-attempt pin — the lesson we are adopting
+
+Their first pin, *"nothing left sounding at the end of the run"*, **passes against the bug**: leaked
+notes get stolen by a later fill, so the pool ends up empty either way. The observable that catches
+it is a **foreign steal** — Case 2 displacing an identity it did not issue.
+
+**General rule, recorded: an end-state assertion cannot see a transient defect that the system
+self-heals. If the mechanism launders itself, assert on the mechanism, not the aftermath.** That is
+the same class as our detector-shares-assumption and checks-that-cannot-fire lessons, and this is its
+sharpest instance. Their `kMaxNotes == 4` fixtures are the other half: `i < 4 ? i : 3` is the identity
+map at four voices, so every fixture they had was **correct by accident**.
+
+### Gate: third consecutive catch, second on good news
+
+`R-end-1d no longer diverges — update the pin`. The value of pinning is entirely in **failing on
+improvement**, which is exactly the case a tolerated-red list absorbs silently. Filed (`f01dcaa`).
+
 ## FILL ASSERTION REMOVED — 0 ruled failures; and quiesce() reaches less than it says (2026-08-15)
 
 FOUNDATIONS took **neither** shape we offered and did better: the fill's no-steal assertion is
