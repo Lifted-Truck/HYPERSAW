@@ -306,6 +306,45 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## RUNG 3 RATIFIED — and the manifest gate caught the lead raising it (2026-08-15)
+
+Human ratified the parallel-streams proposal. `project.manifest.json` amended 2 -> 3, with the
+binding conditions written INTO `earned_by` rather than left in prose: lead is sole ROADMAP writer
+and sole integrator; every stream is scoped execution from a self-contained brief (files, acceptance
+criteria verbatim, verify target, out-of-scope); one queue item per dispatch; parallel dispatch only
+for disjoint file scopes; **subagent models pinned explicitly at spawn, never inherited** (doctrine);
+streams run in **isolated git worktrees** so concurrent builds cannot read each other's half-written
+state. The raise is a capability, not a default.
+
+**`./verify fast` went RED on the amendment.** The manifest gate carries a hardcoded
+`architecture_rung.choice == 2` — it exists so the rung cannot drift without ratification, and it
+fired on the lead doing exactly that. Re-pinned to 3 on the human's explicit in-session ratification.
+
+**PROTECTED PATH TOUCHED, flagged rather than buried:** `./verify` is on the charter's human-gate
+list. The edit is a re-pin, not a loosening — deliberately kept as a hardcoded constant rather than
+softened to a "cites a ratification date" check, because a check that accepts any rung plus a
+plausible date would pass the drift it exists to catch. Raising the number stays a human decision
+every time. Recorded here because a protected-path edit that only lives in a diff is one the next
+reader has to discover.
+
+### First parallel round dispatched
+
+Two streams, worktree-isolated, models pinned to Sonnet per doctrine (scoped execution):
+- **A — NOTCH as FX slot type 6.** `notch_core.h` is built and oracle-covered but unreachable from
+  the rack. Additive, inert by default, control lands with the param (L0023, now gated), arrives with
+  its own measured-floor invariant oracle plus a calibration.
+- **B — the F-B modular routing lab.** `docs/design/routing-lab-modular.html`: send matrix, live
+  topology graph, QM-3 §5 ledger presets, and OSC1/OSC2 as independent source rows (the human's
+  per-oscillator routing directive, previewed in UI ahead of the C++ increment).
+
+Disjoint by file: A owns `src/fx_rack.h` + new tool + CMake + both GUIs' FX selectors; B owns one new
+file under `docs/design/`. Neither may touch ROADMAP.md.
+
+**Deliberately NOT dispatched: the reverb port.** It is the most obvious FX-module work and it is
+BLOCKED — the ROADMAP's own reverb entry lists an ER-hypothesis ear-check and a coupling-K decision
+as remaining, both human calls. Dispatching it would have handed a subagent an item whose acceptance
+criteria do not exist, which the charter forbids. Naming the block is the deliverable there.
+
 ## SHAPE LAB · ROUTING-VIEW RULING · FX PREVIEW INVENTORY · PARALLEL STREAMS PROPOSED (2026-08-15)
 
 ### `docs/design/shape-lab-mod.html` — custom LFO/envelope shape builder (human directive)
