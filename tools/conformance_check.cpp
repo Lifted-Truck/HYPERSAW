@@ -1,0 +1,408 @@
+/* conformance_check — FOUNDATIONS' note-lifecycle conformance suite, run
+ * against OUR bookkeeping.  (Their R5 / DECISIONS #80; our ROADMAP entry
+ * "FOUNDATIONS — fleet protocol acked; conformance run BLOCKED on repo
+ * visibility".)
+ *
+ * WHY THIS FILE IS TRACKED AND THEIR HEADERS ARE NOT. HYPERSAW is a PUBLIC
+ * repo; FOUNDATIONS is PRIVATE. Committing `note.h` / `note_conformance.h`
+ * would publish a private sibling's source, so they are vendored to a
+ * gitignored path (libs/vendor/foundations/, human ruling 2026-08-15) and this
+ * whole target disappears when they are absent. The adapter below is ours and
+ * carries all of the risk, so it is public. The consequence is stated rather
+ * than hidden: public CI will never have their headers, so `./verify` reports
+ * this gate as SKIPPED there — a locally-run measurement, not a CI block.
+ *
+ * WHAT IS UNDER TEST, AND WHAT IS DELIBERATELY NOT. The suite drives an adapter
+ * over the consumer's own note bookkeeping. Ours is not a library type: identity
+ * lives in the shell (`Plugin::tags[kPoly]`, hypersaw_clap.cpp) and the STEAL
+ * POLICY lives in the engine (`swarm_core.h::alloc()`, ADR-083's three tiers),
+ * because the tiers read envelope state the shell cannot see. So the adapter
+ * spans both — and it must NOT bridge them by recomputing anything:
+ *
+ *   - notes arrive as REAL CLAP events through the REAL process() path;
+ *   - a steal is observed as the NOTE_END the plugin emits to the host, which
+ *     is precisely what a host sees, not a prediction of what it should emit;
+ *   - `end()` calls the shipped `retireTag()`, the same function a steal and a
+ *     mono retarget call.
+ *
+ * An adapter that computed "who should have been stolen" would be an oracle
+ * checking its own copy of the rule under test (L0031, and the shape L0032
+ * names): it would agree with the engine by construction and certify nothing.
+ *
+ * CALIBRATION LIVES IN ./verify, NOT HERE. A suite that has never rejected
+ * anything is not a gate (their words and ours). The planted-defect run is
+ * recorded in the trace for this change.
+ */
+#include <cstdio>
+#include <cstring>
+#include <cstdint>
+#include <cstdlib>
+#include <vector>
+#include <clap/clap.h>
+
+#include "../src/hypersaw_clap_entry.h"
+#include "foundations/note.h"
+#include "foundations/note_conformance.h"
+
+namespace {
+
+constexpr double kSR = 44100.0;
+constexpr uint32_t kBlock = 64;
+
+const clap_host_t kHost = {CLAP_VERSION_INIT, nullptr, "conformance_check", "-", "-", "1.0",
+                           [](const clap_host_t *, const char *) -> const void * { return nullptr; },
+                           [](const clap_host_t *) {}, [](const clap_host_t *) {},
+                           [](const clap_host_t *) {}};
+
+// Every NOTE_END the plugin pushes out during a block lands here. A steal is
+// read from this list, never inferred.
+std::vector<clap_event_note_t> g_ends;
+
+/* THE END LEDGER — our own oracle, not theirs, and the reason this file is
+   worth running even on a red.
+   Their R-end-1 asserts identities come back "through end() or the steal";
+   that encodes THEIR table's timing. Ours retires an identity at gate-off
+   instead (the 2026-07-31 END-at-release redesign, hypersaw_clap.cpp:905 —
+   emitting at env death made hosts wait on an invisible ~1.1 s tail). So we
+   can fail their ENCODING while still satisfying the RULING it exists to
+   protect: "a note's identity may only be discarded through a path that
+   delivers its END."
+   This ledger measures that property directly and timing-independently: every
+   identity issued must be ENDed exactly once, whenever that happens. A leak is
+   the stuck note; a double is host bookkeeping corruption. */
+struct Ident
+{
+  int32_t note_id;
+  int16_t channel, key;
+  bool operator==(const Ident &o) const
+  {
+    return note_id == o.note_id && channel == o.channel && key == o.key;
+  }
+};
+std::vector<Ident> g_issued;    // note-ons, in order
+std::vector<Ident> g_ended;     // NOTE_ENDs observed, in order
+
+bool outPush(const clap_output_events_t *, const clap_event_header_t *h)
+{
+  if (h->type == CLAP_EVENT_NOTE_END && h->space_id == CLAP_CORE_EVENT_SPACE_ID)
+  {
+    const auto *n = reinterpret_cast<const clap_event_note_t *>(h);
+    g_ends.push_back(*n);
+    g_ended.push_back(Ident{n->note_id, (int16_t)n->channel, (int16_t)n->key});
+  }
+  return true;
+}
+
+int countOf(const std::vector<Ident> &v, const Ident &x)
+{
+  int n = 0;
+  for (const auto &e : v) if (e == x) n++;
+  return n;
+}
+
+struct EvList
+{
+  clap_input_events_t list{};
+  std::vector<clap_event_note_t> store;
+  std::vector<const clap_event_header_t *> ptrs;
+};
+uint32_t evSize(const clap_input_events_t *l) { return (uint32_t)((EvList *)l->ctx)->ptrs.size(); }
+const clap_event_header_t *evGet(const clap_input_events_t *l, uint32_t i)
+{
+  return ((EvList *)l->ctx)->ptrs[i];
+}
+
+/* The adapter. `Handle` is (slot, identity): a slot alone cannot distinguish two
+   same-key instances that occupied the same slot in turn, and identity alone
+   cannot find the row to retire — the same-key retrigger cases need both. */
+struct ShellAdapter
+{
+  static constexpr std::size_t kMaxNotes = 16;   // hypersaw::kPoly, asserted below
+  struct Handle
+  {
+    int slot = -1;
+    int32_t note_id = -1;
+    int16_t channel = -1, key = -1;
+  };
+  struct OnResult
+  {
+    Handle handle;
+    bool stole = false;
+    foundations::NoteRef stolen{};
+  };
+
+  const clap_plugin_t *p = nullptr;
+  std::vector<float> L, R;
+  clap_audio_buffer_t out{};
+  float *chans[2]{};
+  clap_output_events_t outEv{nullptr, outPush};
+  int64_t blk = 0;
+
+  explicit ShellAdapter(const clap_plugin_t *plug) : p(plug), L(kBlock), R(kBlock)
+  {
+    chans[0] = L.data();
+    chans[1] = R.data();
+    out.data32 = chans;
+    out.channel_count = 2;
+  }
+
+  void run(EvList &e)
+  {
+    e.list.ctx = &e;
+    e.list.size = evSize;
+    e.list.get = evGet;
+    e.ptrs.clear();
+    for (auto &n : e.store) e.ptrs.push_back(&n.header);
+    g_ends.clear();
+    clap_process_t proc{};
+    proc.audio_inputs_count = 0;
+    proc.audio_outputs_count = 1;
+    proc.audio_outputs = &out;
+    proc.frames_count = kBlock;
+    proc.in_events = &e.list;
+    proc.out_events = &outEv;
+    proc.steady_time = blk++ * kBlock;
+    p->process(p, &proc);
+  }
+
+  void send(uint16_t type, const foundations::NoteRef &n)
+  {
+    if (type == CLAP_EVENT_NOTE_ON)
+      g_issued.push_back(Ident{n.note_id, n.channel, n.key});
+    EvList e;
+    clap_event_note_t ev{};
+    ev.header.size = sizeof(ev);
+    ev.header.type = type;
+    ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    ev.header.time = 0;
+    ev.note_id = n.note_id;
+    ev.port_index = n.port < 0 ? 0 : n.port;
+    ev.channel = n.channel < 0 ? 0 : n.channel;
+    ev.key = n.key;
+    ev.velocity = 0.8;
+    e.store.push_back(ev);
+    run(e);
+  }
+
+  // Which slot currently holds this exact identity? -1 if none.
+  int slotOfIdentity(const foundations::NoteRef &n) const
+  {
+    for (int s = 0; s < (int)kMaxNotes; s++)
+    {
+      int32_t id;
+      int16_t port, ch, key;
+      if (!hypersaw_test_tag_at(p, s, &id, &port, &ch, &key)) continue;
+      if (id == n.note_id && ch == n.channel && key == n.key) return s;
+    }
+    return -1;
+  }
+
+  /* A red here is ambiguous until you know whether the SHELL or the ADAPTER
+     produced it, and that question has cost this project real time before. Set
+     HYPERSAW_CONFORMANCE_DEBUG=1 to print every adapter operation with the slot
+     and the ENDs the plugin actually emitted, so the two can be told apart. */
+  static bool debug()
+  {
+    static const bool on = std::getenv("HYPERSAW_CONFORMANCE_DEBUG") != nullptr;
+    return on;
+  }
+
+  OnResult noteOn(const foundations::NoteRef &n)
+  {
+    send(CLAP_EVENT_NOTE_ON, n);
+    OnResult r;
+    // A steal announces itself as a NOTE_END for some OTHER identity, emitted
+    // in the same block. Read, not predicted.
+    for (const auto &e : g_ends)
+    {
+      if (e.note_id == n.note_id && e.channel == n.channel && e.key == n.key) continue;
+      r.stole = true;
+      r.stolen = foundations::NoteRef{e.note_id, (int16_t)e.port_index, (int16_t)e.channel,
+                                      (int16_t)e.key};
+      break;
+    }
+    const int slot = slotOfIdentity(n);
+    r.handle = Handle{slot, n.note_id, n.channel, n.key};
+    if (debug())
+    {
+      std::printf("[dbg] noteOn  key %3d id %3d -> slot %2d | ends emitted: %zu",
+                  n.key, n.note_id, slot, g_ends.size());
+      for (const auto &e : g_ends) std::printf("  END(key %d id %d)", e.key, e.note_id);
+      std::printf("%s\n", r.stole ? "  => STOLE" : "");
+    }
+    return r;
+  }
+
+  /* Wildcard release. The count is the number of voices that actually stopped
+     being gated because of this note-off — measured across the event, not
+     computed from a copy of the matching rule. A shell that matched the wrong
+     rows would report the wrong count here, which is the point. */
+  std::size_t release(const foundations::NoteRef &q)
+  {
+    bool before[kMaxNotes];
+    for (int s = 0; s < (int)kMaxNotes; s++) before[s] = hypersaw_test_slot_gated(p, s);
+    send(CLAP_EVENT_NOTE_OFF, q);
+    std::size_t n = 0;
+    for (int s = 0; s < (int)kMaxNotes; s++)
+      if (before[s] && !hypersaw_test_slot_gated(p, s)) n++;
+    if (debug()) std::printf("[dbg] release key %3d ch %d id %3d -> %zu voice(s) ungated\n",
+                             q.key, q.channel, q.note_id, n);
+    return n;
+  }
+
+  foundations::NoteRef end(Handle h)
+  {
+    const foundations::NoteRef none{-1, -1, -1, -1};
+    if (h.slot < 0) return none;
+    // Retire only if the slot STILL holds this identity: a slot reused by a
+    // later note must not be retired by a stale handle, and a second end() on a
+    // retired handle must yield nothing (their no-double-END case).
+    int32_t id;
+    int16_t port, ch, key;
+    const bool active = hypersaw_test_tag_at(p, h.slot, &id, &port, &ch, &key);
+    const bool mine = active && id == h.note_id && ch == h.channel && key == h.key;
+    if (debug())
+      std::printf("[dbg] end    slot %2d want id %3d key %3d | slot holds %s id %3d key %3d -> %s\n",
+                  h.slot, h.note_id, h.key, active ? "ACTIVE" : "empty ", id, key,
+                  mine ? "retire" : "NOTHING");
+    if (!mine) return none;
+    /* GATE THE VOICE OFF FIRST, and this is not a detail. Retiring a tag while
+       its voice is still GATED creates a sounding voice with no identity — an
+       ORPHAN, which is exactly the mono-poison condition retireTag exists to
+       prevent. The shell itself never reaches that state: it calls retireTag
+       only immediately before overwriting the tag with a new note. Calling it
+       bare from a test hook would manufacture a state the product cannot
+       produce, and then measure it. So `end()` retires the identity AND ends
+       the note, which is what their model means by end(). */
+    const foundations::NoteRef self{h.note_id, port, h.channel, h.key};
+    send(CLAP_EVENT_NOTE_OFF, self);
+    // The note-off may itself have caused the shell to emit the END and clear
+    // the tag (we end at gate-off, hypersaw_clap.cpp:905). If so, the identity
+    // has already left through the shell's own path — report it, do not retire
+    // a second time.
+    if (!hypersaw_test_tag_at(p, h.slot, &id, &port, &ch, &key) || id != h.note_id ||
+        ch != h.channel || key != h.key)
+      return foundations::NoteRef{h.note_id, port, h.channel, h.key};
+    int32_t rid;
+    int16_t rport, rch, rkey;
+    if (!hypersaw_test_retire_slot(p, h.slot, &rid, &rport, &rch, &rkey)) return none;
+    return foundations::NoteRef{rid, rport, rch, rkey};
+  }
+
+  bool live(Handle h) const
+  {
+    if (h.slot < 0) return false;
+    int32_t id;
+    int16_t port, ch, key;
+    if (!hypersaw_test_tag_at(p, h.slot, &id, &port, &ch, &key)) return false;
+    return id == h.note_id && ch == h.channel && key == h.key;
+  }
+};
+
+}  // namespace
+
+int main()
+{
+  hypersaw_entry_init("");
+  auto *factory = (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
+  const clap_plugin_t *p = factory->create_plugin(factory, &kHost, "com.lifted-truck.hypersaw");
+  p->init(p);
+  p->activate(p, kSR, 32, 2048);
+  p->start_processing(p);
+
+  if (hypersaw_test_poly() != (int)ShellAdapter::kMaxNotes)
+  {
+    std::printf("FAIL  adapter kMaxNotes %zu != shell kPoly %d — fix the adapter, not this check\n",
+                ShellAdapter::kMaxNotes, hypersaw_test_poly());
+    return 1;
+  }
+
+  ShellAdapter a(p);
+  const foundations::ConformanceReport rep = foundations::runNoteConformance(a);
+
+  /* Drain before judging the ledger. retireTag() QUEUES an identity; the END
+     goes out on a following block, so reading the ledger the instant the suite
+     returns would count every still-queued END as a leak — a residue measured
+     beside the event that produces it is not a residue (L0016). */
+  for (int i = 0; i < 400; i++)
+  {
+    EvList e;
+    a.run(e);
+  }
+
+  int leaked = 0, doubled = 0;
+  std::vector<Ident> seen;
+  for (const auto &id : g_issued)
+  {
+    if (countOf(seen, id)) continue;   // multiplicity handled once per identity
+    seen.push_back(id);
+    const int on = countOf(g_issued, id), off = countOf(g_ended, id);
+    if (off < on)
+    {
+      leaked += on - off;
+      std::printf("FAIL   LEDGER leak: id %d ch %d key %d issued %d, ENDed %d\n", id.note_id,
+                  id.channel, id.key, on, off);
+    }
+    else if (off > on)
+    {
+      doubled += off - on;
+      std::printf("FAIL   LEDGER double-END: id %d ch %d key %d issued %d, ENDed %d\n", id.note_id,
+                  id.channel, id.key, on, off);
+    }
+  }
+  const bool ledgerOk = leaked == 0 && doubled == 0;
+  std::printf("%-6s LEDGER (ours, timing-independent): every identity issued was ENDed exactly "
+              "once — %zu note-ons, %zu ENDs\n",
+              ledgerOk ? "ok" : "FAIL", g_issued.size(), g_ended.size());
+
+  p->stop_processing(p);
+  p->deactivate(p);
+  p->destroy(p);
+
+  /* THE GATE PINS THE RED SET, it does not demand green — and that is a
+     deliberate choice recorded in ROADMAP, not a weakened gate.
+     Two cases are red because their scaffolding encodes FOUNDATIONS' OWN table
+     timing, not the ruling behind it (see the ledger note above); which side
+     changes is their ruling to make, and until it lands, "all green" would be
+     a lie and "blocking red" would halt work on a divergence nobody has ruled
+     wrong. So this pins the CURRENT set exactly: a NEW failure is a
+     regression, and an expected failure turning green means the record is
+     stale. Both are worth stopping for; neither is silence. */
+  static const char *const kExpectedRed[] = {"R-steal-1", "R-retrig-1"};
+  constexpr int kExpectedCount = (int)(sizeof(kExpectedRed) / sizeof(kExpectedRed[0]));
+  int drift = 0;
+  for (int i = 0; i < rep.failed && i < foundations::ConformanceReport::kMaxFail; i++)
+  {
+    bool expected = false;
+    for (int j = 0; j < kExpectedCount; j++)
+      if (!std::strncmp(rep.failed_names[i], kExpectedRed[j], std::strlen(kExpectedRed[j])))
+        expected = true;
+    if (!expected)
+    {
+      std::printf("FAIL   UNEXPECTED red (regression): %s\n", rep.failed_names[i]);
+      drift++;
+    }
+  }
+  for (int j = 0; j < kExpectedCount; j++)
+  {
+    bool stillRed = false;
+    for (int i = 0; i < rep.failed && i < foundations::ConformanceReport::kMaxFail; i++)
+      if (!std::strncmp(rep.failed_names[i], kExpectedRed[j], std::strlen(kExpectedRed[j])))
+        stillRed = true;
+    if (!stillRed)
+    {
+      std::printf("FAIL   %s now PASSES — behaviour changed, update the pinned red set and the "
+                  "ROADMAP entry that explains it\n",
+                  kExpectedRed[j]);
+      drift++;
+    }
+  }
+
+  std::printf("conformance_check: %s — suite %d passed / %d failed (%d expected-red, pinned), "
+              "ledger %s\n",
+              (drift || !ledgerOk) ? "RED" : "GREEN", rep.passed, rep.failed, kExpectedCount,
+              ledgerOk ? "GREEN" : "RED");
+  for (int i = 0; i < rep.failed && i < foundations::ConformanceReport::kMaxFail; i++)
+    std::printf("  red: %s\n", rep.failed_names[i]);
+  return (drift || !ledgerOk) ? 1 : 0;
+}

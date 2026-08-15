@@ -8,6 +8,63 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## CONFORMANCE RUN DONE — 6/8, and both first diagnoses were wrong (2026-08-15)
+
+Human ruled the vendoring question (headers untracked, gate SKIPs). Adapter built, suite run,
+`./verify full` GREEN with **parity 147/147 worst 4.262e-09 unchanged** — no product behaviour
+moved. Trace: `traces/2026-08-15-conformance-adapter.md`.
+
+```
+conformance_check: GREEN — suite 6 passed / 2 failed (2 expected-red, pinned), ledger GREEN
+  red: R-steal-1 (released-before-gated)   red: R-retrig-1 (same-key retrigger)
+  ok  LEDGER: every identity issued was ENDed exactly once — 38 note-ons, 38 ENDs
+```
+
+**The dispatch came back to the lead, and that is a lead error worth naming.** A Sonnet implementer
+**stalled in reconnaissance** (600 s watchdog, nothing written) reading `hypersaw_clap.cpp` — 2500
+lines, note bookkeeping spread across four regions. The brief bounded its attention correctly and
+**budgeted it wrongly**: it handed over the right file and made the agent pay the whole recon cost.
+Round 1's lesson was that the lead owns the questions; this one is that the lead owns the
+**reconnaissance**. A brief that pre-digests line ranges is the fix, not a bigger model.
+
+### The first run said 3 red + 15 leaked identities. Both diagnoses were wrong.
+
+That output reads like a serious lifecycle bug. Neither cause was in the product.
+
+- **I manufactured an orphan.** My `end()` called the shipped `retireTag()` **bare**. The shell
+  never does that — it calls `retireTag` only immediately before overwriting the tag. Alone, it
+  retires an identity while its voice is still GATED: a sounding voice with no identity, which is
+  the mono-poison condition `retireTag` exists to prevent. **I built a state the product cannot
+  reach, then measured it.** Gating the voice off first took R-end-1 green and the ledger from 15
+  leaks to **38/38 exact**.
+- **Their suite short-circuits a side-effecting call.** Case 2 is
+  `ok = ok && owed.take(a.end(hs[i]))` — once `ok` is false, **`a.end()` is never evaluated**, so
+  the suite stops driving the adapter mid-case and poisons what follows. That produced the 15
+  "leaks". Reported to them.
+
+### The two remaining reds are ONE model divergence, and the ruling still holds
+
+We retire an identity at **gate-off** (`hypersaw_clap.cpp:905`, the 2026-07-31 END-at-release
+redesign — emitting at env death made hosts wait on an invisible ~1.1 s tail). Their cases assume
+retirement at `end()`/steal. R-steal-1 therefore sees no steal (the END went out a block earlier);
+R-retrig-1 finds the retrigger reusing the first instance's slot, identity already retired.
+**The ruling — "an identity may only be discarded through a path that delivers its END" — HOLDS:
+38 issued, 38 ENDed, exactly once.** We fail the encoding, not the rule. **Not explained, and
+recorded as unexplained:** why the retrigger lands in the released slot rather than a free one when
+tier 1 checks free first. Mechanism confirmed; cause not established; no correctness claim made.
+
+### Calibration, because a suite that never rejected anything is not a gate
+
+Planted the panic bug's shape (`retireTag` discards instead of queueing): ledger **RED, 38 issued /
+20 ENDed, 18 leaks**, suite failures 2 → 4. Reverted; `git diff --stat` confirms hooks only.
+
+### The gate pins the red set rather than demanding green
+
+Blocking would halt work over a divergence nobody has ruled wrong; ignoring it would be silence. So
+it pins the CURRENT set — a new failure is a regression, an expected failure turning green means the
+record is stale, **both exit non-zero**. A new gate with its reason stated, not an existing gate
+weakened. It SKIPs loudly wherever their headers are absent, which is every CI runner.
+
 ## FOUNDATIONS — fleet protocol acked; conformance run BLOCKED on repo visibility (2026-08-15)
 
 Two inbound with `ball: HYPERSAW`; both answered and **committed** into their mailbox

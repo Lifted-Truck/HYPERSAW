@@ -251,6 +251,17 @@ full() {
   # Calibrated: making the Notch case a no-op makes it FAIL — see the trace.
   "$build_dir/notchslot_check" || return 1
 
+  # FOUNDATIONS NOTE-LIFECYCLE CONFORMANCE (their R5) — run against OUR tag
+  # tables, plus our own END ledger. SKIPS BY DESIGN when the binary is absent:
+  # their headers are vendored to a gitignored path because this repo is public
+  # and theirs is private (human ruling 2026-08-15), so every CI runner lands
+  # here. A skip that announces itself beats a gate that quietly is not a gate.
+  if [ -x "$build_dir/conformance_check" ]; then
+    "$build_dir/conformance_check" || return 1
+  else
+    echo "verify: FOUNDATIONS headers absent — conformance_check SKIPPED (expected off this Mac)" >&2
+  fi
+
   # SUBDIVISION INVARIANCE (ADR-086, gate ratified 2026-08-10). Rendering must
   # not depend on how a buffer is split — a host may send 2048 frames or 33, and
   # the multi-oscillator mix splits further still. None of that is a musical
