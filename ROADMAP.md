@@ -8,6 +8,53 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## SWELLING UNDERTONES — scanned, and the dominant cause was our own bug (2026-08-15)
+
+Human report from playing the feedback lab: *"a lot of settings seem to result in swelling
+undertones."* Scanned with `tools/feedback_scan.mjs` — 29 configurations, running the lab's **real
+processor** lifted out of the HTML under a worklet shim, because a re-implementation would agree with
+itself.
+
+**The detector caught itself first, and that is the load-bearing part.** The control row is loop
+gain 0 — no loop, therefore no loop-made undertone is possible. The first run reported **18.5% sub-band
+energy on that row**, so every other number was worthless. Cause: an **unwindowed** Goertzel, whose
+sidelobes drag the 110 Hz fundamental down into the 15-94 Hz band being measured. **This is
+`steal_check`'s trap, repeated in a new file** — measuring a weak residue beside a strong signal
+(L0016). Hann window applied; control fell to **0.9%**, and only then was the table readable.
+
+### The dominant cause: our frequency shifter selected the WRONG SIDEBAND
+
+Isolated with a pure 1 kHz tone into the shift stage alone:
+
+| | before | after |
+|---|---|---|
+| labelled +20 Hz lands at | **980 Hz** (down!) | 1020 Hz |
+| intended sideband vs image | **−17.0 dB** (image louder) | **+17.0 dB** |
+
+`a·cos(t) − b·sin(t)` selected the opposite sideband. **In a feedback loop that is a downward
+ratchet:** every pass walks energy lower, the lowpass removes what walks up, and the result piles up
+below the fundamental — *swelling undertones*, exactly as reported. Fixed to `+`; measured symmetric
+17 dB suppression in both directions, and the scan's undertone rows moved from **+3/+12 Hz to
+−3/−12 Hz** with identical magnitudes, which is the confirmation: downward shift makes undertones
+because it should, and the labels were lying.
+
+### Three independent mechanisms, which is why it appeared "in a lot of settings"
+
+| mechanism | sub fraction | swell | what it is |
+|---|---|---|---|
+| **downward frequency shift** | 80–92% | — | now correctly labelled; a real downward ratchet, not a defect |
+| **1-sample loop delay** | **50.3%** | — | nonlinear (`tanh`) feedback at 1 sample period-doubles → literal subharmonics; peak pinned at 0.980, limiter engaged |
+| **long loop delay (50 ms)** | 8.1% | **1.75×** | 50 ms = 20 Hz repetition, so the loop's own comb teeth (20/40/60/80 Hz) land **inside** the undertone band. This is the *swelling* one |
+
+**The spring is nearly innocent — 0.9–2.2% across every rate and damping tested**, which is a genuine
+surprise and is recorded as one; it was our leading suspect. Also, **ζ = 0.15 showed no
+destabilisation at gain 0.85** (1.5% sub, swell 0.32×). That is mild disconfirmation of our own ζ
+claim, stated as such — though not a clean test of it, since our claim was about springs on
+*modulation-graph feedback edges*, not inside an audio loop.
+
+**Reusable:** `tools/feedback_scan.mjs` re-runs the whole sweep from the lab as it stands, so a change
+to the loop can be re-scanned rather than re-argued.
+
 ## FEEDBACK LAB — the survey's hypotheses made audible and survivable (2026-08-15)
 
 Human: *"maybe we should spin up a feedback lab (with a master limiter and an audio killswitch)."*
