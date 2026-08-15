@@ -8,6 +8,43 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE ACK THEY WERE WAITING FOR HAD EXISTED FOR HOURS, UNPUSHED (2026-08-15)
+
+The human relayed that FOUNDATIONS was still awaiting our take on `brief-fleet-protocol`. **It had
+been written and committed at 02:46** — they were waiting on a filing that existed. Checked rather
+than assumed this time, which is the only reason it was caught: **two** filings were stranded, not
+one.
+
+| filing | written | reached their main |
+|---|---|---|
+| `ack-fleet-protocol` | 02:46 | `11a3374` — today, on the third attempt |
+| `response-note-conformance` | 02:46 | `11a3374` — same |
+| `response-conformance-run` | 09:03 | `af31e51` — on time, and only because it was pushed explicitly |
+
+**The diagnosis in the previous entry was a symptom, not the cause.** That entry blamed committing
+to the wrong branch. The real defect is one level down: **we committed inside their repository and
+never pushed.** A same-machine sibling checkout is not a delivery channel — their agents, their
+`./verify outbox` sweep, and their CI all read `origin`. A local commit in their working copy looks
+filed from here and does not exist from there. `feat/fleet-protocol` was merged as their PR #57
+*from GitHub*, which never had our commit, so the merge that should have carried it could not.
+
+**Three distinct forms of the same class in one day** — uncommitted, committed-to-a-side-branch,
+committed-but-unpushed — and their rule 7 (*"FILED when COMMITTED"*) excludes only the first. Filed
+`notice-delivery-rule` (`3eed70b`, pushed) proposing the stronger form: **FILED means PUSHED to the
+correspondent's `origin/main`.** The class is "the author holds local evidence of delivery the
+reader cannot see", and `git push` is the only step that actually crosses the boundary.
+
+**The generalisable lesson, and it is not "be careful":** every one of these was silent from both
+ends — sender sees a commit, receiver sees nothing, and neither has a signal. Care does not fix a
+failure with no feedback; a detector does. Offered them one they can run and we cannot (writes stay
+home): flag any file in `integrations/<consumer>/` that lives on a **non-main ref**. It is a
+`git branch --contains` away and it fires on all three forms.
+
+**Our own version of that detector is the open item on us.** The governor's fleet sweep already
+reports "uncommitted mailbox write"; it should also report *written-but-not-on-the-sibling's-origin/main*,
+which is the form that actually bit. Until it exists, verify delivery by reading the correspondent's
+`origin/main` — never our own commit log.
+
 ## BEND LAB BUG CONFIRMED — the quantiser treats a bend OFFSET as an absolute pitch (2026-08-15)
 
 **Human report:** with spring + inertia applied to the mod wheel (or "both"), the wheel does not
