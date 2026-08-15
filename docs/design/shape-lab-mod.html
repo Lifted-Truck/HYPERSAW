@@ -1,0 +1,244 @@
+<!doctype html>
+<!-- shape-lab-mod — custom LFO / envelope SHAPE builder.
+     HYPERSAW, 2026-08-15. Spec-in-code per ADR-003.
+
+     The human asked for a lab to work on a custom LFO/envelope shape builder.
+     One breakpoint editor serves BOTH: an envelope is a shape played once from
+     a trigger (with an optional sustain point); an LFO is the same shape looped
+     with its endpoints joined. Deciding that up front means one editor, one
+     serialization, one oracle — not two half-built ones.
+
+     Design constraints carried in from the codebase, so the lab does not drift
+     from what the core can accept:
+       - a shape is a table of (t, v, curve) breakpoints; t in [0,1] normalised
+         so RATE/DURATION are separate params in SECONDS (ADR-009), never baked
+         into the shape;
+       - curve per segment is a single exponent (bipolar tension), so the
+         segment evaluator is one pow() — cheap enough for the audio thread and
+         trivially deterministic;
+       - the sampled output is what the core would consume; the sample-and-hold
+         resolution slider exists to SHOW the cost of block-rate stepping;
+       - per-partial application (all partials, with a distribution across
+         them) is the population-destination question raised with FOUNDATIONS —
+         the "per-partial spread" control here previews it and is labelled as a
+         doorframe, not a promise.
+
+     L0026: all state above all wiring. No devicePixelRatio. -->
+<html><head><meta charset="utf-8"><title>Shape Lab — LFO / envelope breakpoint builder</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151f; --line:#2a3040; --dim:#7f8899; --text:#cdd6e4;
+    --teal:#5ff2e0; --amber:#ffc24b; --rust:#e0654a; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); font:12px/1.45 ui-monospace,Menlo,monospace;
+    padding:12px 16px; max-width:1100px; margin:0 auto; }
+  h1 { font-size:16px; } .sub { color:var(--dim); font-size:11px; margin-bottom:12px; }
+  .cols { display:grid; grid-template-columns:1fr 300px; gap:12px; align-items:start; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:10px; }
+  .panel h2 { font-size:12px; color:var(--amber); margin-bottom:6px; }
+  canvas { display:block; width:100%; background:#0d1017; border:1px solid var(--line); border-radius:6px; }
+  #ed { cursor:crosshair; }
+  .ctl { margin:6px 0; } .ctl label { display:block; color:var(--dim); font-size:11px; }
+  input[type=range] { width:100%; }
+  .seg { display:flex; gap:4px; flex-wrap:wrap; }
+  .seg button, .btn { background:#1a2130; border:1px solid var(--line); color:var(--dim); border-radius:4px;
+    font:11px ui-monospace,monospace; padding:3px 9px; cursor:pointer; }
+  .seg button[aria-pressed="true"] { color:#0b0e13; background:var(--teal); border-color:var(--teal); }
+  .note { color:var(--dim); font-size:11px; margin-top:6px; line-height:1.5; }
+  pre { background:#0d1017; border:1px solid var(--line); border-radius:6px; padding:8px; font-size:10px;
+    overflow:auto; max-height:130px; color:var(--dim); }
+  b.k { color:var(--teal); }
+</style></head><body>
+
+<h1>Shape Lab — LFO / envelope builder</h1>
+<div class="sub">One breakpoint editor for both. Drag points · double-click to add · right-click to delete ·
+drag the mid-segment handle to bend the curve. Time is normalised 0–1; rate/duration are separate.</div>
+
+<div class="cols">
+  <div>
+    <div class="panel">
+      <h2>Editor <span id="modeLbl" style="color:var(--dim)">— envelope</span></h2>
+      <canvas id="ed" width="760" height="300"></canvas>
+      <div class="note">Segment curve = one exponent per segment (bipolar tension), so the audio-thread
+        evaluator is a single <b class="k">pow()</b>. Sustain point (envelope mode) is the marked breakpoint;
+        release plays from it on note-off.</div>
+    </div>
+    <div class="panel">
+      <h2>Output as the core would consume it</h2>
+      <canvas id="out" width="760" height="120"></canvas>
+      <div class="note">Sampled at the chosen control rate over <b id="spanLbl">2</b> cycles / one note. Coarser
+        rates show the stepping the core would actually apply — this is the honest picture, not the pretty one.</div>
+    </div>
+  </div>
+  <div>
+    <div class="panel">
+      <h2>Mode</h2>
+      <div class="seg" id="mode"><button data-v="env" aria-pressed="true">envelope</button><button data-v="lfo">LFO (loop)</button></div>
+      <div class="ctl"><label>rate / duration <span id="rateV">1.0 s</span></label>
+        <input type="range" id="rate" min="0.05" max="8" step="0.01" value="1"></div>
+      <div class="ctl"><label>control rate <span id="crV">2756 /s (16-sample tick)</span></label>
+        <input type="range" id="cr" min="0" max="3" step="1" value="1"></div>
+      <div class="ctl"><label>sustain point (envelope) <span id="susV">2</span></label>
+        <input type="range" id="sus" min="0" max="8" step="1" value="2"></div>
+      <div class="ctl"><label>per-partial spread <span id="spreadV">0%</span> <span style="color:var(--rust)">doorframe</span></label>
+        <input type="range" id="spread" min="0" max="1" step="0.01" value="0"></div>
+      <div class="note">Spread offsets each partial's phase across the shape — the population-destination
+        idea (distribution across partials, not selection of them). Shown in the output panel as a fan.
+        Labelled doorframe because the routing layer that would deliver it does not exist yet.</div>
+    </div>
+    <div class="panel">
+      <h2>Presets</h2>
+      <div class="seg" id="presets"><button data-v="adsr">ADSR</button><button data-v="pluck">pluck</button>
+        <button data-v="sine">sine</button><button data-v="ramp">ramp</button><button data-v="steps">4-step</button>
+        <button data-v="rnd">random</button></div>
+      <div class="ctl" style="margin-top:8px"><button class="btn" id="mirror">mirror</button>
+        <button class="btn" id="invert">invert</button> <button class="btn" id="smooth">smooth</button></div>
+    </div>
+    <div class="panel">
+      <h2>Serialization (what a preset stores)</h2>
+      <pre id="ser"></pre>
+      <div class="note">Breakpoints + per-segment curve, normalised. Rate and sustain index are separate
+        fields. Nothing sample-rate- or tempo-dependent lives inside the shape.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ---- all state above all wiring (L0026) ---- */
+const S={mode:'env',rate:1.0,crIdx:1,sus:2,spread:0,seed:1234};
+const CR=[689,2756,11025,44100];   // /s: 64-tick, 16-tick (the core's), 4-tick, per-sample
+const CRL=['689 /s (64-sample tick)','2756 /s (16-sample tick)','11025 /s (4-sample tick)','44100 /s (per sample)'];
+let pts=[{t:0,v:0,c:0},{t:.05,v:1,c:0},{t:.3,v:.6,c:.6},{t:.75,v:.6,c:0},{t:1,v:0,c:-.6}];
+let drag=null;
+const $=s=>document.querySelector(s);
+const ed=$('#ed'),ec=ed.getContext('2d'),oc=$('#out').getContext('2d');
+const PADL=28,PADR=12,PADT=12,PADB=22;
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+/* the evaluator the core would run: segment lookup + one pow */
+function segCurve(x,c){ // c in [-1,1]: 0 linear, +tension bends toward late, - toward early
+  if(Math.abs(c)<1e-6)return x;
+  const k=Math.exp(c*3);
+  return Math.pow(x,k);}
+function evalShape(t){
+  t=Math.min(1,Math.max(0,t));
+  for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];
+    if(t<=b.t){const span=b.t-a.t;if(span<=1e-9)return b.v;
+      const x=(t-a.t)/span;return a.v+(b.v-a.v)*segCurve(x,a.c);}}
+  return pts[pts.length-1].v;}
+
+function toX(t){return PADL+t*(ed.width-PADL-PADR);}
+function toY(v){return PADT+(1-v)*(ed.height-PADT-PADB);}
+function fromX(x){return Math.min(1,Math.max(0,(x-PADL)/(ed.width-PADL-PADR)));}
+function fromY(y){return Math.min(1,Math.max(0,1-(y-PADT)/(ed.height-PADT-PADB)));}
+
+function drawEditor(){
+  const W=ed.width,H=ed.height;
+  ec.clearRect(0,0,W,H);
+  ec.strokeStyle='#1c2230';ec.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=toY(i/4);ec.beginPath();ec.moveTo(PADL,y);ec.lineTo(W-PADR,y);ec.stroke();
+    ec.fillStyle='#7f8899';ec.font='9px monospace';ec.fillText((i/4).toFixed(2),2,y+3);}
+  for(let i=0;i<=8;i++){const x=toX(i/8);ec.beginPath();ec.moveTo(x,PADT);ec.lineTo(x,H-PADB);ec.stroke();}
+  ec.fillStyle='#7f8899';ec.fillText('0',PADL-2,H-8);ec.fillText('t → 1',W-PADR-30,H-8);
+  // curve
+  ec.strokeStyle='#5ff2e0';ec.lineWidth=2;ec.beginPath();
+  for(let i=0;i<=400;i++){const t=i/400,v=evalShape(t);const x=toX(t),y=toY(v);i?ec.lineTo(x,y):ec.moveTo(x,y);}
+  ec.stroke();
+  // sustain marker
+  if(S.mode==='env'&&S.sus<pts.length){const p=pts[S.sus];ec.strokeStyle='#ffc24b';ec.setLineDash([3,3]);
+    ec.beginPath();ec.moveTo(toX(p.t),PADT);ec.lineTo(toX(p.t),H-PADB);ec.stroke();ec.setLineDash([]);
+    ec.fillStyle='#ffc24b';ec.fillText('sustain',toX(p.t)+4,PADT+10);}
+  // points + tension handles
+  pts.forEach((p,i)=>{
+    if(i<pts.length-1){const q=pts[i+1];const tm=(p.t+q.t)/2,vm=p.v+(q.v-p.v)*segCurve(.5,p.c);
+      ec.fillStyle='#ffc24b';ec.beginPath();ec.arc(toX(tm),toY(vm),4,0,7);ec.fill();}
+    ec.fillStyle=(i===0||i===pts.length-1)?'#7f8899':'#5ff2e0';
+    ec.beginPath();ec.arc(toX(p.t),toY(p.v),6,0,7);ec.fill();
+    ec.strokeStyle='#0b0e13';ec.lineWidth=1.5;ec.stroke();});
+}
+
+function drawOutput(){
+  const cv=$('#out'),W=cv.width,H=cv.height;
+  oc.clearRect(0,0,W,H);
+  const cr=CR[S.crIdx],dur=S.mode==='lfo'?2/S.rate*S.rate:S.rate; // lfo: 2 cycles; env: one note of `rate` s
+  const cycles=S.mode==='lfo'?2:1;
+  const totalS=S.mode==='lfo'?2/S.rate:S.rate;
+  const n=Math.max(8,Math.floor(totalS*cr));
+  const fans=S.spread>0?7:1;
+  for(let f=0;f<fans;f++){
+    const off=fans===1?0:(f/(fans-1)-.5)*S.spread; // phase offset across partials
+    oc.strokeStyle=fans===1?'#5ff2e0':'rgba(95,242,224,'+(0.35+0.65*(1-Math.abs(f/(fans-1)-.5)*2))+')';
+    oc.lineWidth=fans===1?1.6:1;
+    oc.beginPath();
+    let last=null;
+    for(let i=0;i<=n;i++){
+      let ph=(i/n)*cycles+off;
+      let t;
+      if(S.mode==='lfo'){t=ph-Math.floor(ph);}
+      else{t=Math.min(1,Math.max(0,ph));}
+      const v=evalShape(t);
+      const x=i/n*W,y=H-6-v*(H-12);
+      if(last===null){oc.moveTo(x,y);}else{oc.lineTo(x,last);oc.lineTo(x,y);} // sample-and-hold stairs
+      last=y;}
+    oc.stroke();}
+  oc.fillStyle='#7f8899';oc.font='9px monospace';
+  oc.fillText((S.mode==='lfo'?'2 cycles @ ':'1 note @ ')+S.rate.toFixed(2)+' s · '+n+' control samples',6,10);
+  $('#spanLbl').textContent=S.mode==='lfo'?'2':'1';
+}
+
+function serialize(){
+  const o={version:1,mode:S.mode,rateSeconds:S.rate,sustainIndex:S.mode==='env'?S.sus:null,
+    points:pts.map(p=>({t:+p.t.toFixed(4),v:+p.v.toFixed(4),curve:+p.c.toFixed(3)}))};
+  $('#ser').textContent=JSON.stringify(o,null,1);}
+
+function update(){pts.sort((a,b)=>a.t-b.t);pts[0].t=0;pts[pts.length-1].t=1;
+  if(S.mode==='lfo'){pts[pts.length-1].v=pts[0].v;}   // loop closure: endpoints joined
+  $('#sus').max=pts.length-1;if(S.sus>pts.length-1)S.sus=pts.length-1;$('#susV').textContent=S.sus;
+  drawEditor();drawOutput();serialize();}
+
+/* ---- editing ---- */
+function hit(mx,my){
+  for(let i=0;i<pts.length;i++){const p=pts[i];if(Math.hypot(toX(p.t)-mx,toY(p.v)-my)<9)return{kind:'pt',i};}
+  for(let i=0;i<pts.length-1;i++){const p=pts[i],q=pts[i+1];const tm=(p.t+q.t)/2,vm=p.v+(q.v-p.v)*segCurve(.5,p.c);
+    if(Math.hypot(toX(tm)-mx,toY(vm)-my)<8)return{kind:'ten',i};}
+  return null;}
+function pos(e){const r=ed.getBoundingClientRect();return[(e.clientX-r.left)*ed.width/r.width,(e.clientY-r.top)*ed.height/r.height];}
+ed.addEventListener('pointerdown',e=>{const[mx,my]=pos(e);const h=hit(mx,my);
+  if(e.button===2){if(h&&h.kind==='pt'&&h.i>0&&h.i<pts.length-1){pts.splice(h.i,1);update();}return;}
+  if(h){drag={...h,startY:my,startC:h.kind==='ten'?pts[h.i].c:0};ed.setPointerCapture(e.pointerId);}});
+ed.addEventListener('contextmenu',e=>e.preventDefault());
+ed.addEventListener('dblclick',e=>{const[mx,my]=pos(e);if(hit(mx,my))return;
+  pts.push({t:fromX(mx),v:fromY(my),c:0});update();});
+ed.addEventListener('pointermove',e=>{if(!drag)return;const[mx,my]=pos(e);
+  if(drag.kind==='pt'){const p=pts[drag.i];
+    if(drag.i>0&&drag.i<pts.length-1)p.t=Math.min(pts[drag.i+1].t-.005,Math.max(pts[drag.i-1].t+.005,fromX(mx)));
+    p.v=fromY(my);}
+  else{const p=pts[drag.i];p.c=Math.max(-1,Math.min(1,drag.startC+(drag.startY-my)/90));}
+  update();});
+ed.addEventListener('pointerup',()=>{drag=null;});
+
+/* ---- controls ---- */
+$('#mode').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  $('#mode').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');S.mode=b.dataset.v;
+  $('#modeLbl').textContent='— '+(S.mode==='env'?'envelope':'LFO (looped, endpoints joined)');update();}));
+$('#rate').addEventListener('input',e=>{S.rate=+e.target.value;$('#rateV').textContent=S.rate.toFixed(2)+' s';drawOutput();serialize();});
+$('#cr').addEventListener('input',e=>{S.crIdx=+e.target.value;$('#crV').textContent=CRL[S.crIdx];drawOutput();});
+$('#sus').addEventListener('input',e=>{S.sus=+e.target.value;update();});
+$('#spread').addEventListener('input',e=>{S.spread=+e.target.value;$('#spreadV').textContent=Math.round(S.spread*100)+'%';drawOutput();});
+const PRESETS={
+  adsr:()=>[{t:0,v:0,c:0},{t:.05,v:1,c:0},{t:.3,v:.6,c:.6},{t:.75,v:.6,c:0},{t:1,v:0,c:-.6}],
+  pluck:()=>[{t:0,v:0,c:0},{t:.01,v:1,c:0},{t:1,v:0,c:.9}],
+  sine:()=>Array.from({length:9},(_,i)=>({t:i/8,v:.5+.5*Math.sin(i/8*2*Math.PI),c:0})),
+  ramp:()=>[{t:0,v:0,c:0},{t:1,v:1,c:0}],
+  steps:()=>[{t:0,v:.2,c:0},{t:.249,v:.2,c:0},{t:.25,v:.8,c:0},{t:.499,v:.8,c:0},{t:.5,v:.4,c:0},{t:.749,v:.4,c:0},{t:.75,v:1,c:0},{t:1,v:1,c:0}],
+  rnd:()=>{const r=mulberry32(S.seed++);const n=4+Math.floor(r()*5);const a=[{t:0,v:r(),c:0}];
+    for(let i=1;i<n-1;i++)a.push({t:i/(n-1),v:r(),c:r()*2-1});a.push({t:1,v:r(),c:0});return a;}};
+$('#presets').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{pts=PRESETS[b.dataset.v]();S.sus=Math.min(S.sus,pts.length-1);update();}));
+$('#mirror').addEventListener('click',()=>{pts=pts.map(p=>({t:1-p.t,v:p.v,c:p.c})).reverse();
+  for(let i=0;i<pts.length-1;i++)pts[i].c=-pts[i+1].c;update();});
+$('#invert').addEventListener('click',()=>{pts.forEach(p=>p.v=1-p.v);update();});
+$('#smooth').addEventListener('click',()=>{for(let i=1;i<pts.length-1;i++)pts[i].v=(pts[i-1].v+2*pts[i].v+pts[i+1].v)/4;update();});
+update();
+</script>
+</body></html>

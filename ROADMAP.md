@@ -306,6 +306,62 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## SHAPE LAB · ROUTING-VIEW RULING · FX PREVIEW INVENTORY · PARALLEL STREAMS PROPOSED (2026-08-15)
+
+### `docs/design/shape-lab-mod.html` — custom LFO/envelope shape builder (human directive)
+
+One breakpoint editor serves BOTH kinds: an envelope is a shape played once from a trigger with an
+optional sustain point; an LFO is the same shape looped with endpoints joined. One editor, one
+serialization, one future oracle. Constraints carried in so it cannot drift from the core: shape is
+(t, v, curve) breakpoints with t normalised 0-1 and rate/duration as SEPARATE seconds params
+(ADR-009); per-segment curve is one bipolar-tension exponent, so the audio-thread evaluator is a
+single `pow()`; the output panel renders the shape SAMPLED at a selectable control rate — 689 / 2756
+(the core's 16-sample tick) / 11025 / 44100 — as sample-and-hold stairs, so the picture is the one
+the core would apply, not the pretty one. A "per-partial spread" control fans the output across
+seven partials as a preview of the population-destination doorframe FOUNDATIONS granted; labelled
+doorframe, not promise. Serialization panel shows exactly what a preset would store.
+
+### Ruling recorded: routing is patch state; FX page and morph page are two VIEWS of it
+
+Human asked whether routing belongs on the FX page or the morph page. Answer: neither OWNS it.
+Topology is patch state at the ruled 10000+ block; the FX page edits it directly (cables, sends,
+series/parallel — the F-B lab lives there) and the morph page shows how the corners disagree about it
+and how the ruled law resolves them. Same substrate, two lenses — L0028 applied to a UI, and already
+how the seam map declares it (`?:topology-state` is one seam; `?:morph-topology` reads from it).
+
+### FX preview inventory — what actually exists to show
+
+C++ slots today: Drive/Filter/Gain (increment-1 placeholders), **Comp** and **Comb** (real cores,
+ADR-071). Shipped-but-unslotted cores with parity oracles: `filter_core.h`, `notch_core.h`,
+`time_core.h` (Track E). The **reverb lab** (805 lines: pre-delay, 12-tap ER, diffusion, 8-line
+Householder FDN, Kuramoto-coupled line modulators, RT60 CALIBRATED and two decay defects found and
+fixed by measurement) is built and never ported. Human's two workshop items map onto QM-3's `char`
+mechanism exactly: **comb becomes a FLT char** (LP/BP/HP/NOTCH/COMB) and **freeverb becomes a VRB
+char** (plate/hall/chamber/FREEVERB). Preview = extend the F-A lab's module boxes with the real
+cores' response curves; port work = stream A below.
+
+### Parallel streams — PROPOSED, needs ratification (architecture-rung change)
+
+The manifest is on rung 2, earned 2026-07 because "ADR-001 collapsed three prototypes into one
+engine, so seam count is low." **That premise no longer holds:** the seam audit mapped 30 seams,
+round-1 rulings signed the boundaries, and the gate set now makes streams independently verifiable.
+Rung 3 is earned by parallelizable, verifiable work with genuine seams — which now exists:
+
+| stream | scope | disjoint files | independent gate |
+|---|---|---|---|
+| **A · FX modules** | port reverb-lab -> VRB core; comb + freeverb as chars; filter/notch cores into slots | `src/fx_rack.h`, new `*_core.h` | per-core parity oracles |
+| **B · Routing lab (F-B)** | modular routing UI on the FX page; per-osc sources into the matrix | `docs/design/routing-lab.html`, `src/routing_core.h` | `routing_check`, `gui_reach` |
+| **C · Shape builder** | grow the shape lab toward a core + oracle | `docs/design/shape-lab-mod.html`, new core | lab gate; its own oracle |
+| **D · gui2 checklist** | Output & perception -> Dynamics -> swarm -> … | `src/gui/gui2.html` | `gui_reach` coverage |
+
+**Condition, non-negotiable:** the lead stays the ONLY writer of ROADMAP.md and the only integrator;
+each stream is scoped execution with a self-contained brief (files, acceptance criteria verbatim,
+verify target, out-of-scope), and one queue item per dispatch. That is the charter's existing rung-2
+discipline, and it is what keeps four streams from becoming four forks. Recommendation: **start with
+A and B** (deepest existing groundwork), add C/D as the pattern proves out. The ~15x token
+multiplier is real; rung 3 is earned by seams and gates, not by wanting speed. **Manifest amendment
+is the human's to ratify; not applied.**
+
 ## F-A: FX-PAGE LAB SHIPPED (2026-08-15)
 
 `docs/design/fx-page-lab.html` — the FX page's shape, felt out before any of it touches gui2.
