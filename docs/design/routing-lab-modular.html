@@ -1,0 +1,398 @@
+<!doctype html>
+<!-- routing-lab-modular — F-B: the QM-3 pool as an editable send matrix + live
+     topology graph. HYPERSAW, 2026-08-15. Spec-in-code per ADR-003.
+
+     WHAT THIS EXPLORES (the human's directive, ratified 2026-08-15, unblocking
+     this after the morph-law ruling): is the QM-3 §2 pool (SRC, DRV1, FLT1,
+     FLT2, CHO, DLY, VRB, DRV2, MST) LEGIBLE as a send matrix + graph at this
+     size? Sends are upper-triangular (a module reaches only a higher rank or
+     MST — routing_core.h edgeLive()), a coefficient of 0 IS "not connected"
+     (no cable list, ADR-088), a zero row normals to MST at unity (dashed),
+     bypass is a pass-through never a mute, and a slot can carry a nonzero
+     init value even with nothing wired in (routing_core.h `slotInit`, the
+     `in_i` crosspoint term). OSC1/OSC2 rows above SRC preview the B23
+     "per-oscillator sources" increment — NOT in the shipping C++ audio path
+     (routing_core.h has one NSRC-wide source bank; the pool's own SRC row
+     stands in for it there). Five QM-3 §5 ledger patches are one-click
+     presets. This is a topology-EDITING lab: no audio, no morph law, no
+     corner colouring (those live in morph-law-bench.html and fx-page-lab.html
+     respectively) — one lab, one question: is the wiring itself readable?
+
+     WHAT THIS IS NOT: an audio audition, a morph-corner authoring tool, or a
+     cycle checker — routing_core.h is explicit that no validity checker
+     exists ANYWHERE in this codebase; `legal()` below is the render-time
+     query routing_core.h calls edgeLive(), used identically by the matrix
+     AND the graph so there is only one copy of "which edges exist" (the
+     header note's own warning: a second copy of this question is exactly
+     the bug that shipped once already, in the routing lab's scheme C).
+
+     L0026: all state above all wiring. No devicePixelRatio (stubs lack it). -->
+<html><head><meta charset="utf-8"><title>Routing Lab · Modular — QM-3 send matrix + live graph</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151f; --panel2:#161b28; --line:#2a3040;
+    --dim:#7f8899; --text:#cdd6e4; --teal:#5ff2e0; --amber:#ffc24b;
+    --cA:#f2b134; --cB:#ff4d6d; --cC:#4cc9f0; --cD:#7ae582; --prev:#ff9f4b; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text);
+    font:12px/1.45 ui-monospace,Menlo,monospace; padding:12px 16px; max-width:1160px; margin:0 auto; }
+  h1 { font-size:16px; } .sub { color:var(--dim); font-size:11px; margin-bottom:12px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:12px; margin-bottom:12px; }
+  .panel h2 { font-size:11px; color:var(--amber); text-transform:uppercase; letter-spacing:.06em;
+    margin-bottom:8px; }
+  .presets { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .presets button { background:#1a2130; border:1px solid var(--line); color:var(--text);
+    border-radius:5px; font:11px ui-monospace,monospace; padding:6px 10px; cursor:pointer; text-align:left; }
+  .presets button:hover { border-color:var(--teal); }
+  .presets button .pn { color:var(--teal); font-weight:bold; display:block; }
+  .presets button .pd { color:var(--dim); font-size:10px; }
+  .util { display:flex; gap:8px; margin-top:2px; }
+  .util button { background:var(--panel2); border:1px solid var(--line); color:var(--dim);
+    border-radius:4px; font:10px ui-monospace,monospace; padding:4px 9px; cursor:pointer; }
+  .util button:hover { color:var(--text); border-color:var(--dim); }
+
+  table.mx { border-collapse:collapse; width:100%; }
+  table.mx th, table.mx td { border:1px solid var(--line); text-align:center; padding:2px; }
+  table.mx th { color:var(--dim); font-size:9px; font-weight:normal; padding:4px 3px; }
+  table.mx th.rowhdr { text-align:left; padding-left:8px; }
+  table.mx td.rowhdr { text-align:left; padding-left:8px; color:var(--text); font-size:10px;
+    white-space:nowrap; }
+  tr.preview td.rowhdr, tr.preview th.rowhdr { color:var(--prev); }
+  tr.preview { background:rgba(255,159,75,.05); }
+  td.blank { background:#0d1017; color:#2a3040; font-size:9px; }
+  td.cell { width:52px; height:30px; cursor:pointer; position:relative; padding:0; user-select:none; }
+  td.cell .fill { position:absolute; left:0; right:0; bottom:0; background:var(--teal); opacity:.28; }
+  tr.preview td.cell .fill { background:var(--prev); }
+  td.cell .val { position:relative; font-size:10px; color:var(--text); }
+  td.cell.norm { border-style:dashed; border-color:var(--amber); }
+  td.cell.norm .val { color:var(--amber); }
+  td.init { width:52px; }
+  td.init input { width:100%; }
+  th.initlbl { color:var(--dim); font-style:italic; }
+  .preview-note { font-size:10px; color:var(--prev); margin:6px 0 10px; padding:6px 8px;
+    border:1px dashed var(--prev); border-radius:5px; background:rgba(255,159,75,.06); }
+
+  #graphwrap canvas { display:block; width:100%; height:230px; background:#0d1017;
+    border:1px solid #1c2230; border-radius:5px; }
+  .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:10px; color:var(--dim); margin-top:6px; }
+  .legend .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:4px; }
+
+  .findings { font-size:12px; line-height:1.6; }
+  .findings b.k { color:var(--teal); }
+  .findings b.q { color:var(--prev); }
+</style></head><body>
+
+<h1>Routing Lab · Modular</h1>
+<div class="sub">QM-3 §2 pool as an upper-triangular send matrix + live graph · rows send only to
+columns of strictly higher rank, or MST · a cell of 0 is "not connected" — there is no cable list ·
+zero row → normalled to MST at unity, dashed · OSC1/OSC2 preview rows (amber) are the B23
+"per-oscillator sources" increment, NOT wired into the C++ audio path today. No audio here on
+purpose — this lab is about topology legibility, not the morph law (see morph-law-bench.html) or the
+module's own controls (see fx-page-lab.html).</div>
+
+<div class="panel">
+  <h2>QM-3 §5 topology ledger — one-click presets</h2>
+  <div class="presets" id="presets"></div>
+  <div class="util">
+    <button id="btnSerial">reset: serial default (routing_core.h)</button>
+    <button id="btnClear">clear all cells</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Send matrix — row sends to column</h2>
+  <div class="preview-note">OSC1 / OSC2 rows: preview of the per-oscillator source increment. The
+  shipping <code>RoutingMatrix</code> has one source bank (SRC stands in for it here); routing two
+  independent oscillators is not in the audio path yet.</div>
+  <div id="matrixWrap"></div>
+</div>
+
+<div class="panel" id="graphwrap">
+  <h2>Live routing graph — cable width = gain · dashed = normalled to MST</h2>
+  <canvas id="graph" width="1100" height="230"></canvas>
+  <div class="legend" id="legend"></div>
+</div>
+
+<div class="panel findings">
+  <h2>Layout findings (edit as they accrue)</h2>
+  1. <b class="k">The upper-triangular shape reads instantly once the blank cells are actually
+  blank</b> — filling below-diagonal cells with a hatch or a zero would make the eye hunt for the
+  boundary; a flat dark blank cell makes the staircase self-evident in about one glance.<br>
+  2. <b class="k">The matrix answers "what", the graph answers "so what"</b> — nine non-zero cells in
+  a table is a diffing exercise; the same nine cells as cables make the split-band-vs-serial shape
+  obvious without reading a single number. Neither view alone is enough at this pool size (10 rows ×
+  8 columns after adding OSC1/OSC2).<br>
+  3. <b class="k">Normalling wants to be near-invisible until it matters</b> — a dashed MST cell plus
+  a dashed cable is enough; anything louder (a warning icon, a colour swap) would make the common
+  "nothing wired yet" case look like an error state, when it is actually the safe default.<br>
+  4. <b class="q">Open question: does per-cell colour-by-sender help or just add noise?</b> — this lab
+  colours cables by sender rank so parallel paths from the same source stay visually grouped; at 10
+  senders the palette runs out of easily-distinguished hues around the 7th–8th row (VRB, DRV2 sit
+  close in hue to CHO, DLY). A future pass may want colour reserved for corner-ownership instead
+  (fx-page-lab's corner strip) and something else — dash pattern, curve height — for sender identity.<br>
+  5. <b class="k">The OSC1/OSC2 preview rows are legible ONLY because they're visually quarantined</b>
+  — same table, amber accent, a dashed row background and the note block above it. Without that
+  separation a reader has no way to know two of the ten rows describe a feature that doesn't exist in
+  the audio path yet; QM-3 itself never mentions OSC1/OSC2, so nothing in the matrix shape signals
+  "preview" on its own.<br>
+  6. <b class="k">slotInit earned its space but not its prominence</b> — a per-column constant that
+  can drive a module with nothing connected is a real, if rare, case (routing_core.h's `in_i` term);
+  showing it as a thin editable strip above the header row rather than a fifth matrix dimension kept
+  it from competing with the sends, which are what QM-3 actually authors.
+</div>
+
+<script>
+'use strict';
+/* ---- all state above all wiring (L0026) ---- */
+
+/* QM-3 §2 pool, frozen rank order. RANK is used only for legality (edgeLive
+   below) and node ordering — never as an "is this connected" fact. */
+const RANK = { SRC:0, DRV1:1, FLT1:2, FLT2:3, CHO:4, DLY:5, VRB:6, DRV2:7, MST:8 };
+const RECEIVERS = ['DRV1','FLT1','FLT2','CHO','DLY','VRB','DRV2','MST'];   // 8 columns
+const POOL_SENDERS = ['SRC','DRV1','FLT1','FLT2','CHO','DLY','VRB','DRV2']; // 8 QM-3 rows
+const PREVIEW_SENDERS = ['OSC1','OSC2'];  // B23 preview rows, above SRC
+const ALL_SENDERS = PREVIEW_SENDERS.concat(POOL_SENDERS);                  // 10 rows
+const NODES = ALL_SENDERS.concat(['MST']);                                 // 11 graph nodes, in order
+
+/* THE legality predicate — the one and only copy (routing_core.h's own
+   warning: a second copy of "which edges exist" is the bug that shipped
+   once already). Sources (OSC1/OSC2/SRC) may reach any receiver;
+   routing_core.h: "Sources may reach anything; a slot may reach only a
+   LATER slot." SRC is rank 0 in QM-3's own pool, so "any receiver" and
+   "strictly later rank" already coincide for it — no special case needed. */
+function legal(from, to) {
+  if (PREVIEW_SENDERS.indexOf(from) !== -1) return true;
+  return RANK[to] > RANK[from];
+}
+function cellKey(from, to) { return from + '>' + to; }
+
+/* QM-3 §5 topology ledger, verbatim patches. Gains chosen at 1.0 (unity
+   cable) except the dry taps the ledger calls out explicitly (0.15, 1.0). */
+const PRESETS = [
+  { name: 'Split-band', desc: 'SRC→FLT1→MST ∥ SRC→FLT2→CHO→VRB→MST',
+    cells: { 'SRC>FLT1':1, 'FLT1>MST':1, 'SRC>FLT2':1, 'FLT2>CHO':1, 'CHO>VRB':1, 'VRB>MST':1 } },
+  { name: 'Serial crush', desc: 'SRC→DRV1→FLT1→FLT2→DRV2→MST',
+    cells: { 'SRC>DRV1':1, 'DRV1>FLT1':1, 'FLT1>FLT2':1, 'FLT2>DRV2':1, 'DRV2>MST':1 } },
+  { name: 'Dub chain', desc: 'SRC→FLT1→DLY→VRB→MST, dry tap SRC→MST @0.15',
+    cells: { 'SRC>FLT1':1, 'FLT1>DLY':1, 'DLY>VRB':1, 'VRB>MST':1, 'SRC>MST':0.15 } },
+  { name: 'Driven wash', desc: 'SRC→VRB, SRC→DLY→VRB, VRB→DRV2→MST',
+    cells: { 'SRC>VRB':1, 'SRC>DLY':1, 'DLY>VRB':1, 'VRB>DRV2':1, 'DRV2>MST':1 } },
+  { name: 'Parallel space', desc: 'SRC→CHO→MST ∥ SRC→VRB→MST ∥ SRC→MST',
+    cells: { 'SRC>CHO':1, 'CHO>MST':1, 'SRC>VRB':1, 'VRB>MST':1, 'SRC>MST':1 } },
+];
+
+/* mutable topology state — the send matrix (dense: a missing key reads as
+   0, i.e. "not connected", per ADR-088) and per-receiver slotInit (the
+   `in_i` crosspoint term). Both start empty; setSerialDefault() below fills
+   the matrix's initial view to routing_core.h's own default topology. */
+const cells = {};
+const slotInit = {};
+RECEIVERS.forEach(r => { slotInit[r] = 0; });
+
+/* per-sender hue for cable/legend colour, spread across all 10 rows —
+   deterministic, no RNG needed for a fixed-size palette. */
+const SENDER_COLOR = {};
+ALL_SENDERS.forEach((s, i) => { SENDER_COLOR[s] = 'hsl(' + Math.round(i / ALL_SENDERS.length * 300) + ',70%,60%)'; });
+
+const $ = s => document.querySelector(s);
+const cellTD = {};      // key -> { td, fill, val }
+const initInputs = {};  // receiver -> input element
+
+/* ---- derived topology (single source of truth, reused by matrix + graph —
+   see the file header note on why there must be exactly one copy) ---- */
+function rowSum(from) {
+  let s = 0;
+  RECEIVERS.forEach(to => { if (legal(from, to)) s += cells[cellKey(from, to)] || 0; });
+  return s;
+}
+function isNormalled(from) { return rowSum(from) < 0.01; }
+function effectiveGain(from, to) {
+  if (to === 'MST' && isNormalled(from)) return 1;
+  return cells[cellKey(from, to)] || 0;
+}
+
+/* ---- mutation ---- */
+function setCell(from, to, v) {
+  if (!legal(from, to)) return;
+  v = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+  cells[cellKey(from, to)] = v;
+}
+function clearAll() {
+  ALL_SENDERS.forEach(from => RECEIVERS.forEach(to => { if (legal(from, to)) delete cells[cellKey(from, to)]; }));
+  RECEIVERS.forEach(r => { slotInit[r] = 0; });
+}
+/* routing_core.h RoutingMatrix::setSerialChain(): source(s) → slot0 → slot1
+   → … → out, unity gain, consecutive ranks only. QM-3's own pool maps this
+   to SRC→DRV1→FLT1→FLT2→CHO→DLY→VRB→DRV2→MST — the shipping C++ default,
+   reproduced here so this lab's starting state is never a fiction. */
+function setSerialDefault() {
+  clearAll();
+  const chain = ['SRC','DRV1','FLT1','FLT2','CHO','DLY','VRB','DRV2','MST'];
+  for (let i = 0; i < chain.length - 1; i++) setCell(chain[i], chain[i + 1], 1);
+}
+function applyPreset(p) {
+  clearAll();
+  Object.keys(p.cells).forEach(k => {
+    const [from, to] = k.split('>');
+    setCell(from, to, p.cells[k]);
+  });
+}
+
+/* ---- matrix DOM: built once, then only cell CONTENT changes (never
+   rebuilt mid-drag — a full rebuild would drop the pointer capture the
+   drag is running under) ---- */
+function buildMatrix() {
+  const wrap = $('#matrixWrap');
+  const t = document.createElement('table');
+  t.className = 'mx';
+  let thead = '<tr><th class="rowhdr">from ↓ / to →</th>' + RECEIVERS.map(r => '<th>' + r + '</th>').join('') + '</tr>';
+  thead += '<tr><th class="rowhdr initlbl">init (slotInit)</th>' + RECEIVERS.map(r =>
+    '<th class="init"><input type="range" min="0" max="1" step="0.02" value="0" data-init="' + r + '"></th>').join('') + '</tr>';
+  let rows = '';
+  ALL_SENDERS.forEach(from => {
+    const preview = PREVIEW_SENDERS.indexOf(from) !== -1;
+    rows += '<tr class="' + (preview ? 'preview' : '') + '"><td class="rowhdr">' + from + '</td>';
+    RECEIVERS.forEach(to => {
+      if (!legal(from, to)) { rows += '<td class="blank">·</td>'; return; }
+      rows += '<td class="cell" data-from="' + from + '" data-to="' + to + '"><div class="fill"></div><span class="val"></span></td>';
+    });
+    rows += '</tr>';
+  });
+  t.innerHTML = thead + rows;
+  wrap.innerHTML = '';
+  wrap.appendChild(t);
+
+  t.querySelectorAll('td.cell').forEach(td => {
+    const from = td.dataset.from, to = td.dataset.to;
+    cellTD[cellKey(from, to)] = { td, fill: td.querySelector('.fill'), val: td.querySelector('.val') };
+    td.addEventListener('pointerdown', e => cellDragStart(e, from, to));
+    td.addEventListener('dblclick', () => { setCell(from, to, 0); refreshCell(from, to); refreshRowNorm(from); drawGraph(); });
+  });
+  t.querySelectorAll('input[data-init]').forEach(inp => {
+    const r = inp.dataset.init;
+    initInputs[r] = inp;
+    inp.addEventListener('input', () => { slotInit[r] = +inp.value; drawGraph(); });
+  });
+}
+
+function cellDragStart(e, from, to) {
+  e.preventDefault();
+  const td = cellTD[cellKey(from, to)].td;
+  const apply = ev => {
+    const r = td.getBoundingClientRect();
+    const h = Math.max(1, r.height);
+    const frac = 1 - Math.min(1, Math.max(0, (ev.clientY - r.top) / h));
+    setCell(from, to, frac);
+    refreshCell(from, to);
+    refreshRowNorm(from);
+    drawGraph();
+  };
+  apply(e);
+  const move = ev => apply(ev);
+  const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+}
+
+function refreshCell(from, to) {
+  const c = cellTD[cellKey(from, to)];
+  if (!c) return;
+  const v = cells[cellKey(from, to)] || 0;
+  c.fill.style.height = (v * 100) + '%';
+  c.val.textContent = v < 0.005 ? '' : v.toFixed(2);
+}
+/* the MST cell for a normalled row shows the DERIVED state (unity, dashed)
+   rather than its own near-zero stored value — normalling is a read-time
+   fact about the row, never a separate write. */
+function refreshRowNorm(from) {
+  RECEIVERS.forEach(to => refreshCell(from, to));
+  const mstCell = cellTD[cellKey(from, 'MST')];
+  if (!mstCell) return;
+  const nrm = isNormalled(from);
+  mstCell.td.classList.toggle('norm', nrm);
+  if (nrm) { mstCell.fill.style.height = '100%'; mstCell.val.textContent = 'norm'; }
+}
+function refreshAll() {
+  ALL_SENDERS.forEach(from => refreshRowNorm(from));
+  RECEIVERS.forEach(r => { if (initInputs[r]) initInputs[r].value = slotInit[r]; });
+}
+
+/* ---- graph ---- */
+const gc = $('#graph'), gg = gc.getContext('2d');
+function drawGraph() {
+  const W = gc.width, H = gc.height, padX = 46, y = H / 2 - 10;
+  gg.clearRect(0, 0, W, H);
+  const xs = {};
+  NODES.forEach((n, i) => { xs[n] = padX + i * (W - 2 * padX) / (NODES.length - 1); });
+
+  // cables — drawn before nodes so node boxes sit on top of the curve ends
+  ALL_SENDERS.forEach(from => {
+    const nrm = isNormalled(from);
+    RECEIVERS.forEach(to => {
+      if (!legal(from, to)) return;
+      const g = effectiveGain(from, to);
+      if (g < 0.02) return;
+      const dashed = nrm && to === 'MST';
+      const x1 = xs[from], x2 = xs[to];
+      const span = Math.abs(x2 - x1) / (W - 2 * padX);
+      gg.strokeStyle = SENDER_COLOR[from];
+      gg.globalAlpha = 0.85;
+      gg.lineWidth = 1 + g * 6;
+      gg.setLineDash(dashed ? [5, 4] : []);
+      gg.beginPath();
+      gg.moveTo(x1, y + 16);
+      gg.bezierCurveTo(x1, y - 30 - span * 90, x2, y - 30 - span * 90, x2, y + 16);
+      gg.stroke();
+      gg.setLineDash([]);
+      gg.globalAlpha = 1;
+    });
+  });
+
+  // nodes
+  gg.font = '600 11px ui-monospace, Menlo, monospace';
+  gg.textAlign = 'center';
+  NODES.forEach(n => {
+    const x = xs[n], preview = PREVIEW_SENDERS.indexOf(n) !== -1;
+    gg.fillStyle = n === 'MST' ? '#1a2130' : '#161b28';
+    gg.strokeStyle = preview ? '#ff9f4b' : '#2a3040';
+    gg.setLineDash(preview ? [3, 3] : []);
+    gg.beginPath();
+    if (gg.roundRect) gg.roundRect(x - 26, y - 14, 52, 28, 4); else gg.rect(x - 26, y - 14, 52, 28);
+    gg.fill(); gg.stroke();
+    gg.setLineDash([]);
+    gg.fillStyle = preview ? '#ff9f4b' : '#cdd6e4';
+    gg.fillText(n, x, y + 4);
+    const init = slotInit[n] || 0;
+    if (init > 0.01) {
+      gg.font = '500 9px ui-monospace, Menlo, monospace';
+      gg.fillStyle = '#ffc24b';
+      gg.fillText('init ' + init.toFixed(2), x, y + 28);
+      gg.font = '600 11px ui-monospace, Menlo, monospace';
+    }
+  });
+}
+
+/* ---- static UI wiring ---- */
+function renderPresets() {
+  $('#presets').innerHTML = PRESETS.map((p, i) =>
+    '<button data-i="' + i + '"><span class="pn">' + p.name + '</span><span class="pd">' + p.desc + '</span></button>').join('');
+  $('#presets').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { applyPreset(PRESETS[+b.dataset.i]); refreshAll(); drawGraph(); });
+  });
+}
+function renderLegend() {
+  $('#legend').innerHTML = ALL_SENDERS.map(s =>
+    '<span><i class="dot" style="background:' + SENDER_COLOR[s] + '"></i>' + s + '</span>').join('') +
+    '<span><i class="dot" style="background:#ff9f4b"></i>dashed outline = OSC preview node</span>';
+}
+
+buildMatrix();
+renderPresets();
+renderLegend();
+setSerialDefault();
+refreshAll();
+drawGraph();
+$('#btnSerial').addEventListener('click', () => { setSerialDefault(); refreshAll(); drawGraph(); });
+$('#btnClear').addEventListener('click', () => { clearAll(); refreshAll(); drawGraph(); });
+</script>
+</body></html>
