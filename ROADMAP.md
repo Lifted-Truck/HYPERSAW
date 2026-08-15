@@ -8,6 +8,63 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## STREAM A DELIVERED — NOTCH as FX slot 6, and two findings the brief did not ask for (2026-08-15)
+
+`notch_core.h` was fully built and oracle-covered but unreachable from the shipping rack. It is now
+`FxType::Notch = 6`, selectable in both GUIs, gated by a new `notchslot_check`.
+
+**Lead verification, run independently:** `./verify full` GREEN; **parity 147/147, worst 4.262e-09 —
+unchanged to the digit**; `rtsafety_probe` GREEN; `notchslot_check` GREEN. The `verify` edit is
+**purely additive** (9 insertions, 0 deletions — one gate invocation), which is inside ADR-089's
+delegated authority; audited line by line because `verify` is a protected path.
+
+Craft worth naming: NotchCore instances are constructed in `setSampleRate()` (main thread) and only
+`setParam`/`processExternal` run in `processSlot`; the agent reasoned explicitly about in-place
+aliasing (`processExternal` reads `dry` before writing `outL/outR`, so `L==inL` is safe) — **verified
+against the source, the claim holds.**
+
+### TWO FINDINGS THE AGENT DID NOT REPORT, and they are the round's real lesson
+
+Its trace says "Open questions: none for this item's scope." Reading `processExternal` said otherwise;
+**measured** with a wide stereo input (L 220 Hz, R 330 Hz) at `amount = 0`:
+
+| measurement | value | meaning |
+|---|---|---|
+| mean \|out − in\| | **0.216** | at amount 0 the slot is **NOT a passthrough** |
+| mean \|outL − outR\| | **0.000000** | it **collapses stereo to mono** |
+| L rms 0.3550 → 0.1912 | **53.9%** | it drops ~5.4 dB |
+
+Cause is inherent to `NotchCore`, not introduced: `dry = 0.5*(inL+inR)` is a mono sum, and
+`y = tanh(((1-mix)*dry + mix*wet) * vol * 1.6)` still saturates and scales at `mix = 0`.
+
+**Both break the rack's own established convention** — the enum documents Drive as "amount 0 =
+passthrough" and Filter as "amount 0 = open (passthrough)". A user selecting Notch and turning
+amount to zero gets a mono'd, attenuated, saturated bus.
+
+**Ruling needed, two separate questions:** (1) should the slot honour amount-0-is-passthrough by
+crossfading dry/wet at the SLOT level instead of delegating to the core's internal `mix` (which also
+applies `vol` and `tanh`)? (2) should the slot preserve stereo — which means two NotchCore instances
+at 2x CPU, or a restructure — or is mono correct for this effect? Not fixed; a slot's audible
+contract is not a subagent's call and it is not the lead's either.
+
+**Why the miss is the lead's, not the agent's.** The brief asked it to prove the slot *reaches the
+DSP*, and it did that rigorously — measured floor, must-read-nothing control, calibrated green→red.
+It never asked "does this slot honour the rack's conventions?", so that went unexamined. **A brief
+bounds a subagent's attention, and what falls outside the brief falls outside the work.** The
+delegation lesson of round 1 is not about diligence — the agent's was high — it is that the lead
+owns the questions, and an unasked question is an unchecked one. Independent lead verification is
+what caught it, which is exactly the rung-2 discipline the rung-3 raise was required to preserve.
+
+**Merge order, and why it is a rung-3 operational fact rather than bookkeeping.** A parallel round
+ends with N PRs whose ROADMAP entries all insert at the same anchor, so the last one merged is
+always the one that gets rebased — and it should therefore be the RISKIEST, so the tree that gets
+re-verified is the tree that lands. Order run: #290 (ratification, disjoint hunks) -> #291 (lab, no
+C++) -> #292 (this one: `verify` + `fx_rack.h` + `hypersaw_clap.cpp` + both GUIs). Conflict on
+integration was ROADMAP.md only — both stream entries added at the same anchor, resolved by keeping
+both; `verify` auto-merged because #290 edits `fast()` and #292 edits `full()`. Post-merge
+`./verify full` GREEN with **parity 147/147, worst 4.262e-09 — still unchanged**, and all 21 gate
+summaries green, so the merge itself is proven not to have moved the numbers.
+
 ## STREAM B DELIVERED — F-B modular routing lab (2026-08-15)
 
 `docs/design/routing-lab-modular.html` (398 lines) + its trace. First completed item of the first

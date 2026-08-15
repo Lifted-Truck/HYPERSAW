@@ -218,6 +218,16 @@ if(NOT MSVC)
   target_compile_options(mixer_check PRIVATE -O2)
 endif()
 
+# notchslot_check: FX rack slot type 6 (Notch) actually reaches the DSP.
+# notch_check (below) proves NotchCore itself is correct in isolation; this
+# proves the RACK routes to it — drives the real plugin through the CLAP
+# factory exactly like mixer_check/steal_check, not a standalone core harness.
+add_executable(notchslot_check tools/notchslot_check.cpp)
+target_link_libraries(notchslot_check PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(notchslot_check PRIVATE -O2)
+endif()
+
 add_executable(rtsafety_probe tools/rtsafety_probe.cpp)
 target_link_libraries(rtsafety_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
