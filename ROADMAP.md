@@ -306,6 +306,34 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## F-A: FX-PAGE LAB SHIPPED (2026-08-15)
+
+`docs/design/fx-page-lab.html` — the FX page's shape, felt out before any of it touches gui2.
+
+**What it demonstrates, per the directive:** SPACE dissolved — VRB is a module box like any other,
+between DLY and DRV2 where QM-3's rank order puts it. Seven modules (the QM-3 pool, verbatim ids,
+ranges, chars and saliences), each a compact box with a **live mini-visualizer** (drive → transfer
+curve, filter → response curve, modulation → LFO shape, delay → tap-energy pattern, reverb → decay
+envelope) and a click-to-expand view. MST rendered as a strip, deliberately NOT a module — QM-3 §4
+keeps the limiter out of the manifest, so the page must not present it as morphable.
+
+**Morph-panel landing sites built in now, cheap:** every box carries a corner-ownership strip (the
+census colouring under QUANTUM, blend under GRADUAL) and every param row a slot-mode chip (AUTO
+today; FROZEN/PINNED land as chip states). Deciding these positions in the lab costs nothing;
+retrofitting them after the page ships is the L0023 shape again.
+
+**Deliberately absent:** audio (the routing lab F-B owns audition, where the matrix matters) and the
+send matrix (one lab, one question: what does a MODULE feel like?).
+
+**Five layout findings recorded in the lab itself**, the load-bearing one being: with seven modules
+visible, the live curve IS the module's identity — names become secondary, and a static icon would
+lie. Second: `char` belongs in the header, because switching flanger→phaser changes what the module
+IS. Third: expanded view = same controls at more resolution, never MORE controls — params hidden
+until expansion would recreate L0023 inside a single page.
+
+Also this session: the eight queued lessons filed to FOUNDATIONS post-isolation as one notice
+(`notice-post-round-lessons.md`), including the three-convergence log for the audit loop.
+
 ## MORPH LAW RULED: C WITH A TOGGLE TO B — WHICH IS QM-0 §4, VERBATIM (2026-08-15)
 
 **Human ruling:** Option C (law split — routing and discrete flip by argmax, continuous params blend)
