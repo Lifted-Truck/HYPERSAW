@@ -1,6 +1,8 @@
 # Concept — what we need from FOUNDATIONS before the MVP + test-table push
 
-**Status: DRAFT for the human. Not filed.** Written 2026-08-15 by the lead organ
+**Status: FILED 2026-08-15** as `integrations/hypersaw/brief-mvp-dependencies.md`
+(`32e869b`, verified on their `origin/main`). This is the working copy;
+the filed version drops the draft framing and the closing question. Written 2026-08-15 by the lead organ
 at the human's request: *"get the bones of every lab and the full existing
 feature list up in a minimum viable way as soon as possible — but before that,
 every page and feature gets its table of tests (agentic and human-assisted) — and
@@ -38,6 +40,38 @@ we hand-placed is keyed to a structure that re-point may generate differently.
 Writing ~100 tables against a vocabulary that then changes is the expensive
 version of this mistake, because tables are the thing we would least want to
 rewrite.
+
+## D0 — A fact about our GUI we have never told them (correction of record)
+
+Checked before asserting it: **`gui2` appears nowhere in FOUNDATIONS' tree** — not
+in their ROADMAP, not in their code, not in a single file of our own mailbox.
+They have never been told it exists.
+
+So their standing GUI criterion, and F2's naming of "HYPERSAW's GUI/viz" as an
+extraction donor, both rest on a phrase — *HYPERSAW's GUI* — that **does not
+currently denote one thing**:
+
+| | reaches | pages | build |
+|---|---|---|---|
+| `src/gui/gui.html` | **102 / 105** params | (single page) | the **default** |
+| `src/gui/gui2.html` | **30 / 105** params | MAIN · MIX · OSC · FX | `-DHYPERSAW_GUI2=ON`, **defaults OFF** |
+
+And the trap inside the trap: **`HYPERSAW_GUI2` defaults OFF, yet the human's
+installed bundle is gui2** (ROADMAP 2026-08-12, verified by `pg-MIX` in the
+binary). So the GUI that gets *played* is the 30-param one, and the GUI that a
+default build *ships* is the 102-param one.
+
+**This is the same shape as a finding they already made, one layer up.** They
+caught that we have two CLAP shells — `hypersaw_clap.cpp` (105 params,
+`coreKey`, string dispatch) and `swarmfx_clap.cpp` (17 params, no `coreKey`,
+positional dispatch) — and concluded that *"the two copies have already
+diverged, so extracting against one would re-fork on re-point."* **Our two GUIs
+have already diverged in exactly the same way**, and nobody has told them.
+
+We are not claiming they leaned on gui2 — they cannot have, they do not know
+it exists. The risk is the reverse and quieter: **a criterion written about "the
+GUI" while "the GUI" is ambiguous, and while neither candidate is complete.**
+That ambiguity is cheap to fix now and expensive to discover at re-point.
 
 ## What we would ask, in priority order
 
@@ -142,7 +176,17 @@ Stated so the plan is not hostage to the reply:
 4. **Do not hand-place 75 controls** until D1 has an answer, even a partial one.
    This is the only item where waiting is cheaper than building.
 
-## Open question for the human
+## Filed, and what the human decided
+
+Filed in full rather than the D1+D5 subset — the human's call: *"better to work
+this all out now."* Their added observation is what became **D0**, and checking
+it changed its shape: they suspected FOUNDATIONS had been leaning on gui2 without
+realising how incomplete it is. FOUNDATIONS cannot have been — **`gui2` appears
+nowhere in their tree.** The real risk is quieter and worth more: a criterion
+written about "the GUI" while "the GUI" denotes two diverged things, neither
+complete. That is now told.
+
+## Superseded question (kept for the record)
 
 Whether to file this as a brief at all, or to ask only **D1 + D5** now and keep
 the rest until re-point is scheduled. The full version is more useful to them but
