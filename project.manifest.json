@@ -6,13 +6,13 @@
   "survey": {
     "what_is_it": "app — audio plugin: CLAP-native synthesizer instrument, VST3 via clap-wrapper (ADR-002), ported from three validated JS prototypes",
     "architecture_rung": {
-      "choice": 2,
+      "choice": 3,
       "menu": [
         "1: single thread",
         "2: thread + subagents/verifier",
         "3: organ fleet"
       ],
-      "earned_by": "the L0-1 parity oracle gives a fresh-context verifier independently checkable ground truth, and DSP debugging benefits from adversarial review. Fleet NOT earned: ADR-001 collapsed the three prototypes into one engine, so seam count is low."
+      "earned_by": "RAISED 2 -> 3, ratified by the human 2026-08-15. Rung 2 was earned by the parity oracle giving a fresh-context verifier checkable ground truth. Its stated bar against rung 3 was 'seam count is low' (ADR-001 having collapsed three prototypes into one engine) — that premise NO LONGER HOLDS: the 2026-08-13 seam audit mapped 30 seams with 13 off-contract, FOUNDATIONS round-1 ratified the boundaries (both HYPERSAW exemptions granted, R3/R4), and the gate set grew to nineteen plus gui_reach, so streams are independently verifiable rather than merely separable. Rung 3 is earned by parallelizable verifiable work over genuine seams, which now exists: FX modules (src/fx_rack.h + new cores, per-core parity oracles) / routing lab (docs/design/, lab-load gate) / shape builder / gui2 checklist (src/gui/gui2.html, gui_reach coverage) are disjoint by file with independent gates. BINDING CONDITION, carried from the charter rather than relaxed by the raise: the lead remains the ONLY writer of ROADMAP.md and the only integrator; every stream is scoped execution from a self-contained brief stating files in scope, acceptance criteria verbatim, verify target and out-of-scope; one queue item per dispatch; parallel dispatch only for disjoint file scopes; subagent models pinned explicitly at spawn, never inherited. Streams run in isolated git worktrees so concurrent builds cannot read each other's half-written state. The ~15x token multiplier is real and the raise is a capability, not a default: escalate a stream only when the current rung is the demonstrated bottleneck."
     },
     "domain_core_llm_must_not_own": "the entire runtime DSP core: Kuramoto coupling (sync/splay/topologies), kernels, detune laws, consonance gravity, mulberry32 seeded determinism, no wall-clock in the core (SPEC §5.7). AI proposes/judges at design time; deterministic C++ decides at runtime.",
     "oracle_shape": {

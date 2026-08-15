@@ -55,6 +55,54 @@ delegation lesson of round 1 is not about diligence — the agent's was high —
 owns the questions, and an unasked question is an unchecked one. Independent lead verification is
 what caught it, which is exactly the rung-2 discipline the rung-3 raise was required to preserve.
 
+**Merge order, and why it is a rung-3 operational fact rather than bookkeeping.** A parallel round
+ends with N PRs whose ROADMAP entries all insert at the same anchor, so the last one merged is
+always the one that gets rebased — and it should therefore be the RISKIEST, so the tree that gets
+re-verified is the tree that lands. Order run: #290 (ratification, disjoint hunks) -> #291 (lab, no
+C++) -> #292 (this one: `verify` + `fx_rack.h` + `hypersaw_clap.cpp` + both GUIs). Conflict on
+integration was ROADMAP.md only — both stream entries added at the same anchor, resolved by keeping
+both; `verify` auto-merged because #290 edits `fast()` and #292 edits `full()`. Post-merge
+`./verify full` GREEN with **parity 147/147, worst 4.262e-09 — still unchanged**, and all 21 gate
+summaries green, so the merge itself is proven not to have moved the numbers.
+
+## STREAM B DELIVERED — F-B modular routing lab (2026-08-15)
+
+`docs/design/routing-lab-modular.html` (398 lines) + its trace. First completed item of the first
+parallel round under the ratified rung 3.
+
+**What it does:** the QM-3 §2 pool as an editable upper-triangular send matrix with a live topology
+graph; the five §5 ledger patches as one-click presets; **OSC1/OSC2 as independent source rows** —
+the human's per-oscillator routing directive previewed in UI and labelled as ahead of the C++
+increment. `setSerialChain()` reproduced verbatim from `routing_core.h` as the reset state, so the
+lab's starting topology is not a fiction.
+
+**Lead verification, run independently rather than taken on report:** `./verify fast` GREEN;
+lab-load sweep GREEN at **19 labs**, 0 broken. Checked by hand that no second copy of the legality
+rule exists (one `legal()` serves both the matrix build and the graph draw — `routing_core.h`'s own
+header names duplicated legality as the historical bug), and that a `devicePixelRatio` grep hit was
+the comment stating the constraint, not a usage.
+
+**Two open questions it surfaced rather than resolved**, both correct calls: whether normalling
+should visually apply to the OSC preview rows (QM-3 never mentions them, so applying it is a design
+call, not a spec fact); and cable-colour-by-sender exhausting distinguishable hues around row 7-8,
+left unfixed because resolving it likely means reserving colour for corner-ownership and moving
+sender identity to another channel — outside a routing lab's scope.
+
+**Round-1 assessment of the pattern, which is what was actually being tested:** the brief held. The
+agent honoured every out-of-scope boundary (no `src/`, no ROADMAP), structured around
+`routing_core.h`'s own warning about duplicated legality logic, rejected copying the received demo's
+two-function split for that reason, refused an invented constraint (extending the pool's rank rule
+to the OSC rows) because `edgeLive()` says sources reach anything, and wrote a trace unprompted in
+the project's format. **The disciplines this project paid for in bugs transferred to a zero-history
+agent through the REPO, not through the brief.**
+
+**Lead process failure, logged rather than smoothed:** this entry was nearly lost. The first attempt
+anchored on a ROADMAP section that lives only on the unmerged rung-3 branch, the assertion failed —
+and the surrounding command chain still committed and opened the PR, so #291 went up with the lab
+but without its record. Second occurrence this session of a chain letting work proceed past a failed
+step (the first was a `;` where a `&&` belonged). The asserted anchor did its job both times; the
+chaining around it did not.
+
 ## FOUNDATIONS ANSWERED BOTH THREADS — and one answer exposed an overstatement of ours (2026-08-11)
 
 **Stage 1 now extracts against BOTH shells.** Correction 2 accepted in full. Their reasoning went
@@ -352,6 +400,45 @@ whole string would close every historical thread that already means to be closed
 
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
+
+## RUNG 3 RATIFIED — and the manifest gate caught the lead raising it (2026-08-15)
+
+Human ratified the parallel-streams proposal. `project.manifest.json` amended 2 -> 3, with the
+binding conditions written INTO `earned_by` rather than left in prose: lead is sole ROADMAP writer
+and sole integrator; every stream is scoped execution from a self-contained brief (files, acceptance
+criteria verbatim, verify target, out-of-scope); one queue item per dispatch; parallel dispatch only
+for disjoint file scopes; **subagent models pinned explicitly at spawn, never inherited** (doctrine);
+streams run in **isolated git worktrees** so concurrent builds cannot read each other's half-written
+state. The raise is a capability, not a default.
+
+**`./verify fast` went RED on the amendment.** The manifest gate carries a hardcoded
+`architecture_rung.choice == 2` — it exists so the rung cannot drift without ratification, and it
+fired on the lead doing exactly that. Re-pinned to 3 on the human's explicit in-session ratification.
+
+**PROTECTED PATH TOUCHED, flagged rather than buried:** `./verify` is on the charter's human-gate
+list. The edit is a re-pin, not a loosening — deliberately kept as a hardcoded constant rather than
+softened to a "cites a ratification date" check, because a check that accepts any rung plus a
+plausible date would pass the drift it exists to catch. Raising the number stays a human decision
+every time. Recorded here because a protected-path edit that only lives in a diff is one the next
+reader has to discover.
+
+### First parallel round dispatched
+
+Two streams, worktree-isolated, models pinned to Sonnet per doctrine (scoped execution):
+- **A — NOTCH as FX slot type 6.** `notch_core.h` is built and oracle-covered but unreachable from
+  the rack. Additive, inert by default, control lands with the param (L0023, now gated), arrives with
+  its own measured-floor invariant oracle plus a calibration.
+- **B — the F-B modular routing lab.** `docs/design/routing-lab-modular.html`: send matrix, live
+  topology graph, QM-3 §5 ledger presets, and OSC1/OSC2 as independent source rows (the human's
+  per-oscillator routing directive, previewed in UI ahead of the C++ increment).
+
+Disjoint by file: A owns `src/fx_rack.h` + new tool + CMake + both GUIs' FX selectors; B owns one new
+file under `docs/design/`. Neither may touch ROADMAP.md.
+
+**Deliberately NOT dispatched: the reverb port.** It is the most obvious FX-module work and it is
+BLOCKED — the ROADMAP's own reverb entry lists an ER-hypothesis ear-check and a coupling-K decision
+as remaining, both human calls. Dispatching it would have handed a subagent an item whose acceptance
+criteria do not exist, which the charter forbids. Naming the block is the deliverable there.
 
 ## SHAPE LAB · ROUTING-VIEW RULING · FX PREVIEW INVENTORY · PARALLEL STREAMS PROPOSED (2026-08-15)
 

@@ -102,7 +102,12 @@ fast() {
 import json, sys
 m = json.load(open("project.manifest.json"))
 s = m["survey"]
-assert s["architecture_rung"]["choice"] == 2, "rung drifted from ratified answer"
+# RE-PINNED 2 -> 3 on the human's explicit ratification, 2026-08-15. This stays a
+# HARDCODED pin rather than a softer "cites a ratification date" check: the whole
+# point is that ANY drift fails, and a check that accepts a rung plus a plausible
+# date would pass the drift it exists to catch. Raising this number is a human
+# decision every time, and it caught the lead attempting exactly that.
+assert s["architecture_rung"]["choice"] == 3, "rung drifted from ratified answer"
 assert s["knowledge_loop_tags"], "knowledge-loop tags missing"
 assert m["model_routing"]["lead"] == "opus", "model pin drifted"
 PY
