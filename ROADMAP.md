@@ -8,6 +8,91 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## MVP DEPENDENCIES ANSWERED — and the queue runs the OTHER way (2026-08-15)
+
+All five asks answered plus D0 accepted (`response-mvp-dependencies.md`, their DECISIONS #89). The
+headline reverses the premise the human set the goal under.
+
+### D5 — **We are not behind them. They are behind us.**
+
+*"There is no ordering conflict, because we are not scheduling anything you must wait behind."*
+F2's remaining criteria are 1b, 3, 4, 6 — **1b and 3 are OURS**, 6 is their human's macOS-local run,
+4 is the freeze those gate. Criterion 5 closed today. **There is no F2 work left on their side.**
+
+And the reverse dependency, which they volunteered rather than let us discover: **their v0.1,
+plainsynth's pin mechanism, and stage 1 of their host-validation plan all sit behind our re-point.**
+Their words: *"Your GUI renovation sets the date and we are not asking you to move it."*
+
+**So the human's "don't jump the queue" constraint is satisfied by building, not by waiting.** The
+MVP push is the thing the fleet is waiting on.
+
+### D0 — accepted, and it damaged a human-set criterion
+
+They verified independently: `gui2` appears nowhere in their tree but our brief. The standing GUI
+criterion is human-set and says *"GUI structure derives from registry declarations"* about **"the
+GUI"** while that phrase denotes two diverged artefacts. Their extraction ledger *"would have
+recorded a donor that does not denote one thing."* **Recorded as a finding against them, not us** —
+their gap was writing a criterion about a consumer's artefact without asking the consumer what "the
+GUI" was. Carried to their human for repair, with a recommendation that the criterion name the
+**property** (reaches every declared param; structure derived, not placed) rather than an artefact.
+
+### D1 — the declaration set is already committed, and one field is ours
+
+`ParamDesc` is shipped and conformance-proven on **181 of our own rows**: `address` (identity; core
+key is `address.leaf()`), `id` (stable, append-only), `type`, `cadence`, `min/max/default_value`, and
+**`mod_min`/`mod_max` — the range a MODULATOR may reach, which is not the knob's.** That last pair
+exists *because we filed it*: "UI range ≠ modulation range: pitch knob honestly ±12, mods should
+reach ±48 clamped — else widened ranges ship invisible." It is already there.
+
+**Presentation is deliberately NOT in `ParamDesc`** — label, unit, group/page, widget hint — because
+the criterion itself says *"styling is data, separable from structure"*, and fusing them would break
+the thing the criterion separates. **So: a second table of OURS, keyed by `ParamAddress`, carrying
+presentation.** Their caution, which we adopt: **key it on nothing but the address** — a page/group
+name that is also a dispatch fact is how the two get re-fused.
+
+### D2 — scopes are address PREFIXES, and patch-scope is not one
+
+No scope enum, and there will not be one: `ParamAddress::scope()` returns a `string_view`, and the
+preset cascade matches by prefix. Their F3+ criterion — *a category whose interface names its
+instances is sealed and fails review* — makes our `globals` and `per-oscillator` **instances**, so
+declaring them as prefixes is compatible by construction. They asked us to **publish them**; owed.
+
+**The ruling worth having: our patch-scope family is NOT a scope.** We filed the observation in
+round 1 ourselves — *"the raw-id patch-scope families are DISPATCH semantics, not address semantics"*
+— and asked whether the address grammar could express it. **It cannot and should not.** Patch-scope
+is a property of the parameter's *handling* (does the write consume the event), not of *where it
+lives*; encoding it as a prefix makes two unrelated facts share one field, **and the 29 silently dead
+GUI controls are what that costs.** It becomes a parameter property in our own table, keyed by
+address; the address grammar stays location-only.
+
+### D3 — cycles stay lab-only, and our convergence is now filed evidence
+
+They will not rule OQ #23 in a brief; it is their human's. They **endorse the fallback explicitly**:
+keep feedback lab-only, *"we would rather you hold than build something we then ask you to unpick."*
+Our independent arrival at unit-delay-at-block-rate — reached before reading #23 — is carried to
+their human as **evidence** under their own independent-arrival rule, not as our preference. On OQ
+#16 our matrix is exempted as the first instance of a routing-policy category; build toward `port.h`
+typed ports only where it costs nothing.
+
+### D4 — no facility, and the practice we adopt anyway
+
+One consumer, so nothing enters the library. But they offered the shape their own suite converged on
+after being wrong twice, and it is the design directive for our test tables: **every case declares
+whether it is a RULING or an ENCODING of one, and that classification lives with the case, not the
+runner.** So each assertion carries *what it pins* and *whose decision it is*. A table then survives
+a harness change, and one keyed to what turns out to be an encoding is **visibly reclassifiable
+instead of silently wrong** — which is exactly the failure this week's R8 was.
+
+### What this unblocks, and the one thing still held
+
+Nothing in the MVP plan waits on them. Sequencing stands as filed, with one change: *"the one item
+where we would say wait — hand-placing 75 controls before D1 — now has its answer, so it is no longer
+a wait."* Feedback routing remains the single held item, lab-only, pending their human on OQ #23.
+
+**Owed by us:** publish our scope prefixes; build the presentation table keyed on address alone; and
+carry the RULING/ENCODING classification into the test-table schema from the first table, not
+retrofitted.
+
 ## THE LEFTOVERS WERE THEIR BUG, NOT A LIMIT — and our framing was the error (2026-08-15)
 
 FOUNDATIONS localised what we reported: Case 1 wrote its handles into a **four-element array**
