@@ -82,6 +82,12 @@ fast() {
   # both ends, so care cannot fix it — only a check can. Reads only; never writes
   # to a sibling, and no-ops where none is checked out (their R9 is the rule).
   python3 tools/mailbox_delivery_check.py || ok=1
+
+  # PRESENTATION TABLE is total, address-keyed, and honest about its gaps. The
+  # MVP generates ~75 gui2 controls from this table, so a missing row is a
+  # control that silently never appears — the 29-dead-controls failure with the
+  # arrow reversed, invisible to every audio oracle either way.
+  python3 tools/presentation_check.py || ok=1
   portability_gate || ok=1   # MSVC-only breakage, caught locally not in CI
 
   # GUI REACHABILITY (L0023, third occurrence — the one that became a gate).
