@@ -1,0 +1,71 @@
+# feature_tests.tsv — one table of tests per PAGE and FEATURE, agentic and human.
+#
+# THE CLASSIFICATION IS THE POINT, and it is FOUNDATIONS' (their D4, DECISIONS
+# #89), adopted because their own suite was wrong twice for want of it:
+#
+#   pins=RULING    a DECISION. Someone chose this; changing it needs a decision.
+#                  A red here is a real divergence.
+#   pins=ENCODING  how the thing HAPPENS to be done today. A red may simply mean
+#                  the implementation moved, and is reclassifiable rather than
+#                  silently wrong.
+#
+# Their R8 is the cautionary tale: a suite asserted that identity outlives
+# gate-off, which was how THEIR table satisfied the rule, and failed a conforming
+# shell against it. The classification lives with the CASE, not the runner, so a
+# table survives a harness change.
+#
+# `owner` names WHOSE decision, so a RULING can be traced to the thing that ruled
+# it: an ADR, a FOUNDATIONS ruling (R8, R9…), SPEC, or the human. An invariant is
+# a RULING owned by spec — determinism, RT-safety, no wall-clock.
+#
+# kind=agentic   an oracle runs it unattended; `oracle` names the gate.
+# kind=human     it needs ears or a host. `oracle` is `manual`, and that is an
+#                honest state, not a gap to paper over.
+#
+# SEEDED FROM WHAT ALREADY RUNS. Every agentic row below names a gate that exists
+# in ./verify today — test_table_check cross-checks that, so a row cannot claim
+# coverage from an oracle that was never written. Rows with oracle=none are the
+# real gaps and are counted every run.
+id	page	feature	kind	pins	owner	oracle	assertion
+INV-1	*	determinism	agentic	RULING	spec	parity_check	same seed + note order renders identically; 147 scenarios within 1e-6 RMS
+INV-2	*	rt-safety	agentic	RULING	spec	rtsafety_probe	the audio thread allocates nothing across 320 process() calls, blocks 33..2048
+INV-3	*	subdivision	agentic	RULING	adr-086	subdiv_check	output does not depend on how the host splits the buffer
+INV-4	*	sample-rate	agentic	RULING	adr-009	samplerate_check	time constants are seconds, not per-tick — behaviour holds across rates
+INV-5	*	state	agentic	RULING	spec	state_check	a saved patch reloads to the same sound; coreKey is the wire format
+INV-6	*	preset	agentic	RULING	spec	preset_check	preset load/save round-trips
+INV-7	*	param-scope	agentic	RULING	adr-088	paramscope_check	per-oscillator vs patch-scope dispatch reaches the right owner
+VOI-1	MAIN	Voice	agentic	RULING	foundations-r8	conformance_check	every identity issued returns through an END, exactly once
+VOI-2	MAIN	Voice	agentic	RULING	adr-083	steal_check	free before releasing before oldest-held; released class ranked quietest-first
+VOI-3	MAIN	Voice	agentic	RULING	spec	notefuzz_check	no note hangs under fuzzed on/off/restrike streams
+VOI-4	MAIN	Voice	agentic	RULING	spec	endprobe	a NOTE_END is emitted for every note the host must retire
+VOI-5	MAIN	Voice	agentic	RULING	spec	kstuck_probe	notes still die when COUPLING is swept high and back
+VOI-6	MAIN	Voice	agentic	ENCODING	hypersaw	trace_check	the forensic ring records the event stream in order, with note_id
+VOI-7	MAIN	Voice	agentic	RULING	adr-038	mpe_check	MPE member-channel bend is latched and applied to a fresh strike
+VOI-8	MAIN	Voice	human	RULING	human	manual	held chords sustain in Live with an Expressive Chords device (MPE on)
+ENV-1	MAIN	Envelope	agentic	RULING	adr-055	trajectory_check	ADSR trajectories match the reference within L0 criteria
+ENV-2	MAIN	Envelope	human	RULING	human	manual	per-oscillator envelope divergence is audible and musical, not a glitch
+DYN-1	MAIN	Dynamics	agentic	RULING	spec	force_check	force-core trajectories reproduce the lab seed-for-seed
+DYN-2	MAIN	Dynamics	human	RULING	human	manual	-K behaviour: amplitude loss at negative coupling is compensated, not surprising
+SWM-1	OSC	The swarm	agentic	RULING	spec	parity_check	SAW core matches the reference across the distribution and law set
+SWM-2	OSC	The swarm	agentic	RULING	adr-058	waveshape_check	waveshape morph is continuous and reaches both endpoints
+CPL-1	OSC	The coupling	agentic	RULING	spec	force_check	coupling K drives the population toward the ruled order parameter
+CPL-2	OSC	The coupling	human	RULING	human	manual	K sweep is musically continuous — no zipper, no sudden collapse
+DRF-1	OSC	Drift	agentic	RULING	spec	glide_check	glide/inertia laws match the bend lab, parity within L0
+DRF-2	OSC	Drift	agentic	RULING	hypersaw	none	bend quantisation: a centred wheel reads centre in EVERY scale (open bug, root!=C)
+SPC-1	OSC	Spectra	agentic	RULING	spec	spectra_check	SPECTRA engine matches the reference
+SPC-2	OSC	Spectra	agentic	RULING	adr-057	parity_check	SPECTRA transposition is exact at the octave
+FX-1	FX	FX rack	agentic	RULING	adr-054	routing_check	the slot chain routes in the declared order
+FX-2	FX	FX rack	agentic	RULING	spec	filter_check	filter core matches the lab
+FX-3	FX	FX rack	agentic	RULING	spec	notch_check	notch core matches the lab
+FX-4	FX	FX rack	agentic	RULING	hypersaw	notchslot_check	selecting Notch in a slot reaches the DSP; Off is bit-identical to no slot
+FX-5	FX	FX rack	agentic	RULING	hypersaw	none	amount=0 is passthrough for EVERY slot type (Notch violates: -5.4 dB, mono)
+FX-6	FX	FX rack	agentic	RULING	spec	time_check	echo/room time engines match the labs
+FX-7	FX	FX rack	human	RULING	human	manual	reverb ER/tail split is audibly a room, not a metallic ring
+MIX-1	MIX	Mix	agentic	RULING	hypersaw	gui_reach	every declared param is reachable in some GUI
+MIX-2	MIX	Mix	agentic	RULING	hypersaw	presentation_check	every declared param has exactly one presentation row
+MIX-3	MIX	Mix	agentic	ENCODING	hypersaw	gen_gui_controls	gui2 markup is current with the presentation table
+OUT-1	MIX	Output & perception	human	RULING	human	manual	master level meter reads true peak; per-oscillator meters agree with it
+OUT-2	MIX	Output & perception	agentic	RULING	hypersaw	none	master level meter exists (K1/K2 roadmap item, not built)
+MSC-1	MIX	(ungrouped)	agentic	RULING	hypersaw	none	mute/solo and master octave have no dedicated oracle
+SWA-1	OSC	The swarm	agentic	RULING	adr-048	swarmalator_check	swarmalator core matches its lab
+SWA-2	OSC	The swarm	human	RULING	human	manual	swarmalator is musically distinct from SAW — human listen before shell integration

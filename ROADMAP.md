@@ -8,6 +8,47 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## FEATURE TEST TABLE — the other half of the MVP plan, seeded from what already runs (2026-08-15)
+
+`tests/feature_tests.tsv` + `tools/test_table_check.py`, gated in `./verify fast`.
+**42 tests — 35 agentic, 7 human — and 4 openly awaiting an oracle.** `./verify full` GREEN,
+parity 147/147 worst 4.262e-09.
+
+**The classification is FOUNDATIONS' and it is the reason the table is worth having** (their D4,
+DECISIONS #89). Every row declares `pins=RULING` (a decision; changing it needs a decision, a red is
+a real divergence) or `pins=ENCODING` (how it happens to be done today; a red may just mean the
+implementation moved). Their R8 is the cautionary tale we are buying insurance against: they
+asserted **their own encoding as though it were the rule** and failed a conforming shell against it.
+The classification lives with the CASE, not the runner, so a table survives a harness change.
+
+`owner` names **whose** decision — an ADR, a FOUNDATIONS ruling, `spec`, or `human` — because a
+decision nobody owns cannot be revisited, only argued about. Invariants are RULINGs owned by `spec`.
+
+**Seeded from what already runs, not from what we wish ran.** Every agentic row names a gate that
+exists today, and `test_table_check` **parses the oracle list out of `./verify` itself** rather than
+keeping a second list — so a renamed gate fails the day it is renamed, not the day someone notices a
+row was fiction.
+
+**The four gaps are the deliverable**, and they are named rather than counted away:
+- `DRF-2` — bend quantisation: a centred wheel must read centre in **every** scale (open bug, 5 of
+  12 roots).
+- `FX-5` — `amount=0` is passthrough for **every** slot type (Notch violates: −5.4 dB, mono).
+- `OUT-2` — master level meter (K1/K2, not built).
+- `MSC-1` — mute/solo and master octave have no dedicated oracle.
+
+**Coverage is checked against the GUI, not asserted.** The feature axis comes from
+`param_presentation.tsv` — the same table gui2 is generated from — so **a feature cannot appear on
+screen with no test row.** That closes the loop the human asked for: every page and feature has its
+table, enforced rather than remembered.
+
+**Calibrated three ways**, each fired: name a nonexistent oracle → *"not a gate ./verify runs"*;
+delete a feature's only rows → *"no test row for a feature the GUI shows: FX/FX rack"*; leave a
+RULING without an owner → named.
+
+**MVP status:** gui2 105/105 generated, presentation table total, test table covering every visible
+feature. The remaining MVP work is the labs' features themselves — and the four gaps above are now
+the queue rather than a memory.
+
 ## gui2 IS COMPLETE — 30/105 to 105/105, generated not placed (2026-08-15)
 
 `tools/gen_gui_controls.py` builds gui2's controls **from** the presentation table. **144 controls
