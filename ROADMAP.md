@@ -8,6 +8,63 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## R8 — END-at-gate-off RULED CONFORMING; re-run finds one failure they did not predict (2026-08-15)
+
+**FOUNDATIONS ruled (R8): our model satisfies the ruling; their suite was asserting something the
+ruling never said.** *"The rule constrains the PATH, not the MOMENT.
+Gate-off is a path that delivers the END."* They also confirmed the `R-steal-2` reading and went
+further than we did — their own `note.h` says the table carries no allocation POLICY and that
+*"engine tiers like 'quietest' stay engine-private"*, so **they had asserted as a ruling the thing
+their own header says is ours**. No ADR owed; the 2026-07-31 redesign stands unchallenged. They
+restructured every case as `kRuled` (a decision) or `kLibraryDefault` (how their table happens to
+satisfy it, reported as DIVERGE, never fatal), and **made our shell a calibration fixture** —
+`GateOffRetirementAdapter` in their tests, so a future edit that breaks our model fails THEIR build.
+They are also adopting our pin-the-red-set gate design.
+
+**Re-ran at `96f3b6d` as asked. Their divergence prediction was exact; their failure prediction was
+not.**
+
+```
+conformance: 6 passed · 1 RULED failure · 3 library-default divergences   (they expected 7 / 0 / 3)
+```
+
+Both previously-red cases (`R-steal-1`, `R-retrig-1`) now pass — **without a line of product change.**
+The three divergences are the three faces of retire-at-gate-off, exactly as predicted.
+
+**The unpredicted failure, traced not guessed:** in Case 2's fill our note-ons **steal**, displacing
+twelve of Case 1's notes that still occupy slots. `GateOffRetirementAdapter` models identity
+retirement at gate-off but cannot model what makes gate-off meaningful — **a released voice still
+owns its slot until its envelope decays.** In a table `end()` frees a row instantly; in a synth "the
+note ended" and "the slot is reusable" are separated by the tail. With a full pool a real allocator
+MUST steal there, and stealing a decaying tail is ADR-083 tier 2 doing its job.
+
+**Where we stopped, and why.** The adapter now sets a 5 ms release (as `steal_check` does) and drains
+24 blocks after every `end()`; twelve notes are still resident. We could have drained until the pool
+emptied and hit their predicted number — **that would be manufacturing agreement rather than
+measuring, so we filed the difference instead** (`9b25ead`, verified on their origin/main). Offered
+two shapes without preference: classify the no-steal assertion `kLibraryDefault`, or add an optional
+`quiesce()` to the adapter contract.
+
+**Third instance of one seam.** Identity/voice separability produced our orphan bug (ours), their
+`end()`-mapping documentation gap (theirs), and now this. Worth naming as a class rather than fixing
+three times.
+
+**Our own adapter bug, disclosed:** `Handle` did not carry `port`, and their `RefBag::take()` matches
+all four fields — we reconstructed it from a tag read taken AFTER the note-off, when the slot may
+hold someone else. **Our ledger ignores `port`, so it stayed green while `R-end-1` went red: two
+oracles disagreeing because one read a field the other did not.** Fixed; it was masking the real
+failure rather than causing it.
+
+**Gate now pins both sets separately** — expected ruled failures `{R-end-1}`, expected divergences
+`{R-steal-1d, R-steal-2, R-retrig-1d}` — with the ruled failure pinned *with its reason and a pointer
+to the filing*, never tolerated silently. `./verify full` GREEN; parity 147/147 worst 4.262e-09
+unchanged.
+
+**NOT READ: `integrations/plainsynth/response-p2-findings.md`.** Addressed `to: PLAINSYNTH`,
+`ball: none` — another consumer's thread, not ours. Frontmatter only, to establish addressing. Under
+the isolation rule we just adopted the read would be disclosable rather than forbidden, so it is
+available on request; it was simply not ours to answer.
+
 ## THE ACK THEY WERE WAITING FOR HAD EXISTED FOR HOURS, UNPUSHED (2026-08-15)
 
 The human relayed that FOUNDATIONS was still awaiting our take on `brief-fleet-protocol`. **It had

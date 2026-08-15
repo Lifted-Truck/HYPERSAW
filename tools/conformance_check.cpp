@@ -104,6 +104,7 @@ struct EvList
 {
   clap_input_events_t list{};
   std::vector<clap_event_note_t> store;
+  std::vector<clap_event_param_value_t> params;
   std::vector<const clap_event_header_t *> ptrs;
 };
 uint32_t evSize(const clap_input_events_t *l) { return (uint32_t)((EvList *)l->ctx)->ptrs.size(); }
@@ -118,11 +119,18 @@ const clap_event_header_t *evGet(const clap_input_events_t *l, uint32_t i)
 struct ShellAdapter
 {
   static constexpr std::size_t kMaxNotes = 16;   // hypersaw::kPoly, asserted below
+  /* CARRY `port`. Their RefBag::take() matches on all four fields, so an
+     identity returned with the wrong port is silently "not the note we issued".
+     The first version reconstructed port from a tag read taken AFTER the
+     note-off, by which point the slot may hold someone else — the returned
+     identity then failed to match and R-end-1 went red about nothing. Our own
+     ledger ignores port, so it stayed green: two oracles disagreeing because
+     one of them was reading a field the other did not. */
   struct Handle
   {
     int slot = -1;
     int32_t note_id = -1;
-    int16_t channel = -1, key = -1;
+    int16_t port = -1, channel = -1, key = -1;
   };
   struct OnResult
   {
@@ -153,6 +161,7 @@ struct ShellAdapter
     e.list.get = evGet;
     e.ptrs.clear();
     for (auto &n : e.store) e.ptrs.push_back(&n.header);
+    for (auto &q : e.params) e.ptrs.push_back(&q.header);
     g_ends.clear();
     clap_process_t proc{};
     proc.audio_inputs_count = 0;
@@ -163,6 +172,38 @@ struct ShellAdapter
     proc.out_events = &outEv;
     proc.steady_time = blk++ * kBlock;
     p->process(p, &proc);
+  }
+
+  /* Short envelopes, exactly as steal_check does. Their model has no TIME: end()
+     frees the row instantly. Ours cannot — a released note keeps its slot until
+     the envelope decays, which is what a release stage IS. At default release a
+     tail holds a slot for ~1.1 s, so their Case 2 fill (which asserts it never
+     steals) lands on voices the previous case only just released. Shortening the
+     release makes "gated" and "gone" unambiguous; it configures the instrument
+     for the test rather than changing what is measured. */
+  void setParam(uint32_t id, double v)
+  {
+    EvList e;
+    clap_event_param_value_t ev{};
+    ev.header.size = sizeof(ev);
+    ev.header.type = CLAP_EVENT_PARAM_VALUE;
+    ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    ev.header.time = 0;
+    ev.param_id = id;
+    ev.value = v;
+    ev.note_id = -1;
+    ev.port_index = -1;
+    ev.channel = -1;
+    ev.key = -1;
+    e.params.push_back(ev);
+    run(e);
+  }
+
+  // Let released voices actually finish, so a freed slot is free. Bounded: a
+  // drain that could spin forever would turn a lifecycle bug into a hang.
+  void drain(int blocks)
+  {
+    for (int i = 0; i < blocks; i++) { EvList e; run(e); }
   }
 
   void send(uint16_t type, const foundations::NoteRef &n)
@@ -222,7 +263,7 @@ struct ShellAdapter
       break;
     }
     const int slot = slotOfIdentity(n);
-    r.handle = Handle{slot, n.note_id, n.channel, n.key};
+    r.handle = Handle{slot, n.note_id, n.port < 0 ? (int16_t)0 : n.port, n.channel, n.key};
     if (debug())
     {
       std::printf("[dbg] noteOn  key %3d id %3d -> slot %2d | ends emitted: %zu",
@@ -274,15 +315,16 @@ struct ShellAdapter
        bare from a test hook would manufacture a state the product cannot
        produce, and then measure it. So `end()` retires the identity AND ends
        the note, which is what their model means by end(). */
-    const foundations::NoteRef self{h.note_id, port, h.channel, h.key};
+    const foundations::NoteRef self{h.note_id, h.port, h.channel, h.key};
     send(CLAP_EVENT_NOTE_OFF, self);
+    drain(24);   // ~35 ms at 64-sample blocks; release is set to 5 ms below
     // The note-off may itself have caused the shell to emit the END and clear
     // the tag (we end at gate-off, hypersaw_clap.cpp:905). If so, the identity
     // has already left through the shell's own path — report it, do not retire
     // a second time.
     if (!hypersaw_test_tag_at(p, h.slot, &id, &port, &ch, &key) || id != h.note_id ||
         ch != h.channel || key != h.key)
-      return foundations::NoteRef{h.note_id, port, h.channel, h.key};
+      return foundations::NoteRef{h.note_id, h.port, h.channel, h.key};
     int32_t rid;
     int16_t rport, rch, rkey;
     if (!hypersaw_test_retire_slot(p, h.slot, &rid, &rport, &rch, &rkey)) return none;
@@ -291,11 +333,16 @@ struct ShellAdapter
 
   bool live(Handle h) const
   {
-    if (h.slot < 0) return false;
+    if (debug()) std::printf("[dbg] live?  slot %2d id %3d key %3d -> ", h.slot, h.note_id, h.key);
+    if (h.slot < 0) { if (debug()) std::printf("no (slot -1)\n"); return false; }
     int32_t id;
     int16_t port, ch, key;
-    if (!hypersaw_test_tag_at(p, h.slot, &id, &port, &ch, &key)) return false;
-    return id == h.note_id && ch == h.channel && key == h.key;
+    const bool act = hypersaw_test_tag_at(p, h.slot, &id, &port, &ch, &key);
+    const bool r = act && id == h.note_id && ch == h.channel && key == h.key;
+    if (debug())
+      std::printf("%s (slot %s, holds id %d key %d)\n", r ? "YES" : "no",
+                  act ? "ACTIVE" : "empty", id, key);
+    return r;
   }
 };
 
@@ -318,6 +365,14 @@ int main()
   }
 
   ShellAdapter a(p);
+  // Same configuration steal_check uses, and for the same reason: a short
+  // release makes "released" and "gone" distinguishable within a case.
+  a.setParam(19, 0.001);   // attack
+  a.setParam(20, 0.001);   // decay
+  a.setParam(21, 1.0);     // sustain full
+  a.setParam(22, 0.005);   // release short
+  a.drain(8);
+
   const foundations::ConformanceReport rep = foundations::runNoteConformance(a);
 
   /* Drain before judging the ledger. retireTag() QUEUES an identity; the END
@@ -359,50 +414,57 @@ int main()
   p->deactivate(p);
   p->destroy(p);
 
-  /* THE GATE PINS THE RED SET, it does not demand green — and that is a
-     deliberate choice recorded in ROADMAP, not a weakened gate.
-     Two cases are red because their scaffolding encodes FOUNDATIONS' OWN table
-     timing, not the ruling behind it (see the ledger note above); which side
-     changes is their ruling to make, and until it lands, "all green" would be
-     a lie and "blocking red" would halt work on a divergence nobody has ruled
-     wrong. So this pins the CURRENT set exactly: a NEW failure is a
-     regression, and an expected failure turning green means the record is
-     stale. Both are worth stopping for; neither is silence. */
-  static const char *const kExpectedRed[] = {"R-steal-1", "R-retrig-1"};
-  constexpr int kExpectedCount = (int)(sizeof(kExpectedRed) / sizeof(kExpectedRed[0]));
+  /* THE GATE PINS BOTH SETS, and pins them separately, because FOUNDATIONS'
+     reclassification (their R8) split one verdict into two kinds:
+       kRuled           — a decision every consumer must satisfy.
+       kLibraryDefault  — how NoteTable happens to satisfy it; a consumer may
+                          legitimately differ, reported as DIVERGE.
+     Divergences are EXPECTED for us and are not failures: we retire an identity
+     at gate-off, which they ruled CONFORMING (R8) — the rule constrains the
+     PATH, not the MOMENT.
+     The one ruled failure is pinned with its reason rather than tolerated
+     silently, and it is filed with them: their Case 2 asserts the fill never
+     steals, which presumes end() frees a slot instantly. A real voice holds its
+     slot until its envelope decays, so with a full pool the fill MUST steal.
+     Their own fixture cannot see it — a table has no envelope.
+     Drift in either direction exits non-zero: a new failure is a regression, and
+     a pinned one turning green means this record is stale. */
+  static const char *const kExpectedRuledFail[] = {"R-end-1"};
+  static const char *const kExpectedDiverge[] = {"R-steal-1d", "R-steal-2", "R-retrig-1d"};
+  constexpr int kNRuled = (int)(sizeof(kExpectedRuledFail) / sizeof(kExpectedRuledFail[0]));
+  constexpr int kNDiv = (int)(sizeof(kExpectedDiverge) / sizeof(kExpectedDiverge[0]));
+
+  const auto listed = [](const char *name, const char *const *set, int n) {
+    for (int i = 0; i < n; i++)
+      if (!std::strncmp(name, set[i], std::strlen(set[i]))) return true;
+    return false;
+  };
+  const auto present = [](const char *want, const char *const *got, int n) {
+    for (int i = 0; i < n; i++)
+      if (got[i] && !std::strncmp(got[i], want, std::strlen(want))) return true;
+    return false;
+  };
+
   int drift = 0;
   for (int i = 0; i < rep.failed && i < foundations::ConformanceReport::kMaxFail; i++)
-  {
-    bool expected = false;
-    for (int j = 0; j < kExpectedCount; j++)
-      if (!std::strncmp(rep.failed_names[i], kExpectedRed[j], std::strlen(kExpectedRed[j])))
-        expected = true;
-    if (!expected)
-    {
-      std::printf("FAIL   UNEXPECTED red (regression): %s\n", rep.failed_names[i]);
-      drift++;
-    }
-  }
-  for (int j = 0; j < kExpectedCount; j++)
-  {
-    bool stillRed = false;
-    for (int i = 0; i < rep.failed && i < foundations::ConformanceReport::kMaxFail; i++)
-      if (!std::strncmp(rep.failed_names[i], kExpectedRed[j], std::strlen(kExpectedRed[j])))
-        stillRed = true;
-    if (!stillRed)
-    {
-      std::printf("FAIL   %s now PASSES — behaviour changed, update the pinned red set and the "
-                  "ROADMAP entry that explains it\n",
-                  kExpectedRed[j]);
-      drift++;
-    }
-  }
+    if (!listed(rep.failed_names[i], kExpectedRuledFail, kNRuled))
+    { std::printf("FAIL   UNEXPECTED ruled failure (regression): %s\n", rep.failed_names[i]); drift++; }
+  for (int i = 0; i < rep.diverged && i < foundations::ConformanceReport::kMaxFail; i++)
+    if (!listed(rep.diverged_names[i], kExpectedDiverge, kNDiv))
+    { std::printf("FAIL   UNEXPECTED divergence: %s\n", rep.diverged_names[i]); drift++; }
+  for (int j = 0; j < kNRuled; j++)
+    if (!present(kExpectedRuledFail[j], rep.failed_names, rep.failed))
+    { std::printf("FAIL   %s no longer fails — update the pin and the ROADMAP entry\n",
+                  kExpectedRuledFail[j]); drift++; }
+  for (int j = 0; j < kNDiv; j++)
+    if (!present(kExpectedDiverge[j], rep.diverged_names, rep.diverged))
+    { std::printf("FAIL   %s no longer diverges — update the pin and the ROADMAP entry\n",
+                  kExpectedDiverge[j]); drift++; }
 
-  std::printf("conformance_check: %s — suite %d passed / %d failed (%d expected-red, pinned), "
-              "ledger %s\n",
-              (drift || !ledgerOk) ? "RED" : "GREEN", rep.passed, rep.failed, kExpectedCount,
-              ledgerOk ? "GREEN" : "RED");
-  for (int i = 0; i < rep.failed && i < foundations::ConformanceReport::kMaxFail; i++)
-    std::printf("  red: %s\n", rep.failed_names[i]);
+  rep.summarize();
+  std::printf("conformance_check: %s — %d passed, %d ruled failure(s) [%d pinned], "
+              "%d divergence(s) [%d pinned], ledger %s\n",
+              (drift || !ledgerOk) ? "RED" : "GREEN", rep.passed, rep.failed, kNRuled,
+              rep.diverged, kNDiv, ledgerOk ? "GREEN" : "RED");
   return (drift || !ledgerOk) ? 1 : 0;
 }
