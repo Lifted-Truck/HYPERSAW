@@ -306,6 +306,33 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## QM-3 SPEC RECEIVED · MORPH-LAW BENCH BUILT (2026-08-15)
+
+`docs/received/QM-3-fx-pool-spec.md` — the promised spec, filed verbatim (L0009 triage: its §9.4
+explicitly reserves host-synth binding and FOUNDATIONS-convention adoption to the human, which aligns
+with the seam audit; no ADR collisions; its acceptance test 1 asserts "no repair routine was invoked,
+because none exists" — pin-your-refusals as an acceptance test, a third independent L0036 arrival).
+
+**Reading QM-3 NARROWED the divergence recorded at F-C.** Both models share the dense per-corner
+table AND zero-as-disconnection (QM-3 §1.1: unauthored cells are zero; flips glide through zero).
+The genuine conflict is the morph LAW alone: BLEND (cell = Σ w·v, ADR-088's rationale) vs ARGMAX
+(cell = winning corner's authored value; QM-0). Two laws on one substrate — and NOT two settings of
+one dial: temperature→0 gives nearest-corner, never blend.
+
+**`docs/design/morph-law-bench.html`** runs both laws live on the SAME table — QM-3's real pool,
+rank order, saliences, coupling-group rule, and its own §5 factory ledger as the four corners — so
+the discrete law is shown on its authors' terms. One shared XY; per-cell inspector shows both laws'
+arithmetic; a param strip shows the sharpest cases (a cutoff sweeps under blend and steps under
+argmax; a filter TYPE has no blend at all, forcing blend to smuggle in a hidden second law).
+Trade-off table and three options (A pure blend · B pure argmax · C law-split along QM-3's own
+param/routing timing classes) are in the bench for the human's ruling.
+
+If B is ruled: ADR-088's rationale text must be AMENDED (table survives, justification changes),
+or the next agent re-derives the wrong thing from a stale why.
+
+The lab-load gate caught a real load-time bug in the bench before first open (noise table indexed by
+a missing idx) — the gate's fifth catch.
+
 ## FX OVERHAUL · MODULAR ROUTING · QUANTUM-MORPH DEMO REVIEW (2026-08-14)
 
 Three human directives filed together, plus the review of an external demo. All three converge on

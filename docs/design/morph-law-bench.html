@@ -1,0 +1,332 @@
+<!doctype html>
+<!-- morph-law-bench — decision support for the QM-0/ADR-088 morph-law question.
+     HYPERSAW, 2026-08-15. Spec-in-code per ADR-003, but NOT a reference
+     prototype: this bench exists so the human can rule on WHICH morph law is
+     canonical, with both laws running live on the SAME dense table.
+
+     Faithfulness: the pool, rank order, corner topologies, salience values and
+     coupling-group rule are taken from QM-3 (docs/received/QM-3-fx-pool-spec.md)
+     — the corners are the spec's own §5 factory ledger patches — so the discrete
+     law is demonstrated on its authors' terms, not a strawman. The continuous
+     law is ADR-088's stated rationale applied to the same data.
+
+     L0026 discipline: ALL state declared before any wiring; no callback runs
+     during load that touches later declarations. No devicePixelRatio (absent
+     from the lab-gate stubs, learned 2026-08-14). -->
+<html><head><meta charset="utf-8"><title>Morph Law Bench — blend vs argmax on one dense table</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151f; --line:#2a3040; --dim:#7f8899;
+    --text:#cdd6e4; --teal:#5ff2e0; --amber:#ffc24b; --rust:#e0654a;
+    --cA:#f2b134; --cB:#ff4d6d; --cC:#4cc9f0; --cD:#7ae582; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text);
+    font:13px/1.5 ui-monospace,Menlo,monospace; padding:14px 18px; max-width:1180px; margin:0 auto; }
+  h1 { font-size:17px; margin:4px 0 2px; } h2 { font-size:13px; color:var(--amber); margin:0 0 8px; }
+  .sub { color:var(--dim); font-size:11px; margin-bottom:12px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px; }
+  .cols { display:grid; grid-template-columns:280px 1fr 1fr; gap:12px; align-items:start; }
+  .laws { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  canvas { display:block; width:100%; background:#0d1017; border:1px solid var(--line); border-radius:6px; }
+  table.mx { border-collapse:collapse; width:100%; font-size:10px; }
+  table.mx td, table.mx th { border:1px solid #1c2230; text-align:center; padding:3px 2px; min-width:26px; }
+  table.mx th { color:var(--dim); font-weight:normal; }
+  table.mx td.cell { cursor:pointer; }
+  table.mx td.dead { background:#0a0c11; }
+  .ctl { margin:6px 0; } .ctl label { display:block; color:var(--dim); font-size:11px; }
+  input[type=range] { width:100%; }
+  .btn { background:#1a2130; color:var(--text); border:1px solid var(--line); border-radius:5px; padding:4px 10px; cursor:pointer; font:inherit; }
+  .legend span { display:inline-block; padding:1px 7px; border-radius:3px; margin-right:5px; color:#0b0e13; font-weight:bold; font-size:10px; }
+  .note { color:var(--dim); font-size:11px; margin-top:6px; }
+  .insp { font-size:11px; white-space:pre; line-height:1.6; }
+  .warn { color:var(--rust); }
+  .good { color:var(--teal); }
+  .tbl { width:100%; border-collapse:collapse; font-size:12px; }
+  .tbl th, .tbl td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  .tbl th { color:var(--amber); font-weight:normal; }
+  .paramrow { display:grid; grid-template-columns:110px 1fr 1fr; gap:10px; align-items:center; margin:8px 0; }
+  .pv { background:#0d1017; border:1px solid var(--line); border-radius:5px; padding:6px 10px; font-size:12px; }
+  .bar { height:6px; background:#1a2130; border-radius:3px; position:relative; margin-top:4px; }
+  .bar i { position:absolute; top:0; bottom:0; left:0; background:var(--teal); border-radius:3px; }
+  .stepbar i { background:var(--cA); }
+  b.k { color:var(--teal); }
+</style></head><body>
+
+<h1>Morph Law Bench</h1>
+<div class="sub">One dense per-corner table · two morph laws · drag the field and watch them disagree.
+Pool, corners, saliences: QM-3's own §5 factory ledger. Continuous law: ADR-088's rationale on the same data.</div>
+
+<div class="panel">
+  <h2>The shared substrate — what both models agree on</h2>
+  <div style="font-size:12px">
+  Every send cell <b class="k">route.from.to</b> holds <b class="k">four authored values</b>, one per corner
+  (A&nbsp;SPLIT · B&nbsp;CRUSH · C&nbsp;DUB · D&nbsp;WASH). A value of <b class="k">0</b> means <i>not connected</i> —
+  disconnection is a gain, not a separate fact, so no cable list exists and no cell can be "invalid".
+  The matrix is upper-triangular (a module sends only rightward in rank), so <b>every possible assignment is a
+  DAG by construction</b> — QM-3 forbids even writing a validity checker, and our routing core enforces the same
+  rule read-side. Zero-send rows normal to master (dashed). <b>None of this is in dispute.</b>
+  The dispute is only: <i>as the XY moves, how does a cell get its value?</i></div>
+</div>
+
+<div class="cols">
+  <div class="panel">
+    <h2>Morph field (shared)</h2>
+    <canvas id="pad" width="252" height="252"></canvas>
+    <div class="legend" style="margin-top:8px">
+      <span style="background:var(--cA)">A SPLIT</span><span style="background:var(--cB)">B CRUSH</span>
+      <span style="background:var(--cC)">C DUB</span><span style="background:var(--cD)">D WASH</span>
+    </div>
+    <div class="ctl"><label>Temperature <span id="tv">0.60</span> (argmax only)</label>
+      <input type="range" id="temp" min="0.05" max="3" step="0.01" value="0.6"></div>
+    <div class="ctl"><label>Coupling <span id="cv">40%</span> (argmax only)</label>
+      <input type="range" id="coup" min="0" max="1" step="0.01" value="0.4"></div>
+    <div class="ctl"><button class="btn" id="reshuffle">Reshuffle · seed <span id="seedv">7311</span></button></div>
+    <div class="note">Temperature and coupling exist ONLY on the right side.
+      The left law has no dials: position is everything. That asymmetry is itself a finding.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Law 1 — BLEND (ADR-088 rationale)</h2>
+    <div class="note" style="margin:0 0 6px">cell = Σ w<sub>k</sub>·v<sub>k</sub> — every cell tracks the XY continuously.</div>
+    <table class="mx" id="mxBlend"></table>
+    <canvas id="gBlend" width="420" height="150"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Law 2 — ARGMAX (QM-0, the demo)</h2>
+    <div class="note" style="margin:0 0 6px">cell = value of the WINNING corner: argmax<sub>k</sub>( σ·log w<sub>k</sub>/T + gumbel ).</div>
+    <table class="mx" id="mxArg"></table>
+    <canvas id="gArg" width="420" height="150"></canvas>
+  </div>
+</div>
+
+<div class="cols">
+  <div class="panel">
+    <h2>Cell inspector</h2>
+    <div class="insp" id="insp">click any cell…</div>
+  </div>
+  <div class="panel" style="grid-column:span 2">
+    <h2>The same laws on module PARAMS — where the conflict is sharpest</h2>
+    <div class="paramrow"><div class="pv" style="border:none;background:none">flt1.cutoff<br><span class="note">continuous, log</span></div>
+      <div class="pv">BLEND: <b id="pcB">—</b><div class="bar" id="pcBbar"><i></i></div>
+        <div class="note good">sweeps smoothly with XY — the classic vector morph</div></div>
+      <div class="pv">ARGMAX: <b id="pcA">—</b><div class="bar stepbar" id="pcAbar"><i></i></div>
+        <div class="note">only ever an AUTHORED value; steps between corners (glide masks the step)</div></div>
+    </div>
+    <div class="paramrow"><div class="pv" style="border:none;background:none">flt1.type<br><span class="note">discrete, unordered</span></div>
+      <div class="pv">BLEND: <b id="ptB">—</b>
+        <div class="note warn">no blend of LP/BP/HP exists — blend must smuggle in a second, discrete law
+        (nearest corner shown). Every real patch has discrete params, so "pure blend" is impossible.</div></div>
+      <div class="pv">ARGMAX: <b id="ptA">—</b>
+        <div class="note good">same law as everything else — one rule covers cont, disc, and routing</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Trade-offs — what each law buys and pays</h2>
+  <table class="tbl">
+    <tr><th></th><th>BLEND (continuous)</th><th>ARGMAX (QM-0 discrete)</th></tr>
+    <tr><td>Mid-field sound</td>
+      <td>A weighted hybrid that <b>no corner authored</b> — smooth, wash-prone; a 50/50 point is half-gain everything</td>
+      <td>A <b>mosaic of authored values</b> — each cell is always something someone designed; the combination may still be unauthored (QM-3 test 6 engineers for worst-hybrid survivability)</td></tr>
+    <tr><td>Discrete params (type, char, sync)</td>
+      <td class="warn">Unhandled — needs a hidden second law; the clicks live there anyway</td>
+      <td class="good">Uniform — the whole point of one selection law</td></tr>
+    <tr><td>Continuous sweep of a cutoff via XY</td>
+      <td class="good">Native</td>
+      <td class="warn">Impossible — values quantize to corners; smoothness comes only from glide + commit timing</td></tr>
+    <tr><td>Determinism</td>
+      <td>Pure function of XY — trivially recallable</td>
+      <td>Function of XY + seed + noise table + commit clock — recallable (QM-0 serializes all of it) but the contract is bigger</td></tr>
+    <tr><td>Performance dimensions</td>
+      <td>One: position</td>
+      <td>Position + temperature + coupling + reshuffle + commit class — a generative instrument, not a crossfader</td></tr>
+    <tr><td>Click surface</td>
+      <td>Gains continuous by construction; discrete flips (the hidden law) still click; continuously-varying delay TIME pitch-smears</td>
+      <td>Every change is a step, all masked by one glide mechanism; QM-3 test 5 pins it at −60 dB</td></tr>
+    <tr><td>UI attribution</td>
+      <td>A cell is a mixture — ownership is fractional, census is fuzzy</td>
+      <td class="good">Every cell has one owning corner — the demo's colored census is honest and legible</td></tr>
+    <tr><td>Normalling threshold (row &lt; 0.01 → master)</td>
+      <td class="warn">XY can HOVER at the threshold — the master normal can chatter under a slow drag; wants hysteresis</td>
+      <td>Crossed only at commits — chatter bounded by commit rate</td></tr>
+  </table>
+  <div class="note" style="margin-top:8px"><b class="warn">Not a dial between them:</b> temperature→0 gives
+  nearest-corner (a step function of the field), NOT blend. Blend is outside the argmax family at every T.
+  The expected value over many reshuffles approaches the blend — but any single realization is a mosaic.
+  These are two instruments, not two settings.</div>
+</div>
+
+<div class="panel">
+  <h2>The decision actually being made</h2>
+  <div style="font-size:12px;line-height:1.7">
+  <b>Option A — pure BLEND.</b> The morph pad is a precision crossfader. You lose temperature, coupling,
+  reshuffle, and the mosaic character; you gain smooth interpolation of every gain and every continuous param.
+  You still need a discrete law for type/char/sync, so "pure" is already hybrid.<br>
+  <b>Option B — pure ARGMAX (QM-0 as specced).</b> The morph pad is a probability field quantized to musical
+  time. You lose XY-sweepable cutoffs; you gain one uniform law, per-corner attribution, and the generative
+  performance surface. This is what the demo and QM-3 assume.<br>
+  <b>Option C — split by the line QM-3 already draws.</b> QM-3 §6.3 splits commit timing into
+  <i>param class</i> vs <i>routing class</i>. Splitting the LAW on the same line — routing + discrete flip by
+  argmax, continuous params blend — gives sweepable cutoffs AND mosaic topologies. Cost: two laws for real,
+  a fuzzier census (blended params belong to no corner), and coupling groups that span both laws.<br><br>
+  <b>My read, stated so it can be distrusted:</b> B is the more <i>novel instrument</i> and C is the more
+  <i>playable synth</i>; A is the industry default and the least interesting. The QM documents are coherent
+  and complete around B — adopting C means asking the QM side to carve an exception whose census and
+  coupling semantics they have not designed. If B is chosen, ADR-088's rationale text must be AMENDED
+  (the dense table survives; its justification changes from "morph interpolates coefficients" to
+  "unauthored = zero + flips glide through zero"), because a rationale that no longer matches the law is
+  how the next agent re-derives the wrong thing.</div>
+</div>
+
+<script>
+'use strict';
+/* ---- all state above all wiring (L0026) ---- */
+const CORNERS=[{id:'A',name:'SPLIT',color:'#f2b134'},{id:'B',name:'CRUSH',color:'#ff4d6d'},
+               {id:'C',name:'DUB',color:'#4cc9f0'},{id:'D',name:'WASH',color:'#7ae582'}];
+const NODES=['SRC','DRV1','FLT1','FLT2','CHO','DLY','VRB','DRV2','MST'];
+/* QM-3 §5 factory ledger, authored as sparse per-corner cells [A,B,C,D] */
+const ROUTES=[];
+function R(f,t,a,b,c,d){ROUTES.push({from:f,to:t,vals:[a,b,c,d],sal:2.2,idx:ROUTES.length});}
+R('SRC','FLT1', 1,0,1,0);  R('SRC','FLT2', 1,0,0,0);  R('SRC','DRV1', 0,1,0,0);
+R('SRC','DLY',  0,0,0,1);  R('SRC','VRB',  0,0,0,1);  R('SRC','MST',  0,0,.15,0);
+R('DRV1','FLT1',0,1,0,0);
+R('FLT1','MST', 1,0,0,0);  R('FLT1','FLT2',0,1,0,0);  R('FLT1','DLY', 0,0,1,0);
+R('FLT2','CHO', 1,0,0,0);  R('FLT2','DRV2',0,1,0,0);
+R('CHO','VRB',  1,0,0,0);
+R('DLY','VRB',  0,0,1,1);
+R('VRB','MST',  1,0,1,0);  R('VRB','DRV2', 0,0,0,1);
+R('DRV2','MST', 0,1,0,1);
+const PARAMS=[
+ {id:'flt1.cutoff',kind:'cont',log:true,vals:[200,900,1200,600],sal:2.5,fmt:v=>v>=1000?(v/1000).toFixed(2)+'k':Math.round(v)+' Hz',min:40,max:16000},
+ {id:'flt1.type',kind:'disc',vals:['LP','LP','BP','LP'],sal:2.5}];
+const GROUPS=['SRC','DRV1','FLT1','FLT2','CHO','DLY','VRB','DRV2'];
+const SLOTS=ROUTES.concat(PARAMS.map((p,i)=>({...p,from:'FLT1',idx:ROUTES.length+i})));
+/* Use the SLOTS copies for params, never the raw PARAMS objects: only the
+   copies carry `idx`, and argVal indexes the noise tables by it. The lab-load
+   gate caught the raw-object version throwing on noise.g[undefined][0]. */
+const PC=SLOTS[ROUTES.length],PT=SLOTS[ROUTES.length+1];
+function groupOf(s){return s.from||'FLT1';}
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const gum=u=>-Math.log(-Math.log(Math.min(1-1e-9,Math.max(1e-9,u))));
+let seed=7311,noise={g:[],u:[],G:{}};
+function reshuffle(){const r=mulberry32(seed);
+  noise.g=SLOTS.map(()=>[0,1,2,3].map(()=>gum(r())));
+  noise.u=SLOTS.map(()=>r());
+  noise.G={};GROUPS.forEach(m=>noise.G[m]=[0,1,2,3].map(()=>gum(r())));}
+reshuffle();
+
+const S={x:.2,y:.2,T:.6,c:.4};
+const wts=(x,y)=>[(1-x)*(1-y),x*(1-y),(1-x)*y,x*y];
+function blendVal(s,w){if(s.kind==='disc'){let bi=0;for(let k=1;k<4;k++)if(w[k]>w[bi])bi=k;return{v:s.vals[bi],owner:bi,fallback:true};}
+  let v=0;for(let k=0;k<4;k++)v+=w[k]*s.vals[k];return{v,owner:-1};}
+function argVal(s,w){const lw=w.map(v=>v>1e-9?Math.log(v):-1e12);
+  const nv=noise.u[s.idx]<S.c?noise.G[groupOf(s)]:noise.g[s.idx];
+  let best=-Infinity,bi=0,scores=[];
+  for(let k=0;k<4;k++){const sc=s.sal*lw[k]/S.T+nv[k];scores.push(sc);if(sc>best){best=sc;bi=k;}}
+  return{v:s.vals[bi],owner:bi,scores};}
+function rowEff(valFn){const eff={},norm={},w=wts(S.x,S.y);
+  GROUPS.forEach(g=>{let sum=0;
+    ROUTES.forEach(r=>{if(r.from===g){const o=valFn(r,w);eff[r.from+'>'+r.to]={v:o.v,owner:o.owner};sum+=o.v;}});
+    norm[g]=false;if(sum<0.01){eff[g+'>MST']={v:1,owner:-2};norm[g]=true;}});
+  return{eff,norm};}
+
+let inspIdx=-1;
+const $=s=>document.querySelector(s);
+const cellRefs={blend:{},arg:{}};
+
+function buildMatrix(el,side){
+  let h='<tr><th></th>'+NODES.slice(1).map(n=>'<th>'+n+'</th>').join('')+'</tr>';
+  for(let ri=0;ri<NODES.length-1;ri++){
+    h+='<tr><th>'+NODES[ri]+'</th>';
+    for(let ci=1;ci<NODES.length;ci++){
+      if(ci<=ri){h+='<td class="dead"></td>';continue;}
+      const rt=ROUTES.find(r=>r.from===NODES[ri]&&r.to===NODES[ci]);
+      h+=rt?'<td class="cell" data-side="'+side+'" data-idx="'+rt.idx+'"></td>':'<td class="dead"></td>';}
+    h+='</tr>';}
+  el.innerHTML=h;
+  el.querySelectorAll('td.cell').forEach(td=>{cellRefs[side][+td.dataset.idx]=td;
+    td.addEventListener('click',()=>{inspIdx=+td.dataset.idx;update();});});
+}
+
+function drawGraph(cv,eff,norm,colored){
+  const ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const pos={};NODES.forEach((n,i)=>{pos[n]=[24+i*(W-48)/(NODES.length-1),H/2];});
+  for(const key in eff){const o=eff[key];if(o.v<0.01)continue;
+    const [f,t]=key.split('>'),[x1,y1]=pos[f],[x2,y2]=pos[t];
+    ctx.beginPath();const mid=(x1+x2)/2,arc=Math.min(58,(x2-x1)*.45)*((f.charCodeAt(0)+t.charCodeAt(0))%2?1:-1);
+    ctx.moveTo(x1,y1);ctx.quadraticCurveTo(mid,y1+arc,x2,y2);
+    ctx.lineWidth=.8+o.v*3.2;
+    ctx.strokeStyle=o.owner===-2?'#7f8899':(colored&&o.owner>=0?CORNERS[o.owner].color:'#5ff2e0');
+    ctx.setLineDash(o.owner===-2?[4,4]:[]);ctx.stroke();ctx.setLineDash([]);}
+  NODES.forEach(n=>{const[x,y]=pos[n];ctx.fillStyle='#161b28';ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.fill();
+    ctx.strokeStyle='#2a3040';ctx.stroke();ctx.fillStyle='#cdd6e4';ctx.font='7px monospace';
+    ctx.textAlign='center';ctx.fillText(n,x,y+2);});
+}
+
+function drawPad(){
+  const cv=$('#pad'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const cpos=[[0,0],[W,0],[0,H],[W,H]];
+  CORNERS.forEach((c,k)=>{const g=ctx.createRadialGradient(cpos[k][0],cpos[k][1],0,cpos[k][0],cpos[k][1],W*.85);
+    g.addColorStop(0,c.color+'44');g.addColorStop(1,c.color+'00');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);});
+  CORNERS.forEach((c,k)=>{ctx.fillStyle=c.color;ctx.font='bold 11px monospace';
+    ctx.fillText(c.id,cpos[k][0]?cpos[k][0]-14:6,cpos[k][1]?cpos[k][1]-6:14);});
+  ctx.strokeStyle='#5ff2e0';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(S.x*W,S.y*H,7,0,7);ctx.stroke();
+}
+
+function update(){
+  const w=wts(S.x,S.y);
+  const B=rowEff((s,ww)=>blendVal(s,ww)),A=rowEff((s,ww)=>argVal(s,ww));
+  ROUTES.forEach(r=>{
+    const bo=blendVal(r,w),ao=argVal(r,w);
+    const tb=cellRefs.blend[r.idx],ta=cellRefs.arg[r.idx];
+    if(tb){tb.textContent=bo.v<0.005?'':bo.v.toFixed(2).replace('0.','.');
+      tb.style.background='rgba(95,242,224,'+(bo.v*.55)+')';tb.style.color=bo.v>.5?'#0b0e13':'#cdd6e4';}
+    if(ta){ta.textContent=ao.v<0.005?'':ao.v.toFixed(2).replace('0.','.');
+      const c=CORNERS[ao.owner].color;
+      ta.style.background=ao.v>0.005?c+Math.round(40+ao.v*140).toString(16).padStart(2,'0'):'transparent';
+      ta.style.color=ao.v>.5?'#0b0e13':'#cdd6e4';}});
+  drawGraph($('#gBlend'),B.eff,B.norm,false);
+  drawGraph($('#gArg'),A.eff,A.norm,true);
+  drawPad();
+  const pc=PC,pt=PT;
+  const pcB=blendVal(pc,w),pcA=argVal(pc,w),ptB=blendVal(pt,w),ptA=argVal(pt,w);
+  $('#pcB').textContent=pc.fmt(pcB.v);
+  $('#pcA').textContent=pc.fmt(pcA.v)+'  (corner '+CORNERS[pcA.owner].id+')';
+  const frac=v=>Math.max(0,Math.min(1,Math.log(v/pc.min)/Math.log(pc.max/pc.min)));
+  $('#pcBbar').firstElementChild.style.width=(frac(pcB.v)*100)+'%';
+  const ab=$('#pcAbar').firstElementChild;ab.style.width=(frac(pcA.v)*100)+'%';
+  ab.style.background=CORNERS[pcA.owner].color;
+  $('#ptB').textContent=ptB.v+'  (nearest corner '+CORNERS[ptB.owner].id+' — hidden second law)';
+  $('#ptA').textContent=ptA.v+'  (corner '+CORNERS[ptA.owner].id+')';
+  if(inspIdx>=0){const s=SLOTS[inspIdx],bo=blendVal(s,w),ao=argVal(s,w);
+    let t='route.'+s.from.toLowerCase()+'.'+s.to.toLowerCase()+'   σ='+s.sal+'\n';
+    t+='corner values   A='+s.vals[0]+'  B='+s.vals[1]+'  C='+s.vals[2]+'  D='+s.vals[3]+'\n';
+    t+='weights w       '+w.map(v=>v.toFixed(2)).join('  ')+'\n\n';
+    t+='BLEND  Σ w·v  = '+bo.v.toFixed(3)+'\n';
+    t+='ARGMAX scores  '+ao.scores.map((v,k)=>(k===ao.owner?'[':' ')+v.toFixed(1)+(k===ao.owner?']':' ')).join(' ')+'\n';
+    t+='       winner '+CORNERS[ao.owner].id+' -> value '+ao.v+'\n';
+    t+=(noise.u[s.idx]<S.c?'noise: GROUP ('+groupOf(s)+' flips as one)':'noise: per-cell');
+    $('#insp').textContent=t;}
+}
+
+/* ---- wiring, strictly after all declarations ---- */
+buildMatrix($('#mxBlend'),'blend');
+buildMatrix($('#mxArg'),'arg');
+let dragging=false;
+function padXY(e){const cv=$('#pad'),r=cv.getBoundingClientRect();
+  S.x=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));
+  S.y=Math.min(1,Math.max(0,(e.clientY-r.top)/r.height));update();}
+$('#pad').addEventListener('pointerdown',e=>{dragging=true;padXY(e);});
+document.addEventListener('pointermove',e=>{if(dragging)padXY(e);});
+document.addEventListener('pointerup',()=>{dragging=false;});
+$('#temp').addEventListener('input',e=>{S.T=+e.target.value;$('#tv').textContent=S.T.toFixed(2);update();});
+$('#coup').addEventListener('input',e=>{S.c=+e.target.value;$('#cv').textContent=Math.round(S.c*100)+'%';update();});
+$('#reshuffle').addEventListener('click',()=>{seed=(seed*48271)%2147483647;$('#seedv').textContent=seed;reshuffle();update();});
+update();
+</script>
+</body></html>
