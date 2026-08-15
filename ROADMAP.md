@@ -723,6 +723,50 @@ habit of branching from `main` and then anchoring on un-merged prose is the thin
 fixed. **Standing correction: check `grep -n "^## " ROADMAP.md` on the current branch before writing
 an anchor, not after.**
 
+## INERTIA DECIDED — a property of the ROUTE, filed as extraction evidence (2026-08-15)
+
+Human: *"Feel free to lock in your decision about inertia and file a brief."* Decided and filed
+(`brief-route-inertia.md`, `0249431`, verified on their origin/main).
+
+**Decision: inertia is a property of a modulation ROUTE, not of a destination.** A route carrying
+inertia post-processes the value in transit through a damped second-order spring with two controls —
+**rate** and **damping (ζ)**, the two the human asked for.
+
+**Rejected alternative:** inertia per destination ("cutoff has a glide", "K has a glide"). That is N
+implementations of one idea, it multiplies with every destination added, and it makes the *same
+physical behaviour* a different feature in each place. On the edge, one implementation serves every
+source→destination pair.
+
+**We already own the mechanism.** `bend-lab.html`'s `Inertia` is exactly this spring — `springF` and
+`zeta`, already characterised (step response with lag / overshoot / settle / reversals, plus a
+vibrato-retention meter, because the price of inertia is that it eats fast wheel vibrato and we
+wanted that cost as a number). Route inertia is a **reuse**, not a second spring.
+
+**Why FOUNDATIONS was told.** Their `mod_routing.h` five-tuple already makes a route first-class, so
+"what happens to the value in transit" is a route property and inertia is the first non-trivial
+instance of that category. Their own R3 rule is the safety argument we cited back: inertia must be an
+**instance** of a route-transform category, never a named field — **a five-tuple that grows
+`smoothing: bool` is sealed and fails their own review.**
+
+**Build first: the route into K.** Inertia on the coupling gives a swarm that *settles* into
+coherence with overshoot — a physical system finding order rather than being told to be ordered.
+That is the instrument's premise expressed as a modulation route, and the K route is non-cyclic, so
+it is buildable before #23.
+
+**Two hazards designed against, not discovered.** State is `routes × polyphony × 2` — real at
+`kPoly = 16` — so inertia is **opt-in per route** and its state is allocated with the voice, never in
+`process()`. And a spring on a feedback edge is a second-order system inside a loop.
+
+**That second hazard produced a SECOND, independent argument for unit-delay-at-block-rate**, which is
+the part worth keeping: under a fixed unit delay a spring in a loop has a stateable gain bound; under
+*fixed evaluation order* its behaviour depends on the topological sort, so the same patch behaves
+differently as the graph changes; under *iterative settlement* the spring is state the settlement
+pass must iterate over and convergence stops being obvious. **The first argument came from wanting
+feedback sends; this one from wanting springs on edges** — a separate observation under their
+independent-arrival rule, not the same one twice. Filed as evidence for their human, not as pressure.
+
+Commitment unchanged: **nothing lands on cyclic routes before OQ #23 is ruled.**
+
 ## INERTIA EVERYWHERE + SEMI-GRADUAL MORPH + REVERB RESEARCH (2026-08-15)
 
 Three human items. Report: `docs/reports/2026-08-15-supersaw-reverb-research.md`.
