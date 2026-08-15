@@ -306,6 +306,50 @@ whole string would close every historical thread that already means to be closed
 **Fleet is now 0 overdue.** The only HYPERSAW thread still open is the rescan measurement, which is
 outstanding work rather than an unanswered question.
 
+## MORPH LAW RULED: C WITH A TOGGLE TO B — WHICH IS QM-0 §4, VERBATIM (2026-08-15)
+
+**Human ruling:** Option C (law split — routing and discrete flip by argmax, continuous params blend)
+as the default, with a toggle that flips to pure Option B. The human directed a re-check of the
+original quantum-morph proposal, and the re-check found the ruling ALREADY SPECIFIED there:
+
+**QM-0 §4 "Slot modes"** (`quantum-morph sibling: docs/specs/QM-0-core-engine-spec.md`):
+`FROZEN` · `PINNED(k)` · `QUANTUM` · `GRADUAL` · `AUTO`, where **AUTO (the default) sends discrete
+slots to quantum ALWAYS and continuous slots to a global "Continuous mode" switch** — and `GRADUAL`
+IS the blend law, interpolating in the parameter's native warp domain:
+`v = warp⁻¹(Σ w·warp(vₖ))`. So: AUTO + Continuous-mode=GRADUAL is Option C; the global switch to
+QUANTUM is Option B. **Nothing needs inventing. Adoption = implement QM-0 §4 as specced.**
+
+### Corrections to the bench's framing, owed and recorded
+
+1. The bench presented "pure argmax" as "what QM assumes." **Wrong** — that was the DEMO's setting,
+   not the spec's design. QM-0 carried both laws, per-slot modes, and the global switch throughout.
+   The bench's Option C was a rediscovery of QM-0 §4, made while reviewing QM-3 without its
+   prerequisite (QM-0 lived in the sibling repo; QM-3 names it "prerequisite reading" and the review
+   proceeded without it — the divergence flagged at F-C was really QM-3-plus-demo vs ADR-088, and
+   QM-0 §4 had already dissolved it).
+2. The bench blends cutoff LINEARLY; QM-0 §4.1 requires warp-domain (log for freq/time/ratio).
+   The bench's blend column understates GRADUAL — a linear 120 Hz→11 kHz blend "does nothing for the
+   first two-thirds of its travel" (QM-0's own words). Bench correction queued, not urgent.
+3. The bench's law-split framing omitted `FROZEN`/`PINNED` entirely — the per-slot override is how a
+   preset author says "the pitch stays coherent no matter what scrambles," and QM-0 expects it used
+   heavily. Any HYPERSAW morph panel carries all five modes, not two laws.
+4. The bench's "not a dial between them" claim STANDS at the law level (argmax at any T never becomes
+   blend) — but the spec never claimed it was a dial; it made them per-slot MODES. The claim was
+   true and aimed at nobody.
+
+### Consequences
+
+- **ADR-088 rationale amendment** (queued): the dense table's justification becomes "substrate for
+  BOTH QM-0 laws — GRADUAL interpolates the coefficients, QUANTUM glides them through zero" — one
+  amendment covering the ruling, instead of the stale continuous-only rationale.
+- **The FOUNDATIONS R3.2 hook strengthens**: the round-1 ruling scoped our matrix exemption as "first
+  instance of a future routing-policy category," with the quantum-morph work named as the live second
+  consumer. The human's ruling now formally ADOPTS QM-0 into HYPERSAW's morph plans — the
+  two-consumer extraction condition is visibly forming, on the mediator's own terms.
+- Salience defaults, warp classes, coupling groups, commit classes: QM-0/QM-3 tables adopted as
+  authored; HYPERSAW-specific saliences (which params are "primary timbre" HERE) are an authoring
+  pass, not a design question.
+
 ## QM-3 SPEC RECEIVED · MORPH-LAW BENCH BUILT (2026-08-15)
 
 `docs/received/QM-3-fx-pool-spec.md` — the promised spec, filed verbatim (L0009 triage: its §9.4

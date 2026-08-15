@@ -210,10 +210,9 @@ internal:
       state_intended: off-contract
       crosses: [stereo out, block subdivision, sample-rate changes]
       converged_when: >
-        Either a ruled re-homing into the library container, or a ruled
-        permanent exemption; today CLAP-first is deliberate (ADR-002) and
-        re-homing is an open human question, so intended state honestly equals
-        now.
+        RULED (R4, 2026-08-14, ratified): exempt WHILE shell/ does not exist in
+        the library; when it ships, the re-homing question REOPENS (reopens, not
+        pre-decides). Until then ADR-002 stands and intended equals now.
       tension: >
         Exempt here means deliberate TODAY, not forever. Whether HYPERSAW ever
         becomes a hosted payload is unruled and this map does not pre-rule it.
@@ -413,11 +412,13 @@ internal:
       state_intended: off-contract
       crosses: [per-slot gathered buffers, crosspoint gains, node constants, terminal sums]
       converged_when: >
-        Either the ruled position holds (matrix is HYPERSAW novelty; library
-        checks types only) and this stays exempt with sign-off — or the human's
-        plumbing vision is ruled INTO the library, the three carried properties
-        (gain, node constants, ordering) get a contract home, and this becomes
-        promote. The sign-off request IS this entry.
+        RULED (R3, 2026-08-14, ratified): exemption GRANTED, scoped as the first
+        instance of a future routing-policy category. Sockets/lifecycle/default
+        chain go to the library; representation and math stay here; the three
+        carried properties get contract homes as DECLARATIONS; morph-writes-
+        topology deferred behind OQ #23. Converged when the declarations land
+        and a second consumer, if one emerges, extracts the PATTERN under the
+        two-consumer rule with this matrix as prior art.
       tension: >
         Same contested seam as the ecosystem signal-graph entry, seen from
         inside. The dense-table property the matrix exists for is exactly the
