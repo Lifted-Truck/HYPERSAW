@@ -93,6 +93,12 @@ fast() {
   # presentation table, so an edited table with stale markup shows yesterday's
   # declarations — invisible to every audio oracle, which is why it is gated.
   python3 tools/gen_gui_controls.py --check || ok=1
+
+  # THE TEST TABLE cannot claim coverage it lacks: every agentic row names a gate
+  # this file actually runs (parsed from here, never a second list), and every
+  # feature the GUI shows has at least one row. Both failure modes — an oracle
+  # nobody wrote, a feature nobody tests — are silent by construction.
+  python3 tools/test_table_check.py || ok=1
   portability_gate || ok=1   # MSVC-only breakage, caught locally not in CI
 
   # GUI REACHABILITY (L0023, third occurrence — the one that became a gate).
