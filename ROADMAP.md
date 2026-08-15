@@ -8,6 +8,50 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## INERTIA DECIDED — a property of the ROUTE, filed as extraction evidence (2026-08-15)
+
+Human: *"Feel free to lock in your decision about inertia and file a brief."* Decided and filed
+(`brief-route-inertia.md`, `0249431`, verified on their origin/main).
+
+**Decision: inertia is a property of a modulation ROUTE, not of a destination.** A route carrying
+inertia post-processes the value in transit through a damped second-order spring with two controls —
+**rate** and **damping (ζ)**, the two the human asked for.
+
+**Rejected alternative:** inertia per destination ("cutoff has a glide", "K has a glide"). That is N
+implementations of one idea, it multiplies with every destination added, and it makes the *same
+physical behaviour* a different feature in each place. On the edge, one implementation serves every
+source→destination pair.
+
+**We already own the mechanism.** `bend-lab.html`'s `Inertia` is exactly this spring — `springF` and
+`zeta`, already characterised (step response with lag / overshoot / settle / reversals, plus a
+vibrato-retention meter, because the price of inertia is that it eats fast wheel vibrato and we
+wanted that cost as a number). Route inertia is a **reuse**, not a second spring.
+
+**Why FOUNDATIONS was told.** Their `mod_routing.h` five-tuple already makes a route first-class, so
+"what happens to the value in transit" is a route property and inertia is the first non-trivial
+instance of that category. Their own R3 rule is the safety argument we cited back: inertia must be an
+**instance** of a route-transform category, never a named field — **a five-tuple that grows
+`smoothing: bool` is sealed and fails their own review.**
+
+**Build first: the route into K.** Inertia on the coupling gives a swarm that *settles* into
+coherence with overshoot — a physical system finding order rather than being told to be ordered.
+That is the instrument's premise expressed as a modulation route, and the K route is non-cyclic, so
+it is buildable before #23.
+
+**Two hazards designed against, not discovered.** State is `routes × polyphony × 2` — real at
+`kPoly = 16` — so inertia is **opt-in per route** and its state is allocated with the voice, never in
+`process()`. And a spring on a feedback edge is a second-order system inside a loop.
+
+**That second hazard produced a SECOND, independent argument for unit-delay-at-block-rate**, which is
+the part worth keeping: under a fixed unit delay a spring in a loop has a stateable gain bound; under
+*fixed evaluation order* its behaviour depends on the topological sort, so the same patch behaves
+differently as the graph changes; under *iterative settlement* the spring is state the settlement
+pass must iterate over and convergence stops being obvious. **The first argument came from wanting
+feedback sends; this one from wanting springs on edges** — a separate observation under their
+independent-arrival rule, not the same one twice. Filed as evidence for their human, not as pressure.
+
+Commitment unchanged: **nothing lands on cyclic routes before OQ #23 is ruled.**
+
 ## INERTIA EVERYWHERE + SEMI-GRADUAL MORPH + REVERB RESEARCH (2026-08-15)
 
 Three human items. Report: `docs/reports/2026-08-15-supersaw-reverb-research.md`.
