@@ -8,6 +8,47 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## gui2 IS COMPLETE — 30/105 to 105/105, generated not placed (2026-08-15)
+
+`tools/gen_gui_controls.py` builds gui2's controls **from** the presentation table. **144 controls
+generated; gui2 goes 30/105 -> 105/105.** `./verify full` GREEN, parity 147/147 worst 4.262e-09.
+
+**This is D1 made operational.** Adding a parameter is now adding a ROW — a control can no longer be
+forgotten, and the 29-dead-controls failure and the 75-missing-controls gap are revealed as the same
+defect from opposite sides, both unreachable once markup is derived.
+
+**Where each field comes from is the design:** presentation (label, page, group, widget, unit) from
+our address-keyed table; structure (id, ranges, stepped) from the shell — the half that becomes
+`ParamDesc` at re-point; and **patch-scope from `gui_reach.py`, EXECUTED rather than
+re-implemented**, because that derivation has two semantic anchors that took three wrong versions to
+settle. The numeric id appears in generated markup because CLAP speaks ids, but it enters at
+generation time by joining an address-keyed table against the shell: **nothing a human authors
+carries an id.**
+
+**Page assignment is DATA, and it is a proposal.** Groups were mapped to gui2's four pages
+(swarm/coupling/drift/spectra -> OSC, envelope/voice/dynamics -> MAIN, mix/output -> MIX, FX rack ->
+FX). `layout-lab.html` exists to decide information architecture, so this is a starting position it
+can overturn **by editing one column**, never a structure baked into markup. That reversibility is
+the point of generating.
+
+### The drift gate could not fire, and it was our own
+
+Added `--check` so an edited table with stale markup fails. **It reported GREEN on a table edited
+underneath it.** Cause: `already` — the set that stops generation fighting hand-placed controls — was
+computed from the WHOLE file. After one run every id is present, so every param is skipped, nothing
+regenerates, and `--check` compares the file to itself. **The filter that keeps generation from
+fighting a human also blinded it to itself.**
+
+Fixed by stripping the GEN blocks before asking what is hand-written. Re-calibrated: edit a label ->
+RED naming the stale file; regenerate -> GREEN; revert -> GREEN.
+
+**This is the fourth instance this session of the same class**, and the first authored by us in a
+gate written specifically to prevent it: L0032's detector-shares-assumption, FOUNDATIONS' pin that
+passed against their own bug, their `kMaxNotes == 4` fixtures correct-by-accident, and now ours. The
+general form we adopted from them this morning — *if the mechanism launders itself, assert on the
+mechanism, not the aftermath* — is exactly what this violated: we asserted on the file's final state
+when the mechanism (the `already` filter) had laundered the difference away.
+
 ## PRESENTATION TABLE — the first MVP increment, and it publishes our scopes (2026-08-15)
 
 `src/param_presentation.tsv` + `tools/presentation_check.py`, gated in `./verify fast`.
