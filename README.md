@@ -135,8 +135,12 @@ wrong — if this date is old, trust ROADMAP.md.)
 
 ## Known gaps, stated rather than omitted
 
-- **`build-macos` shows as *skipping* in CI.** Flagged and not yet investigated, which means the
-  macOS half of the matrix is contributing no evidence and local `./verify full` is carrying it.
+- ~~`build-macos` shows as *skipping* in CI.~~ **Retracted 2026-08-16 — this was never a gap, and
+  it was asserted here without being checked.** The skip is deliberate and documented in
+  `.github/workflows/ci.yml`: the account hit its free Actions minutes, macOS runners bill 10×, so
+  PRs run the coverage this dev Mac *cannot* produce (Linux + Windows) while **`build-macos` runs on
+  push to `main` as the post-merge net** — and macOS is precisely the platform `./verify full`
+  already covers locally on every change. Verified: the last six pushes to `main` all succeeded.
 - Four test-table rows have **no oracle yet**: the bend-quantiser regression (behaviour fixed, gate
   unwritten), `amount=0` passthrough across every FX slot type, the master level meter (not built),
   and mute/solo + master octave.
