@@ -32,7 +32,9 @@ A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built fro
 
 ## Two interfaces, and which one you get
 
-The repo currently carries **two** GUIs, and this is worth knowing before you build:
+The repo carries **two** GUIs, and they are a **succession, not a fork**: `gui.html` is the
+original single-oscillator interface, and `gui2.html` is the ground-up successor that will
+replace it. Worth knowing before you build:
 
 | | reaches | shape | build |
 |---|---|---|---|
@@ -48,7 +50,7 @@ cmake -S . -B build-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release -j
 ```
 
-**GUI2 is the renovation, and it is interesting for a different reason.** Its controls are no longer
+**GUI2 is where the instrument is going, and it is interesting for a different reason.** Its controls are no longer
 hand-placed — 144 of them are **generated** from `src/param_presentation.tsv`, an address-keyed table
 of label/page/group/widget, so adding a parameter means adding a row and a control can no longer be
 forgotten. That table is deliberately separate from the parameter's *structure* (ranges, ids), and it
@@ -59,6 +61,12 @@ editing one column rather than moving markup.
 
 Both are gated: `gui_reach` fails the build if any declared parameter is unreachable in *every* GUI,
 which is how 29 silently dead controls were found and killed.
+
+**Why GUI1 is still the default if GUI2 is the successor.** GUI2 was deliberately held at a partial
+surface while the parameter plumbing was designed, rather than grown on top of the debt GUI1 carries
+— so for a long stretch "incomplete" was the *correct* state for it to be in, not a gap. Now that the
+declaration split exists, GUI2 is generated to the full surface and the default will move to it. If
+you want to see the instrument today, GUI1; if you want to see where it is going, GUI2.
 
 ## Reference implementations (the oracle)
 
