@@ -99,6 +99,22 @@ def main():
         p = shell.get(addr)
         if not p or p["id"] in already:
             continue        # hand-placed already; generation never fights a human
+        # ONE CONTROL PER BASE ID — gui2 addresses oscillators with a SELECTOR, not
+        # with duplicate rows. `effId()` remaps a control's base id to the edited
+        # oscillator at send time, and `setControl()` paints exactly one element
+        # per base (`[data-p="base"]:not([data-fixed])`).
+        #
+        # Generating an osc2 row alongside its osc1 twin therefore does not add a
+        # control, it adds a BROKEN one: a row carrying data-p="1017" sends 1017
+        # while OSC 1 is selected (right by luck) and effId remaps it to 2017 when
+        # OSC 2 is selected — a parameter that does not exist. The knob does
+        # nothing exactly when you would expect it to work.
+        #
+        # gui_reach could not catch this: it asks whether each BASE id appears in
+        # the text, so a duplicate row and a mis-addressed send are both invisible
+        # to it. The paired gate below is the one with teeth.
+        if scope not in ("global", "osc1"):
+            continue
         per_page.setdefault(page, {}).setdefault(group, []).append((addr, scope, label, widget, unit, p))
 
     total = 0
@@ -124,6 +140,30 @@ def main():
             out.append("  </div>")
         block = marker + "\n" + "\n".join(out) + "\n  " + end
         gui = re.sub(re.escape(marker) + r".*?" + re.escape(end), lambda m: block, gui, flags=re.S)
+
+    # ---- the invariant gui_reach cannot express -----------------------------
+    # gui_reach asks "does base id N appear in the text?", which is satisfied by a
+    # control that is duplicated, mis-addressed, or both. This asks the question
+    # that actually matters for a selector-based GUI: does exactly ONE non-fixed
+    # control claim each base id? Two claimants means setControl paints one and
+    # ignores the other, and effId sends from the ignored one to a remapped id
+    # that may not exist. Checked over the WHOLE file, hand-placed included,
+    # because the collision does not care who wrote it.
+    dup = {}
+    for m2 in re.finditer(r'data-p="(\d+)"([^>]*)', gui):
+        if "data-fixed" in m2.group(2):
+            continue
+        dup.setdefault(int(m2.group(1)) % 1000, []).append(int(m2.group(1)))
+    clashes = {b: ids for b, ids in dup.items() if len(ids) > 1}
+    if clashes:
+        print("gen_gui_controls: FAILED — base id claimed by more than one non-fixed control.",
+              file=sys.stderr)
+        print("  A selector-based GUI addresses oscillators via effId(); duplicate rows",
+              file=sys.stderr)
+        print("  are not extra controls, they are mis-addressed ones.", file=sys.stderr)
+        for b, ids in sorted(clashes.items())[:10]:
+            print(f"    base {b}: claimed by data-p {sorted(ids)}", file=sys.stderr)
+        return 1
 
     if "--check" in sys.argv:
         # DRIFT GATE. Editing the table without regenerating leaves gui2 showing

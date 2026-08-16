@@ -8,6 +8,46 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## gui2: 69 GENERATED CONTROLS WERE MIS-ADDRESSED — and reach could not see it (2026-08-16)
+
+Human asked what *"gui2 reaches 105/105"* actually means, saying *"I know the knobs aren't all
+reachable."* They were right, and the investigation found a real defect of ours.
+
+**What the number asserts:** `gui_reach` runs a **regex over the file** — for each of the 105
+declared base params, does `data-p="<id>"` appear anywhere. **Text presence.** Not visible, not
+laid out, not painted, not correctly addressed.
+
+**What was genuinely fine, measured in the live DOM:** every bound control has a non-zero box on a
+navigable page — 181 controls, **zero with a zero-size box** — and `setControl` paints generated
+controls correctly when called.
+
+**A false alarm we raised mid-investigation and then killed:** generated readouts were blank while
+hand-placed ones showed values. That is a **standalone artifact** — the browser stub returns only
+**21 params**, so only those paint; in the plugin all of them do. It was nearly filed as a defect.
+
+**The real bug, and it is ours.** gui2 addresses oscillators with a **SELECTOR**, not duplicate rows:
+`effId()` remaps a control's base id at send time and `setControl()` paints exactly one element per
+base. Our generator did not know that and emitted **69 `osc2.*` duplicate rows**. Traced through
+`effId`: such a row sends `1017` with OSC 1 selected (**right by luck**) and `1017 + 1000 = 2017`
+with OSC 2 selected — **a parameter that does not exist. The knob does nothing precisely when you
+would expect it to work.**
+
+**Fixed:** the generator emits `global` + `osc1` only. **144 → 75 generated, 181 → 117 bound
+controls, and gui2 still reaches 105/105** — so the number in FOUNDATIONS' freeze ledger stays true
+and needs no correction. Verified by driving the real send path in the browser rather than counting:
+`osc1.mu` sends **26** with OSC 1 selected and **1026** with OSC 2 — both real ids.
+
+**The gate `gui_reach` structurally could not express**, now in `gen_gui_controls --check`: **exactly
+one non-fixed control may claim each base id.** Reach asks "does base N appear?", which a duplicated
+*and* mis-addressed control satisfies. Calibrated on the case that matters — a duplicate planted in
+the **hand-written** region, which survives regeneration — and it names the collision:
+`base 12: claimed by data-p [12, 1012]`.
+
+**And a comment of ours that overstated its own check**, caught while calibrating: the first version
+claimed to check "the whole file, hand-placed included" but ran against the regenerated text, so the
+first calibration attempt tripped the *staleness* check instead and proved nothing. Re-calibrated
+against the case the comment actually claims.
+
 ## WE ARE THE CRITICAL PATH — and the macOS "gap" was never a gap (2026-08-16)
 
 ### FOUNDATIONS' reply, and what it changed
