@@ -11,7 +11,7 @@
 
 ## What this repo is
 
-A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built from six validated browser prototypes (three oscillator engines + a three-engine effects line), driven by Claude Code under the autonomous-paradigm doctrine. Correctness is defined as **bit-level parity with the prototypes** (L0-1, ε=1e-6 RMS — in practice most golden scenarios match to the exact bit), never as plausible-sounding audio. Every claim in SPEC.md traces to a measured behavior in ACCEPTANCE.md; every measured behavior traces to a prototype you can open and hear.
+A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built from seven validated browser prototypes (three oscillator engines + a three-engine effects line + an experimental swarmalator), driven by Claude Code under the autonomous-paradigm doctrine. Correctness is defined as **bit-level parity with the prototypes** (L0-1, ε=1e-6 RMS — in practice most golden scenarios match to the exact bit), never as plausible-sounding audio. Every claim in SPEC.md traces to a measured behavior in ACCEPTANCE.md; every measured behavior traces to a prototype you can open and hear.
 
 ## Map
 
@@ -30,9 +30,39 @@ A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built fro
 | `traces/` | Provenance log — one entry per merged change set |
 | `docs/` | Archived change notes, gate reports, (screenshots welcome: `docs/img/`) |
 
+## Two interfaces, and which one you get
+
+The repo currently carries **two** GUIs, and this is worth knowing before you build:
+
+| | reaches | shape | build |
+|---|---|---|---|
+| **`src/gui/gui.html`** — "GUI1" | **102 / 105** params | one long, complete column | **what a default build embeds** |
+| `src/gui/gui2.html` — "GUI2" | **105 / 105** params | four pages: MAIN · MIX · OSC · FX | opt in with `-DHYPERSAW_GUI2=ON` |
+
+**If you are just curious about the instrument, build the default and look at GUI1.** It is the
+coherent one: every control the engine has, laid out as a single surface you can read top to bottom,
+and it is what the screenshot above shows. Nothing extra to pass, nothing to switch on.
+
+```bash
+cmake -S . -B build-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release -j
+```
+
+**GUI2 is the renovation, and it is interesting for a different reason.** Its controls are no longer
+hand-placed — 144 of them are **generated** from `src/param_presentation.tsv`, an address-keyed table
+of label/page/group/widget, so adding a parameter means adding a row and a control can no longer be
+forgotten. That table is deliberately separate from the parameter's *structure* (ranges, ids), and it
+carries **no id column at all**, because a page name that doubles as a dispatch fact re-fuses the two
+things the split exists to separate. Its page assignment is a **proposal** rather than a decision —
+`docs/design/layout-lab.html` is where information architecture gets settled, and changing it means
+editing one column rather than moving markup.
+
+Both are gated: `gui_reach` fails the build if any declared parameter is unreachable in *every* GUI,
+which is how 29 silently dead controls were found and killed.
+
 ## Reference implementations (the oracle)
 
-Six single-file HTML prototypes, each with a headless-testable DSP core separable from its UI. Three oscillator engines:
+Seven single-file HTML prototypes, each with a headless-testable DSP core separable from its UI. Three oscillator engines:
 
 - `swarmsaw.html` (`SwarmSynth`) — saw-kernel swarm: bipolar K (sync/splay), inertia, R→tone, XY pad
 - `swarmspectra.html` (`SpectraSynth`) — per-partial swarm: cascade locking, interference gating, width geography, stretch
@@ -44,21 +74,62 @@ Track E (effects line, ingested 2026-07-18 — SPEC-EFFECTS.md):
 - `swarmphaser.html` — notch swarm, exact SVF nulls (`PhaserLab`)
 - `swarmtime.html` — tap-swarm delay + FDN room (`TimeLab`)
 
+Plus `swarmalator.html` — the experimental swarmalator engine (position and phase co-evolving,
+ADR-048), ported to `swarmalator_core.h` and gated, but not yet in the shell.
+
 These are the reference implementation per ADR-003. The C++ port must match them (parity oracle), and their headless test harnesses are the templates for `./verify fast`.
 
 ## Repo status
 
-*Last verified current: 2026-07-23.* (ROADMAP.md is the authoritative status trail; this is the human-readable snapshot.)
+*Last verified current: **2026-08-15**.* (ROADMAP.md is the authoritative status trail; this is the
+human-readable snapshot. A dated line that is honestly stale beats a confident one that is quietly
+wrong — if this date is old, trust ROADMAP.md.)
 
-- **Phases 0–3 CLOSED.** The plugin is a shippable, playable instrument with **two selectable engines** (SAW / SPECTRA, engine selector param) and the dynamics layer live inside SAW:
-  - **SAW**: full parameter surface — six detune laws in the core (cents / Hz / ERB / host-tempo-synced tempo-grid, plus the lab-derived **harmonic** and **stretch** laws, ADR-065/066 — those two are core+oracle only until the batched CLAP pass exposes them), seeded distributions, drift, ADSR (ADR-021), density comp, width + super-width, mono/glide/legato, digital↔clean, phase scatter, pan scatter.
-  - **Dynamics** (Phase 3, in SAW): topology (mean-field / ring / two-cluster + bimodal), Sakaguchi α, Daido poles q, absolute-K, consonance gravity + basin, parity-proven **51/51 against both references**, with the full GUI surface (R_q/R_A/R_B meters, gravity + grid-status readouts, cause-AND-state warnings).
-  - **SPECTRA** (Phase 4): per-partial swarm ported bit-exact (parity RMS 0.0, L0-6 cascade zipper + L0-7 interference gate), engine-gated GUI with the per-partial **strip visualizer**, up to 32 partials, and a per-voice uncoupled **sub-oscillator** (−1/−2/−3 oct, sine→triangle→square morph) — the first deliberately-original feature (ADR-042).
-  - **Performance/IO**: MPE per-note pitch (needs Live's per-device MPE toggle on — see `docs/research/`), transposition suite (octave/semi/cents/pitch-bend, all live), bass-mono output stage, resizable editor, COPY/PASTE STATE, session persistence proven by `state_check` (exact round-trip + bit-identical restored audio).
-- **Lab→core fold campaign (2026-07-23, in progress).** The detune-lab audition round is folding into the reference + core as parity-safe supersets, one ADR + golden set each: tone tilt, hi-tame, drift modes + keep-phase, opt-in freq glide, pan motion + centre pin, the **harmonic law** (`harmReach` — the NI-style walk down the harmonic series) and the **stretch (inharmonic) law** (ADR-060..066). Parity grew 54/54 → 102/102 across the campaign. ADR-065 also established a measured **domain limit on the parity contract** (chaotic regimes amplify 1-ULP differences; now recorded in ACCEPTANCE §L0-1). Remaining: golden distribution, octave spread + root-anchor, the divergence ADRs, and the batched CLAP param pass — see the ROADMAP workshop entry.
-- **Track E (effects line), in progress** on the shared **force core** (ADR-034, E0): the position-domain home/sync/splay/gravity/drift/inertia system extracted as one module all the effect engines consume, verified seed-for-seed by `force_check`. Shipped so far: the resonator bank (`filter_core.h`, bit-exact vs `swarmfilter.html`), the notch swarm (`notch_core.h`), the time engines (tap delay + FDN room, ADR-049/050), the **SWARM-FX** effect-plugin shell (external audio + engine select, ADR-047), the experimental swarmalator engine (ADR-048), and the internal FX-rack increment 1 (routing skeleton, ADR-054).
-- **The oracle** (`./verify fast|full`): leak/structure gates → Release build → golden self-check → the oracle chains: L0-1 parity (goldens regenerated from the HTML references every run), trajectory suite (+ ADR behavioural anchors), state persistence, note fuzz, **force-core** trajectories, **spectra** parity + the P=1 measured-equivalence gate, **filter**, **notch**, **swarmalator**, and **time** parity. CI mirrors it on every push (macOS + Windows build + pluginval).
-- **Validation**: pluginval strictness 10 SUCCESS · auval SUCCEEDED · Live load + play + MPE confirmed. Deferred by human direction: Windows runtime testing (until desktop coordination), Reaper/Bitwig loads.
-- **Scheduled: Phase F — reference-path liberation** (ADR-041). At the E1 gate the "correct == bit-parity with the prototype" contract graduates to forward performance standards (new golden references from the liberated implementation; L0 suites repointed one engine at a time; prototypes demoted to provenance). Until then the parity discipline holds and additions use the superset-with-inert-defaults pattern.
-- **Reference timeline** (ADR-011/012): prototypes update by in-repo edits with an ADR; externally-authored change notes archive to `docs/change-notes/`. Current `swarmsaw.html` is the v2 splay-legibility revision (v1 recoverable at the initial commit).
-- Ecosystem briefs: Tonality intake on hold (human priming directly, ADR pending); terrain-sibling brief due with the Phase 4 kernel abstraction.
+- **Phases 0–4 CLOSED.** A shippable, playable instrument with two selectable engines (**SAW** /
+  **SPECTRA**) and the dynamics layer live inside SAW. SAW carries the full surface — six detune
+  laws, seeded distributions, drift, ADSR, density comp, width + super-width, mono/glide/legato,
+  phase and pan scatter. SPECTRA is the per-partial swarm, ported bit-exact, with the strip
+  visualizer, up to 32 partials, and a per-voice sub-oscillator (ADR-042). Performance/IO: MPE
+  per-note pitch, the transposition suite, bass-mono output, COPY/PASTE STATE, session persistence.
+- **The oracle — `./verify fast|full`, 30 gates.** 25 compiled probes plus 5 script gates. L0-1
+  parity is **147/147 scenarios, worst 4.262e-09 RMS**, with goldens regenerated from the HTML
+  references every run. Alongside parity sit the invariant probes that parity structurally *cannot*
+  see: subdivision invariance, sample-rate independence, RT-safety (allocation-free audio thread),
+  note-lifecycle fuzz, steal priority, forensic capture, GUI reachability, and presentation-table
+  totality. CI mirrors it on every push.
+- **Note-lifecycle conformance against FOUNDATIONS.** Their ruled note behaviours run as a suite
+  against **our** bookkeeping (`tools/conformance_check.cpp`): **8 passed · 0 ruled failures · 3
+  library-default divergences**, plus our own timing-independent END ledger — every identity issued
+  comes back through an END exactly once. The three divergences are ruled **conforming** (their R8:
+  the rule constrains the *path*, not the *moment*). The gate **pins** that set, so a new failure
+  *and* an unexpected pass both go red — good news is still drift.
+- **A test table per page and feature.** `tests/feature_tests.tsv` — **42 tests, 35 agentic, 7 human,
+  4 openly awaiting an oracle.** Every row declares whether it pins a **RULING** (a decision) or an
+  **ENCODING** (how it happens to be done today) and names the owner, so a table survives a harness
+  change. Coverage is checked against the GUI: a feature cannot appear on screen with no test row.
+- **18 design labs** in `docs/design/` — benches where behaviour is auditioned before it becomes
+  code. Newest is `feedback-lab.html`, which runs its whole loop in one AudioWorklet (a node graph
+  cannot express a one-sample delay, which is the quantity under test) behind three independent
+  safety mechanisms: loop gain starting at zero, an always-on limiter, and an auto-kill on the
+  *pre*-limiter signal. Every lab is swept by a load gate, because a lab that throws at setup still
+  *looks* fine.
+- **Track E (effects line)** on the shared **force core** (ADR-034): resonator bank, notch swarm,
+  time engines (tap delay + FDN room), the SWARM-FX effect shell, and the internal FX rack — now
+  with NOTCH selectable as slot type 6. An open design question is queued: the rack's slot contract,
+  where `amount` currently means four different things across six slots.
+- **Validation**: pluginval strictness 10 SUCCESS · auval SUCCEEDED · Live load + play + MPE
+  confirmed. Deferred by human direction: Windows runtime testing, Reaper/Bitwig loads.
+- **Scheduled: Phase F — reference-path liberation** (ADR-041). At the E1 gate, "correct == bit-parity
+  with the prototype" graduates to forward performance standards. Until then the parity discipline
+  holds and additions use the superset-with-inert-defaults pattern.
+- **Reference timeline** (ADR-011/012): prototypes update by in-repo edits with an ADR. Current
+  `swarmsaw.html` is the v2 splay-legibility revision.
+
+## Known gaps, stated rather than omitted
+
+- **`build-macos` shows as *skipping* in CI.** Flagged and not yet investigated, which means the
+  macOS half of the matrix is contributing no evidence and local `./verify full` is carrying it.
+- Four test-table rows have **no oracle yet**: the bend-quantiser regression (behaviour fixed, gate
+  unwritten), `amount=0` passthrough across every FX slot type, the master level meter (not built),
+  and mute/solo + master octave.
+- Feedback routing is deliberately **lab-only** pending a provider ruling on feedback-edge semantics.
