@@ -8,6 +8,46 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## GUI1/GUI2 IS A SUCCESSION, NOT A DIVERGENCE — and we supplied the wrong framing (2026-08-16)
+
+FOUNDATIONS filed a correction (their DECISIONS #96) to our D0 finding: **GUI2 is the eventual GUI**,
+started from the ground up around the time FOUNDATIONS itself was created, deliberately unfinished
+because the human wanted the plumbing in place before building more debt on it. GUI1 is the original
+interface the initial tech debt was built on top of.
+
+**The error originated with us.** Their entry quotes *"#89 called it 'the same divergence we found in
+their two CLAP shells'"* — and they got that phrase from our own `brief-mvp-dependencies`, which said
+*"our two GUIs have already diverged in exactly the same way."* They adopted our framing, then caught
+it. Acked (`8a5a054`) with the origin stated, because a provider carrying a mistake we handed them is
+worse than the mistake.
+
+**The tell was in our own build file the entire time.** `CMakeLists.txt` since 2026-08-07: *"the new
+interface is built up cluster by cluster on its own branch and **swaps in only when it reaches
+parity**."* Swaps-in-at-parity is succession language, in the file we were reading to establish the
+very defaults we filed. **Nothing about the divergence reading was forced on us by missing
+information** — we reached past our own evidence for a pattern that had worked once before.
+
+**Their rule, adopted:** *two things that differ are not automatically drift; ask whether someone
+chose.* Plus the one-question diagnostic it implies, which we did not run: **a divergence has no
+intended winner, so ask whether one was intended.** It separates two situations whose remedies are
+*opposite* — drift wants reconciliation, succession wants the legacy retired. Backwards, we would
+have been reconciling GUI2 toward GUI1, dragging the successor onto the debt it exists to escape.
+
+**Three corrections taken:**
+- **The donor is GUI2**, not "whichever is complete". A naive extract-the-complete-one reading would
+  have taken GUI1 — precisely the debt the rewrite exists to escape — and **our note pointed at it.**
+- **30/105 was never a deficiency**, and we had it filed as a gap. It was **extraction discipline
+  from the consumer side**: declining to grow an artefact until the library it should be built
+  against exists. We measured it against the wrong baseline.
+- **README corrected** — it now states the succession outright rather than implying GUI1 is the real
+  one: *if you want to see the instrument today, GUI1; if you want to see where it is going, GUI2*,
+  with the reason the default has not moved yet.
+
+**Sequencing held, and that is the one thing we got right:** their D1/D2 answers released work that
+was deliberately paused, and the declaration split landed *before* the surface — so the ~75
+hand-placed controls they were worried about were never hand-placed. GUI2 reaches 105/105 with 144
+generated.
+
 ## FEEDBACK EVIDENCE FILED — and a correction to our own brief (2026-08-15)
 
 `brief-feedback-evidence.md` (`6328039`, verified on their origin/main). Four findings consolidated
