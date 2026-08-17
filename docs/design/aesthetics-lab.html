@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SWARM✱ aesthetics lab — control style bench</title>
+<style>
+  * { box-sizing:border-box; margin:0; }
+  html { --density:1; }
+  /* page CHROME (tagline, toolbar, hints) is deliberately NOT themed — only the
+     six comparison panels below wear a .theme-* class. If the chrome matched
+     one theme's palette, that theme would look "at home" and the other two
+     would look like guests in someone else's room, which is exactly the bias
+     a side-by-side bench exists to remove. */
+  body { background:#0b0e13; color:#cdd6e4; font:13px/1.45 ui-monospace,Menlo,monospace;
+         padding:14px 18px 48px; }
+  h1 { font-size:15px; margin-bottom:2px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:#7f8899;
+         background:#0b0e13; border:1px solid #2a3040; border-radius:3px; padding:2px 6px; opacity:.75; }
+  .tagline { color:#7f8899; font-size:11px; margin-bottom:14px; max-width:1100px; }
+  .tagline b { color:#cdd6e4; } .tagline i { color:#9aa4b6; }
+
+  .toolbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+             background:#11151d; border:1px solid #2a3040; border-radius:6px;
+             padding:8px 12px; margin-bottom:12px; max-width:1100px; }
+  .toolbar .row { display:flex; align-items:center; gap:8px; }
+  .toolbar label { font-size:11px; color:#7f8899; }
+  .toolbar output { font-size:11px; width:44px; }
+  .toolbar .hint { flex:1 1 320px; margin:0; }
+  .hint { color:#7f8899; font-size:11px; }
+  .hint b { color:#cdd6e4; }
+
+  .why { max-width:1100px; margin-bottom:14px; background:#11151d; border:1px solid #2a3040;
+         border-radius:6px; padding:8px 12px; }
+  .why h2 { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#5ff2e0; margin-bottom:6px; }
+  .why ul { list-style:none; }
+  .why li { font-size:11px; color:#7f8899; margin:3px 0; }
+  .why li b { color:#cdd6e4; }
+
+  /* ===================================================================
+     THEME CONTRACT (acceptance criterion: "switching theme changes no
+     geometry"). Every .theme-* rule below sets ONLY custom-property
+     VALUES — colour, radius, shadow, and font-family tokens. No
+     .theme-* selector anywhere in this file sets a layout property
+     (width, height, padding, margin, gap, grid-*, flex-*, position).
+     Layout lives ONLY in the structural classes below (.grid, .panel,
+     .row, .dialwrap, .seg, .switch, ...), which never mention a theme.
+     So swapping which .theme-* class a <section> wears is PROVABLY a
+     token swap: geometry is defined exactly once, outside every theme
+     block, and no theme rule has a selector that could reach it.
+     Grep-checkable: `grep -A2 "\.theme-" this-file` never shows a
+     property from the layout set above. Adding a fourth theme means
+     adding one more '.theme-name { --token:...; }' block; nothing
+     else in the file changes.
+     =================================================================== */
+  .theme-dark {
+    --bg:#11151d; --bg2:#171c26; --panel-bg:#11151d; --line:#2a3040; --dim:#7f8899;
+    --fg:#cdd6e4; --accent:#5ff2e0; --seg-active-fg:#0b0e13;
+    --radius:6px; --panel-shadow:none; --font:ui-monospace,Menlo,Consolas,monospace;
+    --switch-off:#232a3a; --switch-thumb:#cdd6e4; --switch-thumb-shadow:0 1px 2px rgba(0,0,0,.4);
+    --switch-track-shadow:none;
+    --range-track:#232a3a; --range-thumb:#5ff2e0; --range-thumb-shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+  .theme-light {
+    --bg:#ffffff; --bg2:#f4f6f9; --panel-bg:#ffffff; --line:#dde1e8; --dim:#68707d;
+    --fg:#1c2230; --accent:#2f6feb; --seg-active-fg:#ffffff;
+    --radius:10px; --panel-shadow:0 1px 2px rgba(20,24,34,.08), 0 1px 0 rgba(20,24,34,.04);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --switch-off:#d7dbe3; --switch-thumb:#ffffff; --switch-thumb-shadow:0 1px 2px rgba(20,24,34,.35);
+    --switch-track-shadow:none;
+    --range-track:#e6e9ef; --range-thumb:#2f6feb; --range-thumb-shadow:0 1px 2px rgba(20,24,34,.3);
+  }
+  .theme-skeu {
+    --bg:#2c2e32; --bg2:#33363b; --panel-bg:linear-gradient(165deg,#5a5e65,#2c2e32 60%);
+    --line:#17181b; --dim:#c8c9cc; --fg:#f1efe9; --accent:#e0b341; --seg-active-fg:#241a05;
+    --radius:14px;
+    --panel-shadow:inset 0 1px 0 rgba(255,255,255,.09), inset 0 -10px 18px rgba(0,0,0,.25),
+                    0 10px 22px rgba(0,0,0,.5);
+    --font:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    --switch-off:rgba(0,0,0,.45); --switch-thumb:radial-gradient(circle at 35% 30%,#eee,#8c8f94 70%);
+    --switch-thumb-shadow:0 1px 2px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.5);
+    --switch-track-shadow:inset 0 1px 3px rgba(0,0,0,.6);
+    --range-track:linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,.25));
+    --range-thumb:radial-gradient(circle at 35% 30%,#f3d98a,#b3852a 70%);
+    --range-thumb-shadow:0 2px 3px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.5);
+  }
+
+  /* ---- structural (theme-blind) layout ---- */
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; max-width:1200px; }
+  .panel { background:var(--panel-bg); color:var(--fg); font-family:var(--font);
+           border-radius:var(--radius); box-shadow:var(--panel-shadow);
+           border:1px solid var(--line);
+           padding:calc(10px * var(--density)) calc(12px * var(--density)); }
+  .panel h2 { font-size:calc(11px * var(--density)); text-transform:uppercase; letter-spacing:1px;
+              color:var(--accent); margin-bottom:calc(8px * var(--density));
+              border-bottom:1px solid var(--line); padding-bottom:calc(4px * var(--density)); }
+  .row { display:flex; align-items:center; gap:calc(8px * var(--density));
+         margin:calc(6px * var(--density)) 0; min-height:calc(22px * var(--density)); }
+  .row label { width:calc(78px * var(--density)); font-size:calc(11px * var(--density));
+               color:var(--dim); flex-shrink:0; }
+  .row output { font-size:calc(11px * var(--density)); width:calc(46px * var(--density));
+                text-align:right; color:var(--fg); }
+  .rangewrap { position:relative; flex:1; display:flex; align-items:center; }
+  .row.bipolar .centertick { position:absolute; left:50%; width:1px; height:calc(10px * var(--density));
+                              background:var(--dim); pointer-events:none; transform:translateX(-50%); }
+  input[type=range] { flex:1; -webkit-appearance:none; appearance:none; background:transparent; }
+  input[type=range]::-webkit-slider-runnable-track {
+    height:calc(4px * var(--density)); border-radius:99px; background:var(--range-track); }
+  input[type=range]::-moz-range-track {
+    height:calc(4px * var(--density)); border-radius:99px; background:var(--range-track); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; margin-top:calc(-5px * var(--density));
+    width:calc(14px * var(--density)); height:calc(14px * var(--density)); border-radius:50%;
+    background:var(--range-thumb); box-shadow:var(--range-thumb-shadow); cursor:pointer; }
+  input[type=range]::-moz-range-thumb {
+    width:calc(14px * var(--density)); height:calc(14px * var(--density)); border-radius:50%;
+    border:none; background:var(--range-thumb); box-shadow:var(--range-thumb-shadow); cursor:pointer; }
+
+  /* enum: a real selector — segmented buttons, never a numeric strip */
+  .seg { flex:1; display:flex; gap:2px; }
+  .segbtn { flex:1; font:inherit; font-size:calc(10px * var(--density));
+            padding:calc(4px * var(--density)) calc(4px * var(--density));
+            border:1px solid var(--line); background:var(--bg2); color:var(--dim);
+            border-radius:calc(4px * var(--density)); cursor:pointer; }
+  .segbtn[aria-selected="true"] { background:var(--accent); color:var(--seg-active-fg); border-color:var(--accent); }
+  .segbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+
+  /* toggle: a real switch, keyboard-native via the hidden checkbox */
+  .switch { position:relative; display:inline-block;
+            width:calc(34px * var(--density)); height:calc(18px * var(--density)); }
+  .switch input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
+  .switch .track { position:absolute; inset:0; border-radius:99px; background:var(--switch-off);
+                    box-shadow:var(--switch-track-shadow); transition:background .15s; }
+  .switch .thumb { position:absolute; top:calc(2px * var(--density)); left:calc(2px * var(--density));
+                    width:calc(14px * var(--density)); height:calc(14px * var(--density)); border-radius:50%;
+                    background:var(--switch-thumb); box-shadow:var(--switch-thumb-shadow);
+                    transition:transform .15s; }
+  .switch input:checked ~ .track { background:var(--accent); }
+  .switch input:checked ~ .thumb { transform:translateX(calc(16px * var(--density))); }
+  .switch input:focus-visible ~ .track { outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* rotary rows: canvas dial, keyboard-focusable, vertical-drag (see JS) */
+  .dialrow { align-items:flex-start; }
+  .dialwrap { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  canvas.dial { display:block; cursor:ns-resize; touch-action:none; outline:none; border-radius:50%; }
+  canvas.dial:focus-visible { box-shadow:0 0 0 3px var(--accent); }
+  .dialwrap output { width:auto; text-align:center; font-size:calc(10px * var(--density)); color:var(--dim); }
+</style>
+</head>
+<body>
+<div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. Hard-reload if the fingerprint does not change (Cmd+Shift+R, Safari Cmd+Opt+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
+<h1>SWARM✱ aesthetics lab</h1>
+<div class="tagline">Bench for auditioning <b>control aesthetics</b> — human request 2026-08-17: <i>"could we start a lab for testing alternative aesthetics? I want to play around with a lighter color scheme, styles like skeuomorphism, rotary dials instead of sliders, etc."</i> It settles nothing about DSP and touches no plugin parameter — <b>this file is not connected to the running instrument and never pretends to be</b> (no bridge, no CLAP param ids, no audio at all: it is silent on purpose, since wiring in sound would imply a live parameter path that does not exist here). What it settles is how a control should <b>look and feel to operate</b>. Six panels below render the SAME six controls — three continuous, one bipolar, one stepped enum, one toggle — crossed three themes (dark / light / skeuomorphic) &times; two widget styles (linear / rotary). All six renderings of a given control share <b>one value</b>: drag any of them and every other rendering updates too, so the comparison is honestly the same parameter six times, never six that quietly drifted apart. Drag a dial vertically or tab to it and use the arrow keys — see the code comment by <code>bindDialDrag</code> for why vertical, not angular.</div>
+
+<div class="toolbar">
+  <div class="row">
+    <label for="density">density</label>
+    <input type="range" id="density" min="0.6" max="1.8" step="0.02" value="1">
+    <output id="density_o">1.00&times;</output>
+  </div>
+  <div class="hint">Plugin control real estate is fixed by the host, not by us — a style that reads fine at lab scale can become a smear of pixels at the size a DAW actually gives a synth. This slider scales every rendering's geometry at once (canvas AND CSS both read the same density value — see <code>dialGeom()</code> and the <code>--density</code> custom property), so "does this survive small" is a drag, not a guess.</div>
+</div>
+
+<div class="why">
+  <h2>why these six</h2>
+  <ul id="hintlist"></ul>
+</div>
+
+<div class="grid">
+  <section class="panel theme-dark"><h2>Dark &middot; Linear</h2><div class="rows" id="p-dark-linear"></div></section>
+  <section class="panel theme-light"><h2>Light &middot; Linear</h2><div class="rows" id="p-light-linear"></div></section>
+  <section class="panel theme-skeu"><h2>Skeuomorphic &middot; Linear</h2><div class="rows" id="p-skeu-linear"></div></section>
+  <section class="panel theme-dark"><h2>Dark &middot; Rotary</h2><div class="rows" id="p-dark-rotary"></div></section>
+  <section class="panel theme-light"><h2>Light &middot; Rotary</h2><div class="rows" id="p-light-rotary"></div></section>
+  <section class="panel theme-skeu"><h2>Skeuomorphic &middot; Rotary</h2><div class="rows" id="p-skeu-rotary"></div></section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let density = 1;
+
+/* =====================================================================
+   DIAL GEOMETRY & DRAWING
+   ===================================================================== */
+const BASE_R = 30;                 // dial radius in px at density = 1
+function dialGeom() {
+  const r = BASE_R * density, pad = 10 * density;
+  return { r, pad, size: Math.round(2 * (r + pad)) };
+}
+
+// "deg" everywhere in this file means degrees CLOCKWISE FROM 12 O'CLOCK —
+// the convention every hardware synth knob uses. Canvas's own 0-rad-is-
+// 3-o'clock, clockwise-from-there convention is confined to this one
+// conversion so the rest of drawDial reads like the knob it draws.
+const SWEEP = 270;                 // -135deg..+135deg, the standard synth-knob throw
+const toCanvasAngle = deg => (deg - 90) * Math.PI / 180;
+
+function drawTick(ctx, cx, cy, a, r1, r2, color, w) {
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+  ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
+  ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
+}
+
+// drawDial(ctx, opts) — value arc, pointer, optional detents. opts:
+//   cx, cy, r      centre and radius (already density-scaled by the caller)
+//   t              normalised value 0..1 across the sweep
+//   bipolar        fills the arc from 12-o'clock-CENTRE instead of from -135deg,
+//                   and draws a single reference tick at centre instead of a
+//                   detent ring — "zero is a position", not just a number
+//   ticks          detent count for a stepped (enum) dial; 0 = smooth
+//   pal            palette object (see PALETTES) — canvas cannot consume CSS
+//                   custom properties directly (see the comment on PALETTES
+//                   below for why), so colour comes from here, not from CSS
+function drawDial(ctx, o) {
+  const { cx, cy, r, t, bipolar, ticks, pal } = o;
+  const a0 = toCanvasAngle(-SWEEP / 2), a1 = toCanvasAngle(SWEEP / 2);
+  const av = toCanvasAngle(-SWEEP / 2 + t * SWEEP);
+  const trackR = r + 6;
+
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  if (pal.skeu) {
+    const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r * 1.05);
+    g.addColorStop(0, pal.faceHi); g.addColorStop(1, pal.faceLo);
+    ctx.fillStyle = g;
+  } else ctx.fillStyle = pal.face;
+  ctx.fill();
+  ctx.lineWidth = pal.skeu ? 2 : 1; ctx.strokeStyle = pal.rim; ctx.stroke();
+
+  ctx.beginPath(); ctx.arc(cx, cy, trackR, a0, a1);
+  ctx.strokeStyle = pal.track; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
+
+  const centerA = toCanvasAngle(0);
+  const from = bipolar ? centerA : a0;
+  const lo = Math.min(from, av), hi = Math.max(from, av);
+  if (hi > lo) {
+    ctx.beginPath(); ctx.arc(cx, cy, trackR, lo, hi);
+    ctx.strokeStyle = pal.fill; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
+  }
+
+  if (ticks > 1) {
+    for (let i = 0; i < ticks; i++)
+      drawTick(ctx, cx, cy, toCanvasAngle(-SWEEP / 2 + (i / (ticks - 1)) * SWEEP), r - 7, r - 1, pal.tick, 1.5);
+  } else if (bipolar) {
+    drawTick(ctx, cx, cy, centerA, r - 7, r - 1, pal.tick, 1.5);
+  }
+
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(av);
+  ctx.strokeStyle = pal.pointer; ctx.lineWidth = pal.skeu ? 3 : 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(r * 0.12, 0); ctx.lineTo(r * 0.82, 0); ctx.stroke();
+  ctx.restore();
+
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.2, 0, Math.PI * 2);
+  if (pal.skeu) {
+    const g = ctx.createRadialGradient(cx - r * 0.06, cy - r * 0.08, 0, cx, cy, r * 0.2);
+    g.addColorStop(0, pal.hubHi); g.addColorStop(1, pal.hubLo);
+    ctx.fillStyle = g;
+  } else ctx.fillStyle = pal.hub;
+  ctx.fill();
+}
+
+// PALETTES — mirrors the --dial-* story of each .theme-* CSS block by name,
+// but is NOT read from CSS. Canvas has no API that consumes a custom
+// property directly, and the one that reads it indirectly — getComputedStyle
+// — is not a platform gap this lab invented: it is unavailable in the harness
+// this file must pass (tools/labharness/lab_load_check.mjs's vm sandbox
+// defines no getComputedStyle at all, so calling it throws a ReferenceError
+// and takes the whole script down, the same class of trap the harness exists
+// to catch). So every dial's palette is a small hand-mirrored object, kept
+// physically next to the CSS theme blocks in spirit (same names, same
+// per-theme grouping) even though the two live in different tags. That is
+// the one place in this file where "token swap" is not fully mechanical —
+// flagged in the dispatch report, not hidden here.
+const PALETTES = {
+  dark:  { face:'#171c26', rim:'#2a3040', track:'#232a3a', fill:'#5ff2e0',
+           pointer:'#cdd6e4', tick:'#3a4258', hub:'#0b0e13', skeu:false },
+  light: { face:'#ffffff', rim:'#c7cdd8', track:'#e6e9ef', fill:'#2f6feb',
+           pointer:'#1c2230', tick:'#c3c9d4', hub:'#eef0f4', skeu:false },
+  skeu:  { faceHi:'#7a7e85', faceLo:'#2b2d31', rim:'#141517', track:'rgba(0,0,0,.4)',
+           fill:'#e0b341', pointer:'#101112', tick:'rgba(255,255,255,.28)',
+           hubHi:'#8b8f96', hubLo:'#2b2d31', skeu:true },
+};
+
+/* =====================================================================
+   PARAM MODEL — one shared source of truth per control. Every rendering
+   (any theme, any style) reads and writes the SAME object, so live-syncing
+   six views is not six copies kept in step by hand; there is only one value
+   to be in step.
+   ===================================================================== */
+const PARAMS = [
+  { id:'detune', kind:'continuous', label:'Detune', unit:'¢', min:0, max:100, step:1, value:35,
+    hint:'Continuous, mid-range magnitude — the size of control a player reaches for most, so it is the fairest read of a dial’s motor feel against a slider’s thumb feel.' },
+  { id:'drift', kind:'continuous', label:'Drift', unit:'¢', min:0, max:60, step:1, value:18,
+    hint:'A second continuous param with a SMALLER range on purpose — both widget styles need to read cleanly whether the sweep is wide or narrow, not just at whatever scale looks good in a demo.' },
+  { id:'volume', kind:'continuous', label:'Volume', unit:'', min:0, max:1, step:0.01, value:0.7,
+    hint:'The one control every plugin ships — the single fairest comparison of feel across all six renderings.' },
+  { id:'pan', kind:'bipolar', label:'Pan', unit:'', min:-1, max:1, step:0.02, value:0,
+    hint:'Bipolar around a TRUE centre. Zero has to read as a POSITION a player can find by eye, not just a number in an output — this is where a dial’s centre-anchored arc earns its keep over a plain 0..1 gauge.' },
+  { id:'waveform', kind:'enum', label:'Waveform', options:['Saw','Square','Triangle','Sine'], value:0,
+    hint:'A stepped parameter with labelled options. This bench exists partly because our GUI generator once rendered a control exactly like this one as a bare 0..3 numeric slider — every rendering here must read as a real SELECTOR (segmented buttons, or a detented rotary switch), never a numeric strip.' },
+  { id:'mono', kind:'toggle', label:'Mono', value:true,
+    hint:'A boolean. It renders the SAME switch in the linear and rotary columns on purpose — a two-state control has no meaningful rotary variant beyond a two-detent knob, which is just a heavier switch for no gain in clarity (reduce, never invent).' },
+];
+const PMAP = Object.fromEntries(PARAMS.map(p => [p.id, p]));
+const paramMin = p => p.kind === 'enum' ? 0 : p.min;
+const paramMax = p => p.kind === 'enum' ? p.options.length - 1 : p.max;
+const paramT = p => p.kind === 'enum' ? p.value / paramMax(p) : (p.value - p.min) / (p.max - p.min);
+
+function clampSnap(p, v) {
+  if (p.kind === 'toggle') return !!v;
+  if (p.kind === 'enum') return Math.max(0, Math.min(p.options.length - 1, Math.round(v)));
+  let x = Math.max(p.min, Math.min(p.max, v));
+  if (p.step) x = Math.round(x / p.step) * p.step;
+  return Math.round(x * 1000) / 1000;          // guard float noise in the readout
+}
+function fmtValue(p) {
+  if (p.kind === 'toggle') return p.value ? 'on' : 'off';
+  if (p.kind === 'enum') return p.options[p.value];
+  if (p.id === 'pan') { const c = Math.round(p.value * 100); return c === 0 ? 'C' : (c > 0 ? 'R' + c : 'L' + (-c)); }
+  if (p.id === 'volume') return Math.round(p.value * 100) + '%';
+  return Math.round(p.value) + (p.unit || '');
+}
+
+// VIEWS: id -> [updater, ...]. registerView calls its updater once immediately
+// (initial paint) so no caller needs a separate "and now draw it once" line —
+// one call site can't forget the initial paint if the function does it for them.
+const VIEWS = {};
+const DIALS = [];                              // dial-canvas updaters, for the density slider to redraw
+function registerView(id, fn) { (VIEWS[id] ||= []).push(fn); fn(); }
+function setParam(id, v) {
+  const p = PMAP[id];
+  p.value = clampSnap(p, v);
+  (VIEWS[id] || []).forEach(fn => fn());
+}
+
+/* =====================================================================
+   DIAL INTERACTION — vertical drag, not angular.
+   Angular drag needs the pointer's angle relative to the dial CENTRE at
+   every move, which means: (a) the first pixel of the drag decides how
+   sensitive the whole gesture feels (grab near the rim = fine, near the
+   hub = wild, and a player cannot see the hub through their own cursor to
+   judge which they did), and (b) the pointer must stay near the dial to
+   keep tracking correctly, which fights the density slider's whole point
+   (a small dial at low density has almost no ring to grab an angle from).
+   Vertical drag decouples "how far you moved" from "where on the dial you
+   clicked" — it is the convention every major software instrument already
+   uses (Ableton, Serum, Vital, ...) for exactly that reason, and it is the
+   one that stays consistent as the dial shrinks under the density slider.
+   DRAG_PX is deliberately NOT scaled by density: a real hand's precision
+   does not shrink with the knob, so a smaller dial must not demand
+   proportionally LESS mouse travel for the same range — that would make
+   small dials harder to use, the opposite of what this control exists to
+   test.
+   ===================================================================== */
+const DRAG_PX = 140;
+function bindDialDrag(canvas, param) {
+  let dragging = false, startY = 0, startVal = 0;
+  const lo = paramMin(param), hi = paramMax(param), span = hi - lo;
+  canvas.addEventListener('pointerdown', e => {
+    dragging = true; startY = e.clientY; startVal = param.value;
+    canvas.setPointerCapture(e.pointerId); canvas.focus();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dy = startY - e.clientY;
+    const fine = e.shiftKey ? 5 : 1;             // drag+shift = FINER (more travel per unit)
+    setParam(param.id, startVal + (dy / (DRAG_PX * fine)) * span);
+  });
+  const end = () => { dragging = false; };
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+  // Shift means the OPPOSITE thing on keys vs drag, on purpose: arrow+shift is
+  // a bigger STEP (coarse) because a key press has no notion of "slow", while
+  // drag+shift is finer because a mouse already has continuous speed to spend.
+  // Each matches what its own input method already teaches elsewhere
+  // (Photoshop-style arrow keys; Ableton-style knob-drag).
+  canvas.addEventListener('keydown', e => {
+    const isEnum = param.kind === 'enum';
+    let step = isEnum ? 1 : (param.step || span / 50);
+    if (e.shiftKey && !isEnum) step *= 10;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { setParam(param.id, param.value + step); e.preventDefault(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { setParam(param.id, param.value - step); e.preventDefault(); }
+    else if (e.key === 'Home') { setParam(param.id, lo); e.preventDefault(); }
+    else if (e.key === 'End') { setParam(param.id, hi); e.preventDefault(); }
+  });
+}
+
+/* =====================================================================
+   ROW BUILDERS — one function per control KIND, shared by every panel.
+   The theme and style differences are entirely CSS (theme) and which
+   builder gets called (style); no builder branches on theme.
+   ===================================================================== */
+function makeDialCanvas(param, theme) {
+  const wrap = document.createElement('div'); wrap.className = 'dialwrap';
+  const cv = document.createElement('canvas'); cv.className = 'dial'; cv.tabIndex = 0;
+  cv.setAttribute('role', 'slider');
+  cv.setAttribute('aria-label', param.label);
+  cv.setAttribute('aria-valuemin', String(paramMin(param)));
+  cv.setAttribute('aria-valuemax', String(paramMax(param)));
+  const out = document.createElement('output');
+  wrap.appendChild(cv); wrap.appendChild(out);
+  const pal = PALETTES[theme];
+  function paint() {
+    const { r, size } = dialGeom();
+    if (cv.width !== size) { cv.width = size; cv.height = size; }
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    drawDial(ctx, {
+      cx: size / 2, cy: size / 2, r, pal,
+      t: paramT(param),
+      bipolar: param.kind === 'bipolar',
+      ticks: param.kind === 'enum' ? param.options.length : 0,
+    });
+    out.textContent = fmtValue(param);
+    cv.setAttribute('aria-valuenow', String(param.value));
+    cv.setAttribute('aria-valuetext', fmtValue(param));
+  }
+  registerView(param.id, paint);
+  DIALS.push(paint);
+  bindDialDrag(cv, param);
+  return wrap;
+}
+function makeDialRow(param, theme) {
+  const row = document.createElement('div'); row.className = 'row dialrow';
+  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
+  row.appendChild(makeDialCanvas(param, theme));
+  return row;
+}
+function makeNumericRow(param) {
+  const row = document.createElement('div'); row.className = 'row' + (param.kind === 'bipolar' ? ' bipolar' : '');
+  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
+  const wrap = document.createElement('div'); wrap.className = 'rangewrap';
+  if (param.kind === 'bipolar') { const tick = document.createElement('span'); tick.className = 'centertick'; wrap.appendChild(tick); }
+  const inp = document.createElement('input');
+  inp.type = 'range'; inp.min = String(param.min); inp.max = String(param.max); inp.step = String(param.step || 0.01);
+  inp.value = String(param.value);
+  inp.addEventListener('input', () => setParam(param.id, +inp.value));
+  wrap.appendChild(inp);
+  const out = document.createElement('output');
+  row.appendChild(wrap); row.appendChild(out);
+  registerView(param.id, () => { inp.value = String(param.value); out.textContent = fmtValue(param); });
+  return row;
+}
+function makeEnumRow(param) {
+  const row = document.createElement('div'); row.className = 'row';
+  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
+  const seg = document.createElement('div'); seg.className = 'seg';
+  seg.setAttribute('role', 'listbox'); seg.setAttribute('aria-label', param.label);
+  const btns = param.options.map((opt, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'segbtn';
+    b.textContent = opt; b.setAttribute('role', 'option');
+    b.addEventListener('click', () => setParam(param.id, i));
+    seg.appendChild(b); return b;
+  });
+  row.appendChild(seg);
+  registerView(param.id, () => btns.forEach((b, i) => b.setAttribute('aria-selected', i === param.value ? 'true' : 'false')));
+  return row;
+}
+function makeToggleRow(param) {
+  const row = document.createElement('div'); row.className = 'row';
+  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
+  const sw = document.createElement('label'); sw.className = 'switch';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = param.value;
+  const track = document.createElement('span'); track.className = 'track';
+  const thumb = document.createElement('span'); thumb.className = 'thumb';
+  cb.addEventListener('change', () => setParam(param.id, cb.checked));
+  sw.appendChild(cb); sw.appendChild(track); sw.appendChild(thumb);
+  const out = document.createElement('output');
+  row.appendChild(sw); row.appendChild(out);
+  registerView(param.id, () => { cb.checked = param.value; out.textContent = fmtValue(param); });
+  return row;
+}
+
+function mountPanel(container, theme, style) {
+  for (const p of PARAMS) {
+    if (p.kind === 'toggle') { container.appendChild(makeToggleRow(p)); continue; }
+    if (style === 'rotary') { container.appendChild(makeDialRow(p, theme)); continue; }
+    container.appendChild(p.kind === 'enum' ? makeEnumRow(p) : makeNumericRow(p));
+  }
+}
+
+mountPanel($('p-dark-linear'), 'dark', 'linear');
+mountPanel($('p-light-linear'), 'light', 'linear');
+mountPanel($('p-skeu-linear'), 'skeu', 'linear');
+mountPanel($('p-dark-rotary'), 'dark', 'rotary');
+mountPanel($('p-light-rotary'), 'light', 'rotary');
+mountPanel($('p-skeu-rotary'), 'skeu', 'rotary');
+
+const densityInput = $('density'), densityOut = $('density_o');
+densityInput.addEventListener('input', () => {
+  density = +densityInput.value;
+  document.documentElement.style.setProperty('--density', String(density));
+  densityOut.textContent = density.toFixed(2) + '×';
+  DIALS.forEach(paint => paint());
+});
+document.documentElement.style.setProperty('--density', String(density));
+
+const hintList = $('hintlist');
+for (const p of PARAMS) {
+  const li = document.createElement('li');
+  li.innerHTML = '<b>' + p.label + '.</b> ' + p.hint;
+  hintList.appendChild(li);
+}
+</script>
+<script>
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  const el = document.getElementById('revfp');
+  if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+  // Rev date DERIVED, not typed — document.lastModified is the file's mtime,
+  // works over file://, and cannot drift the way eight other labs' hand-typed
+  // stamps already have (by 3 minutes to over a day). Caveat: mtime is when
+  // THIS COPY was written, so a checkout of an unchanged file bumps it — still
+  // the right answer for "is the browser showing what is on disk?", the only
+  // question the badge exists to answer.
+  const dt = document.getElementById('revdate');
+  if (dt) {
+    const m = new Date(document.lastModified), pad = n => String(n).padStart(2, '0');
+    dt.textContent = isNaN(m.getTime()) ? '?'
+      : m.getFullYear() + '-' + pad(m.getMonth() + 1) + '-' + pad(m.getDate()) +
+        ' ' + pad(m.getHours()) + ':' + pad(m.getMinutes());
+  }
+})();
+</script>
+</body>
+</html>
