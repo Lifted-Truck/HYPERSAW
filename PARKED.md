@@ -1,4 +1,4 @@
-# SWARM✱ — parked register (append-only; nothing gets silently dropped)
+# horde — parked register (append-only; nothing gets silently dropped)
 
 Format: idea — why parked — revisit trigger.
 

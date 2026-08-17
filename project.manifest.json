@@ -2,7 +2,7 @@
   "schema": "project-manifest.0 (draft — kit v2 will formalize)",
   "status": "RATIFIED 2026-07-17 (user go-ahead at spin-up review gate)",
   "name": "HYPERSAW",
-  "naming_note": "Working product title SWARM✱ remains open until the Phase 5 naming decision (see kit README). Repo/manifest use HYPERSAW to match the directory and avoid the ✱ glyph in identifiers.",
+  "naming_note": "Working product title horde (renamed from SWARM✱ 2026-08-17; the ✱ house mark retired with it) remains open until the Phase 5 naming decision (see kit README). Repo/manifest use HYPERSAW to match the directory.",
   "survey": {
     "what_is_it": "app — audio plugin: CLAP-native synthesizer instrument, VST3 via clap-wrapper (ADR-002), ported from three validated JS prototypes",
     "architecture_rung": {

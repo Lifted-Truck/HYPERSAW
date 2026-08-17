@@ -3,7 +3,7 @@
      ingest/design ADR is ADR-048 (packet said "ADR-046", which is the notch
      swarm here); prior-art posture = ADR-044 (was "ADR-018"). Protected path. -->
 
-# SWARM✱ — swarmalator engine specification (position ↔ phase coupling)
+# horde — swarmalator engine specification (position ↔ phase coupling)
 
 Companion to `SPEC.md` and `SPEC-EFFECTS.md`. The first engine to couple **two** quantities *to each other* rather than coupling one quantity across a population. Each unit carries an audio **phase** θ (→ the tone) and a **spatial angle** ξ on a ring (→ stereo position); a single cross-coupling law makes each pull on the other, so the swarm is simultaneously a spectral object and a stereo-spatial object and the two are one structure, not two. Ingested and ported 2026-07-19 (ADR-048); swarmalator.html is the parity oracle. Marked EXPERIMENTAL — may not survive testing.
 
@@ -11,7 +11,7 @@ Reference implementation: `swarmalator.html` (`Swarmalator` core, headless-testa
 
 ## 1. Thesis
 
-Every other SWARM✱ engine couples a single population variable — oscillator phase (SAW), partial frequency (SPECTRA), filter/notch center (effects), delay time (time). The swarmalator couples phase **and** position, to each other. The consequence is the one behavior the instrument could not previously produce: **moving in space changes the timbre, and changing the timbre moves the sound in space.** Pan is not a post-hoc placement knob here; it is a state variable of the same dynamical system that makes the tone. This is the stereo/spectral unification, and it is on-thesis — the supersaw's spatial image taken as seriously as its spectrum, both emergent from one coupled system.
+Every other horde engine couples a single population variable — oscillator phase (SAW), partial frequency (SPECTRA), filter/notch center (effects), delay time (time). The swarmalator couples phase **and** position, to each other. The consequence is the one behavior the instrument could not previously produce: **moving in space changes the timbre, and changing the timbre moves the sound in space.** Pan is not a post-hoc placement knob here; it is a state variable of the same dynamical system that makes the tone. This is the stereo/spectral unification, and it is on-thesis — the supersaw's spatial image taken as seriously as its spectrum, both emergent from one coupled system.
 
 ## 2. Model
 

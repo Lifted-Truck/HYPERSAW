@@ -1,4 +1,4 @@
-# SWARM✱ — instrument specification
+# horde — instrument specification
 
 ## 1. Thesis
 

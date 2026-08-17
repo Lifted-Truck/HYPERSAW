@@ -1,5 +1,5 @@
 /*
- * swarmfx_clap.cpp — SWARM✱FX: the effects product line as a standalone
+ * swarmfx_clap.cpp — SWARMFX: the effects product line as a standalone
  * AUDIO-EFFECT plugin (Track E1.3). External audio in → the swarm-herded
  * frequency engines (resonator bank / notch swarm) → out. Separate target from
  * the instrument (its own factory/entry) so the instrument shell stays

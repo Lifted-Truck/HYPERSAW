@@ -1,12 +1,12 @@
 # HYPERSAW
 
-**Working title:** SWARM✱ (naming open until Phase 5; the ✱ family — SWARMSAW / SWARM✱SPECTRA / SWARM✱DYNAMICS — carries over from the prototypes; the repo answers to HYPERSAW).
+**Working title:** horde (naming open until Phase 5; the prototypes keep their SWARM-prefixed names — SWARMSAW / SWARMSPECTRA / SWARMDYNAMICS — as historical identifiers; the repo answers to HYPERSAW. The former ✱ house mark was retired 2026-08-17.)
 
 **One-line pitch:** a synthesizer whose timbre, tuning, and performance gestures all emerge from a single coupled-oscillator dynamical system — the supersaw taken seriously as physics.
 
-**Elevator version:** every existing supersaw picks a fixed detune recipe and hides it. SWARM✱ makes the swarm itself the instrument: voices are Kuramoto-coupled oscillators you can herd into lock, dissolve into cloud, splay into harmonic multiplication, or erase by interference; the same coupling law operating between *notes* settles chords into just intonation; and every behavior is deterministic, seeded, and provenance-tracked.
+**Elevator version:** every existing supersaw picks a fixed detune recipe and hides it. horde makes the swarm itself the instrument: voices are Kuramoto-coupled oscillators you can herd into lock, dissolve into cloud, splay into harmonic multiplication, or erase by interference; the same coupling law operating between *notes* settles chords into just intonation; and every behavior is deterministic, seeded, and provenance-tracked.
 
-![SWARM✱ GUI — phase circle, voice map, note monitor, full param surface](docs/img/gui-overview.png)
+![horde GUI — phase circle, voice map, note monitor, full param surface](docs/img/gui-overview.png)
 *The instrument as of build `86bdedd` — phase circle with live R meters, voice map (pan × pitch, target vs actual), note monitor, log spectrum, and the full four-cluster parameter surface. (Screenshot refreshed with GUI-changing PRs; the build hash in its corner says exactly which code drew it.)*
 
 ## What this repo is

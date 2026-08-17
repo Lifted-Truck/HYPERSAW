@@ -1,4 +1,4 @@
-# SWARM✱ — decisions (append-only)
+# horde — decisions (append-only)
 
 ## ADR-001 · One kernel-agnostic engine — ACCEPTED
 SAW mode is the per-partial swarm engine at P=1 with a saw kernel; SPECTRA is the same engine at P>1 with a sine kernel; wavetable kernel reserved (terrain-sibling crossover). Rationale: the three prototypes converged on identical state (phases, vf, couple, R/ψ/σ, slewed K) differing only in kernel and partial count. Consequence: Phase 4 must prove mode parity at P=1.
