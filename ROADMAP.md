@@ -8,6 +8,66 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## GUI GENERATION REVERTED TO ZERO — chunks are now opt-in, and FOUNDATIONS is clear (2026-08-17)
+
+Human, after inspecting gui2: *"Is this just a parameter roundup to pass the gate? … I want to make
+sure we haven't reintroduced SPECTRA."* **Yes it was, and yes we had — the surface, not the engine.**
+
+### What the roundup did, all four confirmed
+
+- **SPECTRA surfaced**: `partials`, `stretch`, `cascade`, `stretchB`, a "Spectra" group heading, and
+  **`osc1.engine` (id 43) as an unlabelled 0–1 slider** — the engine selector itself, ungated. No DSP
+  changed; the *surface* did.
+- **Enums as numeric sliders**: the generator read the `widget` column and never used it. **75
+  emitted, 75 `<input type=range>`, zero `<select>`.**
+- **Two "The coupling" panels on OSC** — a generated group colliding with a hand-written one.
+- **Unstyled and overflowing**: **zero CSS** for the `.grp`/`h3` wrappers being emitted.
+
+**And gui2's own rules, at the top of the file, said not to:** *"A cluster appears here only when its
+engine surface is REAL. Missing pages say so instead of mocking."* **Third time this session the
+design intent was written in our own repo and generation ran past it** — after the CMakeLists
+succession tell and the `effId` selector model.
+
+### The revert, and a third cannot-fire found while doing it
+
+`chunk` column added to the presentation table: **a row renders only when its chunk is named**, and
+naming one is a claim that four decisions were made — engine surface real · widget right · group not
+already hand-written · wrapper styled and viable at plugin size. All 181 rows start undesigned, so
+**generation is back to 0 and gui2 is back to 30/105**, exactly where the human's judgement had it
+and where FOUNDATIONS said it correctly was.
+
+**The first attempt at that revert silently did nothing.** The generator looped over pages it had
+content *for*, so a page with nothing to generate was never rewritten — the previous 75 controls
+stayed, `gui_reach` still read 105/105, and `--check` compared an unchanged in-memory copy against an
+unchanged file and reported GREEN. **A generator that cannot EMPTY a block cannot revert, and a drift
+gate that only sees what was written cannot notice what should have been erased.** Fixed by iterating
+the markers present in the file. Caught only because 105/105 with zero generated controls is
+arithmetically impossible and got checked instead of accepted.
+
+`presentation_check` now prints the undesigned count every run, because **that count is the queue**
+and silence would read as "the GUI is done" — the exact reading that let generate-everything look
+like progress.
+
+### Are we clear with FOUNDATIONS to reintroduce chunk-wise? YES
+
+Nothing of theirs is awaiting us. Settled and directly usable: **D1** (`ParamDesc` is the committed
+declaration set including `mod_min`/`mod_max`; presentation is ours), **D2** (scopes are address
+prefixes; patch-scope is a dispatch property, not a scope), **D0 corrected** (GUI2 is the successor
+*and* the extraction donor, so building it out is the right direction), and **OQ #23 ruled**. They
+said their D1/D2 answers *"release work that has been deliberately paused"* — that is explicit
+clearance.
+
+Open on their side, and **none of it gates GUI chunks**: OQ #30 (stability bound — gates feedback
+only), the GUI criterion rewording (cosmetic), and `brief-route-inertia` (gates inertia).
+
+**The strategic reason to chunk through the table rather than the markup:** the re-point is now our
+critical path — their v0.1 → F2 → our re-point. **Declarations survive a re-point; hand-placed markup
+does not.** So chunking through the presentation table is not merely tidier, it is the only form of
+GUI work that survives the thing the whole fleet is waiting on.
+
+**FOUNDATIONS was never the blocker for doing this properly.** The blocker was treating a count as
+the goal.
+
 ## OQ #23 RULED — cycles are legal, unit delay at block rate (2026-08-17)
 
 `notice-oq23-ruled.md`, their DECISIONS #100, human ruling. **A cycle in the modulation graph is
