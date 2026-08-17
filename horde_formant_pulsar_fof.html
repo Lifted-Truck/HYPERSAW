@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HORDE · formant swarm — pulsar / FOF prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16121f; --panel:#221b30; --panel2:#2c2340; --line:#3c3152;
+  --bone:#efe6d6; --dim:#9a8fb0; --pink:#ff3d8a; --cyan:#5fe0d8; --amber:#ffb84d;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--bone);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}
+header{display:flex;align-items:baseline;gap:18px;padding:16px 20px 8px;border-bottom:1px solid var(--line)}
+header h1{font-family:Syne,sans-serif;font-weight:800;font-size:22px;letter-spacing:.02em;margin:0}
+header h1 span{color:var(--pink)}
+header p{margin:0;color:var(--dim)}
+#start{margin-left:auto;background:var(--pink);color:var(--ink);border:0;font:600 12px 'IBM Plex Mono';padding:8px 14px;cursor:pointer;border-radius:3px}
+#start.on{background:var(--panel2);color:var(--cyan);border:1px solid var(--cyan)}
+main{display:grid;grid-template-columns:1fr 300px;gap:14px;padding:14px 20px 20px}
+@media(max-width:820px){main{grid-template-columns:1fr}}
+.viz{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+canvas{display:block;width:100%}
+.viz .lbl{padding:6px 10px;color:var(--dim);border-top:1px solid var(--line);font-size:11px;display:flex;justify-content:space-between}
+.side{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px}
+.card h2{font-family:Syne,sans-serif;font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.row{display:grid;grid-template-columns:86px 1fr 52px;align-items:center;gap:8px;margin:5px 0}
+.row label{color:var(--bone)}
+.row output{text-align:right;color:var(--cyan)}
+input[type=range]{width:100%;accent-color:var(--pink);height:18px}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{background:var(--panel2);border:1px solid var(--line);color:var(--bone);font:inherit;padding:5px 9px;cursor:pointer;border-radius:3px}
+.seg button.on{border-color:var(--pink);color:var(--pink)}
+.seg button:focus-visible,#start:focus-visible{outline:2px solid var(--cyan);outline-offset:1px}
+.keys{display:flex;gap:2px;margin-top:6px}
+.keys button{flex:1;height:44px;background:var(--panel2);border:1px solid var(--line);color:var(--dim);font:inherit;cursor:pointer;border-radius:2px}
+.keys button.on{background:var(--pink);color:var(--ink)}
+.hint{color:var(--dim);margin:6px 0 0;line-height:1.5}
+.f{display:grid;grid-template-columns:20px 1fr 1fr 1fr;gap:6px;align-items:center;margin:3px 0;color:var(--dim)}
+.f b{color:var(--amber);font-weight:400}
+</style>
+</head>
+<body>
+<header>
+  <h1>HORDE <span>/ formant swarm</span></h1>
+  <p>pulsar & FOF grain trains · formants as coupled masses</p>
+  <button id="start">start audio</button>
+</header>
+<main>
+  <section class="viz">
+    <canvas id="train" height="210"></canvas>
+    <div class="lbl"><span>grain train — one row per formant, one bar per emitted grain (brightness = amplitude, length = grain life)</span><span id="f0lbl">—</span></div>
+    <canvas id="wave" height="90"></canvas>
+    <div class="lbl"><span>output waveform</span></div>
+    <canvas id="spec" height="130"></canvas>
+    <div class="lbl"><span>spectrum · amber ticks = current formant centres (after inertia + coupling)</span><span id="flist"></span></div>
+    <div class="card" style="border:0;border-top:1px solid var(--line);border-radius:0">
+      <h2>play</h2>
+      <div class="keys" id="keys"></div>
+      <p class="hint">keys a w s e d f t g y h u j k play a chromatic octave · z / x shift octave. Hold a note and move formant shift, coupling, or masking.</p>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="card">
+      <h2>grain model</h2>
+      <div class="seg" id="mode">
+        <button data-v="fof" class="on">FOF</button>
+        <button data-v="pulsar">pulsar</button>
+      </div>
+      <p class="hint" id="modehint">FOF: each formant fires a sine grain every fundamental period — raised-cosine attack, exponential decay set by bandwidth. Grains overlap freely.</p>
+      <div class="row"><label>attack tex</label><input id="tex" type="range" min="0.2" max="8" step="0.1" value="1.5"><output>1.5 ms</output></div>
+      <div class="row"><label>bw scale</label><input id="bws" type="range" min="0.2" max="4" step="0.05" value="1"><output>1.00×</output></div>
+      <div class="row"><label>cycles</label><input id="cyc" type="range" min="1" max="12" step="1" value="3"><output>3</output></div>
+    </div>
+
+    <div class="card">
+      <h2>vowel field</h2>
+      <div class="seg" id="vowel">
+        <button data-v="a" class="on">a</button><button data-v="e">e</button><button data-v="i">i</button><button data-v="o">o</button><button data-v="u">u</button>
+      </div>
+      <canvas id="xy" height="200" style="margin-top:8px;border:1px solid var(--line);border-radius:3px;cursor:crosshair;touch-action:none"></canvas>
+      <p class="hint">Drag in the field. Vowel targets are placed like the vowel chart (front–back, close–open); the target formant table is a distance-weighted blend, and the formant masses then chase it.</p>
+      <div class="row"><label>formant shift</label><input id="shift" type="range" min="-24" max="24" step="1" value="0"><output>0 st</output></div>
+      <div id="ftable" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
+      <h2>formant physics</h2>
+      <div class="row"><label>morph rate</label><input id="rate" type="range" min="0.5" max="40" step="0.5" value="6"><output>6 Hz</output></div>
+      <div class="row"><label>bounce</label><input id="zeta" type="range" min="0.05" max="1.5" step="0.01" value="0.9"><output>ζ 0.90</output></div>
+      <div class="row"><label>coupling K</label><input id="K" type="range" min="-1" max="1" step="0.01" value="0"><output>0.00</output></div>
+      <p class="hint">Each formant centre is a mass on a spring toward its vowel target (log-frequency). Low ζ = it overshoots and rings when you change vowel or shift. K &gt; 0 pulls formants toward their common centre; K &lt; 0 splays them apart.</p>
+    </div>
+
+    <div class="card">
+      <h2>masking (stochastic rhythm)</h2>
+      <div class="row"><label>drop prob</label><input id="mask" type="range" min="0" max="0.95" step="0.01" value="0"><output>0%</output></div>
+      <div class="row"><label>burst on</label><input id="bon" type="range" min="1" max="16" step="1" value="8"><output>8</output></div>
+      <div class="row"><label>burst off</label><input id="boff" type="range" min="0" max="16" step="1" value="0"><output>0</output></div>
+      <p class="hint">Grains are dropped per-formant with a random hazard, and by a periodic on/off burst pattern counted in fundamental periods — sub-audio rhythm emerging from an audio-rate process.</p>
+    </div>
+
+    <div class="card">
+      <h2>register</h2>
+      <div style="height:8px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;position:relative;margin:4px 0 8px"><div id="Rbar" style="position:absolute;left:0;top:0;bottom:0;width:0;background:var(--amber)"></div></div>
+      <div class="row"><label>pitch follow</label><input id="regFollow" type="range" min="0" max="1" step="0.01" value="1"><output>1.00</output></div>
+      <div class="row"><label>manual</label><input id="regMan" type="range" min="-1" max="1" step="0.01" value="0"><output>0.00</output></div>
+      <div class="row"><label>lag</label><input id="regLag" type="range" min="0.3" max="30" step="0.1" value="4"><output>4 Hz</output></div>
+      <div id="regout" class="hint" style="color:var(--amber)"></div>
+      <p class="hint">One state, R, follows pitch (A3 → 0, A0 → 1) through its own spring — lag sets how fast, and it shares ζ with the formant physics, so low bounce makes register overshoot on big jumps. R alone drives: sub level, downward formant slide, bandwidth narrowing, upward tilt, and softer attacks. Sub level is trimmed as bandwidths narrow, since ringing formants already fill the low-mid.</p>
+    </div>
+
+    <div class="card">
+      <h2>voice</h2>
+      <div class="row"><label>glide</label><input id="glide" type="range" min="0.5" max="40" step="0.5" value="12"><output>12 Hz</output></div>
+      <div class="row"><label>drive</label><input id="drive" type="range" min="0.5" max="8" step="0.05" value="1.4"><output>1.40</output></div>
+      <div class="row"><label>release</label><input id="rel" type="range" min="10" max="1500" step="10" value="220"><output>220 ms</output></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+// ---------- vowel tables (bass-ish, 5 formants: Hz, bandwidth Hz, dB) ----------
+const VOWELS = {
+  a:{f:[600,1040,2250,2450,2750], bw:[60,70,110,120,130], db:[0,-7,-9,-9,-20]},
+  e:{f:[400,1620,2400,2800,3100], bw:[40,80,100,120,120], db:[0,-12,-9,-12,-18]},
+  i:{f:[250,1750,2600,3050,3340], bw:[60,90,100,120,120], db:[0,-30,-16,-22,-28]},
+  o:{f:[400,750,2400,2600,2900],  bw:[40,80,100,120,120], db:[0,-11,-21,-20,-40]},
+  u:{f:[350,600,2400,2675,2950],  bw:[40,80,100,120,120], db:[0,-20,-32,-28,-36]},
+};
+
+// ---------- worklet source ----------
+const CORE = `
+class FormantCore {
+  constructor(sr,post){
+    this.sr=sr; this.post=post;
+    this.p={mode:'fof',tex:1.5,bws:1,cyc:3,shift:0,rate:6,zeta:0.9,K:0,mask:0,bon:8,boff:0,glide:12,drive:1.4,rel:220,regMan:0,regFollow:1,regLag:4};
+    this.vowel={f:[600,1040,2250,2450,2750],bw:[60,70,110,120,130],db:[0,-7,-9,-9,-20]};
+    this.N=5;
+    this.x=this.vowel.f.map(f=>Math.log(f)); this.v=[0,0,0,0,0];
+    this.f0target=110; this.f0=110; this.f0v=0;
+    this.R=0; this.Rv=0; this.reg={sub:0,shift:0,bwk:1,tilt:0,tex:1};
+    this.gate=0; this.env=0;
+    this.phase=0; this.periodCount=0;
+    this.grains=[]; this.pool=[];
+    this.events=[]; this.blockN=0;
+  }
+  msg(m){
+    if(m.type==='param'){this.p[m.k]=m.v;}
+    else if(m.type==='vowel'){this.vowel=m.v;}
+    else if(m.type==='note'){this.f0target=m.f;this.gate=1;}
+    else if(m.type==='off'){this.gate=0;}
+  }
+  spawn(i,fc,amp,tex,bw,cyc,mode,cap){
+    const g=this.pool.pop()||{};
+    g.i=i;g.t=0;g.fc=fc;g.amp=amp;g.tex=tex;g.bw=bw;g.mode=mode;
+    g.dur = mode==='fof' ? Math.min(cap||0.06, tex+Math.log(1000)/(Math.PI*bw)) : cyc/fc;
+    this.grains.push(g);
+    this.events.push([i,amp,g.dur]);
+  }
+  render(out){
+    const sr=this.sr, p=this.p, dt=1/sr;
+    const relCoef=Math.exp(-1/(p.rel*0.001*sr));
+    // ---- register: one state R that follows pitch (with inertia) and drives every bass-register parameter
+    const wr=2*Math.PI*p.regLag, z=p.zeta;
+    const Rt=Math.min(1,Math.max(0, p.regFollow*Math.log2(220/Math.max(20,this.f0))/3 + p.regMan));
+    { const hs=128/sr; for(let c=0;c<out.length;c+=128){ const acc=wr*wr*(Rt-this.R)-2*z*wr*this.Rv; this.Rv+=acc*hs; this.R+=this.Rv*hs; } }
+    const R=Math.min(1.3,Math.max(-0.3,this.R)), Rc=Math.min(1,Math.max(0,R));
+    // derived, mutually dependent: sub level rises with R but is trimmed as bandwidths narrow (resonance already fills in)
+    const bwk=Math.pow(2,-1.6*R);
+    const reg=this.reg;
+    reg.bwk=bwk; reg.shift=-R*0.55*Math.LN2; reg.tilt=14*Rc; reg.tex=1+R;
+    reg.sub=Math.max(0,(0.08+0.9*Math.pow(Rc,0.7))*(0.55+0.45*bwk));
+    const w=2*Math.PI*p.rate, sh=p.shift/12*Math.LN2 + reg.shift;
+    // formant physics: sub-step in 128-sample chunks for stability at high rates
+    const chunk=128, hdt=chunk/sr;
+    for(let c=0;c<out.length;c+=chunk){
+      let mean=0; for(let i=0;i<this.N;i++) mean+=this.x[i]; mean/=this.N;
+      for(let i=0;i<this.N;i++){
+        const tgt=Math.log(this.vowel.f[i])+sh;
+        const acc = w*w*(tgt-this.x[i]) - 2*z*w*this.v[i] + p.K*w*w*(mean-this.x[i]);
+        this.v[i]+=acc*hdt; this.x[i]+=this.v[i]*hdt;
+      }
+    }
+    const wg=2*Math.PI*p.glide;
+    for(let n=0;n<out.length;n++){
+      const accg=wg*wg*(this.f0target-this.f0)-2*0.95*wg*this.f0v; this.f0v+=accg*dt; this.f0+=this.f0v*dt;
+      this.env = this.gate ? Math.min(1,this.env+0.0006) : this.env*relCoef;
+      this.phase+=this.f0*dt;
+      if(this.phase>=1 && this.env>0.001){
+        this.phase-=1; this.periodCount++;
+        const burstOn = (this.periodCount % (p.bon+p.boff)) < p.bon;
+        if(burstOn) for(let i=0;i<this.N;i++){
+          if(Math.random()<p.mask) continue;
+          const fc=Math.exp(this.x[i]);
+          const db=this.vowel.db[i] + reg.tilt*(i/(this.N-1));
+          const amp=Math.pow(10,db/20)*this.env;
+          this.spawn(i,fc,amp,p.tex*0.001*reg.tex,this.vowel.bw[i]*p.bws*reg.bwk,p.cyc,p.mode);
+        }
+        if(burstOn && reg.sub>0.005) this.spawn(5,this.f0,reg.sub*this.env,0.002,5,1,'fof',0.6);
+        if(this.grains.length>400) this.grains.splice(0,this.grains.length-400);
+      }
+      let s=0;
+      for(let k=this.grains.length-1;k>=0;k--){
+        const g=this.grains[k]; let e;
+        if(g.mode==='fof'){ e = g.t<g.tex ? 0.5*(1-Math.cos(Math.PI*g.t/g.tex)) : 1; e *= Math.exp(-Math.PI*g.bw*g.t); }
+        else { e = 0.5*(1-Math.cos(2*Math.PI*g.t/g.dur)); }
+        s += g.amp*e*Math.sin(2*Math.PI*g.fc*g.t);
+        g.t+=dt;
+        if(g.t>=g.dur){ this.grains.splice(k,1); this.pool.push(g); }
+      }
+      out[n]=Math.tanh(s*p.drive*0.9);
+    }
+    if(++this.blockN%2===0){ this.post({ev:this.events, x:this.x.map(Math.exp).concat([this.f0]), f0:this.f0, R:this.R, reg:this.reg}); this.events=[]; }
+  }
+}
+`;
+const WORKLET = CORE + `
+class FormantSwarm extends AudioWorkletProcessor {
+  constructor(){ super(); this.core=new FormantCore(sampleRate, m=>this.port.postMessage(m)); this.port.onmessage=e=>this.core.msg(e.data); }
+  process(inputs,outputs){ this.core.render(outputs[0][0]); return true; }
+}
+registerProcessor('formant-swarm',FormantSwarm);
+`;
+
+// ---------- audio setup ----------
+let ctx, node, analyser, waveBuf, specBuf;
+const $=s=>document.querySelector(s);
+const state={octave:2,vowel:'a',mode:'fof',keys:{}};
+const formantNow=[600,1040,2250,2450,2750,110];
+const trainEvents=[]; // {i,amp,dur,t}
+
+let send=()=>{};
+async function start(){
+  if(ctx){ if(ctx.state==='suspended') await ctx.resume(); return; }
+  const btn=$('#start');
+  try{
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    if(ctx.state==='suspended') await ctx.resume();
+    analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0.6;
+    waveBuf=new Float32Array(analyser.fftSize); specBuf=new Float32Array(analyser.frequencyBinCount);
+    const onMsg=d=>{ const now=performance.now();
+      for(const [i,amp,dur] of d.ev) trainEvents.push({i,amp,dur,t:now});
+      for(let i=0;i<6;i++) formantNow[i]=d.x[i];
+      $('#f0lbl').textContent='f0 '+d.f0.toFixed(1)+' Hz';
+      $('#Rbar').style.width=(Math.max(0,Math.min(1,d.R))*100).toFixed(1)+'%';
+      const r=d.reg; $('#regout').textContent='R '+d.R.toFixed(2)+' → sub '+Math.round(r.sub*100)+'% · formants '+(r.shift/Math.LN2*12).toFixed(1)+' st · bw ×'+r.bwk.toFixed(2)+' · tilt +'+r.tilt.toFixed(1)+' dB · attack ×'+r.tex.toFixed(2); };
+    let engine='worklet';
+    try{
+      if(!ctx.audioWorklet) throw new Error('no AudioWorklet');
+      const url=URL.createObjectURL(new Blob([WORKLET],{type:'application/javascript'}));
+      await ctx.audioWorklet.addModule(url);
+      node=new AudioWorkletNode(ctx,'formant-swarm');
+      node.port.onmessage=e=>onMsg(e.data);
+      send=m=>node.port.postMessage(m);
+    }catch(err){
+      // Fallback: same core on the main thread via ScriptProcessorNode
+      engine='main-thread';
+      const core=(new Function(CORE+'\nreturn FormantCore;'))();
+      const c=new core(ctx.sampleRate,onMsg);
+      node=ctx.createScriptProcessor(1024,0,1);
+      node.onaudioprocess=e=>{ const out=e.outputBuffer.getChannelData(0); c.render(out); if(e.outputBuffer.numberOfChannels>1) e.outputBuffer.getChannelData(1).set(out); };
+      send=m=>c.msg(m);
+    }
+    node.connect(analyser).connect(ctx.destination);
+    document.querySelectorAll('input[type=range]').forEach(pushParam);
+    send({type:'vowel',v:state.blend});
+    send({type:'param',k:'mode',v:state.mode});
+    btn.textContent='audio running ('+engine+')'; btn.classList.add('on');
+  }catch(err){
+    btn.textContent='audio failed: '+err.message; console.error(err);
+  }
+}
+$('#start').onclick=start;
+
+const FMT={tex:v=>v+' ms',bws:v=>(+v).toFixed(2)+'×',cyc:v=>v,shift:v=>v+' st',rate:v=>v+' Hz',zeta:v=>'ζ '+(+v).toFixed(2),K:v=>(+v).toFixed(2),regFollow:v=>(+v).toFixed(2),regMan:v=>(+v).toFixed(2),regLag:v=>v+' Hz',mask:v=>Math.round(v*100)+'%',bon:v=>v,boff:v=>v,glide:v=>v+' Hz',drive:v=>(+v).toFixed(2),rel:v=>v+' ms'};
+function pushParam(el){
+  const k=el.id, v=parseFloat(el.value);
+  el.parentElement.querySelector('output').textContent=FMT[k]?FMT[k](el.value):el.value;
+  if(node) send({type:'param',k,v});
+}
+document.querySelectorAll('input[type=range]').forEach(el=>{ el.addEventListener('input',()=>pushParam(el)); pushParam(el); });
+
+function seg(id,cb){ const box=$(id); box.querySelectorAll('button').forEach(b=>b.onclick=()=>{box.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); cb(b.dataset.v);}); }
+seg('#mode',v=>{state.mode=v; if(node) send({type:'param',k:'mode',v});
+  $('#modehint').textContent = v==='fof'
+   ? 'FOF: each formant fires a sine grain every fundamental period — raised-cosine attack, exponential decay set by bandwidth. Grains overlap freely.'
+   : 'Pulsar: each formant fires a pulsaret — a fixed number of sine cycles at the formant frequency under a Hann window. Grain length = cycles / formant Hz, so duty cycle follows the pitch ratio.';});
+seg('#vowel',v=>{state.vowel=v; setXY(ANCH[v][0],ANCH[v][1],true);});
+// ---- XY vowel field ----
+const ANCH={i:[0.15,0.15],u:[0.85,0.15],e:[0.22,0.55],o:[0.78,0.55],a:[0.5,0.9]};
+const ACOL={i:'#5fe0d8',u:'#8ad3ff',e:'#ffb84d',o:'#ff6f9e',a:'#ff3d8a'};
+state.xy=[0.5,0.9]; state.blend=VOWELS.a;
+function blendVowel(x,y){
+  const w={}; let tot=0;
+  for(const k in ANCH){ const dx=x-ANCH[k][0],dy=y-ANCH[k][1]; const d2=dx*dx+dy*dy; w[k]=1/(d2*d2+1e-5); tot+=w[k]; }
+  const out={f:[0,0,0,0,0],bw:[0,0,0,0,0],db:[0,0,0,0,0]};
+  for(const k in ANCH){ const q=w[k]/tot; const V=VOWELS[k]; for(let i=0;i<5;i++){ out.f[i]+=q*Math.log(V.f[i]); out.bw[i]+=q*V.bw[i]; out.db[i]+=q*V.db[i]; } }
+  out.f=out.f.map(Math.exp); state.weights=Object.fromEntries(Object.keys(w).map(k=>[k,w[k]/tot])); return out;
+}
+function setXY(x,y,fromButton){
+  state.xy=[Math.min(1,Math.max(0,x)),Math.min(1,Math.max(0,y))];
+  state.blend=blendVowel(state.xy[0],state.xy[1]);
+  if(node) send({type:'vowel',v:state.blend});
+  if(!fromButton){ let best='a',bw=-1; for(const k in state.weights) if(state.weights[k]>bw){bw=state.weights[k];best=k;}
+    document.querySelectorAll('#vowel button').forEach(b=>b.classList.toggle('on',b.dataset.v===best)); state.vowel=best; }
+  renderTable(); drawXY();
+}
+const cXY=$('#xy');
+function drawXY(){
+  const g=fit(cXY), W=cXY.width,H=cXY.height, dp=devicePixelRatio;
+  // region shading: nearest anchor per cell
+  const cell=6*dp;
+  for(let yy=0;yy<H;yy+=cell) for(let xx=0;xx<W;xx+=cell){
+    const px=xx/W,py=yy/H; let best='a',bd=9;
+    for(const k in ANCH){ const dx=px-ANCH[k][0],dy=py-ANCH[k][1]; const d=dx*dx+dy*dy; if(d<bd){bd=d;best=k;} }
+    g.globalAlpha=0.10+0.10*(1-Math.min(1,Math.sqrt(bd)/0.5)); g.fillStyle=ACOL[best]; g.fillRect(xx,yy,cell,cell);
+  }
+  g.globalAlpha=1;
+  for(const k in ANCH){ const [ax,ay]=ANCH[k]; const wgt=(state.weights||{})[k]||0;
+    g.fillStyle=ACOL[k]; g.globalAlpha=0.35+0.65*wgt; g.beginPath(); g.arc(ax*W,ay*H,(5+10*wgt)*dp,0,7); g.fill(); g.globalAlpha=1;
+    g.fillStyle='#efe6d6'; g.font='700 '+(13*dp)+'px Syne'; g.fillText(k,ax*W+10*dp,ay*H+5*dp); }
+  const [x,y]=state.xy; g.strokeStyle='#efe6d6'; g.lineWidth=1.5*dp; g.beginPath(); g.arc(x*W,y*H,7*dp,0,7); g.stroke();
+  g.beginPath(); g.moveTo(x*W-11*dp,y*H); g.lineTo(x*W+11*dp,y*H); g.moveTo(x*W,y*H-11*dp); g.lineTo(x*W,y*H+11*dp); g.stroke();
+}
+let dragging=false;
+const xyPos=e=>{const r=cXY.getBoundingClientRect(); return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height];};
+cXY.addEventListener('pointerdown',e=>{dragging=true;cXY.setPointerCapture(e.pointerId);setXY(...xyPos(e));});
+cXY.addEventListener('pointermove',e=>{if(dragging)setXY(...xyPos(e));});
+cXY.addEventListener('pointerup',()=>dragging=false);
+cXY.addEventListener('pointercancel',()=>dragging=false);
+
+function renderTable(){ const V=state.blend||VOWELS[state.vowel]; $('#ftable').innerHTML=V.f.map((f,i)=>'<div class="f"><b>F'+(i+1)+'</b><span>'+Math.round(f)+' Hz</span><span>bw '+Math.round(V.bw[i])+'</span><span>'+V.db[i].toFixed(0)+' dB</span></div>').join(''); }
+setXY(0.5,0.9,true);
+
+// ---------- keyboard ----------
+const KEYMAP={a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12};
+const keysBox=$('#keys');
+Object.keys(KEYMAP).forEach(k=>{const b=document.createElement('button');b.textContent=k;b.dataset.k=k;
+  b.onpointerdown=()=>noteOn(k);b.onpointerup=b.onpointerleave=()=>noteOff(k);keysBox.appendChild(b);});
+let held=[];
+function midiToHz(m){return 440*Math.pow(2,(m-69)/12);}
+function noteOn(k){ if(!ctx) start(); if(state.keys[k])return; state.keys[k]=1; held.push(k);
+  keysBox.querySelector('[data-k="'+k+'"]').classList.add('on');
+  if(node) send({type:'note',f:midiToHz(36+state.octave*12+KEYMAP[k])}); }
+function noteOff(k){ if(!state.keys[k])return; delete state.keys[k]; held=held.filter(x=>x!==k);
+  keysBox.querySelector('[data-k="'+k+'"]').classList.remove('on');
+  if(!node)return; if(held.length){const last=held[held.length-1]; send({type:'note',f:midiToHz(36+state.octave*12+KEYMAP[last])});} else send({type:'off'}); }
+window.addEventListener('keydown',e=>{ if(e.repeat)return; const k=e.key.toLowerCase(); if(k in KEYMAP){e.preventDefault();noteOn(k);} if(k==='z')state.octave=Math.max(0,state.octave-1); if(k==='x')state.octave=Math.min(5,state.octave+1); });
+window.addEventListener('keyup',e=>{const k=e.key.toLowerCase(); if(k in KEYMAP)noteOff(k);});
+
+// ---------- drawing ----------
+const cT=$('#train'),cW=$('#wave'),cS=$('#spec');
+function fit(c){const r=c.getBoundingClientRect();if(c.width!==Math.floor(r.width*devicePixelRatio)){c.width=Math.floor(r.width*devicePixelRatio);c.height=Math.floor(parseInt(c.getAttribute('height'))*devicePixelRatio);}return c.getContext('2d');}
+const ROWCOL=['#ff3d8a','#ff6f9e','#ffb84d','#5fe0d8','#8ad3ff','#c9b8ff'];
+function draw(){
+  const now=performance.now(), WIN=1500; // ms window
+  // train
+  let g=fit(cT); const W=cT.width,H=cT.height; g.fillStyle='#221b30'; g.fillRect(0,0,W,H);
+  const rowH=H/6;
+  while(trainEvents.length&&now-trainEvents[0].t>WIN)trainEvents.shift();
+  for(let i=0;i<6;i++){ g.fillStyle='#3c3152'; g.fillRect(0,(i+1)*rowH-1,W,1); g.fillStyle='#9a8fb0'; g.font=(11*devicePixelRatio)+'px IBM Plex Mono'; g.fillText((i<5?'F'+(i+1):'sub')+' '+Math.round(formantNow[i])+' Hz',6*devicePixelRatio,i*rowH+13*devicePixelRatio); }
+  for(const ev of trainEvents){ const x=W-(now-ev.t)/WIN*W; const len=Math.max(2,ev.dur*1000/WIN*W); g.globalAlpha=Math.min(1,0.15+ev.amp*1.2); g.fillStyle=ROWCOL[ev.i]; g.fillRect(x,ev.i*rowH+rowH*0.3,len,rowH*0.5); }
+  g.globalAlpha=1;
+  // wave
+  g=fit(cW); g.fillStyle='#221b30'; g.fillRect(0,0,cW.width,cW.height);
+  if(analyser){ analyser.getFloatTimeDomainData(waveBuf); g.strokeStyle='#efe6d6'; g.lineWidth=1.2*devicePixelRatio; g.beginPath();
+    for(let i=0;i<waveBuf.length;i++){const x=i/waveBuf.length*cW.width,y=cW.height/2-waveBuf[i]*cW.height*0.45; i?g.lineTo(x,y):g.moveTo(x,y);} g.stroke(); }
+  // spectrum
+  g=fit(cS); g.fillStyle='#221b30'; g.fillRect(0,0,cS.width,cS.height);
+  if(analyser){ analyser.getFloatFrequencyData(specBuf); const nyq=ctx.sampleRate/2, fmin=60, fmax=8000;
+    const xOf=f=>Math.log(f/fmin)/Math.log(fmax/fmin)*cS.width;
+    g.strokeStyle='#5fe0d8'; g.lineWidth=1.2*devicePixelRatio; g.beginPath();
+    for(let b=1;b<specBuf.length;b++){const f=b/specBuf.length*nyq; if(f<fmin||f>fmax)continue; const x=xOf(f),y=(-(specBuf[b]+10)/90)*cS.height; g.lineTo(x,Math.max(0,Math.min(cS.height,y)));} g.stroke();
+    g.strokeStyle='#ffb84d'; g.lineWidth=1*devicePixelRatio;
+    for(let i=0;i<6;i++){const x=xOf(formantNow[i]); g.beginPath(); g.moveTo(x,cS.height); g.lineTo(x,cS.height-14*devicePixelRatio); g.stroke();}
+    $('#flist').textContent=formantNow.slice(0,5).map(f=>Math.round(f)).join(' · ');
+  }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

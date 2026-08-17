@@ -68,9 +68,14 @@ lists as protected.
 
 ## §Domain — HYPERSAW
 
-**What this is.** A synthesizer whose timbre, tuning, and performance gestures
-emerge from one coupled-oscillator dynamical system (Kuramoto swarm over a
-kernel — "the supersaw taken seriously as physics"). CLAP-native instrument
+**What this is.** A synthesizer built from a family of experimental, responsive
+engines with dynamical characteristics, oriented toward the sounds of hyperpop
+(ADR-091). The founding engine — **HYPERSAW** (formerly SAW) — is a
+coupled-oscillator system (Kuramoto swarm over a kernel — "the supersaw taken
+seriously as physics"); **SPECTRA** is its per-partial sibling; the first new
+member is the **formant engine** (working name CANTO — FOF/pulsar grains, formants
+as masses on springs, a register state R; `SPEC-FORMANT.md`, prototype
+`horde_formant_pulsar_fof.html`, not yet in the shell). CLAP-native instrument
 plugin, VST3 via clap-wrapper (ADR-002). Working product title horde; naming
 open until Phase 5. Design docs: SPEC.md (the instrument), ACCEPTANCE.md (the
 oracle contract), PRIOR-ART.md, PARKED.md.
@@ -80,7 +85,9 @@ oracle contract), PRIOR-ART.md, PARKED.md.
 clap-wrapper (`libs/` submodules pinned: clap 1.2.10, clap-wrapper v0.15.1).
 Build: `cmake -S . -B build-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release`
 then `cmake --build <abs>/build-release -j` (absolute path — sandbox resets cwd).
-Reference implementation: seven single-file HTML prototypes — three oscillator
+Reference implementation: seven single-file HTML prototypes plus one CANDIDATE
+(`horde_formant_pulsar_fof.html`, `FormantCore` — a candidate until its masking
+RNG is seeded, ADR-091) — three oscillator
 labs `swarmsaw.html` (SAW; v2 lineage, see ADR-011/012), `swarmspectra.html`,
 `swarmdynamics.html` (cores `SwarmSynth` / `SpectraSynth` / `DynSynth`), the
 Track E effects labs `swarmfilter.html`, `swarmphaser.html`, `swarmtime.html`
@@ -117,11 +124,12 @@ lives in `PRIVATE-NOTES.md` (untracked, local-only — ADR-014). Never write a
 private sibling's real name into a tracked file.
 
 **Protected paths** (human gate to modify): `SPEC.md`, `SPEC-EFFECTS.md`,
-`SPEC-SWARMALATOR.md`, `ACCEPTANCE.md`, `PRIOR-ART.md`, the prototype HTMLs —
+`SPEC-SWARMALATOR.md`, `SPEC-FORMANT.md`, `ACCEPTANCE.md`, `PRIOR-ART.md`, the prototype HTMLs —
 now seven: the three oscillator labs, swarmfilter/swarmphaser/swarmtime (Track
 E, ingested 2026-07-18), and swarmalator.html (experimental swarmalator engine,
-ingested 2026-07-19, ADR-048) — (they ARE the reference — an edit there is a
-spec change), `./verify`, golden render fixtures once they exist.
+ingested 2026-07-19, ADR-048), and `horde_formant_pulsar_fof.html` (formant
+engine, ingested 2026-08-17, ADR-091; one sanctioned edit outstanding: seed its
+masking RNG) — (they ARE the reference — an edit there is a spec change), `./verify`, golden render fixtures once they exist.
 
 **Verify targets.** `fast`: leak gate + structure/manifest sanity now; grows
 the L0 suite (parity + trajectories) from Phase 1 — seconds-to-minutes,

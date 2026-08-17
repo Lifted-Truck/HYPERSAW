@@ -83,7 +83,7 @@ static const char *const kFxTypeLabels[] = {"Off",  "Drive", "Filter", "Gain",
 static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
                                             "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
 
-static const char *const kEngineLabels[] = {"SAW", "SPECTRA"};
+static const char *const kEngineLabels[] = {"HYPERSAW", "SPECTRA"};   // engine renamed SAW -> HYPERSAW 2026-08-17 (ADR-091); value 0 and state key unchanged
 static const char *const kWlawLabels[] = {"cents", "Hz"};
 static const ParamDef kParams[] = {
     {1, "n", "Voices", 1, 32, 7, true, nullptr},

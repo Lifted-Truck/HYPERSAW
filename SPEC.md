@@ -15,7 +15,7 @@ One mechanism, three scales. The instrument's identity is that these are *the sa
 There is one engine: a **per-partial swarm over a kernel**.
 
 - `P` partials × `M` cloud voices per partial, each voice a phase accumulator rendering a **kernel**: saw (polyBLEP↔naive crossfade), sine (table), or wavetable (future: the terrain sibling's terrain as kernel — "every preset is somewhere" crossover).
-- **SAW mode** is the engine at `P = 1`, saw kernel, `M = 1..32`.
+- **HYPERSAW mode** (the engine formerly named SAW; renamed 2026-08-17, ADR-091) is the engine at `P = 1`, saw kernel, `M = 1..32`.
 - **SPECTRA mode** is the engine at `P = 4..N_max`, sine kernel, `M = 1..7`, with per-partial amplitude tilt `1/k^t` and stretch inharmonicity `f_k = k·f0·√(1 + B·k²)`.
 - Prototype ceiling was P=24 (browser main thread). Target: 64–128 partials via oscillator bank, or unbounded via iFFT rendering — **ADR-006, open, Phase 0 spike**. Note the architecture favors iFFT unusually well: all coupling dynamics already run at control rate, so the swarm state can drive a spectral frame directly.
 
@@ -27,8 +27,8 @@ Every control lives in exactly one layer. This is the UI's information architect
 
 | Parameter | Range / values | Notes |
 |---|---|---|
-| Voices (M) | 1–32 (SAW), 1–7 per partial (SPECTRA) | continuous-density presentation optional (parked) |
-| Partials (P) | 1 (SAW) / 4–128 (SPECTRA) | ceiling per ADR-006 |
+| Voices (M) | 1–32 (HYPERSAW), 1–7 per partial (SPECTRA) | continuous-density presentation optional (parked) |
+| Partials (P) | 1 (HYPERSAW) / 4–128 (SPECTRA) | ceiling per ADR-006 |
 | **Distribution** | even · JP-8000 (Szabo curve, interpolated) · Gaussian (seeded) · Cauchy (seeded) · bimodal (two-cluster) · clustered-pairs · drawn-by-hand | *who sits where* in normalized offset space x ∈ [−1,1] |
 | **Detune law** | cents-constant · Hz-constant · ERB-flat · **tempo-grid** | *how offsets map to Hz* (see §4). Law and distribution are orthogonal axes — this factorization is a deliberate design position (see PRIOR-ART §2) |
 | Detune amount | 0–1, per-law scaling | cents: ±100¢ · Hz: ±20 Hz · ERB: ±0.35·ERB(f0) · grid: cents placement then snap |
@@ -100,7 +100,7 @@ gate_k = 1 − c + c·t², t = clamp((R_{k−1} − 0.4)/0.45, 0, 1). Coupling s
 Once per render block: fold each held pair's ratio into [1,2), snap to nearest of the ratio set, compute cents error; if |err| ≤ basin, move each note half the correction at rate grav·3/s (exponential approach). Runs on f0cur per note; note-on resets f0cur to equal-tempered pitch, so settling is a per-chord event.
 
 ### 5.6 Visualization (first-class, not decoration)
-- **Phase circle** (SAW/DYNAMICS hero) with: order vector R₁·e^{iψ}; **dual order meters** (R₁ sync/clump and the N-th Daido order parameter R_N = |(1/N)·Σ e^{iNθᵢ}| for splay/formation — orthogonal regime indicators: R₁ high = sync, R₁ low + R_N high = splay, both low = free); **seat rings** at assigned splay slots when splay is engaged (opacity ramps with engagement); **formation polygon** connecting voices in index order (collapsed point = sync · regular N-gon = splay · scribble = free). Amended per the splay-legibility change note (2026-07-17, archived at `docs/change-notes/2026-07-17-splay-legibility.md`): R₁ alone cannot distinguish locked splay from free — the instrument's most novel state was illegible. Forward-compatibility: if multi-pole (Daido) coupling lands, meters/formations generalize to an R_q family — design the GUI meter component to take q as a parameter, not hardcode N.
+- **Phase circle** (HYPERSAW/DYNAMICS hero) with: order vector R₁·e^{iψ}; **dual order meters** (R₁ sync/clump and the N-th Daido order parameter R_N = |(1/N)·Σ e^{iNθᵢ}| for splay/formation — orthogonal regime indicators: R₁ high = sync, R₁ low + R_N high = splay, both low = free); **seat rings** at assigned splay slots when splay is engaged (opacity ramps with engagement); **formation polygon** connecting voices in index order (collapsed point = sync · regular N-gon = splay · scribble = free). Amended per the splay-legibility change note (2026-07-17, archived at `docs/change-notes/2026-07-17-splay-legibility.md`): R₁ alone cannot distinguish locked splay from free — the instrument's most novel state was illegible. Forward-compatibility: if multi-pole (Daido) coupling lands, meters/formations generalize to an R_q family — design the GUI meter component to take q as a parameter, not hardcode N.
 - **Phase carpet** (voice index × phase) — where ring waves and broken-symmetry states are legible
 - **Partial strips** (per-partial phase columns + R bars) — where cascades and erasure are legible
 - Live readouts: R (per cluster where relevant; R_q under Daido poles), effective pull Hz, measured σ, gravity ratio + cents deviation, and — whenever the tempo-grid law is exposed — grid status with the cause-AND-state lock warning on fixed-height reserve (ADR-016/017)

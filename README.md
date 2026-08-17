@@ -2,7 +2,7 @@
 
 **Working title:** horde (naming open until Phase 5; the prototypes keep their SWARM-prefixed names — SWARMSAW / SWARMSPECTRA / SWARMDYNAMICS — as historical identifiers; the repo answers to HYPERSAW. The former ✱ house mark was retired 2026-08-17.)
 
-**One-line pitch:** a synthesizer whose timbre, tuning, and performance gestures all emerge from a single coupled-oscillator dynamical system — the supersaw taken seriously as physics.
+**One-line pitch:** a synthesizer built from a family of experimental, responsive engines with dynamical characteristics, oriented toward the sounds of hyperpop — beginning with the supersaw taken seriously as physics.
 
 **Elevator version:** every existing supersaw picks a fixed detune recipe and hides it. horde makes the swarm itself the instrument: voices are Kuramoto-coupled oscillators you can herd into lock, dissolve into cloud, splay into harmonic multiplication, or erase by interference; the same coupling law operating between *notes* settles chords into just intonation; and every behavior is deterministic, seeded, and provenance-tracked.
 
@@ -17,7 +17,7 @@ A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built fro
 
 | Path | Purpose |
 |---|---|
-| `SPEC.md` | The instrument: thesis, unified engine model, four-layer parameter surface, subsystem specs |
+| `SPEC.md` · `SPEC-EFFECTS.md` · `SPEC-SWARMALATOR.md` · `SPEC-FORMANT.md` | The instrument, the effects line, the swarmalator, and the formant engine (ADR-091) — one spec per engine family member |
 | `ACCEPTANCE.md` | Layer-0 and Layer-E criteria with measured numbers (+ ratified protocol notes) |
 | `ROADMAP.md` | Phase-gated build plan, Phase 0 → 5 — **the single source of truth for status** |
 | `DECISIONS.md` | ADR log, append-only (ADR-001…) |
@@ -85,6 +85,14 @@ Track E (effects line, ingested 2026-07-18 — SPEC-EFFECTS.md):
 Plus `swarmalator.html` — the experimental swarmalator engine (position and phase co-evolving,
 ADR-048), ported to `swarmalator_core.h` and gated, but not yet in the shell.
 
+**And the first member of the new engine family** (ADR-091): `horde_formant_pulsar_fof.html` — the
+**formant engine** (working name CANTO): FOF / pulsar grain synthesis where the fundamental is a
+firing rate, formants are masses on springs in log-frequency with their own coupling K, and one
+hidden register state reshapes the whole engine as pitch descends. Spec: `SPEC-FORMANT.md`. Status:
+prototype validated by ear, **candidate oracle** — its masking RNG must be seeded before it can
+generate goldens. Not yet in the shell; the first lab will grow it into a polyphonic choir with
+coupling logic for the vowels.
+
 These are the reference implementation per ADR-003. The C++ port must match them (parity oracle), and their headless test harnesses are the templates for `./verify fast`.
 
 ## Repo status
@@ -93,8 +101,8 @@ These are the reference implementation per ADR-003. The C++ port must match them
 human-readable snapshot. A dated line that is honestly stale beats a confident one that is quietly
 wrong — if this date is old, trust ROADMAP.md.)
 
-- **Phases 0–4 CLOSED.** A shippable, playable instrument with two selectable engines (**SAW** /
-  **SPECTRA**) and the dynamics layer live inside SAW. SAW carries the full surface — six detune
+- **Phases 0–4 CLOSED.** A shippable, playable instrument with two selectable engines (**HYPERSAW** /
+  **SPECTRA** — the first renamed from SAW 2026-08-17, ADR-091) and the dynamics layer live inside HYPERSAW. HYPERSAW carries the full surface — six detune
   laws, seeded distributions, drift, ADSR, density comp, width + super-width, mono/glide/legato,
   phase and pan scatter. SPECTRA is the per-partial swarm, ported bit-exact, with the strip
   visualizer, up to 32 partials, and a per-voice sub-oscillator (ADR-042). Performance/IO: MPE
