@@ -8,6 +8,48 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## AESTHETICS LAB: corner flipping + modulation overlays; route inertia answered (2026-08-17)
+
+Human: *"in the aesthetics lab, let's also audition the morph corner color flipping, as well as a
+visual for modulation on parameters."* Both landed on the same six controls, both widget styles, all
+three themes.
+
+**Corner colour flipping.** Vocabulary NOT invented — reused the standing mod-lab convention (A GLASS ·
+B GRIT · C HOLLOW · D BLOOM, mirrored in gui2's `--cA..--cD`). Each param carries a **flip mode** —
+QM-0 §4's slot modes plus the human's semi-gradual — and only the ones that change how a corner
+change *looks* are auditioned: **quantum** hard-swaps at the boundary, **gradual** blends, **semi**
+blends in 4 discrete hops per segment, **frozen**/system-wide shows **no colour at all** — absence
+reads as "belongs to nobody", never as a grey corner. PINNED and AUTO are policy about *which* corner,
+not how it looks, so they are deliberately absent. Ownership shows as a left rule on every row label
++ a corner glyph, and as an outer ring on dials *outside* the value track. Seed assignments are
+labelled **a seed, not a design** — the taste decision is exactly what the control makes visible.
+
+**Modulation visual.** Two marks kept deliberately distinct from the value: a translucent **depth
+band** on the track (reachable range) and a **dot** at the live modulated position; the thumb/pointer
+stays the *user's* value. Three params carry mod, three sit at zero on purpose — **a mod visual that
+cannot look absent is as bad as one that cannot look present** — and the band/dot render only where
+`mod > 0` (verified: 0 bands on unmodulated params).
+
+**Two things caught in the browser before shipping.** (1) The first draft had **two models of the
+morph axis** — the readout used quarters, the quantum law used rounded thirds — so the readout said
+"B" while quantum still showed A. Unified into one `segOf()`; quantum now flips exactly where the
+readout changes, and shift+arrow snaps to those boundaries because the quantum/gradual difference is
+only visible *at* one. (2) The mod dot appeared frozen: **`visibilityState` was `hidden`** in the
+preview pane, so `requestAnimationFrame` never fires — harness, not lab. Confirmed by advancing the
+phase by hand: dot moves, value unchanged.
+
+Verified: quantum flips at 1/6 · gradual 6 distinct colours across a segment, semi 4 · frozen always
+neutral · centre colours pure · 36 rows carrying a corner label · 9 visible mod dots · 0 bands on
+unmodulated params · lab gate GREEN.
+
+**FOUNDATIONS answered `brief-route-inertia`** (ball nobody): §4 compatible under the #23 ruling,
+our independent-arrival claim **recorded as a separate observation**, our commitment discharged, and
+**our category caution adopted as a rule on them** — *"route transforms are a category; inertia is
+its first known instance; the route type must never name it."* They also named which half to keep
+if this is ever extracted: the **vibrato-retention meter**, because *"a transform whose benefit is
+described and whose cost is measured is extractable; one with only the benefit is a preference."*
+Standing caution unchanged: build to the delay, not to stability, until OQ #30.
+
 ## AESTHETICS LAB LANDED — and a proposed order for rebuilding gui2 (2026-08-17)
 
 `docs/design/aesthetics-lab.html` (subagent, brief `briefs/2026-08-17-aesthetics-lab.md`; lead

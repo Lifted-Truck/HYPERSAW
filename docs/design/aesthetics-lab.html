@@ -95,6 +95,22 @@
               border-bottom:1px solid var(--line); padding-bottom:calc(4px * var(--density)); }
   .row { display:flex; align-items:center; gap:calc(8px * var(--density));
          margin:calc(6px * var(--density)) 0; min-height:calc(22px * var(--density)); }
+  /* corner ownership: a left rule on the row label in the corner colour. --corner
+     is set per row by its painter; transparent for system-wide, so a neutral row
+     shows NO rule rather than a grey one. */
+  .row > label:first-child { border-left:3px solid var(--corner, transparent);
+                             padding-left:calc(5px * var(--density)); }
+  .flipglyph { display:inline-block; width:1.2em; color:var(--corner, transparent); font-size:.9em; }
+  .rangewrap { position:relative; }
+  .modband { position:absolute; top:50%; height:calc(10px * var(--density)); transform:translateY(-50%);
+             background:var(--range-fill, var(--accent)); opacity:.22; border-radius:99px; pointer-events:none; }
+  .moddot  { position:absolute; top:50%; width:calc(6px * var(--density)); height:calc(6px * var(--density));
+             transform:translate(-50%,-50%); border-radius:50%; background:var(--range-thumb, var(--text));
+             pointer-events:none; }
+  .cornerkey { display:inline-flex; gap:calc(6px * var(--density)); }
+  .cornerkey b { display:inline-block; width:calc(10px * var(--density)); height:calc(10px * var(--density));
+                 border-radius:2px; opacity:.45; }
+  .cornerkey b.on { opacity:1; outline:1px solid var(--text); }
   .row label { width:calc(78px * var(--density)); font-size:calc(11px * var(--density));
                color:var(--dim); flex-shrink:0; }
   .row output { font-size:calc(11px * var(--density)); width:calc(46px * var(--density));
@@ -158,6 +174,19 @@
     <output id="density_o">1.00&times;</output>
   </div>
   <div class="hint">Plugin control real estate is fixed by the host, not by us — a style that reads fine at lab scale can become a smear of pixels at the size a DAW actually gives a synth. This slider scales every rendering's geometry at once (canvas AND CSS both read the same density value — see <code>dialGeom()</code> and the <code>--density</code> custom property), so "does this survive small" is a drag, not a guess.</div>
+  <div class="row morphrow">
+    <label for="morph">morph</label>
+    <input type="range" id="morph" min="0" max="1" step="0.002" value="0">
+    <span class="cornerkey" id="cornerkey"></span>
+    <output id="morph_o">A GLASS</output>
+  </div>
+  <div class="hint"><b>Corner colour flipping</b> (human, 2026-08-17: <i>"some things need to flip together, other things can be discrete, and that often comes down to a matter of taste, and everything that flips needs to have its corner colour"</i>). Drag morph from A to D and watch each control's label rule and dial ring. Every param carries a <b>flip mode</b>, shown as its glyph: <b>quantum</b> jumps colour on the corner boundary, <b>gradual</b> blends along the way, <b>semi</b> blends in discrete hops at the refresh rate, and <b>frozen</b>/system-wide never changes and shows no colour at all — absence reads as "belongs to nobody", never as a grey corner. The assignments below are a <b>seed, not a design</b>: which params share a corner and which flip how is exactly the taste decision this control exists to make visible. Vocabulary is the standing mod-lab convention (A GLASS · B GRIT · C HOLLOW · D BLOOM), so this auditions the presentation of corners the instrument already has.</div>
+  <div class="row">
+    <label for="modon">modulation</label>
+    <label class="switch"><input type="checkbox" id="modon" checked><span class="track"></span></label>
+    <output id="modon_o">running</output>
+  </div>
+  <div class="hint"><b>Modulation on a parameter</b> — a live signal riding the value. Two marks, deliberately distinct: a translucent <b>depth band</b> showing the reachable range, and a small <b>dot</b> at where the sound is right now. The pointer or thumb stays the <i>user's</i> value; the dot is the modulated one. Confusing the two is the classic mod-viz failure, so this bench keeps them apart in both widget styles. Detune, volume and pan carry modulation; the rest sit at zero on purpose, because a mod visual that cannot look <i>absent</i> is as bad as one that cannot look present. The signal is a plain sine — this auditions how modulation <i>looks</i>, not any modulator.</div>
 </div>
 
 <div class="why">
@@ -256,6 +285,30 @@ function drawDial(ctx, o) {
     ctx.fillStyle = g;
   } else ctx.fillStyle = pal.hub;
   ctx.fill();
+
+  /* CORNER RING — ownership as a thin outer ring in the corner colour, OUTSIDE
+     the value track so it never competes with the value. Neutral (system-wide)
+     params get no ring at all rather than a grey one: absence should read as
+     "belongs to nobody", not as "a corner whose colour is grey". */
+  if (o.cornerColor && o.cornerColor !== NEUTRAL) {
+    ctx.beginPath(); ctx.arc(cx, cy, trackR + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = o.cornerColor; ctx.lineWidth = 2; ctx.stroke();
+  }
+  /* MOD OVERLAY — two marks, deliberately distinct from the value: a translucent
+     DEPTH BAND on the track showing the reachable range, and a small dot riding
+     it at the live modulated position. The pointer stays the user's value; the
+     dot is where the sound IS. Confusing the two is the classic mod-viz failure. */
+  if (o.modT != null) {
+    const half = o.modDepth * SWEEP * 0.5;
+    const c = -SWEEP / 2 + t * SWEEP;
+    ctx.beginPath(); ctx.arc(cx, cy, trackR, toCanvasAngle(Math.max(-SWEEP/2, c - half)),
+                                            toCanvasAngle(Math.min( SWEEP/2, c + half)));
+    ctx.strokeStyle = pal.fill; ctx.globalAlpha = 0.28; ctx.lineWidth = 7; ctx.lineCap = 'butt'; ctx.stroke();
+    ctx.globalAlpha = 1;
+    const am = toCanvasAngle(-SWEEP / 2 + o.modT * SWEEP);
+    ctx.beginPath(); ctx.arc(cx + Math.cos(am) * trackR, cy + Math.sin(am) * trackR, 3, 0, Math.PI * 2);
+    ctx.fillStyle = pal.pointer; ctx.fill();
+  }
 }
 
 // PALETTES — mirrors the --dial-* story of each .theme-* CSS block by name,
@@ -301,6 +354,91 @@ const PARAMS = [
     hint:'A boolean. It renders the SAME switch in the linear and rotary columns on purpose — a two-state control has no meaningful rotary variant beyond a two-detent knob, which is just a heavier switch for no gain in clarity (reduce, never invent).' },
 ];
 const PMAP = Object.fromEntries(PARAMS.map(p => [p.id, p]));
+
+/* MORPH CORNERS + MODULATION — two OVERLAYS on the same six controls, kept
+   orthogonal on purpose because they answer different questions:
+     corner  = a DECLARATION about a param (who owns it, and how it travels between
+               corners). Static per param. Rendered as a colour and a flip glyph.
+     mod     = a live SIGNAL riding on a param's value. Rendered as a depth band and
+               a moving indicator that must not be confused with the user's value.
+   The corner vocabulary is NOT invented here — it is the standing convention
+   from mod-lab CORNERS, mirrored in gui2's --cA..--cD tokens, so this bench
+   auditions the *presentation* of corners the instrument already has.
+   NEUTRAL means system-wide scope: belongs to no corner and never flips. */
+const CORNERS = [
+  { id:'A', name:'GLASS',  color:'#f2b134', glyph:'\u25c6' },
+  { id:'B', name:'GRIT',   color:'#ff4d6d', glyph:'\u25b2' },
+  { id:'C', name:'HOLLOW', color:'#4cc9f0', glyph:'\u25cf' },
+  { id:'D', name:'BLOOM',  color:'#7ae582', glyph:'\u25a0' },
+];
+const NEUTRAL = '#8b93a6';
+/* Flip modes are QM-0 §4's slot modes, plus the human's semi-gradual (2026-08-15).
+   Only the ones that CHANGE how a corner change looks are auditioned here:
+     frozen   never changes with the corner  -> shown neutral, no glyph
+     quantum  jumps on corner change         -> hard colour swap
+     gradual  travels between corners        -> colour blends along the way
+     semi     steps at the refresh rate      -> blends, but in discrete hops
+   PINNED and AUTO are policy about *which* corner, not how it looks, so they
+   are not visual states and are deliberately absent. */
+const FLIP = ['frozen', 'quantum', 'gradual', 'semi'];
+// Seed corner ownership on the six controls. This is a TASTE call and the whole
+// point of the audition is that the human overrules it: it is the data, not the
+// design. Distributed so every corner and every flip mode appears at least once.
+Object.assign(PMAP.detune,   { corner:'A', flip:'gradual' });
+Object.assign(PMAP.drift,    { corner:'B', flip:'semi' });
+Object.assign(PMAP.volume,   { corner:null, flip:'frozen' });    // system-wide: never flips
+Object.assign(PMAP.pan,      { corner:'C', flip:'quantum' });
+Object.assign(PMAP.waveform, { corner:'D', flip:'quantum' });
+Object.assign(PMAP.mono,     { corner:null, flip:'frozen' });
+// Modulation depth per param, 0..1 of the param's range. Volume and detune get a
+// visible mod so the reader sees it on both a continuous and a bipolar-adjacent
+// control; the rest sit at 0 so "no modulation" is also auditioned — a mod
+// visual that cannot look ABSENT is as bad as one that cannot look present.
+Object.assign(PMAP.detune, { mod:0.35 });
+Object.assign(PMAP.volume, { mod:0.20 });
+Object.assign(PMAP.pan,    { mod:0.50 });
+
+/* Morph position: 0..1 along A->B->C->D. `morphT` is the ONE global the corner
+   overlay reads; the flip mode of each param decides how it responds. `modPhase`
+   is a free-running LFO for the mod overlay — plain sine at a fixed rate,
+   because this is an audition of how modulation LOOKS, not of any modulator. */
+let morphT = 0, modPhase = 0;
+/* ONE model of "where on the morph path am I", used by the readout, the quantum
+   law and the keyboard snaps alike: morphT spans three segments A->B->C->D, so
+   corner CENTRES sit at 0, 1/3, 2/3, 1 and the nearest corner is round(t*3). The
+   first draft gave the readout quarters (floor(t*4)) and quantum thirds — two
+   models of the same axis, and the readout said "B" while quantum still showed
+   A. Verified wrong in the browser before shipping; one function now. */
+const segOf = t => t * 3;
+const cornerAt = t => CORNERS[Math.round(segOf(t))];
+// quantum flips at the MIDPOINTS between centres — where round() changes.
+const QUANTUM_BOUNDARIES = [1/6, 1/2, 5/6];
+function hexLerp(a, b, k){
+  const pa = [1,3,5].map(i => parseInt(a.slice(i,i+2),16)), pb = [1,3,5].map(i => parseInt(b.slice(i,i+2),16));
+  return '#' + pa.map((v,i) => Math.round(v + (pb[i]-v)*k).toString(16).padStart(2,'0')).join('');
+}
+/* The colour a param SHOWS right now, given its flip mode and the morph position.
+   This is the audition: same morphT, four different visual laws. */
+function cornerColorFor(param){
+  if (!param.corner || param.flip === 'frozen') return NEUTRAL;
+  const own = CORNERS.find(c => c.id === param.corner).color;
+  const seg = segOf(morphT), i = Math.floor(seg), f = seg - i;   // A..D as 0..3
+  const from = CORNERS[Math.min(3,i)].color, to = CORNERS[Math.min(3,i+1)].color;
+  if (param.flip === 'quantum') return CORNERS[Math.round(seg)].color;
+  if (param.flip === 'semi')    return hexLerp(from, to, Math.floor(f * 4) / 4);   // 4 hops per segment
+  return hexLerp(from, to, f);                                                     // gradual
+}
+// Live modulated value: base + depth * sin, clamped to the param's range.
+function modOffset(param){
+  if (!param.mod) return 0;
+  const span = paramMax(param) - paramMin(param);
+  return param.mod * span * 0.5 * Math.sin(modPhase);
+}
+function modT(param){
+  if (!param.mod) return null;
+  const v = Math.max(paramMin(param), Math.min(paramMax(param), param.value + modOffset(param)));
+  return (v - paramMin(param)) / (paramMax(param) - paramMin(param));
+}
 const paramMin = p => p.kind === 'enum' ? 0 : p.min;
 const paramMax = p => p.kind === 'enum' ? p.options.length - 1 : p.max;
 const paramT = p => p.kind === 'enum' ? p.value / paramMax(p) : (p.value - p.min) / (p.max - p.min);
@@ -409,6 +547,8 @@ function makeDialCanvas(param, theme) {
       t: paramT(param),
       bipolar: param.kind === 'bipolar',
       ticks: param.kind === 'enum' ? param.options.length : 0,
+      cornerColor: cornerColorFor(param),
+      modT: modT(param), modDepth: param.mod || 0,
     });
     out.textContent = fmtValue(param);
     cv.setAttribute('aria-valuenow', String(param.value));
@@ -419,30 +559,61 @@ function makeDialCanvas(param, theme) {
   bindDialDrag(cv, param);
   return wrap;
 }
+// Every row's LABEL carries the corner as a left rule + the flip glyph, so
+// ownership reads the same across dial/linear/enum/toggle rows without each
+// widget inventing its own badge. --corner is set per row by its painter.
+function cornerLabel(param){
+  const lab = document.createElement('label');
+  const g = document.createElement('span'); g.className = 'flipglyph';
+  g.textContent = param.corner && param.flip !== 'frozen' ? CORNERS.find(c => c.id === param.corner).glyph : '';
+  g.title = param.corner ? `corner ${param.corner} · ${param.flip}` : 'system-wide · never flips';
+  lab.appendChild(g); lab.appendChild(document.createTextNode(param.label));
+  return lab;
+}
+const LINEARS = [];                            // linear-row updaters, repainted with the dials each frame
 function makeDialRow(param, theme) {
   const row = document.createElement('div'); row.className = 'row dialrow';
-  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
+  const lab = cornerLabel(param); row.appendChild(lab);
+  registerView(param.id, () => { const cc = cornerColorFor(param); row.style.setProperty('--corner', cc === NEUTRAL ? 'transparent' : cc); });
   row.appendChild(makeDialCanvas(param, theme));
   return row;
 }
 function makeNumericRow(param) {
   const row = document.createElement('div'); row.className = 'row' + (param.kind === 'bipolar' ? ' bipolar' : '');
-  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
-  const wrap = document.createElement('div'); wrap.className = 'rangewrap';
+  const lab = cornerLabel(param); row.appendChild(lab);
+  const wrap = document.createElement('div'); wrap.className = 'rangewrap rangewrap';
   if (param.kind === 'bipolar') { const tick = document.createElement('span'); tick.className = 'centertick'; wrap.appendChild(tick); }
   const inp = document.createElement('input');
   inp.type = 'range'; inp.min = String(param.min); inp.max = String(param.max); inp.step = String(param.step || 0.01);
   inp.value = String(param.value);
   inp.addEventListener('input', () => setParam(param.id, +inp.value));
-  wrap.appendChild(inp);
+  // Mod band + dot sit BEHIND the native range so the thumb (user's value) stays
+  // on top — same rule as the dial: the value is never obscured by the signal.
+  const band = document.createElement('span'); band.className = 'modband';
+  const dot = document.createElement('span'); dot.className = 'moddot';
+  wrap.appendChild(band); wrap.appendChild(dot); wrap.appendChild(inp);
   const out = document.createElement('output');
   row.appendChild(wrap); row.appendChild(out);
-  registerView(param.id, () => { inp.value = String(param.value); out.textContent = fmtValue(param); });
+  const paintLinear = () => {
+    inp.value = String(param.value); out.textContent = fmtValue(param);
+    const cc = cornerColorFor(param);
+    row.style.setProperty('--corner', cc === NEUTRAL ? 'transparent' : cc);
+    const mt = modT(param);
+    if (mt == null) { band.style.display = 'none'; dot.style.display = 'none'; return; }
+    const t = paramT(param), half = (param.mod || 0) * 0.5;
+    band.style.display = 'block'; dot.style.display = 'block';
+    band.style.left = (Math.max(0, t - half) * 100) + '%';
+    band.style.width = ((Math.min(1, t + half) - Math.max(0, t - half)) * 100) + '%';
+    dot.style.left = (mt * 100) + '%';
+  };
+  registerView(param.id, paintLinear);
+  LINEARS.push(paintLinear);
   return row;
 }
 function makeEnumRow(param) {
   const row = document.createElement('div'); row.className = 'row';
-  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
+  const lab = cornerLabel(param); row.appendChild(lab);
+  registerView(param.id, () => { const cc = cornerColorFor(param); row.style.setProperty('--corner', cc === NEUTRAL ? 'transparent' : cc); });
   const seg = document.createElement('div'); seg.className = 'seg';
   seg.setAttribute('role', 'listbox'); seg.setAttribute('aria-label', param.label);
   const btns = param.options.map((opt, i) => {
@@ -457,7 +628,8 @@ function makeEnumRow(param) {
 }
 function makeToggleRow(param) {
   const row = document.createElement('div'); row.className = 'row';
-  const lab = document.createElement('label'); lab.textContent = param.label; row.appendChild(lab);
+  const lab = cornerLabel(param); row.appendChild(lab);
+  registerView(param.id, () => { const cc = cornerColorFor(param); row.style.setProperty('--corner', cc === NEUTRAL ? 'transparent' : cc); });
   const sw = document.createElement('label'); sw.className = 'switch';
   const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = param.value;
   const track = document.createElement('span'); track.className = 'track';
@@ -486,6 +658,44 @@ mountPanel($('p-light-rotary'), 'light', 'rotary');
 mountPanel($('p-skeu-rotary'), 'skeu', 'rotary');
 
 const densityInput = $('density'), densityOut = $('density_o');
+/* MORPH + MOD DRIVERS. Corner colour is a pure function of morphT and each
+   param's flip mode, so moving morph repaints every row and dial through the
+   same VIEWS fan-out a value change uses — no second update path to drift.
+   The mod dot animates on requestAnimationFrame; it repaints ONLY the params
+   that carry modulation, and stops advancing when switched off so the band
+   parks — a frozen band is the honest "modulation present, not running" state. */
+const morphInput = document.getElementById('morph'), morphOut = document.getElementById('morph_o');
+const cornerKey = document.getElementById('cornerkey');
+CORNERS.forEach(c => { const b = document.createElement('b'); b.style.background = c.color; b.title = c.id + ' ' + c.name; cornerKey.appendChild(b); });
+function paintMorph(){
+  const c = cornerAt(morphT);
+  morphOut.textContent = c.id + ' ' + c.name;
+  [...cornerKey.children].forEach((b, i) => b.classList.toggle('on', CORNERS[i] === c));
+  PARAMS.forEach(p => (VIEWS[p.id] || []).forEach(fn => fn()));
+}
+morphInput.addEventListener('input', () => { morphT = +morphInput.value; paintMorph(); });
+morphInput.addEventListener('keydown', e => {
+  // Shift+arrow snaps to the QUANTUM BOUNDARIES (plus the ends): the quantum vs
+  // gradual difference is only visible right at a boundary, and hunting for
+  // 0.1667 with a slider hides it.
+  const snaps = [0, ...QUANTUM_BOUNDARIES, 1];
+  if (e.key === 'ArrowRight' && e.shiftKey) { morphT = snaps.find(x => x > morphT + 1e-6) ?? 1; morphInput.value = morphT; paintMorph(); e.preventDefault(); }
+  if (e.key === 'ArrowLeft'  && e.shiftKey) { morphT = [...snaps].reverse().find(x => x < morphT - 1e-6) ?? 0; morphInput.value = morphT; paintMorph(); e.preventDefault(); }
+});
+paintMorph();
+
+const modOn = document.getElementById('modon'), modOnOut = document.getElementById('modon_o');
+modOn.addEventListener('change', () => { modOnOut.textContent = modOn.checked ? 'running' : 'parked'; });
+let lastT = 0;
+function tick(now){
+  requestAnimationFrame(tick);
+  if (!modOn.checked) { lastT = now; return; }
+  const dt = Math.min(0.05, (now - lastT) / 1000 || 0); lastT = now;
+  modPhase += dt * 2 * Math.PI * 0.4;                        // 0.4 Hz: slow enough to READ
+  PARAMS.filter(p => p.mod).forEach(p => (VIEWS[p.id] || []).forEach(fn => fn()));
+}
+requestAnimationFrame(tick);
+
 densityInput.addEventListener('input', () => {
   density = +densityInput.value;
   document.documentElement.style.setProperty('--density', String(density));
