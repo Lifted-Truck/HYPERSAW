@@ -99,11 +99,17 @@ def main():
             print(f"  ... and {len(fail) - 20} more", file=sys.stderr)
         return 1
 
+    undesigned = sum(1 for r in body if len(r) < 8 or not r[7].strip())
     todo = sum(1 for r in body if r[3] == "TODO")
     ungrouped = sum(1 for r in body if r[4] == "(ungrouped)")
     scopes = sorted({r[1] for r in body})
-    print(f"presentation_check: GREEN ({len(body)} rows, scopes: {', '.join(scopes)}"
-          f"{f'; {todo} page=TODO, {ungrouped} ungrouped' if todo or ungrouped else ''})")
+    # The undesigned count is printed every run because it IS the queue. Silence
+    # would read as "the GUI is done" — which is exactly the reading that let a
+    # generated-everything pass look like progress.
+    print(f"presentation_check: GREEN ({len(body)} rows, scopes: {', '.join(scopes)}; "
+          f"{undesigned} undesigned (no chunk named)"
+          f"{f', {todo} page=TODO' if todo else ''}"
+          f"{f', {ungrouped} ungrouped' if ungrouped else ''})")
     return 0
 
 

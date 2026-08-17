@@ -115,15 +115,25 @@ def main():
         # to it. The paired gate below is the one with teeth.
         if scope not in ("global", "osc1"):
             continue
+        # UNDESIGNED ROWS DO NOT RENDER. An empty `chunk` means the four
+        # decisions in the table's header have not been made for this row, and a
+        # control generated before them is what produced a numeric-slider enum, a
+        # duplicated panel, and a SPECTRA surface nobody asked for.
+        if len(r) < 8 or not r[7].strip():
+            continue
         per_page.setdefault(page, {}).setdefault(group, []).append((addr, scope, label, widget, unit, p))
 
     total = 0
-    for page, groups in sorted(per_page.items()):
+    # ITERATE THE MARKERS IN THE FILE, not the pages we have content for. Looping
+    # over `per_page` meant a page with nothing to generate was never rewritten —
+    # so "generate nothing" left the previous 75 controls in place, and --check
+    # compared an unchanged in-memory copy against an unchanged file and reported
+    # GREEN. A generator that cannot EMPTY a block cannot revert, and a drift gate
+    # that only sees what was written cannot notice what should have been erased.
+    for page in sorted(set(re.findall(r"<!--GEN:(\w+)-->", gui))):
+        groups = per_page.get(page, {})
         marker = f"<!--GEN:{page}-->"
         end = f"<!--/GEN:{page}-->"
-        if marker not in gui:
-            print(f"gen_gui_controls: no {marker} in gui2.html — skipping {page}", file=sys.stderr)
-            continue
         out = []
         for group, items in sorted(groups.items()):
             out.append(f'  <div class="grp"><h3>{group}</h3>')
