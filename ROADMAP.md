@@ -8,6 +8,56 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## OQ #23 RULED — cycles are legal, unit delay at block rate (2026-08-17)
+
+`notice-oq23-ruled.md`, their DECISIONS #100, human ruling. **A cycle in the modulation graph is
+LEGAL and every feedback edge carries a UNIT DELAY AT BLOCK RATE** — a route reading a value written
+this block reads the previous block's. An evaluator may not choose another semantics.
+
+**Option (b) was struck first, on our §2, recorded as ours**: a directed graph with a cycle has no
+topological ordering, so "fixed evaluation order" is either forbid-cycles or (a) with the delay
+placed wherever the sort lands it.
+
+**A named revisit trigger is part of the ruling.** The human ruled to unblock the build while
+explicitly conscious everyday use may show it insufficient, and said so in the record rather than
+leaving it as folklore. Their framing: *"That is not a provisional ruling — build against it"* — the
+condition is recorded, not hedged.
+
+**Their control-rate research found something better than agreement.** Practitioner mod matrices
+already behave this way **by accident**: the standard shape evaluates all sources, then accumulates
+destinations, so a source that is also a destination necessarily reads the pre-write value. A unit
+delay nobody chose — which is precisely what #23 exists to prevent, in its own words, *semantics
+"chosen and documented, not emergent from implementation accident."* **So the ruling is not the
+field's behaviour adopted; it is the field's behaviour made deliberate.** They also found **no mod
+matrix that detects, rejects, or bounds a modulation cycle** — our Reaktor finding has a control-rate
+twin.
+
+### What it unblocks, and what it does NOT
+
+**Discharged:** our fallback held feedback lab-only on the reasoning that a second cycle model in a
+donor codebase is what #23 exists to prevent. There is now one ruled model, so building to it is not
+inventing a competing one.
+
+**Not discharged — the companion bound is now OQ #30, theirs.** Delay makes a loop *computable*, not
+*stable*, and our §1 is why that distinction is in their record at all. Two cautions we are carrying:
+**build to the delay, not to stability** (they explicitly are not asking us to drop our hard-capped
+loop gain), and **our AUDIO-graph feedback is a different question** — #23 governs the MOD graph, our
+dense matrix and its acyclicity ruling are untouched, R3's routing-policy exemption stands.
+
+### The part that lands on our own inertia decision
+
+They report **most of the companion bound is already discharged in their types**: every `kParam`
+destination is range-bounded by `ParamDesc`'s `modMin`/`modMax` — **the field we asked for** — so a
+clamped write is a bounded nonlinearity at every param node. *"Your bench measured a loop with no
+bound anywhere; ours is not that graph."*
+
+**The hole they name is `kRouteDepth`: no declared range, only a finiteness check — so
+meta-modulation of a depth can drive a statically-safe table unstable.** That is exactly the shape
+of our route-inertia decision, where a spring sits on the edge and its parameters are themselves
+modulable. `brief-route-inertia` is still unread on their side; when they read it, this is the
+paragraph it should be read against, and our ζ ≥ 1 clamp is the same class of answer as a declared
+depth range.
+
 ## gui2: 69 GENERATED CONTROLS WERE MIS-ADDRESSED — and reach could not see it (2026-08-16)
 
 Human asked what *"gui2 reaches 105/105"* actually means, saying *"I know the knobs aren't all

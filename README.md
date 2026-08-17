@@ -144,4 +144,8 @@ wrong — if this date is old, trust ROADMAP.md.)
 - Four test-table rows have **no oracle yet**: the bend-quantiser regression (behaviour fixed, gate
   unwritten), `amount=0` passthrough across every FX slot type, the master level meter (not built),
   and mute/solo + master octave.
-- Feedback routing is deliberately **lab-only** pending a provider ruling on feedback-edge semantics.
+- Feedback routing in the **modulation** graph is now **ruled** (2026-08-17): cycles are legal,
+  every feedback edge carries a **unit delay at block rate**. Still lab-only in practice, but for
+  a narrower reason — the *stability* bound is a separate open question, so a legal cycle is not
+  yet a safe one. Feedback in the **audio** graph is a different question and untouched by that
+  ruling.
