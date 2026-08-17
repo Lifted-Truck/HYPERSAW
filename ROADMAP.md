@@ -8,6 +8,52 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## AESTHETICS LAB LANDED — and a proposed order for rebuilding gui2 (2026-08-17)
+
+`docs/design/aesthetics-lab.html` (subagent, brief `briefs/2026-08-17-aesthetics-lab.md`; lead
+verified in the browser). **Six panels — dark / light / skeuomorphic × linear / rotary — rendering
+the SAME six controls sharing ONE value**, so the comparison is honestly one parameter six times.
+Verified: 3 theme token blocks, 0 zero-size boxes, 15 canvas dials all keyboard-operable, the enum
+rendered as **12 segmented buttons + a detented dial, zero numeric ranges** (the exact defect our
+generator shipped), shared value propagates across every panel, density slider scales canvas AND CSS
+from one value. No framework, no CDN, no bridge, no param ids — *"silent on purpose, since wiring in
+sound would imply a live parameter path that does not exist here."* Lab gate GREEN.
+
+**Two visibility facts the human should know**, since the revert looked invisible: a default plugin
+build embeds **GUI1** (`HYPERSAW_GUI2` is OFF), so gui2 changes never reach the VST; and the dev
+server was still serving the pre-revert copy — **lead's miss, now refreshed** (117 → 42 controls, i.e.
+30/105 reachable, hand-written only).
+
+### Proposed rebuild order (human proposal, lead-refined; not yet ratified)
+
+Human: *"wire things into morph while we work on this since some hierarchy decisions are going to
+have to be made throughout — some things flip together, others are discrete, matter of taste, and
+everything that flips needs its corner colour … build the morph page and the mod matrix and the
+modulators, then reintroduce the engine parameters in chunks, unless there is a more coherent
+process."*
+
+**Agreed on the principle; one reordering proposed on the mechanics.** The morph page and the mod
+matrix are both *views over the same address-keyed table* the chunks are drawn from — corner
+membership and flip-mode are per-param declarations, and mod destinations are the same addresses. So:
+
+1. **Morph decisions become a declaration first** — a sibling address-keyed table (`param_morph.tsv`:
+   corner-group · flip-mode per QM-0 §4 · corner colour token), NOT columns on the presentation
+   table, because morph membership is semantics rather than presentation and fusing them repeats
+   the D1 mistake in a new place.
+2. **MORPH page in gui2 as a preview of that table** — renders every declared param in its corner
+   colour with its flip-mode, engine-gated by the same real-surface rule. Cheap, no C++, and it is
+   *where the taste decisions get made and recorded*.
+3. **Engine params re-enter chunk-wise, each row carrying its morph decision** — one row → OSC page +
+   MORPH page. The four chunk decisions become five.
+4. **Mod matrix + modulators as their own track**, in parallel: the modulators need C++ (Kuro LFO,
+   random family — task #19), the matrix core lands on FOUNDATIONS' five-tuple doorframe, and its
+   destinations are exactly the addresses steps 1–3 are populating.
+
+**Why not mod-matrix-first as literally stated:** its destinations are the engine params, which are
+not on the GUI yet, and its sources need engine work that does not exist — so it would be routing to
+nowhere from nowhere. Morph-first is different: it needs no engine and it *is* the hierarchy
+decision.
+
 ## GUI GENERATION REVERTED TO ZERO — chunks are now opt-in, and FOUNDATIONS is clear (2026-08-17)
 
 Human, after inspecting gui2: *"Is this just a parameter roundup to pass the gate? … I want to make
