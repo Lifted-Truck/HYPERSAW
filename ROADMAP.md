@@ -1,4 +1,4 @@
-# SWARM✱ — roadmap (phase-gated)
+# horde — roadmap (phase-gated)
 
 Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset + trace written. Passing ≠ done; done = green + acceptance criteria + DECISIONS/trace updated.
 
@@ -7,6 +7,44 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 **Status (2026-07-18):** Phase 1 GATE CLOSED (PR #2 merged; protocol findings + free-row erratum ratified with the merge, erratum applied to ACCEPTANCE). Phase 2 in progress: SwarmCore is live in the plugin — placeholder sine replaced, 18-param CLAP surface at prototype ranges (dissolve in seconds, driftDepth in cents), versioned key=value state; pluginval strictness 10 SUCCESS, auval SUCCEEDED post-integration. Phase 2 remaining: tempo-grid law port (needs host tempo; L0-12), bimodal/clustered-pairs distributions (OPEN QUESTION — SPEC lists them, the reference doesn't implement them: extending the reference is a spec change needing a human ruling), GUI v1 + dev state button, webview smoke test, Layer-E 1/2/5 sign-off.
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
+
+## RENAMED: SWARM✱ → horde; the ✱ house mark retired (2026-08-17)
+
+Human: *"change the tentative rename from SWARM✱ to horde and remove the ✱ convention from the
+design."* This closes the naming pass a 2026-08-03 entry deferred (*"the ✱ is still the SWARM✱ house
+mark across docs/prototypes — decide"*).
+
+**37 files, 65 lines, 65 in / 65 out.** Three kinds of occurrence, three treatments, stated so the
+choices are reviewable rather than discovered:
+
+- **The instrument's working title** (`SWARM✱` standing alone, or `SWARM✱ · <lab>`) → **`horde`**, in
+  living docs (README, CLAUDE.md §Domain, project.manifest.json), the protected specs' H1s (SPEC,
+  SPEC-EFFECTS, SPEC-SWARMALATOR, ACCEPTANCE, PRIOR-ART), every lab's `<title>`/`<h1>`, and the
+  H1-only of the append-only logs (DECISIONS, PARKED, ROADMAP).
+- **Family names** (`SWARM✱SAW`, `SWARM✱SPECTRA`, `SWARM✱LFO`, `SWARM✱ALATOR`, `SWARM✱FX` — the ✱
+  followed by a letter) → **star dropped, prefix kept**: `SWARMSAW`, `SWARMLFO`, `SWARMFX`. These are
+  the prototypes' historical identifiers (they match `swarmsaw.html`, `SwarmSynth`, the SWARM-FX
+  product line); renaming *them* to horde would be inventing a second rename the human did not ask
+  for. **This is the one judgement call in the change** — flagged, and one regex away if wrong.
+- **History left alone**: DECISIONS entries, `traces/`, dated `docs/reports/`, `docs/change-notes/`,
+  and old ROADMAP entries keep `SWARM✱` — a log that is rewritten stops being a log.
+
+**Protected paths touched, and why that is safe.** Seven prototype HTMLs (the reference
+implementation) and five spec docs. The human directed it, which is the gate — but the charter says
+an edit to a prototype is a spec change, so it was **proven not to be one**: every prototype diff is
+`<title>`/`<h1>`-only (0 non-title lines changed in all seven), and `./verify full` came back **parity
+147/147, worst 4.262e-09 — unchanged to the digit**, with all seven core parity chains green. The
+goldens are generated from the JS cores, not the wordmark; this is the measurement that says so.
+
+**Domain vocabulary is untouched by construction**: the transform matched only `SWARM✱` and the
+`SWARM<span class="star">✱</span>` markup — never lowercase `swarm`, `SwarmCore`, `SwarmSynth`,
+`SWARM-FX`, `swarmalator`, or any filename. Verified by grepping the diff for those.
+
+**Open, stated rather than guessed:** **casing.** The human wrote `horde` lowercase and that is what
+landed everywhere; if the wordmark wants `HORDE` where `SWARM✱` was uppercase, that is one `sed`.
+And `docs/img/gui-overview.png` still shows the old wordmark — it refreshes with the next
+GUI-changing PR per its own caption. The now-unused `.star` CSS rule was left in place in the
+prototypes to keep those diffs to the h1 alone.
 
 ## AESTHETICS LAB: corner flipping + modulation overlays; route inertia answered (2026-08-17)
 

@@ -1,4 +1,4 @@
-# SWARM✱ — prior art & positioning
+# horde — prior art & positioning
 
 Verified against current products, July 2026. Purpose: precise novelty claims, honest debts, and one risk flag.
 
@@ -31,7 +31,7 @@ Mature category — cite it, don't pretend otherwise:
 
 ## 5. Positioning paragraph (for README/marketing, keep accurate)
 
-The ingredients that resemble parts of SWARM✱ exist as separate mature categories — adaptive-JI tuners (Hermode, Pivotuner, Alt-tuner), additive resynthesis (Razor), and configurable unison (Serum 2's tuning modes, NI Super*Saw's morphing) — but no shipping instrument generates timbre, tuning, and performance gesture from one coupled-oscillator dynamical system. SWARM✱ is not a thicker supersaw; it is the supersaw's physics, exposed and played.
+The ingredients that resemble parts of horde exist as separate mature categories — adaptive-JI tuners (Hermode, Pivotuner, Alt-tuner), additive resynthesis (Razor), and configurable unison (Serum 2's tuning modes, NI Super*Saw's morphing) — but no shipping instrument generates timbre, tuning, and performance gesture from one coupled-oscillator dynamical system. horde is not a thicker supersaw; it is the supersaw's physics, exposed and played.
 
 ## 6. Coupled-oscillator synthesis research lineage (added 2026-07-19)
 

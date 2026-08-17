@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>SWARM✱ filter lab — swarm bank as a rack filter</title>
+<title>horde filter lab — swarm bank as a rack filter</title>
 <style>
   :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
           --fg:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --conv:#b98cff; }
@@ -41,7 +41,7 @@
 </head>
 <body>
 <div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
-<h1>SWARM✱ filter lab</h1>
+<h1>horde filter lab</h1>
 <div class="tagline">Lab campaign 3 item 2 — the human's verdict on the E1 cores was <b>"not quite there yet"</b>, so this bench starts by measuring <i>why</i> rather than guessing. <b>The shipped bank was measured first</b> (`filter_core.h`, `processExternal`, swept steady-state at 48 kHz) and three concrete defects came out, all reproduced live below: it is a <b>band-pass hump with no filter topology</b> (rolls off on BOTH sides in every configuration); its <b>low end is 24 dB down at default and gets WORSE as Q rises</b> (28 dB); and most importantly <b>the resonance knob is a backwards volume knob</b> — peak output falls +0.98 → −3.21 → −9.32 dB as qbase goes 0.1 → 0.5 → 0.9, because summing N unity-gain bandpasses captures less total energy as they narrow. Turn up resonance, get quieter and thinner: that is almost certainly the feel behind the verdict. Each fix is a switchable variant so you can hear whether it earns its place, with a conventional multimode alongside for the "how would this sit in the rack" question. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone.</div>
 
 <div class="cols">

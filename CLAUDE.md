@@ -71,7 +71,7 @@ lists as protected.
 **What this is.** A synthesizer whose timbre, tuning, and performance gestures
 emerge from one coupled-oscillator dynamical system (Kuramoto swarm over a
 kernel — "the supersaw taken seriously as physics"). CLAP-native instrument
-plugin, VST3 via clap-wrapper (ADR-002). Working product title SWARM✱; naming
+plugin, VST3 via clap-wrapper (ADR-002). Working product title horde; naming
 open until Phase 5. Design docs: SPEC.md (the instrument), ACCEPTANCE.md (the
 oracle contract), PRIOR-ART.md, PARKED.md.
 

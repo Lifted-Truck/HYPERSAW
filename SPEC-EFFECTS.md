@@ -1,6 +1,6 @@
 <!-- Ingested 2026-07-18 from design-session packet UPDATE-001 (archived at docs/change-notes/). ADR references remapped to this repo's numbering: packet 010-012 = local 015-017 (already present); packet 013-016 = local 029-032. SPEC-FILTER.md was never ingested here; supersession note is vacuous locally. -->
 
-# SWARM✱ — effects specification (consolidated: filter · phaser · delay · reverb)
+# horde — effects specification (consolidated: filter · phaser · delay · reverb)
 
 Supersedes `SPEC-FILTER.md` (ADR-031). Four engines on **one shared force system**, applying swarm dynamics to filter frequencies and delay times at control rate. All four accept external audio in the VST — this is the project's effect product line. State-domain coupling (ring phases/amplitudes; Stuart–Landau) remains parked behind the physical-modeling bridge.
 

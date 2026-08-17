@@ -1,4 +1,4 @@
-# SWARM✱ — acceptance criteria
+# horde — acceptance criteria
 
 Two layers, per ATTEST discipline. **Layer-0**: deterministic, CI-blocking, runs in `./verify fast`. **Layer-E**: behavioral/listening checks, `./verify full` + human sign-off. Every number below was measured on the JS reference implementations in this design cycle; tolerances are stated where drift is acceptable.
 
