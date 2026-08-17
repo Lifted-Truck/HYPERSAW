@@ -8,6 +8,68 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## ENGINE FAMILY EXPANSION — SAW is HYPERSAW; the formant engine is ingested (2026-08-17)
+
+Human direction, three parts, all recorded in **ADR-091**:
+
+1. **The SAW engine is named HYPERSAW.** Done: `kEngineLabels[0]`, gui.html's visible string, SPEC.md
+   (4 mentions), ACCEPTANCE.md (2). **Label only** — enum value 0 and the state key are untouched,
+   proven by `state_check` GREEN and parity **147/147 unchanged**. History (old ROADMAP entries,
+   traces) keeps "SAW".
+2. **The sound-design space widens** from one thesis to **a family of experimental, responsive
+   engines with dynamical characteristics, oriented toward hyperpop.** HYPERSAW and SPECTRA are the
+   first two members. Every new engine follows the founding discipline: a browser prototype that IS
+   the oracle, a `SPEC-*.md`, seedable determinism, parity as correctness.
+3. **The formant engine (working name CANTO) is ingested** — `horde_formant_pulsar_fof.html` +
+   `SPEC-FORMANT.md` (moved from `HORDE_formant_engine_spec.md` into the `SPEC-*.md` convention).
+   Both are **protected paths** from now on. FOF/pulsar grains, formants as masses on springs in
+   log-frequency with their own coupling K, one hidden register state **R** that reshapes the whole
+   engine as pitch descends, masking as stochastic rhythm, an XY vowel field that is itself a dragged
+   mass and a quantum-morph surface.
+
+### Triage of the prototype (what it is and is not yet)
+
+| finding | status |
+|---|---|
+| separable core — `class FormantCore` with headless `render(out)` | ✅ candidate-oracle shape |
+| register formulas match spec §4 line for line | ✅ |
+| **masking uses `Math.random()`** — spec §9 requires a seedable RNG | ❌ **blocker for oracle status**; the one sanctioned edit |
+| `performance.now()` × 2 | ✅ UI-side only, not in DSP |
+| Google-fonts `<link>` | ⚠ fine at root; must go before a lab copy or webview embedding |
+| `lab_load_check` RED (bare `devicePixelRatio`) | ⚠ root prototypes are not swept, so gates nothing today |
+
+### QUEUE — formant engine, in order
+
+- **F0 · Seed the RNG** — mulberry32 stream in place of `Math.random()` for masking. Spec-preserving;
+  the only edit the prototype needs to become a valid reference. Until then, no goldens.
+- **F1 · Golden generator + parity gate** — extract `FormantCore` headlessly (the swarmsaw pattern);
+  the spec's own four cases: sustained note per vowel · vowel snap i→a at ζ 0.2 · octave drop A3→A1
+  at lag 4 Hz · burst 4/4 at f0 55 Hz; plus its stability sweep (max morph rate × max lag × min ζ,
+  blocks 32–1024). `formant_check` joins `./verify`.
+- **F2 · The lab: polyphonic choir + vowel coupling** — the human's stated first work: *"expanding it
+  to give it the quality of a proper polyphonic choir synth with a coupling logic for the vowel
+  sounds."* Spec §7 already says the plugin is polyphonic with per-voice masses and a global vowel
+  field; the lab's question is what couples ACROSS voices — a Kuramoto term on the vowel-field
+  positions, on the formant masses, or on R — and whether that coupling reads as a choir *agreeing*
+  on a vowel rather than N soloists. Note the pattern: coupling K on formant centres already exists
+  *within* a voice (spec §3); the choir question is the same operator one level up. This is a lab
+  down the road, not next.
+- **F3 · Shell integration** — engine selector grows to three; per-voice grain pools sized from the
+  spec's worst case; R, XY position, XY velocity and grain-emission events exposed as mod sources.
+  Only after F1 is green.
+
+### What the family implies for work already in flight
+
+- The **presentation table's scope prefixes** (`global`/`osc1`/`osc2`) assumed oscillators of one
+  kind; a family means an engine dimension. Not decided here — a design item for the chunk protocol.
+- The **engine selector's real-surface gating** (gui2's rule) now has a third engine to gate.
+- **Corner/morph declarations** per param extend naturally: a formant param has a corner like any
+  other. The aesthetics lab's flip-mode model is the schema.
+- **Casing, resolved by the human's own artefacts:** the spec file and the prototype's `<h1>` use
+  **HORDE** uppercase. Yesterday's rename landed `horde` lowercase as written in chat. Recommendation:
+  **`HORDE` as the wordmark**, matching the human's files — one `sed` on the rename PR's 65 lines,
+  awaiting a nod.
+
 ## RENAMED: SWARM✱ → horde; the ✱ house mark retired (2026-08-17)
 
 Human: *"change the tentative rename from SWARM✱ to horde and remove the ✱ convention from the

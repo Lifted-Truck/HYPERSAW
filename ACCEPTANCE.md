@@ -10,7 +10,7 @@ C++ core vs JS reference (`SwarmSynth` / `SpectraSynth` / `DynSynth`): identical
 
 **Domain limit (ADR-065, human-approved 2026-07-23).** L0-1 is a valid oracle only in non-chaotic regimes. Where the dynamics have a positive Lyapunov exponent — measured case: the harmonic law (4) at full spread under strong coupling — a 1-ULP perturbation of the JS reference *alone* diverges to rms ≈ 9.4e-2, matching the C++/JS gap, so sample-exact agreement is impossible in principle (`Math.sin` and `std::sin` are not identically rounded). Such regimes are excluded from the golden matrix and covered by behavioural anchors in `trajectory_check` instead: boundedness, NaN-cleanliness, and the qualitative claim the parameter exists to make, each checked with stated margin. Excluding a scenario on these grounds requires the same evidence ADR-065 records — a bracketed divergence curve **and** a reference-only perturbation test — never a bare assertion that a failure is "just floating point."
 
-## L0-2 · Sync phase transition (SAW core)
+## L0-2 · Sync phase transition (HYPERSAW core; engine renamed from SAW 2026-08-17, ADR-091)
 
 From retriggered start, K in ×σ units, R sampled ~1/s:
 
@@ -84,7 +84,7 @@ Same seed + note sequence → bit-identical control-path state and ε-identical 
 - E-3: Gravity settling on a held ET major third is audible as decelerating-then-stopped beating within ~2 s.
 - E-4: Splay erasure residue (sine kernel) reads as "shimmering silence," not artifact.
 - E-5: Mono fold-down of a wide patch is usable, not comb-hollow.
-- E-6: 8-voice poly at M = 32 (SAW) sustains without dropouts on the target hardware envelope (ratified 2026-07-17 at the Phase 0 gate): min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook; Windows x64 AVX2; 44.1 kHz at 128-sample buffer; the patch must hold < 50% of one core on min-spec.
+- E-6: 8-voice poly at M = 32 (HYPERSAW) sustains without dropouts on the target hardware envelope (ratified 2026-07-17 at the Phase 0 gate): min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook; Windows x64 AVX2; 44.1 kHz at 128-sample buffer; the patch must hold < 50% of one core on min-spec.
 
 
 <!-- Track E criteria ingested 2026-07-18 (packet UPDATE-001); numbering L0-14..21 continues the sequence — the Phase 3 Daido formalization planned in ROADMAP will take L0-22+ -->

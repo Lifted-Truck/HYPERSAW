@@ -1122,3 +1122,59 @@ Its own increment, not folded into B23's. New per-oscillator param, seat offset
 in the core, reference edit, goldens re-measured, and a probe proving the far
 side survives a hard pan — which is exactly what a balance law would fail.
 
+
+## ADR-091 — Engine family expansion: SAW renamed HYPERSAW; a hyperpop-oriented experimental engine track opens with the formant engine (ACCEPTED)
+
+**Date:** 2026-08-17 · **Status:** ACCEPTED (human direction). Documentation,
+ingestion and label rename done in this change; engine implementation is
+roadmapped, not started.
+
+### Decision
+
+1. **The engine formerly named SAW is named HYPERSAW.** Label only: `kEngineLabels[0]`,
+   the GUI's visible string, and the engine-name mentions in SPEC/ACCEPTANCE. The
+   enum value (0) and the state key are untouched, so no saved patch changes.
+2. **The instrument's sound-design space widens** from "the supersaw taken
+   seriously as physics" to a *family* of experimental, responsive engines with
+   dynamical characteristics, oriented toward the sounds of hyperpop. HYPERSAW and
+   SPECTRA are the first two members; each new engine follows the same discipline —
+   a browser prototype that is the oracle, a `SPEC-*.md`, seedable determinism,
+   parity as correctness.
+3. **The first new engine is the formant engine** (working name CANTO): FOF /
+   pulsar grain synthesis where the fundamental is a firing rate, formants are
+   grains, every continuous control is a mass on a spring, and one hidden register
+   state R reshapes the whole engine as pitch descends. Ingested today as
+   `horde_formant_pulsar_fof.html` (prototype, `FormantCore`) and `SPEC-FORMANT.md`
+   (spec v0.1, moved from `HORDE_formant_engine_spec.md` into the `SPEC-*.md`
+   convention so it is found where the other engine specs are found).
+
+### Triage of the ingested prototype — what it is and is not yet
+
+- **It has a separable core** (`class FormantCore` with a headless `render(out)`),
+  which is what makes it a candidate oracle at all (ADR-003 shape).
+- **Its register formulas match the spec exactly** (`bwk`, `reg.shift`, `tilt`,
+  `tex`, `sub` — checked line for line).
+- **It is NOT yet a valid oracle**, for one reason: masking uses `Math.random()`.
+  The spec (§9) already requires a seedable RNG for parity; the prototype does not
+  have it. Under this project's determinism invariant (mulberry32 streams only,
+  SPEC §5.7) this is a blocker for golden generation, not a nit. **Fixing it is a
+  spec-preserving edit** — a seeded stream substituted for `Math.random()` — and is
+  the first roadmapped item.
+- Both `performance.now()` reads are UI-side (event-train display, a 1.5 s meter
+  window), not in the DSP path. Fine.
+- It links a Google font (`<link href="https://fonts.googleapis.com/...">`). Not
+  blocking for a root prototype; must be inlined or dropped before any lab copy
+  (self-contained rule) or webview embedding (CSP).
+- It does not load in `lab_load_check` (bare `devicePixelRatio` in a canvas `fit()`
+  helper). Root prototypes are not swept today, so this gates nothing now; it is
+  recorded so the lab copy fixes it on arrival.
+
+### Consequences
+
+- The prototype and spec are **protected paths** from this ADR on, with the same
+  meaning as the other seven: an edit is a spec change. The one edit already
+  sanctioned is the seeded-RNG substitution above.
+- Corner colour, morph, mod-matrix and presentation-table work all assumed one or
+  two engines; a family means the presentation table's `scope` prefixes and the
+  engine selector's real-surface gating both grow. That is the design work, and it
+  is on the ROADMAP rather than implied.
