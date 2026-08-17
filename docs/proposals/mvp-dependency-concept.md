@@ -23,7 +23,7 @@ Three facts, each verified rather than assumed:
 1. **gui2 reaches 30 of 105 params** (`tools/gui_reach.py`, today). The MVP means
    hand-adding roughly **75 controls**.
 2. Their **standing GUI criterion** (their ROADMAP, DECISIONS #64, human-set):
-   *"GUI structure derives from registry declarations (auricle's
+   *"GUI structure derives from registry declarations (the granular sibling's
    triple-maintenance scar is the evidence); styling is data, separable from
    structure … GUI components bind to SCOPES so they reuse wherever the scope
    instantiates."*

@@ -30,3 +30,6 @@ docs/design/quantum-morph-lab.html
 
 # prebuilt bench binary — rebuilt on demand, not tracked
 dist/cpu_bench
+
+# private-sibling real names for the leak gate — never tracked (ADR-014)
+.leakcheck-names

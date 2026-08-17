@@ -44,10 +44,33 @@ leak_gate() {
   fi
   hits=$(git grep --untracked -nIE '/(Users|home)/[^/]+/' -- . "${excludes[@]}" 2>/dev/null \
          | grep -vE '/(Users|home)/[<$@{%]' || true)
-  [ -z "$hits" ] && return 0
-  echo "verify: LEAK — machine-absolute path in a tracked file (use ~/ instead):" >&2
-  echo "$hits" | sed 's/^/    /' >&2
-  return 1
+  if [ -n "$hits" ]; then
+    echo "verify: LEAK — machine-absolute path in a tracked file (use ~/ instead):" >&2
+    echo "$hits" | sed 's/^/    /' >&2
+    return 1
+  fi
+  # PRIVATE-SIBLING NAMES (ADR-014). The alias rule was prose-only until
+  # 2026-08-17 — this gate checked paths, never names — and three tracked files
+  # carried real names, two of them the lead's own from quoting a correspondent.
+  # The names themselves live in .leakcheck-names, UNTRACKED, so this tracked
+  # gate never has to contain the thing it forbids. CI has no such file and
+  # says SKIPPED rather than pretending it ran (same idiom as conformance_check).
+  if [ -f .leakcheck-names ]; then
+    local pat
+    pat=$(grep -vE '^\s*(#|$)' .leakcheck-names | paste -sd'|' -)
+    if [ -n "$pat" ]; then
+      hits=$(git grep --untracked -nIP "($pat)" -- . "${excludes[@]}" \
+               ':(exclude)PRIVATE-NOTES.md' ':(exclude).leakcheck-names' 2>/dev/null || true)
+      if [ -n "$hits" ]; then
+        echo "verify: LEAK — a private sibling's real name in a tracked file (alias it; map in PRIVATE-NOTES.md):" >&2
+        echo "$hits" | sed 's/^/    /' >&2
+        return 1
+      fi
+    fi
+  else
+    echo "verify: .leakcheck-names absent — private-name leak check SKIPPED (expected off this Mac)" >&2
+  fi
+  return 0
 }
 
 # M_PI is a POSIX extension, NOT standard C++: MSVC does not define it without

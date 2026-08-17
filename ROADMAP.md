@@ -8,6 +8,77 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THREE FX MODULES QUEUED — and the alias rule finally has a gate (2026-08-17)
+
+Human: *"a pared-down version of [the granular sibling] turned into an FX module in here. Also a
+version of OTT, and a morphing waveshaper with some kind of experimental hysteresis (we can work on
+all of this in labs down the road)."* All three are **labs first**, and all three land as slot types
+under the **FX slot contract** the human approved (rack owns dry/wet, `mix = 0` bit-identical by
+construction) — so each arrives with a declaration `{identity_at, blends_dry, changes_image,
+changes_level, latency_samples}` and is measured by `slotcontract_check`, not by prose. That contract
+is not built yet; it is the prerequisite for all three, which is one more reason to build it.
+
+### FX-A · granular sibling, pared down, as an FX module
+The human's 2026-07-20 note (*"the intersection of granular and dynamical"*) made concrete: a trimmed
+granular engine as a slot, not a fourth synth engine. **Cross-repo**: the source is a private sibling,
+so this follows INTEGRATIONS.md — brief → response, writes stay home, extraction by their residents —
+not a copy. Same family as the parked grain swarm (SPEC-SWARMALATOR, ADR-048); the FOF/pulsar
+formant engine (ADR-091) is *also* a grain scheduler, so **the lab's first question is what "pared
+down" keeps**: which grain controls survive when the module's job is to process rather than
+synthesise, and whether the granular engine's grain clock should couple to HYPERSAW's swarm (the
+"dynamical" half) or stay free-running. Declaration: `blends_dry`, `latency_samples > 0`.
+
+### FX-B · a version of OTT
+The multiband upward+downward compressor that is, more than any single tool, the hyperpop sound —
+which is why it belongs in a hyperpop-oriented family (ADR-091). Straight OTT is three bands, per-band
+up/down ratios, depth, time. **The design question the lab must answer before building:** does horde
+ship a *faithful* OTT (an FX module that happens to be here) or a *horde* OTT — bands whose thresholds
+or crossovers are swarm-modulated, or coupled to each other so the bands agree? The family thesis says
+engines have dynamical characteristics; an FX module may legitimately be plain. Decide by ear in the
+lab, not by thesis. Reuses `Comp` slot's comp+limiter lineage (ADR-054); replaces nothing.
+Declaration: `changes_level` (obviously), `blends_dry` false — dry+OTT is parallel compression, a
+different effect (the FX contract proposal already names this trap).
+
+### FX-C · a morphing waveshaper with experimental hysteresis
+Two ideas, deliberately separable in the lab because they fail differently:
+- **Morphing** — a set of transfer curves interpolated by a morph position. **The morph-law bench
+  already answered the shape question**: interpolate the *curve* (dense table) vs cross-fade the
+  *output* differ audibly at speed; the dense-table model is the one to reuse, and it composes with
+  the quantum-morph slot modes (a shaper corner that flips is a real sound-design object).
+- **Hysteresis** — the transfer depends on the signal's *history* (magnetic-style, Preisach or
+  Jiles-Atherton, or a simpler state-dependent curve). This is what makes it experimental: a shaper
+  with memory. **Two cautions from work already done here:** (1) a hysteretic nonlinearity is state
+  inside the slot, so it must declare its own reset/settling — the FX contract's `identity_at` becomes
+  "at mix 0 *and* after settling"; (2) the feedback survey's finding — bounded nonlinearity in the
+  loop is what creates a playable region — still holds for a hysteretic one, but memory can turn a
+  stable loop into a slowly drifting one, so it wants the feedback lab's edge-width scan run against
+  it before it is ever allowed on a feedback path.
+- SPEC-FORMANT §10 already names the hand-off *"this engine → all-pass network → shaper → dispersion,
+  see distortion engine spec"* — a distortion engine spec that **does not exist yet**. This module is
+  most of it. Recorded so the two are designed as one thing.
+
+**Order, if it matters:** the FX slot contract first (all three depend on it), then FX-C (self-
+contained, no cross-repo, and it exercises the contract's hardest declaration), then FX-B, then FX-A
+(cross-repo, slowest by design). Presentation-table rows for each land with their chunk decisions per
+the chunk protocol; corner/flip declarations per the morph schema.
+
+### Found while writing this: the alias rule had no gate, and it had been broken
+
+CLAUDE.md and ADR-014 forbid a private sibling's real name in a tracked file; PRIVATE-NOTES.md holds
+the alias map. **`leak_gate` checked machine paths and never names** — the rule was prose-only, which
+the doctrine names as the failure ("prose is the reminder, the gate is the enforcement"). Grepping
+found **three files carrying real names: two of them the lead's own** (quoting FOUNDATIONS' evidence
+lists in `docs/proposals/mvp-dependency-concept.md` and a ROADMAP entry) plus a 2026-07-22 trace whose
+grep-pattern list literally spelled out three private names. All aliased. Then the gate: `verify` now
+reads `.leakcheck-names` — **untracked and gitignored, so the tracked gate never has to contain the
+thing it forbids** (same shape as PRIVATE-NOTES.md and the vendored FOUNDATIONS headers) — and fails on
+any hit; CI has no such file and says SKIPPED loudly. Case-sensitive on purpose: the first draft was
+case-insensitive and tripped on *"re-strikes in place"* and *"place voices"*. Calibrated: a planted
+real name trips it, *"in place of"* does not; the capitalised English imperative at a sentence start
+("P-word the file here") would false-positive, which fails in the safe direction and is rare —
+**and this very entry tripped it while describing that case**, which is the trace-file lesson
+repeated: a doc *about* the pattern is a hit. `verify` edit is additive (ADR-089: adding is delegated).
+
 ## ENGINE FAMILY EXPANSION — SAW is HYPERSAW; the formant engine is ingested (2026-08-17)
 
 Human direction, three parts, all recorded in **ADR-091**:
@@ -3394,11 +3465,11 @@ overwritten by one machine's results. Filed as `offer-param-rescan-spike.md`.
 
 **Also resynced, and both moved in our favour:**
 - Their **#16 signal-graph topology** now cites **three convergent consumers** — our six-scheme
-  lab, Morphos's absent bus abstraction, auricle's hardcoded `Engine::process` order. When their
+  lab, the canvas sibling's absent bus abstraction, the granular sibling's hardcoded `Engine::process` order. When their
   response was written it was "the second consumer decides"; it is now three, and the shape is
   still deliberately undecided. Our ratifying C locally remains exactly what they asked for.
 - Their **#17 graph legality on the read side** is now a named open question with **two**
-  convergent consumers (auricle's "the runtime trusts the document", plus our backwards edge via
+  convergent consumers (the granular sibling's "the runtime trusts the document", plus our backwards edge via
   preset load). Our finding generalized past routing on their side, not ours.
 
 ## B23 UNBLOCKED — FOUNDATIONS widened the doorframe (2026-08-09, read 2026-08-10)
