@@ -725,6 +725,12 @@ an anchor, not after.**
 
 ## FEEDBACK FIELD SURVEY — and OQ #23 is missing a half (2026-08-15)
 
+> **Superseded in part (2026-08-17):** OQ #23 was subsequently ruled — cycles are legal, with a
+> mandatory unit delay at block rate — and the missing half this entry names is the half our own
+> evidence supplied. See *OQ #23 RULED* above. **Landed late:** this entry and the survey report
+> sat on an unmerged branch from 2026-08-15 until 2026-08-18, found by a routine check for
+> unmerged work rather than by anything noticing they were absent.
+
 Four-agent research swarm at the human's request. Report:
 `docs/reports/2026-08-15-feedback-field-survey.md`.
 
