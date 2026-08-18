@@ -38,6 +38,8 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 
 - [L0036] **CANONICAL:** PIN YOUR REFUSALS — a deliberate absence needs a test or it becomes an accidental presence; assert that the withheld operation has no route, that the deliberately-open case still validates, and that the uncovered boundary is named | testing, design, invariants, doctrine, cross-project
 
+- [L0037] **CANDIDATE:** a correspondence artifact's frontmatter is a CLAIM about protocol state and the correspondent's git history is the FACT — a hand-maintained status field fails asymmetrically (a stale `open` costs a session, a stale `closed` costs a re-check), so ask the tree before reasoning from the letter | cross-project, protocol, provenance, doctrine, process
+
 <!-- CONSOLIDATED 2026-08-11: 34 -> 30 entries. L0011/L0021/L0034 -> L0031 (they
      stated one claim four ways, which is a retrieval problem, not four lessons);
      L0014 -> L0016 (it always described itself as L0016's spectral case); L0003
