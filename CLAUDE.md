@@ -75,7 +75,11 @@ coupled-oscillator system (Kuramoto swarm over a kernel — "the supersaw taken
 seriously as physics"); **SPECTRA** is its per-partial sibling; the first new
 member is the **formant engine** (working name CANTO — FOF/pulsar grains, formants
 as masses on springs, a register state R; `SPEC-FORMANT.md`, prototype
-`horde_formant_pulsar_fof.html`, not yet in the shell). CLAP-native instrument
+`horde_formant_pulsar_fof.html`, not yet in the shell). A second CANDIDATE arrived
+2026-08-18: **WARP** (`horde_distortion_engine.html`, `SPEC-DISTORTION.md`) — NOT a
+fourth engine but the prototype for **FX-C**, the morphing waveshaper with
+hysteresis; it is a shared post-stage every source hands off to (ADR-092), and
+carries the same unseeded-RNG blocker CANTO does. CLAP-native instrument
 plugin, VST3 via clap-wrapper (ADR-002). Working product title horde; naming
 open until Phase 5. Design docs: SPEC.md (the instrument), ACCEPTANCE.md (the
 oracle contract), PRIOR-ART.md, PARKED.md.
@@ -124,7 +128,7 @@ lives in `PRIVATE-NOTES.md` (untracked, local-only — ADR-014). Never write a
 private sibling's real name into a tracked file.
 
 **Protected paths** (human gate to modify): `SPEC.md`, `SPEC-EFFECTS.md`,
-`SPEC-SWARMALATOR.md`, `SPEC-FORMANT.md`, `ACCEPTANCE.md`, `PRIOR-ART.md`, the prototype HTMLs —
+`SPEC-SWARMALATOR.md`, `SPEC-FORMANT.md`, `SPEC-DISTORTION.md`, `ACCEPTANCE.md`, `PRIOR-ART.md`, the prototype HTMLs —
 now seven: the three oscillator labs, swarmfilter/swarmphaser/swarmtime (Track
 E, ingested 2026-07-18), and swarmalator.html (experimental swarmalator engine,
 ingested 2026-07-19, ADR-048), and `horde_formant_pulsar_fof.html` (formant

@@ -1,6 +1,6 @@
 {
   "schema": "project-manifest.0 (draft — kit v2 will formalize)",
-  "kit_version": "2.1.0",
+  "kit_version": "2.5.0",
   "status": "RATIFIED 2026-07-17 (user go-ahead at spin-up review gate)",
   "name": "HYPERSAW",
   "naming_note": "Working product title horde (renamed from SWARM✱ 2026-08-17; the ✱ house mark retired with it) remains open until the Phase 5 naming decision (see kit README). Repo/manifest use HYPERSAW to match the directory.",
