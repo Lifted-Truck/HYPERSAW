@@ -8,6 +8,50 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## EVERY CONTROL IS NOW THE KIND ITS PARAMETER IS (2026-08-18)
+
+Human: *"make sure they're all sorted inside proper ui elements, and are formatted per
+parameter type (i.e. dropdowns when they need dropdowns)."*
+
+**The enum complaint was never a missing-labels problem. The labels were always there.**
+`src/hypersaw_clap.cpp` declares ten label arrays — `kDistLabels`, `kLawLabels`,
+`kTopoLabels`, `kPolesLabels`, `kDriftModeLabels`, `kPanModeLabels`, `kPivotLabels`,
+`kPanLayoutLabels`, `kSuperModeLabels`, `kGlideModeLabels` — and `shell_params()` **captured
+the array name in its regex and threw it away**. Both ends of the pipe had the data; the pipe
+dropped it. So all 33 params declared `select` could only ever render as numeric sliders, and
+the 2026-08-17 report of *"sections that should be dropdowns are incoherent numeric sliders"*
+was a one-line defect wearing the costume of a design gap.
+
+**Resolved the arrays at read time rather than retyping the labels into the table.** A label
+copied into `param_presentation.tsv` would be a second copy of a string CLAP also reports to
+the host, free to drift from it silently. The table keeps presentation — page, group, label,
+unit; the shell keeps structure — id, range, stepped, value names. That is D1's split, and
+this was a leak across it.
+
+**The control kind is decided by the SHELL, not by the table's `widget` hint.** A hint is
+advisory and can disagree; the shell knows whether a parameter is stepped and what its values
+are called. Rules, in order:
+
+| parameter | control |
+|---|---|
+| enum with meaningful labels | `<select>` carrying those labels |
+| enum whose labels are exactly `off`/`on` | checkbox |
+| stepped over a range of 1, no labels | checkbox |
+| everything else | range |
+
+**The off/on rule came from being wrong first.** The audit flagged `retrig` as a mismatch —
+hand-placed checkbox where the rule wanted a dropdown — and the hand-placed control was
+right: `kOffOn` is a boolean wearing enum labels, and a two-option dropdown makes you read
+what a tick box says at a glance. A two-value enum with *meaningful* labels is the opposite
+case, because there the labels ARE the meaning (`"held note (legato)"` vs `"last note
+(memory)"` is not something a tick box can express). Rule refined to match the control that
+was already correct, rather than "fixing" it.
+
+**Measured after: 85 ranges · 16 dropdowns · 12 checkboxes, and a full audit of all 108
+rendered controls against the shell reports ZERO mismatches.** No dropdown shows a bare
+number. Sorted into eight group clusters (Dynamics · Envelope · Voice · Output & perception ·
+Drift · Spectra · The coupling · The swarm). No JS errors. Reach still 105/105.
+
 ## THE LAYOUT WAS REAL AND BYPASSED — GENERATED CONTROLS NOW LAND IN THE COLUMN (2026-08-18)
 
 Human: *"the version of the gui you have in the dev server here seems to have regressed on
