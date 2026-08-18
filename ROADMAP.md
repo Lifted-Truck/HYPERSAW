@@ -8,6 +8,51 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## SPECTRA PARKED, TWIN PANELS REMOVED — AND THE TABLE HAD WARNED ABOUT BOTH (2026-08-18)
+
+Human: *"remove the spectra section; that isn't a part of the hypersaw engine at all and
+shouldn't ever be included in the same section. We're still sitting on that engine until
+further down the road."*
+
+**`param_presentation.tsv`'s own header states the rule I broke, and enumerates the exact
+four failures that followed.** Verbatim from the file:
+
+> Naming a chunk is therefore a claim that four decisions were MADE for it:
+>   1. engine surface is real (no cluster for an engine we are not shipping)
+>   2. widget per param is right (an enum is a selector, not a number)
+>   3. the group does not already exist hand-written (no twin panels)
+>   4. the wrapper has CSS and survives at plugin size
+
+The bulk chunk-fill of a few hours ago named **all 181 chunks in one pass** and therefore
+claimed all four decisions without making any of them. Every complaint since has been one of
+these, in order: numeric sliders (2), unstyled wrappers (4), SPECTRA surfaced (1). The header
+was written after the *first* time this happened; the queue existed precisely to stop it, and
+I emptied the queue in a single command to make a number go up.
+
+**Parked (chunk blanked, row kept — the rows are declarations, not deletions):** the whole
+**Spectra group** and the **engine selector**. The selector goes with it deliberately: a
+control that switches to a parked engine whose parameters are hidden is a reachable broken
+state, worse than either shipping the surface or hiding both. 26 rows parked. Easily undone —
+name their chunks when SPECTRA is real.
+
+**Decision 3 was violated too, and nobody had reported it yet.** `The swarm` and
+`The coupling` existed **twice** on OSC — hand-written and generated — because the generator
+skips already-placed ids, so its twin held only the group's remainder. Removed the
+hand-written pair and let generation own those groups whole; the curated **retrigger note**
+was re-homed after the GEN block, since generation rewrites its own region and would have
+erased it.
+
+**Measured after:** OSC headings `Editing · The swarm, seen · XY · Drift · The coupling ·
+The swarm · Pitch` — **zero duplicate headings, zero Spectra sections anywhere, engine
+selector absent, zero controls outside a box**, retrigger note intact, 102 controls, no JS
+errors. Reach is now **92/105 in gui2** and `gui_reach` stays GREEN because the parked
+params remain reachable in `gui.html` — the honest number, since 105/105 was counting a
+surface we do not ship.
+
+**Decision 4's second half is still unverified:** *survives at plugin size*. The preview pane
+clamps at ~980 px, so the sub-720 px collapse has never been exercised. Named here rather
+than assumed.
+
 ## GENERATED GROUPS ARE THE SAME BOX AS HAND-WRITTEN ONES (2026-08-18)
 
 Human: *"all parameters should be within UI boxes; the new ones aren't."*
