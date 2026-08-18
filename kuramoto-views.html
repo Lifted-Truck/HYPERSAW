@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kuramoto — eight ways of seeing K</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B12; --panel:#10121D; --line:#1E2134; --ink:#E9E4D6; --muted:#7D8097;
+    --amber:#F2B04A; --cool:#7A86FF; --rose:#E06AA0; --ivory:#F6F1E4;
+    --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --serif:"Instrument Serif", Georgia, serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:12px}
+  body{padding:22px 24px 40px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+  h1{font-family:var(--serif);font-weight:400;font-size:30px;margin:0;letter-spacing:.005em}
+  h1 em{font-style:italic;color:var(--amber)}
+  .sub{color:var(--muted);max-width:60ch;line-height:1.5}
+  .kwrap{position:sticky;top:0;z-index:10;box-shadow:0 8px 24px rgba(10,11,18,.9);border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:10px 14px 8px;margin-bottom:10px}
+  .khead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .khead .lab{color:var(--muted)}
+  .khead .val{font-family:var(--serif);font-size:26px;line-height:1}
+  .khead .val small{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px}
+  #kcanvas{display:block;width:100%;height:118px;cursor:ew-resize;touch-action:none;outline:none;border-radius:4px}
+  #kcanvas:focus-visible{box-shadow:0 0 0 2px var(--amber)}
+  .controls{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:6px 2px 14px;color:var(--muted)}
+  .controls label{display:flex;align-items:center;gap:8px}
+  .controls input[type=range]{width:110px;accent-color:var(--amber);height:14px}
+  .controls span.v{color:var(--ink);min-width:3.6ch;display:inline-block}
+  .controls button{font:inherit;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:4px 10px;cursor:pointer}
+  .controls button:hover{border-color:var(--amber);color:var(--amber)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px 8px;min-width:0}
+  .panel h2{margin:0 0 2px;font:400 17px var(--serif);letter-spacing:.01em}
+  .panel h2 span{font:11px var(--mono);color:var(--muted);margin-left:8px}
+  .panel p{margin:0 0 8px;color:var(--muted);line-height:1.45;min-height:2.9em}
+  .panel canvas{display:block;width:100%;aspect-ratio:4/3;border-radius:3px;background:#0C0D17}
+  @media (prefers-reduced-motion:reduce){ .panel canvas{filter:none} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kuramoto, <em>eight ways</em></h1>
+  <div class="sub">One swarm, one coupling law, one <b>K</b>. Every panel below reads the same oscillators. Drag the curve to change K; behind it is the mean-field prediction, signed: +r above zero, −r<sub>splay</sub> below; the live dot is the signed coherence s = r − r<sub>splay</sub>, so lock, cloud, and splay sit at top, middle, and bottom.</div>
+</header>
+
+<div class="kwrap">
+  <div class="khead">
+    <span class="lab">K, normalized to total coupling &nbsp;·&nbsp; +1 fully coupled, −1 fully anti-coupled (locked equidistant) &nbsp;·&nbsp; K<sub>c</sub> = 2Δ/π shown in K units</span>
+    <span class="val"><span id="kval">0.30</span><small>s = r − r<sub>splay</sub> = <span id="sval">0.00</span> · r <span id="rval">0.00</span> · r<sub>splay</sub> <span id="rsval">0.00</span></small></span>
+  </div>
+  <canvas id="kcanvas" tabindex="0" role="slider" aria-label="Coupling strength K" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0.3"></canvas>
+</div>
+
+<div class="controls">
+  <label>voices <input id="cN" type="range" min="3" max="16" step="1" value="7"><span class="v" id="vN">7</span></label>
+  <label>detune Δ <input id="cS" type="range" min="0.2" max="4" step="0.05" value="1.6"><span class="v" id="vS">1.60</span></label>
+  <label>Sakaguchi α <input id="cA" type="range" min="-1.2" max="1.2" step="0.02" value="0"><span class="v" id="vA">0.00</span></label>
+  <label>full coupling = <input id="cF" type="range" min="1" max="8" step="0.25" value="4"><span class="v" id="vF">4.00</span></label>
+  <label>speed <input id="cV" type="range" min="0.1" max="3" step="0.1" value="1"><span class="v" id="vV">1.0</span></label>
+  <button id="kick">kick phases</button>
+  <button id="line">line up</button>
+</div>
+
+<div class="grid">
+  <div class="panel"><h2>Comb<span>harmonic coherence of the sum</span></h2><p>Per harmonic h, |Σᵢ e^{ihθᵢ}|/N: how much of that harmonic survives the sum. Locked = every tooth full. Splayed = only multiples of N survive (amber), the rest cancel — a saw at N× the pitch. The cloud is a ragged comb in between.</p><canvas id="pComb"></canvas></div>
+  <div class="panel"><h2>Chain<span>spins in a row</span></h2><p>One arrow per voice, in voice order, at its phase (relative to voice 0). Coupled = all parallel. Anti-coupled = a uniform twist of 2π/N per step, a helix seen edge-on. Random = a jumble. Parallel and twisted don't look alike the way bunched and spread do.</p><canvas id="pChain"></canvas></div>
+  <div class="panel"><h2>Sign<span>signed coherence</span></h2><p>s = r − r<sub>splay</sub>. One needle, centered at zero: +1 is lock, −1 is splay, and the random cloud rests near the middle because both order parameters are small there. This is the meter that reads K's sign back to you.</p><canvas id="pSign"></canvas></div>
+  <div class="panel"><h2>Ring<span>phase circle</span></h2><p>The textbook view. Each voice is a spoke at its phase θᵢ; the ivory arrow is the mean field r·e^{iψ}. Locking is the spokes bunching.</p><canvas id="pRing"></canvas></div>
+  <div class="panel"><h2>Well<span>mean-field potential</span></h2><p>Every voice feels V(θ) = −K·r·cos(θ−ψ). K deepens the bowl; below zero the same bowl is drawn in the splay frame φᵢ=θᵢ−2πi/N; each ball settles where the slope equals its own detune, so the splay is the natural-frequency spread made physical.</p><canvas id="pWell"></canvas></div>
+  <div class="panel"><h2>Weave<span>phase raster</span></h2><p>Time runs left→right, one row per voice, brightness = cos θᵢ. Incoherent voices make moiré; locked voices make one straight weave. This is what a supersaw <em>is</em>, unrolled.</p><canvas id="pWeave"></canvas></div>
+  <div class="panel"><h2>Splay<span>natural vs. effective frequency</span></h2><p>x = the detune you dialed in, y = the frequency each voice actually runs at. Uncoupled sits on the diagonal; fully locked collapses to a flat line. K flattens the cloud.</p><canvas id="pSplay"></canvas></div>
+  <div class="panel"><h2>Sum<span>the waveform</span></h2><p>Audio-rate saws with the swarm's current phase offsets, summed. Faint lines are the individual voices. Interference is timbre.</p><canvas id="pSum"></canvas></div>
+  <div class="panel"><h2>Tug<span>pairwise coupling matrix</span></h2><p>Cell (i,j) is the force voice j exerts on voice i: sin(θⱼ−θᵢ−α), scaled by |K|. Amber pulls forward, blue pulls back. Below zero it's the same force measured in the splay frame. Antisymmetric when α = 0; α breaks that and the swarm rotates.</p><canvas id="pTug"></canvas></div>
+  <div class="panel"><h2>Coherence<span>r over time</span></h2><p>The order parameter, 0 = cloud, 1 = lock. Amber is r, blue is r<sub>splay</sub> (coherence of the equidistant frame). Dashed line is the mean-field prediction √(1−K<sub>c</sub>/|K|). Kick the phases and watch it recover.</p><canvas id="pCoh"></canvas></div>
+  <div class="panel"><h2>Orbit<span>mean field in the complex plane</span></h2><p>The path traced by the tip of r·e^{iψ}. A cloud makes a wandering knot near the origin; a locked swarm makes a clean circle near the rim.</p><canvas id="pOrbit"></canvas></div>
+</div>
+
+<script>
+(() => {
+const TAU = Math.PI*2;
+const S = { N:7, K:0.3, spread:1.6, alpha:0, speed:1, w0:1.1, Kmin:-1, Kmax:1, Kfull:4,
+  theta:[], omega:[], weff:[], r:0, psi:0, rs:0, psis:0, rHist:[], mfHist:[] };
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+const C = { ink:css('--ink'), muted:css('--muted'), amber:css('--amber'), cool:css('--cool'), rose:css('--rose'), ivory:css('--ivory'), line:css('--line') };
+
+// voice colour: cool → rose → amber across the detune spread
+function lerp(a,b,t){return a+(b-a)*t}
+function hex(h){return [1,3,5].map(i=>parseInt(h.slice(i,i+2),16))}
+const cA=hex(C.cool), cB=hex(C.rose), cC=hex(C.amber);
+function voiceRGB(i){ const t = S.N>1 ? i/(S.N-1) : .5; const [p,q,u]= t<.5 ? [cA,cB,t*2] : [cB,cC,(t-.5)*2];
+  return [lerp(p[0],q[0],u),lerp(p[1],q[1],u),lerp(p[2],q[2],u)].map(Math.round); }
+function voice(i,a=1){ const [r,g,b]=voiceRGB(i); return `rgba(${r},${g},${b},${a})`; }
+function Kc(){ return 2*S.spread/Math.PI; }
+function rTheory(K){ const kc=Kc(), k=Math.abs(K)*S.Kfull; return k>kc ? Math.sqrt(1-kc/k) : 0; }
+
+function init(keepPhase){
+  const N=S.N, old=S.theta.slice();
+  S.omega = Array.from({length:N},(_,i)=> S.w0 + S.spread*((N>1?i/(N-1):.5)-.5));
+  S.theta = Array.from({length:N},(_,i)=> keepPhase && old[i]!=null ? old[i] : Math.random()*TAU);
+  S.weff  = S.omega.slice();
+}
+init(false);
+
+function step(dt){
+  const N=S.N, K=S.K, a=S.alpha, sub=4, h=dt/sub;
+  for(let s=0;s<sub;s++){
+    let cx=0, sy=0, sx=0, ss=0;
+    for(let i=0;i<N;i++){ cx+=Math.cos(S.theta[i]); sy+=Math.sin(S.theta[i]);
+      const ph=S.theta[i]-TAU*i/N; sx+=Math.cos(ph); ss+=Math.sin(ph); }
+    const r=Math.hypot(cx,sy)/N, psi=Math.atan2(sy,cx);
+    const rs=Math.hypot(sx,ss)/N, psis=Math.atan2(ss,sx);
+    // K>0: pull phases together. K<0: same law, applied in the splay frame φᵢ=θᵢ−2πi/N, so voices lock equidistant.
+    const rr = K>=0? r : rs, pp = K>=0? psi : psis, Ka=Math.abs(K)*S.Kfull;
+    for(let i=0;i<N;i++){
+      const off = K>=0 ? 0 : TAU*i/N;
+      const d = S.omega[i] + Ka*rr*Math.sin(pp - (S.theta[i]-off) - a);
+      S.theta[i] = (S.theta[i] + d*h) % TAU;
+      S.weff[i] += (d - S.weff[i]) * Math.min(1, h/1.2);
+    }
+    S.r=r; S.psi=psi; S.rs=rs; S.psis=psis;
+  }
+  S.rHist.push(S.r); if(S.rHist.length>520) S.rHist.shift();
+  S.rsHist=S.rsHist||[]; S.rsHist.push(S.rs); if(S.rsHist.length>520) S.rsHist.shift();
+  S.mfHist.push([S.r*Math.cos(S.psi), S.r*Math.sin(S.psi)]); if(S.mfHist.length>260) S.mfHist.shift();
+}
+
+// canvas plumbing
+const dpr = Math.min(2, window.devicePixelRatio||1);
+function fit(cv){ const w=cv.clientWidth, h=cv.clientHeight; if(cv.width!==w*dpr||cv.height!==h*dpr){ cv.width=w*dpr; cv.height=h*dpr; return true; } return false; }
+function ctx2(cv){ fit(cv); const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); return [g, cv.clientWidth, cv.clientHeight]; }
+const P = {}; ['pRing','pWell','pWeave','pSplay','pSum','pTug','pCoh','pOrbit','pComb','pChain','pSign'].forEach(id=>P[id]=document.getElementById(id));
+const kc = document.getElementById('kcanvas');
+
+// ---------- K instrument ----------
+function drawK(){
+  const [g,W,H]=ctx2(kc); g.clearRect(0,0,W,H);
+  const px=8, py=10, pw=W-2*px, ph=H-py-16;
+  const x=k=>px+pw*((k-S.Kmin)/(S.Kmax-S.Kmin)), y=r=>py+ph*(1-(r+1)/2);
+  // grid
+  g.strokeStyle=C.line; g.lineWidth=1;
+  for(let k=-1;k<=1.001;k+=.25){ g.strokeStyle=Math.abs(k)<1e-9?C.muted:C.line; g.beginPath(); g.moveTo(x(k),py); g.lineTo(x(k),py+ph); g.stroke(); }
+  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='center';
+  for(let k=-1;k<=1.001;k+=.5) g.fillText(k.toFixed(1).replace('.0',''), x(k), H-3);
+  g.textAlign='left'; g.fillText('← anti-coupled', x(S.Kmin)+3, py+10); g.textAlign='right'; g.fillText('coupled →', x(S.Kmax)-3, py+10); g.textAlign='center';
+  // theory curve
+  g.strokeStyle=C.line; g.beginPath(); g.moveTo(px,y(0)); g.lineTo(px+pw,y(0)); g.stroke();
+  g.beginPath(); for(let i=0;i<=200;i++){ const k=S.Kmin+(S.Kmax-S.Kmin)*i/200; const yy=y(Math.sign(k)*rTheory(k)); i?g.lineTo(x(k),yy):g.moveTo(x(k),yy);} 
+  g.strokeStyle=C.muted; g.lineWidth=1.2; g.setLineDash([3,4]); g.stroke(); g.setLineDash([]);
+  // Kc marker
+  const kcv=Kc()/S.Kfull; g.strokeStyle=C.rose; g.beginPath(); g.moveTo(x(kcv),py); g.lineTo(x(kcv),py+ph); g.stroke();
+  g.fillStyle=C.rose; g.textAlign='left'; g.fillText('K꜀ '+kcv.toFixed(2), x(kcv)+4, py+10);
+  g.strokeStyle=C.rose; g.beginPath(); g.moveTo(x(-kcv),py); g.lineTo(x(-kcv),py+ph); g.stroke();
+  // filled region up to K
+  g.fillStyle=S.K>=0?'rgba(242,176,74,.08)':'rgba(122,134,255,.10)'; g.fillRect(x(0), py, x(S.K)-x(0), ph);
+  // live K line + live r dot
+  g.strokeStyle=S.K>=0?C.amber:C.cool; g.lineWidth=2; g.beginPath(); g.moveTo(x(S.K),py); g.lineTo(x(S.K),py+ph); g.stroke();
+  g.fillStyle=C.ivory; g.beginPath(); g.arc(x(S.K), y(S.r-S.rs), 5, 0, TAU); g.fill();
+  g.fillStyle=C.muted; g.textAlign='right'; g.fillText('+1 lock', px+pw, py+22); g.fillText('0 cloud', px+pw, y(0)-3); g.fillText('−1 splay', px+pw, py+ph-3);
+}
+function setK(v){ S.K=Math.max(S.Kmin,Math.min(S.Kmax,v)); document.getElementById('kval').textContent=S.K.toFixed(2); kc.setAttribute('aria-valuenow',S.K.toFixed(2)); }
+function kFromEvent(e){ const b=kc.getBoundingClientRect(); const px=8, pw=b.width-16; setK(S.Kmin+(S.Kmax-S.Kmin)*(e.clientX-b.left-px)/pw); }
+let drag=false;
+kc.addEventListener('pointerdown',e=>{drag=true; kc.setPointerCapture(e.pointerId); kFromEvent(e); kc.focus();});
+kc.addEventListener('pointermove',e=>{ if(drag) kFromEvent(e); });
+kc.addEventListener('pointerup',()=>drag=false); kc.addEventListener('pointercancel',()=>drag=false);
+kc.addEventListener('keydown',e=>{ const s=e.shiftKey?.1:.01; if(e.key==='ArrowRight'||e.key==='ArrowUp'){setK(S.K+s);e.preventDefault();} if(e.key==='ArrowLeft'||e.key==='ArrowDown'){setK(S.K-s);e.preventDefault();} });
+
+// ---------- controls ----------
+const bind=(id,vid,fn,fmt)=>{ const el=document.getElementById(id), v=document.getElementById(vid); el.addEventListener('input',()=>{ fn(+el.value); v.textContent=fmt(+el.value); }); };
+bind('cN','vN',n=>{S.N=n; init(true); S.rHist=[]; S.mfHist=[]; weaveClear();},v=>v);
+bind('cS','vS',s=>{S.spread=s; init(true);},v=>v.toFixed(2));
+bind('cA','vA',a=>{S.alpha=a;},v=>v.toFixed(2));
+bind('cV','vV',v=>{S.speed=v;},v=>v.toFixed(1));
+bind('cF','vF',f=>{S.Kfull=f;},v=>v.toFixed(2));
+document.getElementById('kick').onclick=()=>{ for(let i=0;i<S.N;i++) S.theta[i]=Math.random()*TAU; };
+document.getElementById('line').onclick=()=>{ for(let i=0;i<S.N;i++) S.theta[i]=S.psi; };
+
+// ---------- panels ----------
+function drawRing(){
+  const [g,W,H]=ctx2(P.pRing); g.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*.4;
+  g.strokeStyle=C.line; g.lineWidth=1; g.beginPath(); g.arc(cx,cy,R,0,TAU); g.stroke();
+  for(let i=0;i<S.N;i++){ const t=S.theta[i]; g.strokeStyle=voice(i,.55); g.lineWidth=1.2;
+    g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx+R*Math.cos(t), cy-R*Math.sin(t)); g.stroke();
+    g.fillStyle=voice(i); g.beginPath(); g.arc(cx+R*Math.cos(t), cy-R*Math.sin(t), 5, 0, TAU); g.fill(); }
+  const ax=cx+R*S.r*Math.cos(S.psi), ay=cy-R*S.r*Math.sin(S.psi);
+  g.strokeStyle=C.ivory; g.lineWidth=2.5; g.beginPath(); g.moveTo(cx,cy); g.lineTo(ax,ay); g.stroke();
+  g.fillStyle=C.ivory; g.beginPath(); g.arc(ax,ay,4,0,TAU); g.fill();
+}
+function drawWell(){
+  const [g,W,H]=ctx2(P.pWell); g.clearRect(0,0,W,H);
+  const px=14, cx=W/2, cy=H/2, ampl=(H/2-18)/S.Kfull; // V ∈ [-Kmax, Kmax]
+  const X=x=>cx+(x/Math.PI)*(W/2-px);
+  g.strokeStyle=C.line; g.beginPath(); g.moveTo(px,cy); g.lineTo(W-px,cy); g.stroke();
+  g.beginPath(); g.moveTo(cx,10); g.lineTo(cx,H-10); g.stroke();
+  const spl=S.K<0, depth=Math.abs(S.K)*S.Kfull*(spl?S.rs:S.r), psi=spl?S.psis:S.psi;
+  g.strokeStyle=C.ivory; g.lineWidth=1.5; g.beginPath();
+  for(let i=0;i<=160;i++){ const x=-Math.PI+TAU*i/160; const y=cy+ampl*(-depth*Math.cos(x)); i?g.lineTo(X(x),y):g.moveTo(X(x),y);} g.stroke();
+  for(let i=0;i<S.N;i++){ let x=S.theta[i]-(spl?TAU*i/S.N:0)-psi; x=Math.atan2(Math.sin(x),Math.cos(x)); const y=cy+ampl*(-depth*Math.cos(x));
+    g.fillStyle=voice(i); g.beginPath(); g.arc(X(x), y-5, 5, 0, TAU); g.fill(); }
+  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='left'; g.fillText('−π', px, H-4); g.textAlign='right'; g.fillText('+π', W-px, H-4);
+  g.textAlign='center'; g.fillText((spl?'splay frame · ':'')+'depth |K|·r = '+depth.toFixed(2), cx, 12);
+}
+let weaveInit=false;
+function weaveClear(){ weaveInit=false; }
+function drawWeave(){
+  const cv=P.pWeave; const resized=fit(cv); const g=cv.getContext('2d'); const W=cv.width, H=cv.height;
+  if(resized||!weaveInit){ g.setTransform(1,0,0,1,0,0); g.fillStyle='#0C0D17'; g.fillRect(0,0,W,H); weaveInit=true; }
+  g.setTransform(1,0,0,1,0,0);
+  const col=Math.max(1,Math.round(dpr*1.5));
+  g.drawImage(cv, -col, 0);
+  const rowH=H/S.N;
+  for(let i=0;i<S.N;i++){ const b=(1+Math.cos(S.theta[i]))/2; const [r,gg,bb]=voiceRGB(i);
+    g.fillStyle=`rgb(${Math.round(12+(r-12)*b)},${Math.round(13+(gg-13)*b)},${Math.round(23+(bb-23)*b)})`;
+    g.fillRect(W-col, i*rowH, col, Math.ceil(rowH)); }
+}
+function drawSplay(){
+  const [g,W,H]=ctx2(P.pSplay); g.clearRect(0,0,W,H);
+  const m=22, cx=W/2, cy=H/2, sc=Math.min(W,H)/2-m; const range=2.2; // ω-ω0 in ±range
+  const X=v=>cx+sc*(v/range), Y=v=>cy-sc*(v/range);
+  g.strokeStyle=C.line; g.lineWidth=1;
+  g.beginPath(); g.moveTo(m,cy); g.lineTo(W-m,cy); g.stroke();
+  g.beginPath(); g.moveTo(cx,m); g.lineTo(cx,H-m); g.stroke();
+  g.setLineDash([3,4]); g.strokeStyle=C.muted; g.beginPath(); g.moveTo(X(-range),Y(-range)); g.lineTo(X(range),Y(range)); g.stroke(); g.setLineDash([]);
+  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='right'; g.fillText('uncoupled', X(range)-2, Y(range)-4);
+  g.textAlign='left'; g.fillText('locked', m+2, cy-4);
+  for(let i=0;i<S.N;i++){ const wn=S.omega[i]-S.w0, we=S.weff[i]-S.w0;
+    g.strokeStyle=voice(i,.5); g.beginPath(); g.moveTo(X(wn),Y(wn)); g.lineTo(X(wn),Y(we)); g.stroke();
+    g.fillStyle=voice(i); g.beginPath(); g.arc(X(wn),Y(we),5,0,TAU); g.fill(); }
+}
+function saw(p){ p=p/TAU; p-=Math.floor(p); return p*2-1; }
+function drawSum(){
+  const [g,W,H]=ctx2(P.pSum); g.clearRect(0,0,W,H);
+  const cyc=3, cy=H/2, A=H*.42, N=S.N;
+  const freq=i=>1+0.06*S.spread*((N>1?i/(N-1):.5)-.5);
+  g.lineWidth=1;
+  for(let i=0;i<N;i++){ g.strokeStyle=voice(i,.28); g.beginPath();
+    for(let x=0;x<=W;x+=2){ const t=cyc*x/W; const y=cy-A*.9*saw(S.theta[i]+TAU*freq(i)*t)/1; x?g.lineTo(x,y):g.moveTo(x,y);} g.stroke(); }
+  g.strokeStyle=C.ivory; g.lineWidth=1.8; g.beginPath();
+  for(let x=0;x<=W;x++){ const t=cyc*x/W; let s=0; for(let i=0;i<N;i++) s+=saw(S.theta[i]+TAU*freq(i)*t); const y=cy-A*s/N; x?g.lineTo(x,y):g.moveTo(x,y);} g.stroke();
+}
+function drawTug(){
+  const [g,W,H]=ctx2(P.pTug); g.clearRect(0,0,W,H);
+  const N=S.N, m=14, size=Math.min(W,H)-2*m, cell=size/N, ox=(W-size)/2, oy=(H-size)/2;
+  const scale=S.K;
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    if(i===j){ g.fillStyle=voice(i,.35); g.fillRect(ox+j*cell+1, oy+i*cell+1, cell-2, cell-2); continue; }
+    const off=S.K<0?TAU/N:0; const f=Math.sin((S.theta[j]-off*j)-(S.theta[i]-off*i)-S.alpha)*Math.abs(scale);
+    const a=Math.min(1,Math.abs(f))*.95;
+    g.fillStyle = f>0 ? `rgba(242,176,74,${a})` : `rgba(122,134,255,${a})`;
+    g.fillRect(ox+j*cell+1, oy+i*cell+1, cell-2, cell-2);
+  }
+  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='left';
+  g.fillText('j → force from', ox, oy-3); g.save(); g.translate(ox-4, oy+size); g.rotate(-Math.PI/2); g.fillText('i → force on', 0, 0); g.restore();
+}
+function drawCoh(){
+  const [g,W,H]=ctx2(P.pCoh); g.clearRect(0,0,W,H);
+  const m=10, ph=H-2*m; const y=r=>m+ph*(1-r);
+  g.strokeStyle=C.line; [0,.5,1].forEach(v=>{ g.beginPath(); g.moveTo(m,y(v)); g.lineTo(W-m,y(v)); g.stroke(); });
+  const rt=rTheory(S.K); g.setLineDash([3,4]); g.strokeStyle=C.muted; g.beginPath(); g.moveTo(m,y(rt)); g.lineTo(W-m,y(rt)); g.stroke(); g.setLineDash([]);
+  const h=S.rHist, n=h.length, cap=520; if(n>1){
+    g.beginPath(); for(let k=0;k<n;k++){ const x=m+(W-2*m)*(k+(cap-n))/cap; k?g.lineTo(x,y(h[k])):g.moveTo(x,y(h[k])); }
+    g.strokeStyle=C.amber; g.lineWidth=1.8; g.stroke();
+    g.stroke();
+    g.lineTo(W-m, y(0)); g.lineTo(m+(W-2*m)*(cap-n)/cap, y(0)); g.closePath(); g.fillStyle='rgba(242,176,74,.12)'; g.fill(); }
+  const hs=S.rsHist||[]; if(hs.length>1){ g.beginPath(); for(let k=0;k<hs.length;k++){ const x=m+(W-2*m)*(k+(cap-hs.length))/cap; k?g.lineTo(x,y(hs[k])):g.moveTo(x,y(hs[k])); } g.strokeStyle=C.cool; g.lineWidth=1.4; g.stroke(); }
+  g.fillStyle=C.ivory; g.font='22px '+css('--serif'); g.textAlign='right'; g.fillText('r '+S.r.toFixed(3), W-m-2, m+22);
+  g.fillStyle=C.cool; g.font='12px '+css('--mono'); g.fillText('r splay '+S.rs.toFixed(3), W-m-2, m+38);
+  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.fillText('theory '+rt.toFixed(2), W-m-2, y(rt)-4);
+}
+function drawOrbit(){
+  const [g,W,H]=ctx2(P.pOrbit); g.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*.42;
+  g.strokeStyle=C.line; g.beginPath(); g.arc(cx,cy,R,0,TAU); g.stroke();
+  g.beginPath(); g.arc(cx,cy,R*.5,0,TAU); g.stroke();
+  g.beginPath(); g.moveTo(cx-R,cy); g.lineTo(cx+R,cy); g.moveTo(cx,cy-R); g.lineTo(cx,cy+R); g.stroke();
+  const h=S.mfHist, n=h.length;
+  for(let k=1;k<n;k++){ const a=k/n; g.strokeStyle=`rgba(246,241,228,${a*.9})`; g.lineWidth=1+a*1.5;
+    g.beginPath(); g.moveTo(cx+R*h[k-1][0], cy-R*h[k-1][1]); g.lineTo(cx+R*h[k][0], cy-R*h[k][1]); g.stroke(); }
+  if(n){ g.fillStyle=C.amber; g.beginPath(); g.arc(cx+R*h[n-1][0], cy-R*h[n-1][1], 4.5, 0, TAU); g.fill(); }
+}
+
+function drawComb(){
+  const [g,W,H]=ctx2(P.pComb); g.clearRect(0,0,W,H);
+  const N=S.N, Hn=Math.max(24, 3*N), m=12, bw=(W-2*m)/Hn, base=H-16;
+  g.strokeStyle=C.line; g.beginPath(); g.moveTo(m,base); g.lineTo(W-m,base); g.stroke();
+  for(let h=1;h<=Hn;h++){ let cx=0, sy=0; for(let i=0;i<N;i++){ cx+=Math.cos(h*S.theta[i]); sy+=Math.sin(h*S.theta[i]); }
+    const c=Math.hypot(cx,sy)/N, hh=(base-16)*c, mult=h%N===0;
+    g.fillStyle = mult ? `rgba(242,176,74,${.35+.65*c})` : `rgba(246,241,228,${.25+.7*c})`;
+    g.fillRect(m+(h-1)*bw+1, base-hh, Math.max(1,bw-2), hh);
+    if(mult){ g.fillStyle=C.amber; g.font='9px '+css('--mono'); g.textAlign='center'; g.fillText(h, m+(h-.5)*bw, H-4); } }
+  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='left'; g.fillText('h = 1', m, H-4); g.textAlign='right'; g.fillText('coherence per harmonic', W-m, 12);
+}
+function drawChain(){
+  const [g,W,H]=ctx2(P.pChain); g.clearRect(0,0,W,H);
+  const N=S.N, m=14, sp=(W-2*m)/N, L=Math.min(sp*.42, H*.28), cy=H/2, ref=S.theta[0];
+  g.strokeStyle=C.line; g.beginPath(); g.moveTo(m,cy); g.lineTo(W-m,cy); g.stroke();
+  for(let i=0;i<N;i++){ const x=m+sp*(i+.5), t=S.theta[i]-ref, dx=L*Math.cos(t), dy=-L*Math.sin(t);
+    g.strokeStyle=voice(i,.35); g.beginPath(); g.arc(x,cy,L,0,TAU); g.stroke();
+    g.strokeStyle=voice(i); g.lineWidth=2.2; g.beginPath(); g.moveTo(x-dx,cy-dy); g.lineTo(x+dx,cy+dy); g.stroke(); g.lineWidth=1;
+    g.fillStyle=voice(i); g.beginPath(); g.moveTo(x+dx,cy+dy); g.lineTo(x+dx-9*Math.cos(t-.45),cy+dy+9*Math.sin(t-.45)); g.lineTo(x+dx-9*Math.cos(t+.45),cy+dy+9*Math.sin(t+.45)); g.closePath(); g.fill(); }
+  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='left'; g.fillText('voice 0 → '+(N-1)+'   phase relative to voice 0', m, 12);
+}
+function drawSign(){
+  const [g,W,H]=ctx2(P.pSign); g.clearRect(0,0,W,H);
+  const sv=S.r-S.rs, m=24, cx=W/2, cy=H*.62, R=Math.min(W/2-m, H*.5);
+  g.strokeStyle=C.line; g.lineWidth=1; g.beginPath(); g.arc(cx,cy,R,Math.PI,0); g.stroke();
+  const ang=v=>Math.PI*(1-(v+1)/2);
+  [-1,-.5,0,.5,1].forEach(v=>{ const a=ang(v); g.strokeStyle=v===0?C.muted:C.line; g.beginPath(); g.moveTo(cx+(R-8)*Math.cos(a),cy-(R-8)*Math.sin(a)); g.lineTo(cx+R*Math.cos(a),cy-R*Math.sin(a)); g.stroke();
+    g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='center'; g.fillText(v===0?'cloud':v>0?(v===1?'lock':'+.5'):(v===-1?'splay':'−.5'), cx+(R+14)*Math.cos(a), cy-(R+14)*Math.sin(a)+4); });
+  const a=ang(Math.max(-1,Math.min(1,sv)));
+  g.strokeStyle=sv>=0?C.amber:C.cool; g.lineWidth=2.5; g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx+(R-4)*Math.cos(a),cy-(R-4)*Math.sin(a)); g.stroke();
+  g.fillStyle=C.ivory; g.beginPath(); g.arc(cx,cy,4,0,TAU); g.fill();
+  g.font='24px '+css('--serif'); g.textAlign='center'; g.fillText((sv>=0?'+':'−')+Math.abs(sv).toFixed(2), cx, cy+H*.28);
+}
+
+// ---------- loop ----------
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000)*S.speed*(reduced?.4:1); last=now;
+  step(dt);
+  document.getElementById('rval').textContent=S.r.toFixed(2); document.getElementById('rsval').textContent=S.rs.toFixed(2); document.getElementById('sval').textContent=(S.r-S.rs).toFixed(2);
+  drawK(); drawRing(); drawWell(); drawWeave(); drawSplay(); drawSum(); drawTug(); drawCoh(); drawOrbit(); drawComb(); drawChain(); drawSign();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -30,9 +30,28 @@
   .tab.stub { opacity:.35; cursor:default; }
   .page { display:none; }
   .page.on { display:grid; gap:10px; }
-  #pg-MAIN.on { grid-template-columns: minmax(260px,340px) 1fr; align-items:start; }
+  /* Two hierarchies, not a masonry of equal tiles (gui.html:45): visualizers
+     stack in one LEFT column, control clusters flow in the right. The old
+     auto-fit grid placed clusters in DOM order into equal columns, which is why
+     the osc bar — one short paragraph — was given a full column of its own and
+     the page read as three quarters empty. The bar spans instead: it is a mode
+     line for the whole page, not a panel competing with the panels. */
+  #pg-MAIN.on, #pg-OSC.on { grid-template-columns: minmax(260px,340px) minmax(0,1fr); align-items:start; }
   #pg-MIX.on  { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items:start; }
-  #pg-OSC.on  { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items:start; }
+  .oscbar { grid-column: 1 / -1; }
+  .vizcol, .ctlcol { display:grid; gap:10px; align-content:start; min-width:0; }
+  .vizcol canvas { width:100%; }
+  /* Controls pack into balanced columns rather than one tall stack, so the right
+     column fills sideways as clusters are added instead of growing off-screen. */
+  .ctlcol { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  /* A page with no control clusters must not reserve an empty column for them.
+     MAIN is all displays today, so its viz column spans the full width and its
+     panels flow sideways; the moment MAIN gains controls this rule comes out and
+     it inherits the same left/right split as OSC. Reserving the column "for
+     later" is what produced three quarters of empty page in the first place. */
+  #pg-MAIN .vizcol { grid-column: 1 / -1;
+                     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  @media (max-width: 720px) { #pg-MAIN.on, #pg-OSC.on { grid-template-columns: 1fr; } }
   #pg-FX.on   { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items:start; }
   .cluster { background:var(--panel); border:1px solid var(--line);
     border-radius:4px; padding:8px 10px; min-width:0; }
@@ -69,6 +88,13 @@
   .oscSel .oscTab.silent { opacity:.62; }
   .oscSel .oscTab.on.silent { opacity:1; }
   .note { color:var(--dim); font-size:10.5px; }
+  canvas.xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
+              width:100%; touch-action:none; }
+  #carpetC, #stripC, #vmapC { width:100%; background:var(--panel2);
+                              border:1px solid var(--line); display:block; }
+  .vlabel { color:var(--dim); font-size:10px; margin:6px 0 3px; }
+  .oscbar h2 { display:flex; align-items:center; gap:8px; }
+  .oscbar { border-color:var(--pull); }
 </style></head><body>
 
 <!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
@@ -81,19 +107,26 @@
 <div class="tabs" id="tabs"><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
-  <div class="cluster"><h2>XY — x=detune · y=pull K <span class="oscSel" id="oscSelMain"></span></h2>
-    <canvas id="xy" width="340" height="212"></canvas>
+  <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
+    <div class="note">Selects which oscillator this page edits AND which one the
+      engine renders in the visualizers. Global parameters are unaffected — they
+      have no per-oscillator twin, so they never remap.</div>
+  </div>
+  <div class="vizcol">
+  <div class="cluster"><h2>XY — x=detune · y=pull K</h2>
+    <canvas id="xy" class="xy" width="340" height="212"></canvas>
     <div class="note" style="margin-top:5px">Drives the ACTIVE oscillator (the plumbing rule this
       interface is built on: nothing is hardwired to oscillator 1).</div>
   </div>
-  <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span><span class="oscSel" id="oscSelViz"></span></h2>
-    <canvas id="phaseC" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+  <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
+    <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
     <canvas id="specC" width="330" height="70" style="width:100%"></canvas>
     <div class="note" style="margin-top:4px">Phase circle + K vector show
       <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the plugin.</div>
   </div>
 
+  </div>
 <!--GEN:MAIN-->
   <div class="grp"><h3>Dynamics</h3>
     <div class="row" data-addr="osc1.topo"><label>Topology <span class="sc">osc1</span></label><input type="range" data-p="24" min="0" max="2" step="1" value="0"><output></output></div>
@@ -228,14 +261,48 @@
 </div>
 
 <div class="page" id="pg-OSC">
-  <div class="cluster"><h2>The swarm <span class="oscSel" id="oscSelOsc"></span></h2>
+<div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelOsc"></span></h2>
+    <div class="note">Selects which oscillator this page edits AND which one the
+      engine renders in the visualizers. Global parameters are unaffected — they
+      have no per-oscillator twin, so they never remap.</div>
+  </div>
+  <!-- TWO HIERARCHIES, after gui.html:45 — "visualizers stack in one LEFT
+       column, control clusters flow in the right column — no mixed rows."
+       Adopted here rather than reinvented, because a user moving between the
+       two GUIs during the succession should not have to relearn where things
+       live. The XY sits with the visualizers exactly as it does in GUI1: it
+       is a display you can also grab, and splitting it from the phase circle
+       would put the swarm's two pictures in different columns. -->
+  <div class="vizcol">
+<div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
+    <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
+         visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
+         so a draw exception can never strand the pair in the wrong state
+         (gui.html's loop makes the same ordering guarantee, for the same reason). -->
+    <div id="carpetScope2"><div class="vlabel">Phase carpet · voice × phase</div>
+      <canvas id="carpetC" width="256" height="58"></canvas></div>
+    <div id="stripScope2" style="display:none"><div class="vlabel">Partial strips · lock front</div>
+      <canvas id="stripC" width="256" height="150"></canvas></div>
+    <div id="vmapScope2"><div class="vlabel">Voice map · pan × pitch</div>
+      <canvas id="vmapC" width="256" height="96"></canvas></div>
+  </div>
+<div class="cluster"><h2>XY — x=detune · y=pull K</h2>
+    <!-- The SAME pad as MAIN, not a copy of its picture: both are `canvas.xy`,
+         both are painted from the one (curX, curK) and both write the same two
+         params, so they cannot drift apart the way two hand-maintained pads would. -->
+    <canvas id="xy2" class="xy" width="340" height="212"></canvas>
+  </div>
+  </div>
+  <div class="ctlcol">
+<div class="cluster"><h2>The swarm</h2>
     <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1" value="7"><output></output></div>
     <div class="row"><label>detune</label><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"><output></output></div>
     <div class="row"><label>seed</label><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"><output></output></div>
     <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
     <div class="row"><label>level</label><input type="range" data-p="17" min="0" max="1" step="0.005" value="0.4"><output></output></div>
   </div>
-  <div class="cluster"><h2>The coupling</h2>
+<div class="cluster"><h2>The coupling</h2>
     <div class="row"><label>pull K</label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row"><label>onset</label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row"><label>dissolve</label><input type="range" data-p="8" min="0.05" max="7.94" step="0.01" value="0.63"><output></output></div>
@@ -243,13 +310,21 @@
     <div class="note">retrigger OFF = free-run phases; random starts can null for
       ~300 ms under slow detune beating (A13 — reference physics, not a bug)</div>
   </div>
-  <div class="cluster"><h2>Pitch</h2>
+<div class="cluster"><h2>Pitch</h2>
     <div class="row"><label>octave</label><input type="range" data-p="35" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="36" min="-12" max="12" step="1" value="0"><output></output></div>
     <div class="row"><label>fine</label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
   </div>
-
-<!--GEN:OSC-->
+  </div>
+  <!-- ONE selector per page, ahead of everything it governs. Five copies
+       scattered through the clusters answered "which osc?" wherever you
+       happened to be looking, which sounds helpful and reads as clutter
+       once a page has more than two panels. Scope is a property of the
+       PAGE, so it is declared once, at the top, before anything it
+       governs. All copies still bind to the one `editOsc`, so a page
+       without a bar is simply a page with nothing osc-scoped on it. -->
+        
+    <!--GEN:OSC-->
   <div class="grp"><h3>Drift</h3>
     <div class="row" data-addr="osc1.driftDepth"><label>Drift Depth (c) <span class="sc">osc1</span></label><input type="range" data-p="9" min="0" max="100" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.driftRate"><label>Drift Rate <span class="sc">osc1</span></label><input type="range" data-p="10" min="0" max="1" step="0.005" value="0.4"><output></output></div>
@@ -486,9 +561,12 @@ function paintOscTabs(ps) {
     // 500 ms instead of leaving a permanently unlit tab.
     b.classList.toggle('on', k === editOsc);
     const who = 'OSC ' + (editOsc + 1);
-    for (const id of ['vizWho', 'vizWho2']) {
-      const el = document.getElementById(id);
-      if (el && el.textContent !== who) el.textContent = who;
+    // Class, not an id list: every element that names the edited osc updates,
+    // so adding one to a new cluster is markup and nothing else. (The id list
+    // this replaces already had a collision waiting — a second cluster reusing
+    // #vizWho2 would have been silently skipped by getElementById.)
+    for (const el of document.querySelectorAll('#vizWho, #vizWho2, .whoOsc')) {
+      if (el.textContent !== who) el.textContent = who;
     }
     const vol = ps[k === 0 ? 17 : 17 + k * OSC_STRIDE];
     const silent = !(vol > 0.0005);
@@ -522,10 +600,10 @@ for (const [name, live] of PAGES) {
   tabs.appendChild(t);
 }
 /* ============ XY (active-oscillator, per the plumbing rule) =============== */
-const xy = $('#xy'), xyctx = xy.getContext('2d');
+const XYS = () => [...document.querySelectorAll('canvas.xy')];
 let curX = 0.28, curK = 0, xyDirty = true, xyDown = false;
 function xyApply(e) {
-  const r = xy.getBoundingClientRect();
+  const r = e.currentTarget.getBoundingClientRect();
   curX = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
   curK = Math.min(1, Math.max(-1, 1 - 2 * (e.clientY - r.top) / r.height));
   bridge.setParam(effId(4), curX);
@@ -534,11 +612,13 @@ function xyApply(e) {
   setControl(effId(6), curK);
   xyDirty = true;
 }
-xy.addEventListener('pointerdown', e => { xyDown = true; xy.setPointerCapture(e.pointerId);
-  bridge.gesture(effId(4), true); bridge.gesture(effId(6), true); xyApply(e); });
-xy.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
-xy.addEventListener('pointerup', () => { xyDown = false;
-  bridge.gesture(effId(4), false); bridge.gesture(effId(6), false); });
+XYS().forEach(cv => {
+  cv.addEventListener('pointerdown', e => { xyDown = true; cv.setPointerCapture(e.pointerId);
+    bridge.gesture(effId(4), true); bridge.gesture(effId(6), true); xyApply(e); });
+  cv.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
+  cv.addEventListener('pointerup', () => { xyDown = false;
+    bridge.gesture(effId(4), false); bridge.gesture(effId(6), false); });
+});
 let frameNo = 0;
 function drawXY() {
   requestAnimationFrame(drawXY);
@@ -547,22 +627,33 @@ function drawXY() {
   specFrame();                         // every frame; the busy flag drops overlaps
   if (!xyDirty) return;
   xyDirty = false;
-  const w = xy.width, h = xy.height;
-  xyctx.fillStyle = '#161b28'; xyctx.fillRect(0, 0, w, h);
-  const x = curX * w, y = (1 - (curK + 1) / 2) * h;
-  xyctx.strokeStyle = '#2a3040';
-  xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
-  xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();
-  xyctx.fillStyle = '#e8ecf2';
-  xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
+  for (const cv of XYS()) {
+    const xyctx = cv.getContext('2d');
+    const w = cv.width, h = cv.height;
+    xyctx.fillStyle = '#161b28'; xyctx.fillRect(0, 0, w, h);
+    const x = curX * w, y = (1 - (curK + 1) / 2) * h;
+    xyctx.strokeStyle = '#2a3040';
+    xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
+    xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();
+    xyctx.fillStyle = '#e8ecf2';
+    xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
+  }
 }
 /* ---- viz: phase circle + K vector (ported from gui.html, which ports
    swarmsaw's drawPhase) and the master spectrum. The snapshot follows vizOsc,
    so these display the ACTIVE oscillator by construction. ---- */
-const pc = document.getElementById('phaseC'), pctx = pc.getContext('2d');
+/* Phase and XY render into EVERY canvas carrying their class, from ONE piece of
+   state — the discipline the aesthetics bench proved out: six renderings of one
+   value can never drift, two hand-maintained copies always do. Adding the same
+   viz to another page is now a <canvas class="phase"> and nothing else. */
+const PHASE = () => [...document.querySelectorAll('canvas.phase')];
+let pc = null, pctx = null;
 const sc2 = document.getElementById('specC'), sctx2 = sc2.getContext('2d');
 let kSmX = 0, kSmY = 0, kSmR = 0, vizBusy = false, specBusy = false, specSm = null;
 function drawPhase(s) {
+  for (const _cv of PHASE()) { pc = _cv; pctx = _cv.getContext('2d'); _drawPhaseOne(s); }
+}
+function _drawPhaseOne(s) {
   const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
   pctx.fillStyle = 'rgba(11,14,20,0.32)';
   pctx.fillRect(0, 0, w, h);
@@ -618,8 +709,15 @@ async function vizFrame() {
   vizBusy = true;
   try {
     const s = await bridge.getViz();
+    // Swap the engine-specific pair BEFORE drawing anything, so a throw below
+    // cannot leave SPECTRA's strips hidden behind SAW's carpet (gui.html, same order).
+    const spectraOn = !!(s && s.spectra);
+    document.getElementById('carpetScope2').style.display = spectraOn ? 'none' : '';
+    document.getElementById('stripScope2').style.display  = spectraOn ? '' : 'none';
+    document.getElementById('vmapScope2').style.display   = spectraOn ? 'none' : '';
     drawPhase(s);
     drawMeters(s);
+    if (spectraOn) drawStrips(s); else { drawCarpet(s); drawVmap(s); }
   } catch (e) {}
   vizBusy = false;
 }
@@ -687,4 +785,102 @@ window.addEventListener('load', async () => {
   drawXY();
   setInterval(() => syncFromEngine().catch(() => {}), 500);
 });
+/* ---- PORTED FROM src/gui/gui.html (GUI1), VERBATIM ------------------------
+   drawCarpet / drawStrips / drawVmap and the voice-map zoom state, copied
+   unchanged so the two GUIs cannot disagree about what the swarm looks like.
+   Only the element bindings below differ — same variable names, new canvases —
+   which keeps the diff against GUI1 exactly zero lines of drawing code. When
+   GUI2 supersedes GUI1 these become the single copy; until then, edit GUI1 and
+   re-copy rather than editing here, or the succession forks. */
+const cc2 = document.getElementById('carpetC'), cctx2 = cc2.getContext('2d');
+const stC = document.getElementById('stripC'),  stx  = stC.getContext('2d');
+const vmC = document.getElementById('vmapC'),   vmx  = vmC.getContext('2d');
+const VM_RANGES = [50/1200, 100/1200, 200/1200, 1, 2.5, 5, 10];
+const VM_LABELS = ['\u00b150 \u00a2', '\u00b1100 \u00a2', '\u00b1200 \u00a2', '\u00b11 oct', '\u00b12.5 oct', '\u00b15 oct', '\u00b110 oct'];
+let vmZoom = 4, vmShrink = 0;
+
+function drawCarpet(s) {
+  const w = cc2.width, h = cc2.height;
+  cctx2.fillStyle = 'rgba(11,14,20,0.25)';
+  cctx2.fillRect(0, 0, w, h);
+  if (!s || !s.active) return;
+  const n = s.n, twoClu = s.topo === 2, half = n >> 1;
+  const colW = w / n;
+  for (let i = 0; i < n; i++) {
+    const y = 4 + s.phase[i] * (h - 8);
+    cctx2.fillStyle = (twoClu && i >= half) ? '#ffc24b' : '#5ff2e0';
+    cctx2.beginPath(); cctx2.arc(i * colW + colW / 2, y, 2.6, 0, Math.PI * 2); cctx2.fill();
+  }
+}
+
+function drawStrips(s) {
+  const w = stC.width, h = stC.height;
+  stx.fillStyle = 'rgba(11,14,20,0.35)';
+  stx.fillRect(0, 0, w, h);
+  if (!s || !s.active || !s.spectra || !s.partials) return;
+  const P = s.partials, M = s.cloud;
+  const colW = w / P;
+  const topPad = 6, barH = 26, stripH = h - barH - topPad - 4;
+  for (let k = 0; k < P; k++) {
+    const cx = k * colW + colW / 2;
+    stx.strokeStyle = '#1a2030';
+    stx.beginPath(); stx.moveTo(cx, topPad); stx.lineTo(cx, topPad + stripH); stx.stroke();
+    const amp = (s.partAmp && s.partAmp[k]) || 0;
+    const alpha = 0.35 + 0.65 * Math.min(1, amp * 2.2);
+    stx.fillStyle = 'rgba(95,242,224,' + alpha.toFixed(2) + ')';
+    for (let m = 0; m < M; m++) {
+      const ph = s.partPhase[k * M + m];
+      stx.beginPath(); stx.arc(cx, topPad + ph * stripH, 2.6, 0, Math.PI * 2); stx.fill();
+    }
+    const rH = (s.partR[k] || 0) * barH;
+    stx.fillStyle = '#ff4fa3';
+    stx.fillRect(k * colW + 3, h - 4 - rH, colW - 6, rH);
+    if (k === 0 || (k + 1) % 4 === 0) {
+      stx.fillStyle = '#7c8698'; stx.font = '9px monospace';
+      stx.fillText(String(k + 1), cx - 3, h - 4);
+    }
+  }
+}
+
+function drawVmap(s) {
+  const w = vmC.width, h = vmC.height;
+  vmx.fillStyle = 'rgba(11,14,20,0.35)';
+  vmx.fillRect(0, 0, w, h);
+  if (!s || !s.active || s.spectra || !s.vmVf || !s.vmVf.length || !(s.vmF0 > 0)) return;
+  let dev = 1e-6;
+  for (let i = 0; i < s.vmVf.length; i++) {
+    dev = Math.max(dev, Math.abs(Math.log2(Math.max(1e-6, s.vmVf[i]) / s.vmF0)),
+                        Math.abs(Math.log2(Math.max(1e-6, s.vmEff[i]) / s.vmF0)));
+  }
+  let want = VM_RANGES.length - 1;
+  for (let z = 0; z < VM_RANGES.length; z++) if (dev * 1.12 <= VM_RANGES[z]) { want = z; break; }
+  if (want > vmZoom) { vmZoom = want; vmShrink = 0; }               // grow now
+  else if (want < vmZoom && dev * 1.6 <= VM_RANGES[want] && ++vmShrink > 30) { vmZoom = want; vmShrink = 0; }
+  else if (want >= vmZoom) vmShrink = 0;
+  const oct = VM_RANGES[vmZoom], mid = h / 2;
+  vmx.strokeStyle = '#2a3040';
+  vmx.beginPath(); vmx.moveTo(0, mid); vmx.lineTo(w, mid); vmx.stroke();
+  vmx.beginPath(); vmx.moveTo(w / 2, 0); vmx.lineTo(w / 2, h); vmx.stroke();
+  vmx.fillStyle = '#7f8899'; vmx.font = '9px ui-monospace,Menlo,monospace';
+  vmx.textAlign = 'left'; vmx.fillText(VM_LABELS[vmZoom], 4, 10);
+  const X = p => (Math.max(-1, Math.min(1, p)) * 0.5 + 0.5) * (w - 10) + 5;
+  const Y = f => mid - (Math.log2(Math.max(1e-6, f) / s.vmF0) / oct) * (mid - 4);
+  // Amber marks the ROOT (lowest target voice) — the voice the pitch fan seats
+  // at pan centre, the voice root-anchor pins to f0, and the voice pivot mode
+  // pins under coupling. The old marking (centerIdx, closest-to-f0 by |x|) sat
+  // off-centre under a bipolar spread and read as a bug (human, 2026-07-30).
+  // STABLE marker (test round 1: per-frame lowest-vf HOPPED under drift, hiding
+  // any pivot verdict). The centre SEAT is stable between rebuilds: min |pan|.
+  let root = 0;
+  for (let i = 1; i < s.vmPan.length; i++) if (Math.abs(s.vmPan[i]) < Math.abs(s.vmPan[root])) root = i;
+  for (let i = 0; i < s.vmVf.length; i++) {
+    const x = X(s.vmPan[i]);
+    const col = i === root ? '#ffc24b' : '#5ff2e0';
+    vmx.strokeStyle = col;
+    vmx.beginPath(); vmx.arc(x, Y(s.vmVf[i]), 3.4, 0, Math.PI * 2); vmx.stroke();
+    vmx.fillStyle = col;
+    vmx.beginPath(); vmx.arc(x, Y(s.vmEff[i]), 2.2, 0, Math.PI * 2); vmx.fill();
+  }
+}
+
 </script></body></html>
