@@ -8,6 +8,54 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## WARP INGESTED — FX-C has its prototype; and the aesthetics lab's toggle was a specificity bug (2026-08-18)
+
+**WARP (distortion engine) triaged as a CANDIDATE — ADR-092.** `horde_distortion_engine.html`
++ spec (now `SPEC-DISTORTION.md`, protected). It is **not** a fourth engine in the
+ADR-091 family: HYPERSAW · SPECTRA · CANTO are *sources*, WARP is a *post-stage*, and
+its own §10 says so — *"WARP is the shared post-stage; parameter surface should be
+identical regardless of source."* That sentence files it as **FX-C's prototype**, the
+morphing waveshaper with experimental hysteresis queued yesterday, and closes the gap
+SPEC-FORMANT §10 left open by referring to a distortion spec that did not exist.
+
+**Blocker, identical to CANTO's:** `Math.random()` inside `WarpCore.render()`
+(`horde_distortion_engine.html:161`), driving the `walk` coefficient drift on the audio
+thread. Same seed + same note order must give identical output (SPEC §5.7). A prototype
+that cannot reproduce itself cannot be a parity reference — there is nothing stable to be
+at parity WITH. One sanctioned edit: a mulberry32 stream.
+
+**Queue, inherited from FX-C:** the FX slot contract first (`changes_image` is certainly
+true — there is an all-pass network pre and dispersion post), then the spec's own honest
+§10 list: clicks from block-rate all-pass coefficient recompute without interpolation, no
+oversampling (folds and hard clip alias), LUT resolution at high fold order. Hysteresis
+must declare its own settling and pass the feedback lab's edge-width scan before it goes
+anywhere near a feedback path.
+
+**Aesthetics lab, two fixes from the human's notes.**
+*"The toggle switch doesn't flip all the way, only about a quarter"* — measured at
+**0.267** of its travel, so the eye was reading it exactly right. Cause was not the
+travel: the toggle IS a `<label>` (it wraps its hidden checkbox for keyboard semantics),
+so `.row label { width:78px }` — the parameter-NAME column rule — captured it at
+specificity (0,1,1) against `.switch`'s (0,1,0). The track rendered 78px wide while the
+thumb crossed the 16px correct for the declared 34px. Scoped the rule to
+`label:not(.switch)`; all seven switches now travel exactly their geometry, and the name
+column still measures 78px (control checked, so the fix cannot have worked by shrinking
+the thing it was supposed to leave alone). The travel is now DERIVED from the same three
+CSS variables as the geometry rather than being a fourth hand-tuned number — ADR-009's
+rule, in a stylesheet. Also: the `modulation` toggle had **no thumb element at all** and
+rendered as a bare track.
+*"I would like to be able to audition the morph switch"* — added a transport to the morph
+row: **▶ audition** sweeps A→D→A continuously (9 s per traverse, ping-pong so a boundary
+is seen crossed from both sides), plus A/B/C/D jump buttons. It runs independently of the
+modulation toggle — parking modulation used to park everything through a shared early
+return. Verified by driving the frame loop on a synthetic clock: A→B→C→D, peak exactly
+1.0, all four corners visited, stops on second press, and a hand-drag cancels the sweep.
+
+**Method note.** The first browser check of the sweep reported "not moving" — the pane's
+`requestAnimationFrame` was dead (`0 frames/sec`, `visibilityState: hidden`), so the test
+was measuring nothing. Caught by a liveness control, not by luck; the real verification
+drives `tick()` on a synthetic clock and needs no rAF at all.
+
 ## RETROFIT TO KIT 2.1.0 — and we had no mailbox of our own (2026-08-18)
 
 `/retrofit` run against `kit/currency.py`, which is the only source of truth for what

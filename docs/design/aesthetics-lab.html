@@ -107,11 +107,28 @@
   .moddot  { position:absolute; top:50%; width:calc(6px * var(--density)); height:calc(6px * var(--density));
              transform:translate(-50%,-50%); border-radius:50%; background:var(--range-thumb, var(--text));
              pointer-events:none; }
+  /* Audition transport. Deliberately plain: it drives the bench, it is not one of
+     the six controls under evaluation, so it must never be mistaken for a style
+     candidate. */
+  .transport { display:inline-flex; gap:calc(4px * var(--density)); margin-left:calc(8px * var(--density)); }
+  .transport button { font:inherit; font-size:calc(10px * var(--density)); cursor:pointer;
+                      padding:calc(2px * var(--density)) calc(7px * var(--density));
+                      border:1px solid var(--line); border-radius:calc(4px * var(--density));
+                      background:transparent; color:var(--fg); }
+  .transport button:hover { border-color:var(--accent); }
+  .transport button[aria-pressed="true"] { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+  .transport .jump { min-width:calc(20px * var(--density)); }
   .cornerkey { display:inline-flex; gap:calc(6px * var(--density)); }
   .cornerkey b { display:inline-block; width:calc(10px * var(--density)); height:calc(10px * var(--density));
                  border-radius:2px; opacity:.45; }
   .cornerkey b.on { opacity:1; outline:1px solid var(--text); }
-  .row label { width:calc(78px * var(--density)); font-size:calc(11px * var(--density));
+  /* :not(.switch) is load-bearing. The toggle IS a <label> (it wraps its hidden
+     checkbox for keyboard/click semantics), so this name-column rule used to
+     capture it and force it to 78px — outranking `.switch`'s own 34px on
+     specificity (0,1,1) vs (0,1,0). The thumb then travelled its correct 16px
+     inside a track more than twice that long, which is the "only about a
+     quarter" the human saw. The width was the bug; the travel was innocent. */
+  .row label:not(.switch) { width:calc(78px * var(--density)); font-size:calc(11px * var(--density));
                color:var(--dim); flex-shrink:0; }
   .row output { font-size:calc(11px * var(--density)); width:calc(46px * var(--density));
                 text-align:right; color:var(--fg); }
@@ -141,17 +158,27 @@
   .segbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 
   /* toggle: a real switch, keyboard-native via the hidden checkbox */
-  .switch { position:relative; display:inline-block;
-            width:calc(34px * var(--density)); height:calc(18px * var(--density)); }
+  /* The three geometry numbers live HERE and nowhere else, and the travel is
+     DERIVED from them. It used to be a fourth number — translateX(16px), correct
+     for the declared 34px track — while `.switch` sat in a flex `.row` with no
+     `flex` of its own and stretched to 78px. The thumb then crossed 16 of the 60px
+     it needed: 27% of the way, which is exactly what the eye read as "about a
+     quarter". Two bugs, one symptom — the stretch, and a constant that could not
+     notice the stretch. Same trap as ADR-009's per-tick constants: express the
+     geometry once, derive the coefficient, never hand-tune a second copy. */
+  .switch { --sw-w:34px; --sw-h:18px; --sw-pad:2px; --sw-thumb:14px;
+            position:relative; display:inline-block; flex:0 0 auto;
+            width:calc(var(--sw-w) * var(--density)); height:calc(var(--sw-h) * var(--density)); }
   .switch input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
   .switch .track { position:absolute; inset:0; border-radius:99px; background:var(--switch-off);
                     box-shadow:var(--switch-track-shadow); transition:background .15s; }
-  .switch .thumb { position:absolute; top:calc(2px * var(--density)); left:calc(2px * var(--density));
-                    width:calc(14px * var(--density)); height:calc(14px * var(--density)); border-radius:50%;
+  .switch .thumb { position:absolute; top:calc(var(--sw-pad) * var(--density)); left:calc(var(--sw-pad) * var(--density));
+                    width:calc(var(--sw-thumb) * var(--density)); height:calc(var(--sw-thumb) * var(--density)); border-radius:50%;
                     background:var(--switch-thumb); box-shadow:var(--switch-thumb-shadow);
                     transition:transform .15s; }
   .switch input:checked ~ .track { background:var(--accent); }
-  .switch input:checked ~ .thumb { transform:translateX(calc(16px * var(--density))); }
+  .switch input:checked ~ .thumb {
+    transform:translateX(calc((var(--sw-w) - var(--sw-thumb) - 2 * var(--sw-pad)) * var(--density))); }
   .switch input:focus-visible ~ .track { outline:2px solid var(--accent); outline-offset:2px; }
 
   /* rotary rows: canvas dial, keyboard-focusable, vertical-drag (see JS) */
@@ -179,11 +206,18 @@
     <input type="range" id="morph" min="0" max="1" step="0.002" value="0">
     <span class="cornerkey" id="cornerkey"></span>
     <output id="morph_o">A GLASS</output>
+    <span class="transport">
+      <button type="button" id="sweep" aria-pressed="false" title="Sweep morph A-D-A so the flipping is visible in motion">&#9654; audition</button>
+      <button type="button" class="jump" data-t="0">A</button>
+      <button type="button" class="jump" data-t="0.3333333333333333">B</button>
+      <button type="button" class="jump" data-t="0.6666666666666666">C</button>
+      <button type="button" class="jump" data-t="1">D</button>
+    </span>
   </div>
   <div class="hint"><b>Corner colour flipping</b> (human, 2026-08-17: <i>"some things need to flip together, other things can be discrete, and that often comes down to a matter of taste, and everything that flips needs to have its corner colour"</i>). Drag morph from A to D and watch each control's label rule and dial ring. Every param carries a <b>flip mode</b>, shown as its glyph: <b>quantum</b> jumps colour on the corner boundary, <b>gradual</b> blends along the way, <b>semi</b> blends in discrete hops at the refresh rate, and <b>frozen</b>/system-wide never changes and shows no colour at all — absence reads as "belongs to nobody", never as a grey corner. The assignments below are a <b>seed, not a design</b>: which params share a corner and which flip how is exactly the taste decision this control exists to make visible. Vocabulary is the standing mod-lab convention (A GLASS · B GRIT · C HOLLOW · D BLOOM), so this auditions the presentation of corners the instrument already has.</div>
   <div class="row">
     <label for="modon">modulation</label>
-    <label class="switch"><input type="checkbox" id="modon" checked><span class="track"></span></label>
+    <label class="switch"><input type="checkbox" id="modon" checked><span class="track"></span><span class="thumb"></span></label>
     <output id="modon_o">running</output>
   </div>
   <div class="hint"><b>Modulation on a parameter</b> — a live signal riding the value. Two marks, deliberately distinct: a translucent <b>depth band</b> showing the reachable range, and a small <b>dot</b> at where the sound is right now. The pointer or thumb stays the <i>user's</i> value; the dot is the modulated one. Confusing the two is the classic mod-viz failure, so this bench keeps them apart in both widget styles. Detune, volume and pan carry modulation; the rest sit at zero on purpose, because a mod visual that cannot look <i>absent</i> is as bad as one that cannot look present. The signal is a plain sine — this auditions how modulation <i>looks</i>, not any modulator.</div>
@@ -686,11 +720,45 @@ paintMorph();
 
 const modOn = document.getElementById('modon'), modOnOut = document.getElementById('modon_o');
 modOn.addEventListener('change', () => { modOnOut.textContent = modOn.checked ? 'running' : 'parked'; });
+/* AUDITION: sweep morph A->D->A continuously so the flip modes are legible in
+   MOTION. Dragging the slider by hand shows the endpoints; only a steady sweep
+   shows what the four modes actually look like as the corner changes — a quantum
+   jump is an event you have to catch, and hunting for it at 0.1667 with a mouse
+   is how it stayed un-auditioned. Ping-pong rather than wrap: a boundary looks
+   different crossed from each side, and a wrap would teleport D back to A, which
+   is not a flip anybody would ship.
+   SWEEP_SECONDS is one A->D traverse. 9 s is a measured compromise: fast enough
+   to hold the whole path in mind, slow enough that the eye resolves a jump. */
+const SWEEP_SECONDS = 9;
+const sweepBtn = document.getElementById('sweep');
+let sweeping = false, sweepDir = 1;
+function setSweep(on){
+  sweeping = on;
+  sweepBtn.setAttribute('aria-pressed', String(on));
+  sweepBtn.innerHTML = on ? '&#10073;&#10073; stop' : '&#9654; audition';
+}
+sweepBtn.addEventListener('click', () => setSweep(!sweeping));
+document.querySelectorAll('.transport .jump').forEach(b => b.addEventListener('click', () => {
+  setSweep(false);
+  morphT = +b.dataset.t; morphInput.value = morphT; paintMorph();
+}));
+// A hand-drag must win over the sweep, or the slider fights the user.
+morphInput.addEventListener('pointerdown', () => setSweep(false));
+
 let lastT = 0;
 function tick(now){
   requestAnimationFrame(tick);
-  if (!modOn.checked) { lastT = now; return; }
   const dt = Math.min(0.05, (now - lastT) / 1000 || 0); lastT = now;
+  if (sweeping){
+    morphT += sweepDir * dt / SWEEP_SECONDS;
+    if (morphT >= 1){ morphT = 1; sweepDir = -1; }
+    else if (morphT <= 0){ morphT = 0; sweepDir = 1; }
+    morphInput.value = morphT;
+    paintMorph();                    // repaints every param: corner colour is global
+  }
+  // Modulation is a SEPARATE overlay: parking it must not park the morph sweep,
+  // and the early return that used to sit here did exactly that.
+  if (!modOn.checked) return;
   modPhase += dt * 2 * Math.PI * 0.4;                        // 0.4 Hz: slow enough to READ
   PARAMS.filter(p => p.mod).forEach(p => (VIEWS[p.id] || []).forEach(fn => fn()));
 }
