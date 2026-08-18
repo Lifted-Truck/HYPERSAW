@@ -33,3 +33,7 @@ dist/cpu_bench
 
 # private-sibling real names for the leak gate — never tracked (ADR-014)
 .leakcheck-names
+
+# python bytecode — a stray .pyc rode in on a GUI commit 2026-08-18
+__pycache__/
+*.pyc

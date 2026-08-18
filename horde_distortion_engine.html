@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HORDE · WARP — distortion engine prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16121f;--panel:#221b30;--panel2:#2c2340;--line:#3c3152;--bone:#efe6d6;--dim:#9a8fb0;--pink:#ff3d8a;--cyan:#5fe0d8;--amber:#ffb84d;--lilac:#c9b8ff}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--bone);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}
+header{display:flex;align-items:baseline;gap:18px;padding:16px 20px 8px;border-bottom:1px solid var(--line)}
+header h1{font-family:Syne,sans-serif;font-weight:800;font-size:22px;margin:0}
+header h1 span{color:var(--pink)}
+header p{margin:0;color:var(--dim)}
+#start{margin-left:auto;background:var(--pink);color:var(--ink);border:0;font:600 12px 'IBM Plex Mono';padding:8px 14px;cursor:pointer;border-radius:3px}
+#start.on{background:var(--panel2);color:var(--cyan);border:1px solid var(--cyan)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;padding:14px 20px 20px}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.viz{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+canvas{display:block;width:100%}
+.lbl{padding:6px 10px;color:var(--dim);border-top:1px solid var(--line);font-size:11px;display:flex;justify-content:space-between}
+.side{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px}
+.card h2{font-family:Syne,sans-serif;font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.row{display:grid;grid-template-columns:100px 1fr 58px;align-items:center;gap:8px;margin:5px 0}
+.row output{text-align:right;color:var(--cyan)}
+input[type=range]{width:100%;accent-color:var(--pink);height:18px}
+.seg{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.seg button{background:var(--panel2);border:1px solid var(--line);color:var(--bone);font:inherit;padding:5px 9px;cursor:pointer;border-radius:3px}
+.seg button.on{border-color:var(--pink);color:var(--pink)}
+.keys{display:flex;gap:2px;margin-top:6px}
+.keys button{flex:1;height:40px;background:var(--panel2);border:1px solid var(--line);color:var(--dim);font:inherit;cursor:pointer;border-radius:2px}
+.keys button.on{background:var(--pink);color:var(--ink)}
+.hint{color:var(--dim);margin:6px 0 0;line-height:1.5}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.two>div{min-width:0;border-right:1px solid var(--line)}
+.two>div:last-child{border-right:0}
+@media(max-width:860px){.two{grid-template-columns:1fr}.two>div{border-right:0;border-bottom:1px solid var(--line)}}
+.lbl span{min-width:0;overflow-wrap:anywhere}
+.row label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+.seg button{white-space:normal;text-align:left;line-height:1.3}
+
+</style>
+</head>
+<body>
+<header>
+  <h1>HORDE <span>/ WARP</span></h1>
+  <p>phase network → hysteretic simplex shaper → dispersion</p>
+  <button id="start">start audio</button>
+</header>
+<main>
+  <section class="viz">
+    <div class="two">
+      <div><canvas id="curve" height="220"></canvas><div class="lbl"><span>transfer curve · pink = baked LUT · amber = live bias · dot = now</span></div></div>
+      <div><canvas id="loop" height="220"></canvas><div class="lbl"><span>in/out orbit · memory opens it into a loop</span></div></div>
+    </div>
+    <canvas id="wave" height="100"></canvas><div class="lbl"><span>waveform · dim = pre-shaper · bright = out</span><span id="stat">—</span></div>
+    <canvas id="spec" height="130"></canvas><div class="lbl"><span>output spectrum</span></div>
+    <div class="card" style="border:0;border-top:1px solid var(--line);border-radius:0">
+      <h2>source</h2>
+      <div class="seg" id="wave_sel"><button data-v="sine" class="on">sine</button><button data-v="square">square</button><button data-v="saw">saw</button></div>
+      <div class="seg" id="preset"><button data-v="roar">preset: sine → poly sweep (Roar)</button><button data-v="eq3">preset: square → phase → shaper (EQ3 trick)</button><button data-v="water">preset: watery</button><button data-v="fold">preset: deep poly fold</button></div>
+      <div class="keys" id="keys"></div>
+      <div class="seg" style="margin-top:8px"><button id="octDn">octave −</button><button id="octUp">octave +</button><span id="oct" class="hint" style="margin:0 0 0 6px;align-self:center"></span></div>
+      <p class="hint">a w s e d f t g y h u j k play · z / x octave (down to −1 ≈ 33 Hz) · monophonic with glide</p>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="card"><h2>drive</h2>
+      <div class="row"><label>drive</label><input id="drive" type="range" min="0.1" max="12" step="0.05" value="2"><output></output></div>
+      <div class="row"><label>sweep rate</label><input id="swRate" type="range" min="0.05" max="8" step="0.05" value="0.4"><output></output></div>
+      <div class="row"><label>sweep depth</label><input id="swDepth" type="range" min="0" max="1" step="0.01" value="0"><output></output></div>
+      <div class="row"><label>glide</label><input id="glide" type="range" min="1" max="40" step="0.5" value="12"><output></output></div>
+    </div>
+    <div class="card"><h2>phase network (pre)</h2>
+      <div class="row"><label>enable</label><input id="apOn" type="range" min="0" max="1" step="1" value="1"><output></output></div>
+      <div class="row"><label>centre</label><input id="apF" type="range" min="40" max="6000" step="1" value="600"><output></output></div>
+      <div class="row"><label>spread</label><input id="apS" type="range" min="1" max="6" step="0.05" value="2.5"><output></output></div>
+      <div class="row"><label>Q</label><input id="apQ" type="range" min="0.2" max="6" step="0.05" value="1"><output></output></div>
+      <div class="row"><label>lfo rate</label><input id="apLr" type="range" min="0.02" max="8" step="0.02" value="0.3"><output></output></div>
+      <div class="row"><label>lfo depth</label><input id="apLd" type="range" min="0" max="3" step="0.05" value="0"><output></output></div>
+      <p class="hint">Three 2nd-order all-passes at centre/spread, centre, centre×spread. Flat magnitude; only the waveform shape changes — so the shaper's output changes while the input spectrum does not.</p>
+    </div>
+    <div class="card"><h2>shaper — simplex blend</h2>
+      <div class="row"><label>soft (tanh)</label><input id="w0" type="range" min="0" max="1" step="0.01" value="1"><output></output></div>
+      <div class="row"><label>hard clip</label><input id="w1" type="range" min="0" max="1" step="0.01" value="0"><output></output></div>
+      <div class="row"><label>chebyshev</label><input id="w2" type="range" min="0" max="1" step="0.01" value="0"><output></output></div>
+      <div class="row"><label>sine fold</label><input id="w3" type="range" min="0" max="1" step="0.01" value="0"><output></output></div>
+      <div class="row"><label>asymmetric</label><input id="w4" type="range" min="0" max="1" step="0.01" value="0"><output></output></div>
+      <div class="row"><label>poly fold</label><input id="w5" type="range" min="0" max="1" step="0.01" value="0"><output></output></div>
+      <div class="row"><label>fold order</label><input id="foldN" type="range" min="0.5" max="32" step="0.05" value="6"><output></output></div>
+      <div class="row"><label>fold centre</label><input id="foldC" type="range" min="0" max="1" step="0.01" value="0.5"><output></output></div>
+      <div class="row"><label>quantum walk</label><input id="walk" type="range" min="0" max="1" step="0.01" value="0"><output></output></div>
+      <p class="hint">Weights are normalised to sum to one; the LUT is re-baked when they change. Poly fold: sin(½π·n·u(x)) with continuous order n and u(x) blending from linear (uniform folds, centre 0) to tanh (folds crowd toward the middle and flatten at the extremes, centre 1). Order 1 at centre 0 is the plain sine fold. Quantum walk drifts the weights stochastically.</p>
+    </div>
+    <div class="card"><h2>memory (hysteresis)</h2>
+      <div class="row"><label>backlash</label><input id="play" type="range" min="0" max="0.6" step="0.005" value="0"><output></output></div>
+      <div class="row"><label>bias memory</label><input id="hyst" type="range" min="-1.5" max="1.5" step="0.01" value="0"><output></output></div>
+      <div class="row"><label>bias time</label><input id="hTau" type="range" min="1" max="800" step="1" value="60"><output></output></div>
+      <div class="row"><label>drive memory</label><input id="dMem" type="range" min="-1" max="2" step="0.01" value="0"><output></output></div>
+      <p class="hint">Backlash: a play operator (dead-band that only moves when the input drags it) — the Preisach building block. Bias memory: the shaper's operating point follows a leaky average of its own output, so the transfer shifts depending on where the waveform has been. Drive memory: effective drive rides the difference between fast and slow envelopes — the shaper hardens (or relaxes) after loud passages.</p>
+    </div>
+    <div class="card"><h2>dispersion (post)</h2>
+      <div class="row"><label>stages</label><input id="dN" type="range" min="0" max="48" step="1" value="0"><output></output></div>
+      <div class="row"><label>freq</label><input id="dF" type="range" min="40" max="8000" step="1" value="800"><output></output></div>
+      <div class="row"><label>lfo rate</label><input id="dLr" type="range" min="0.02" max="8" step="0.02" value="0.5"><output></output></div>
+      <div class="row"><label>lfo depth</label><input id="dLd" type="range" min="0" max="3" step="0.05" value="0"><output></output></div>
+    </div>
+    <div class="card"><h2>interdependence</h2>
+      <div class="row"><label>env→phase</label><input id="cAp" type="range" min="-3" max="3" step="0.05" value="0"><output></output></div>
+      <div class="row"><label>env→disp</label><input id="cDs" type="range" min="-3" max="3" step="0.05" value="0"><output></output></div>
+      <div class="row"><label>inertia</label><input id="inertia" type="range" min="0.5" max="40" step="0.5" value="5"><output></output></div>
+      <div class="row"><label>output</label><input id="outg" type="range" min="0" max="1.5" step="0.01" value="0.6"><output></output></div>
+      <p class="hint">The fast envelope (of the pre-shaper signal) pushes phase-network centre and dispersion frequency in octaves. Every moving target (centres, dispersion, drive) is smoothed by one shared inertia so the chain lags and settles as one body.</p>
+    </div>
+  </aside>
+</main>
+
+<script>
+window.addEventListener('error',e=>{const b=document.getElementById('start'); if(b) b.textContent='page error: '+(e.message||'?')+' @'+(e.lineno||'?')+':'+(e.colno||'?');});
+class WarpCore {
+  constructor(sr,post){
+    this.sr=sr; this.post=post;
+    this.p={wave:'sine',drive:2,swRate:0.4,swDepth:0,glide:12,apOn:1,apF:600,apS:2.5,apQ:1,apLr:0.3,apLd:0,
+      w0:1,w1:0,w2:0,w3:0,w4:0,w5:0,foldN:6,foldC:0.5,walk:0,play:0,hyst:0,hTau:60,dMem:0,dN:0,dF:800,dLr:0.5,dLd:0,cAp:0,cDs:0,inertia:5,outg:0.6};
+    this.f0t=110; this.f0=110; this.gate=0; this.env=0; this.ph=0;
+    this.LUT=new Float32Array(4097); this.LUTdom=6; this.wcur=[1,0,0,0,0,0]; this.wkey=''; this.lutDirty=true; this.bake();
+    this.ap=[{},{},{}].map(()=>({b0:1,b1:0,b2:0,a1:0,a2:0,x1:0,x2:0,y1:0,y2:0}));
+    this.apLfo=0; this.dLfo=0; this.swLfo=0;
+    this.disp={c:0,x:new Float32Array(48),y:new Float32Array(48)};
+    this.playY=0; this.bias=0; this.eFast=0; this.eSlow=0;
+    this.sm={apF:600,dF:800,drive:2}; // inertia-smoothed targets
+    this.dcx=0; this.dcy=0;
+    this.blockN=0; this.SL=600; this.scope=new Float32Array(this.SL*2); this.orbit=new Float32Array(this.SL*2); this.si=0; this.walkCount=0;
+  }
+  msg(m){ if(m.type==='param'){this.p[m.k]=m.v;} else if(m.type==='note'){this.f0t=m.f;this.gate=1;} else if(m.type==='off'){this.gate=0;} }
+  static basis(x,k,n){ // n = fold order (continuous); this.foldC = centre-concentration 0..1
+    switch(k){
+      case 5: { const c=this.foldC, u=(1-c)*x + c*Math.tanh(x); return Math.sin(0.5*Math.PI*n*u); }
+      case 0: return Math.tanh(x);
+      case 1: return Math.max(-1,Math.min(1,x));
+      case 2: { const c=Math.max(-1,Math.min(1,x)); const T3=4*c*c*c-3*c, T5=16*Math.pow(c,5)-20*c*c*c+5*c; return 0.6*c+0.3*T3+0.15*T5; }
+      case 3: return Math.sin(Math.PI*0.5*x);
+      case 4: return x>0?Math.tanh(1.6*x):Math.tanh(0.7*x);
+    } return x;
+  }
+  bake(){
+    const p=this.p; const w=[p.w0,p.w1,p.w2,p.w3,p.w4,p.w5]; let tot=w.reduce((a,b)=>a+b,0)||1; const wn=w.map(v=>v/tot);
+    const key=wn.map(v=>v.toFixed(3)).join(',')+'|'+(+p.foldN).toFixed(2)+'|'+(+p.foldC).toFixed(2); if(key===this.wkey) return; WarpCore.foldC=p.foldC; this.wkey=key; this.wcur=wn; this.lutDirty=true;
+    const D=this.LUTdom, N=this.LUT.length;
+    for(let i=0;i<N;i++){ const x=-D+2*D*i/(N-1); let y=0; for(let k=0;k<6;k++) if(wn[k]>0) y+=wn[k]*WarpCore.basis(x,k,+p.foldN); this.LUT[i]=y; }
+  }
+  shape(x){ const D=this.LUTdom, N=this.LUT.length; let u=(x+D)/(2*D)*(N-1); if(u<=0) return this.LUT[0]; if(u>=N-1) return this.LUT[N-1]; const i=u|0, f=u-i; return this.LUT[i]+(this.LUT[i+1]-this.LUT[i])*f; }
+  apCoef(a,fc,Q){ const w0=2*Math.PI*Math.min(fc,this.sr*0.45)/this.sr, al=Math.sin(w0)/(2*Q), c=Math.cos(w0), a0=1+al;
+    a.b0=(1-al)/a0; a.b1=(-2*c)/a0; a.b2=1; a.a1=(-2*c)/a0; a.a2=(1-al)/a0; }
+  render(out){
+    const p=this.p, sr=this.sr, dt=1/sr, N=out.length;
+    // quantum walk on weights
+    if(p.walk>0 && (++this.walkCount%12===0)){ const s=p.walk*0.12; for(let k=0;k<6;k++){ const key='w'+k; p[key]=Math.max(0,p[key]+s*(Math.random()*2-1)); } const t=p.w0+p.w1+p.w2+p.w3+p.w4+p.w5; if(t<0.2){p.w0+=0.2;} }
+    if(this.blockN%3===0) this.bake();
+    // control-rate: LFOs, inertia
+    const bdt=N/sr;
+    this.apLfo=(this.apLfo+p.apLr*bdt)%1; this.dLfo=(this.dLfo+p.dLr*bdt)%1; this.swLfo=(this.swLfo+p.swRate*bdt)%1;
+    const lfoA=Math.sin(2*Math.PI*this.apLfo), lfoD=Math.sin(2*Math.PI*this.dLfo), lfoS=0.5-0.5*Math.cos(2*Math.PI*this.swLfo);
+    const eOct=Math.min(2,this.eFast*2.5);
+    const tApF=p.apF*Math.pow(2,p.apLd*lfoA + p.cAp*eOct);
+    const tDF=p.dF*Math.pow(2,p.dLd*lfoD + p.cDs*eOct);
+    const tDrive=p.drive*(1-p.swDepth+p.swDepth*lfoS)*Math.min(4,Math.max(0.25,1+p.dMem*(this.eFast-this.eSlow)*3));
+    const k=1-Math.exp(-2*Math.PI*p.inertia*bdt);
+    this.sm.apF+=(tApF-this.sm.apF)*k; this.sm.dF+=(tDF-this.sm.dF)*k; this.sm.drive+=(tDrive-this.sm.drive)*k;
+    if(p.apOn){ this.apCoef(this.ap[0],this.sm.apF/p.apS,p.apQ); this.apCoef(this.ap[1],this.sm.apF,p.apQ); this.apCoef(this.ap[2],this.sm.apF*p.apS,p.apQ); }
+    const t=Math.tan(Math.PI*Math.min(this.sm.dF,sr*0.45)/sr); this.disp.c=(1-t)/(1+t);
+    const relCoef=Math.exp(-1/(0.25*sr)), gk=1-Math.exp(-2*Math.PI*p.glide*dt);
+    const cf=1-Math.exp(-1/(0.004*sr)), cs=1-Math.exp(-1/(0.25*sr)), ct=1-Math.exp(-1/(p.hTau*0.001*sr));
+    const dN=Math.min(48,p.dN|0), dc=this.disp.c, dx=this.disp.x, dy=this.disp.y;
+    for(let n=0;n<N;n++){
+      this.f0+=(this.f0t-this.f0)*gk;
+      this.env = this.gate?Math.min(1,this.env+0.0008):this.env*relCoef;
+      this.ph+=this.f0*dt; if(this.ph>=1)this.ph-=1;
+      let x;
+      if(p.wave==='sine') x=Math.sin(2*Math.PI*this.ph);
+      else if(p.wave==='square') x=this.ph<0.5?1:-1;
+      else x=2*this.ph-1;
+      x*=this.env;
+      // phase network
+      if(p.apOn) for(let i=0;i<3;i++){ const a=this.ap[i]; const y=a.b0*x+a.b1*a.x1+a.b2*a.x2-a.a1*a.y1-a.a2*a.y2; a.x2=a.x1;a.x1=x;a.y2=a.y1;a.y1=y; x=y; }
+      const ax=Math.abs(x); this.eFast+=(ax-this.eFast)*cf; this.eSlow+=(ax-this.eSlow)*cs; // envelopes taken pre-drive so drive memory can't feed back on itself
+      const pre=x*this.sm.drive;
+      // hysteresis: play operator, then bias memory
+      let h=pre;
+      if(p.play>0){ const w=p.play*this.sm.drive; if(h>this.playY+w) this.playY=h-w; else if(h<this.playY-w) this.playY=h+w; h=this.playY; }
+      h+=p.hyst*this.bias;
+      let y=this.shape(h); const y0=y;
+      this.bias+=(y-this.bias)*ct;
+      // dispersion
+      for(let i=0;i<dN;i++){ const yy=dc*y+dx[i]-dc*dy[i]; dx[i]=y; dy[i]=yy; y=yy; }
+      // dc block
+      const o=y-this.dcx+0.995*this.dcy; this.dcx=y; this.dcy=o;
+      out[n]=Math.tanh(o*p.outg*1.2);
+      if((n&7)===0){ const j=this.si*2; this.scope[j]=pre; this.scope[j+1]=out[n]; this.orbit[j]=h; this.orbit[j+1]=y0; this.si=(this.si+1)%this.SL; }
+    }
+    this.blockN++;
+    const every=Math.max(1,Math.round(sr/N/30));
+    if(this.blockN%every===0){
+      const m={dom:this.LUTdom,w:this.wcur,bias:p.hyst*this.bias,drive:this.sm.drive,apF:this.sm.apF,dF:this.sm.dF,eF:this.eFast,si:this.si,scope:this.scope.slice(),orbit:this.orbit.slice()};
+      if(this.lutDirty){ m.lut=this.LUT.slice(); this.lutDirty=false; }
+      this.post(m); }
+  }
+}
+const WORKLET = 'const WarpCore = ' + WarpCore.toString() + ';\n' + `
+class Warp extends AudioWorkletProcessor{ constructor(){super();this.core=new WarpCore(sampleRate,m=>this.port.postMessage(m));this.port.onmessage=e=>this.core.msg(e.data);} process(i,o){this.core.render(o[0][0]);return true;} }
+registerProcessor('warp',Warp);`;
+
+const $=s=>document.querySelector(s);
+let ctx,node,analyser,specBuf,send=()=>{},last=null,lutKeep=null;
+function onMsg(d){ if(d.lut) lutKeep=d.lut; d.lut=lutKeep; last=d; }
+const state={octave:2,keys:{}};
+function showOct(){const o=document.getElementById('oct'); if(o) o.textContent='octave '+state.octave+' · a = '+Math.round(hz(36+state.octave*12));}
+async function start(){
+  if(ctx){ if(ctx.state==='suspended') await ctx.resume(); return; }
+  const btn=$('#start');
+  try{
+    ctx=new (window.AudioContext||window.webkitAudioContext)(); if(ctx.state==='suspended') await ctx.resume();
+    analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0.6; specBuf=new Float32Array(analyser.frequencyBinCount);
+    let engine='worklet';
+    try{ if(!ctx.audioWorklet) throw 0; const url=URL.createObjectURL(new Blob([WORKLET],{type:'application/javascript'})); await ctx.audioWorklet.addModule(url);
+      node=new AudioWorkletNode(ctx,'warp'); node.port.onmessage=e=>onMsg(e.data); send=m=>node.port.postMessage(m);
+    }catch(e){ engine='main-thread'; const c=new WarpCore(ctx.sampleRate,onMsg);
+      node=ctx.createScriptProcessor(2048,0,1); node.onaudioprocess=e=>{const o=e.outputBuffer.getChannelData(0); c.render(o); if(e.outputBuffer.numberOfChannels>1)e.outputBuffer.getChannelData(1).set(o);}; send=m=>c.msg(m); }
+    node.connect(analyser).connect(ctx.destination);
+    document.querySelectorAll('input[type=range]').forEach(pushParam);
+    send({type:'param',k:'wave',v:$('#wave_sel .on').dataset.v});
+    btn.textContent='audio running ('+engine+')'; btn.classList.add('on');
+  }catch(err){ btn.textContent='audio failed: '+err.message; console.error(err); }
+}
+$('#start').onclick=start;
+const FMT={drive:v=>(+v).toFixed(2),swRate:v=>v+' Hz',swDepth:v=>Math.round(v*100)+'%',glide:v=>v+' Hz',apOn:v=>v==1?'on':'off',apF:v=>v+' Hz',apS:v=>'×'+(+v).toFixed(2),apQ:v=>(+v).toFixed(2),apLr:v=>v+' Hz',apLd:v=>(+v).toFixed(2)+' oct',
+  foldN:v=>'n '+(+v).toFixed(2),foldC:v=>(+v).toFixed(2),walk:v=>Math.round(v*100)+'%',play:v=>(+v).toFixed(3),hyst:v=>(+v).toFixed(2),hTau:v=>v+' ms',dMem:v=>(+v).toFixed(2),dN:v=>v,dF:v=>v+' Hz',dLr:v=>v+' Hz',dLd:v=>(+v).toFixed(2)+' oct',cAp:v=>(+v).toFixed(2)+' oct',cDs:v=>(+v).toFixed(2)+' oct',inertia:v=>v+' Hz',outg:v=>(+v).toFixed(2)};
+function pushParam(el){ const k=el.id,v=parseFloat(el.value); const o=el.parentElement.querySelector('output'); if(o) o.textContent=FMT[k]?FMT[k](el.value):(+v).toFixed(2); if(node) send({type:'param',k,v}); }
+document.querySelectorAll('input[type=range]').forEach(el=>{el.addEventListener('input',()=>pushParam(el));pushParam(el);});
+function setP(k,v){ const el=$('#'+k); if(el){el.value=v;pushParam(el);} }
+function seg(id,cb){const box=$(id);box.querySelectorAll('button').forEach(b=>b.onclick=()=>{box.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');cb(b.dataset.v);});}
+seg('#wave_sel',v=>send({type:'param',k:'wave',v}));
+function setWave(v){document.querySelectorAll('#wave_sel button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); send({type:'param',k:'wave',v});}
+seg('#preset',v=>{
+  if(v==='roar'){ setWave('sine'); setP('apOn',0); setP('drive',3); setP('swDepth',0.9); setP('swRate',0.25); setP('w0',0);setP('w1',0);setP('w2',1);setP('w3',0.2);setP('w4',0);setP('w5',0); setP('play',0);setP('hyst',0);setP('dMem',0.6);setP('dN',0);setP('cAp',0);setP('cDs',0); }
+  if(v==='eq3'){ setWave('square'); setP('apOn',1); setP('apF',500);setP('apS',3);setP('apQ',1.2);setP('apLd',1.5);setP('apLr',0.15); setP('drive',1.6);setP('swDepth',0); setP('w0',0.6);setP('w1',0.4);setP('w2',0);setP('w3',0);setP('w4',0.3);setP('w5',0); setP('play',0.05);setP('hyst',0.4);setP('hTau',40);setP('dMem',0);setP('dN',0);setP('cAp',0.6);setP('cDs',0); }
+  if(v==='fold'){ setWave('sine'); state.octave=0; showOct(); setP('apOn',0); setP('drive',2.5); setP('swDepth',0.8); setP('swRate',0.15); setP('w0',0.15);setP('w1',0);setP('w2',0);setP('w3',0);setP('w4',0);setP('w5',1);setP('foldN',4.5);setP('foldC',0.65); setP('play',0.03);setP('hyst',0.5);setP('hTau',80);setP('dMem',0.8);setP('dN',0);setP('cAp',0);setP('cDs',0);setP('inertia',4); }
+  if(v==='water'){ setWave('sine'); setP('apOn',1); setP('apF',300);setP('apS',2);setP('apQ',0.7);setP('apLd',0.5);setP('apLr',0.2); setP('drive',4);setP('swDepth',0.5);setP('swRate',0.12); setP('w0',0.2);setP('w1',0);setP('w2',0.7);setP('w3',0.4);setP('w4',0);setP('w5',0); setP('play',0.02);setP('hyst',-0.6);setP('hTau',120);setP('dMem',0.4);setP('dN',32);setP('dF',900);setP('dLd',1.8);setP('dLr',0.35);setP('cAp',0);setP('cDs',1.5);setP('inertia',3); }
+});
+// keyboard
+const KEYMAP={a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12}; const keysBox=$('#keys'); let held=[];
+Object.keys(KEYMAP).forEach(k=>{const b=document.createElement('button');b.textContent=k;b.dataset.k=k;b.onpointerdown=()=>noteOn(k);b.onpointerup=b.onpointerleave=()=>noteOff(k);keysBox.appendChild(b);});
+const hz=m=>440*Math.pow(2,(m-69)/12);
+function noteOn(k){ if(!ctx)start(); if(state.keys[k])return; state.keys[k]=1; held.push(k); keysBox.querySelector('[data-k="'+k+'"]').classList.add('on'); send({type:'note',f:hz(36+state.octave*12+KEYMAP[k])}); }
+function noteOff(k){ if(!state.keys[k])return; delete state.keys[k]; held=held.filter(x=>x!==k); keysBox.querySelector('[data-k="'+k+'"]').classList.remove('on'); if(held.length) send({type:'note',f:hz(36+state.octave*12+KEYMAP[held[held.length-1]])}); else send({type:'off'}); }
+window.addEventListener('keydown',e=>{if(e.repeat)return;const k=e.key.toLowerCase();if(k in KEYMAP){e.preventDefault();noteOn(k);} if(k==='z'){state.octave=Math.max(-1,state.octave-1);showOct();} if(k==='x'){state.octave=Math.min(5,state.octave+1);showOct();}});
+document.getElementById('octDn').onclick=()=>{state.octave=Math.max(-1,state.octave-1);showOct();}; document.getElementById('octUp').onclick=()=>{state.octave=Math.min(5,state.octave+1);showOct();}; showOct();
+window.addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(k in KEYMAP)noteOff(k);});
+// drawing
+const dp=devicePixelRatio;
+function fit(c){ if(!c.dataset.h){c.dataset.h=c.getAttribute('height');c.style.height=c.dataset.h+'px';} const r=c.getBoundingClientRect();const w=Math.max(1,Math.floor(r.width*dp)),h=Math.floor(parseInt(c.dataset.h)*dp);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}return c.getContext('2d');}
+function draw(){
+  const cC=$('#curve'),cL=$('#loop'),cW=$('#wave'),cS=$('#spec');
+  let g=fit(cC),W=cC.width,H=cC.height; g.fillStyle='#221b30'; g.fillRect(0,0,W,H);
+  g.strokeStyle='#3c3152'; g.beginPath(); g.moveTo(W/2,0);g.lineTo(W/2,H);g.moveTo(0,H/2);g.lineTo(W,H/2); g.stroke();
+  if(last&&last.lut){ const D=last.dom, L=last.lut; const X=x=>(x+D)/(2*D)*W, Y=y=>H/2-y*H/2*0.9;
+    g.strokeStyle='#ff3d8a'; g.lineWidth=1.5*dp; g.beginPath(); for(let i=0;i<L.length;i+=4){const x=-D+2*D*i/(L.length-1); i?g.lineTo(X(x),Y(L[i])):g.moveTo(X(x),Y(L[i]));} g.stroke();
+    if(last.lut && Math.abs(last.bias)>0.001){ g.strokeStyle='#ffb84d'; g.setLineDash([4*dp,4*dp]); g.beginPath(); g.moveTo(X(-last.bias),0); g.lineTo(X(-last.bias),H); g.stroke(); g.setLineDash([]); }
+    const ob=last.orbit, li=((last.si-1+ob.length/2)%(ob.length/2))*2; { const hx=ob[li],hy=ob[li+1]; g.fillStyle='#efe6d6'; g.beginPath(); g.arc(X(hx),Y(hy),4*dp,0,7); g.fill(); }
+    g.fillStyle='#9a8fb0'; g.font=(11*dp)+'px IBM Plex Mono'; g.fillText('drive '+last.drive.toFixed(2)+'  ap '+Math.round(last.apF)+' Hz  disp '+Math.round(last.dF)+' Hz',8*dp,14*dp);
+    g.fillText('w '+last.w.map(v=>v.toFixed(2)).join(' '),8*dp,H-8*dp);
+  }
+  g=fit(cL); W=cL.width;H=cL.height; g.fillStyle='#221b30'; g.fillRect(0,0,W,H);
+  g.strokeStyle='#3c3152'; g.beginPath(); g.moveTo(W/2,0);g.lineTo(W/2,H);g.moveTo(0,H/2);g.lineTo(W,H/2); g.stroke();
+  if(last){ const ob=last.orbit, D=last.dom, L=ob.length/2; g.strokeStyle='#5fe0d8'; g.lineWidth=1*dp; g.beginPath(); for(let k=0;k<L;k++){const i=((last.si+k)%L)*2; const x=(ob[i]+D)/(2*D)*W, y=H/2-ob[i+1]*H/2*0.9; k?g.lineTo(x,y):g.moveTo(x,y);} g.stroke(); }
+  g=fit(cW); W=cW.width;H=cW.height; g.fillStyle='#221b30'; g.fillRect(0,0,W,H);
+  if(last){ const sc=last.scope, L=sc.length/2; g.strokeStyle='#5a5070'; g.lineWidth=1*dp; g.beginPath(); for(let k=0;k<L;k++){const i=((last.si+k)%L)*2; const x=k/L*W,y=H/2-Math.max(-1.5,Math.min(1.5,sc[i]/Math.max(1,last.drive)))*H*0.3; k?g.lineTo(x,y):g.moveTo(x,y);} g.stroke();
+    g.strokeStyle='#efe6d6'; g.lineWidth=1.3*dp; g.beginPath(); for(let k=0;k<L;k++){const i=((last.si+k)%L)*2+1; const x=k/L*W,y=H/2-sc[i]*H*0.45; k?g.lineTo(x,y):g.moveTo(x,y);} g.stroke();
+    $('#stat').textContent='env '+last.eF.toFixed(2)+' · bias '+last.bias.toFixed(3); }
+  g=fit(cS); W=cS.width;H=cS.height; g.fillStyle='#221b30'; g.fillRect(0,0,W,H);
+  if(analyser){ analyser.getFloatFrequencyData(specBuf); const nyq=ctx.sampleRate/2,fmin=40,fmax=16000; g.strokeStyle='#5fe0d8'; g.lineWidth=1.2*dp; g.beginPath();
+    for(let b=1;b<specBuf.length;b++){const f=b/specBuf.length*nyq; if(f<fmin||f>fmax)continue; const x=Math.log(f/fmin)/Math.log(fmax/fmin)*W, y=(-(specBuf[b]+10)/90)*H; g.lineTo(x,Math.max(0,Math.min(H,y)));} g.stroke(); }
+  setTimeout(()=>requestAnimationFrame(draw),33);
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

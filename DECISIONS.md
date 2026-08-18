@@ -1183,3 +1183,44 @@ roadmapped, not started.
   two engines; a family means the presentation table's `scope` prefixes and the
   engine selector's real-surface gating both grow. That is the design work, and it
   is on the ROADMAP rather than implied.
+
+## ADR-092 — WARP (distortion engine) ingested as a CANDIDATE; it is FX-C's prototype, not a fourth voice engine
+
+**Date:** 2026-08-18 · **Status:** accepted · **Human:** *"just finished another
+prototype engine. This one will require more tweaking before it's ready to become
+the gold standard (just like the other one)."*
+
+**Context.** `horde_distortion_engine.html` + its spec arrive one day after the FX
+roadmap queued **FX-C, a morphing waveshaper with experimental hysteresis**, and
+noted that SPEC-FORMANT §10's promised "distortion engine spec" did not exist yet.
+It exists now, and it is that: a simplex-blended shaper (§4), three independent
+memory mechanisms (§5), an all-pass phase network pre and dispersion post (§3, §6).
+
+**Decision.**
+1. **WARP is FX-C's prototype, not a fourth engine in the ADR-091 family.** The
+   family (HYPERSAW · SPECTRA · CANTO) are *sources*; WARP is a *post-stage*. The
+   spec says so itself (§10: "WARP is the shared post-stage; parameter surface
+   should be identical regardless of source"), and that sentence is the strongest
+   argument against filing it as a sibling: a stage every source hands off to is a
+   slot type under the FX slot contract, which is exactly FX-C's slot.
+2. **Ingested as a CANDIDATE, not a reference** — the same status CANTO holds, for
+   the same reason. `SPEC-DISTORTION.md` becomes a protected path; the prototype
+   does NOT yet join the seven spec-in-code references.
+3. **The blocker is identical to CANTO's, at `horde_distortion_engine.html:161`:**
+   `Math.random()` inside `WarpCore.render()`, driving the `walk` parameter's
+   coefficient drift. Same seed + same note order must give identical output
+   (CLAUDE.md invariant, SPEC §5.7). A prototype that cannot reproduce itself
+   cannot be a parity reference, because there is nothing stable to be at parity
+   WITH. One sanctioned edit outstanding: replace with a mulberry32 stream.
+
+**Consequences.** WARP inherits FX-C's prerequisite — the FX slot contract must
+exist first (rack owns dry/wet; per-slot `{identity_at, blends_dry, changes_image,
+changes_level, latency_samples}`), and its `changes_image` is certainly true given
+the all-pass network. Its hysteresis must declare its own settling and face the
+feedback lab's edge-width scan before it is allowed on any feedback path. The
+spec's own §10 already lists the work honestly — clicks from block-rate all-pass
+coefficient recompute, no oversampling, LUT resolution at high fold order — and
+that list is the queue, not a disclaimer.
+
+**Rejected:** filing WARP as engine #4. It would give the family a member that
+generates nothing, and would duplicate FX-C rather than fulfil it.
