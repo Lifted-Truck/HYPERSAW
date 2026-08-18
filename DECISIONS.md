@@ -898,8 +898,13 @@ decoration.
 
 ## ADR-088 — B23 routing topology: dense crosspoint matrix (ACCEPTED)
 
-**Date:** 2026-08-10 · **Status:** topology ACCEPTED (human-ratified). The id
-allocation in §4 is **PROPOSED** and needs its own nod — see there.
+**Date:** 2026-08-10 · **Status:** topology ACCEPTED (human-ratified); the id
+allocation in §4 **ACCEPTED 2026-08-10** on the specification — see there.
+(Header said PROPOSED until 2026-08-18 while §4's own body already read
+"Therefore §4 is ACCEPTED": the summary line was not updated when the section
+under it was resolved. Caught by triaging the FOUNDATIONS thread that resolved
+it. A header that contradicts its own body is the same failure as an exchange
+whose frontmatter contradicts its tree — LIBRARY L0037.)
 
 ### Decision
 
