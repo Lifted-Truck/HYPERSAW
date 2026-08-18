@@ -8,6 +8,46 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## OSC SELECTOR IS ITS OWN SECTION; KURAMOTO VIEW BENCH INGESTED (2026-08-18)
+
+Human: *"let's just put the osc selector as its own section before the other sections on
+relevant pages."*
+
+**Five selectors became two.** Each osc-scoped cluster used to carry its own copy, which
+answered "which oscillator?" wherever you happened to be looking — helpful with two panels,
+clutter with five. **Scope is a property of the PAGE, not of each panel**, so it is now
+declared once, at the top, ahead of everything it governs: an `.oscbar` cluster as the first
+child of MAIN and of OSC, accented so it reads as a mode line rather than another parameter
+group. Pages with nothing osc-scoped (MIX, FX) correctly have none — a page without a bar is
+a page where the question does not arise. The bar's heading is just *Editing* plus the tabs;
+an extra "OSC 2" label beside a lit "OSC 2" tab is the same fact twice.
+
+Verified after the move: 2 selectors, the bar is the **first** cluster on both osc-scoped
+pages, MIX and FX have none, all four naming labels follow (`OSC 1` → `OSC 2`), the engine
+was told to switch (`setVizOsc(1)`), tabs on both pages agree, and scoping still holds —
+detune **4 → 1004**, pull K **6 → 1006**, a global **50 → 50**.
+
+## `kuramoto-views.html` ingested as a BENCH (human aside)
+
+*"Alternate representations of the kuramoto swarm; we might find some of these useful at
+some point. Possibly a selector can pick which representation is visible."*
+
+Twelve views of the same swarm — Comb, Chain, Sign, Ring, Well, Weave, Splay, Sum, Tug,
+Coherence, Orbit (+1). Filed as a **bench, not a candidate engine**: it renders no audio and
+proposes no DSP, so it is in the same family as the aesthetics lab — a place to decide how
+something should LOOK, whose output is a decision rather than code to port.
+
+**Not wired in, deliberately.** The obvious move — a view selector on the OSC page — is
+cheap to build and expensive to build *early*: which representations earn a slot is exactly
+what the bench exists to answer, and shipping a selector over twelve untried views would
+freeze that choice before it is made. The question to settle at the bench first is which two
+or three of the twelve tell you something the phase circle and carpet do not.
+
+**Determinism note for whenever a view is ported:** `kuramoto-views.html` seeds phases with
+`Math.random()` (lines 106, 182). Harmless in a bench that only draws — this is not an audio
+path and nothing is at parity with it — but the same unseeded-RNG bar applies the moment any
+of it informs engine code, as it does for CANTO and WARP.
+
 ## OSC BATCH 1b: EVERY VIZ FOLLOWS THE SELECTED OSC, AND THE SCOPING WAS ALREADY RIGHT (2026-08-18)
 
 Human: *"let's make sure the phase carpet, voice map, XY, etc. all link to the currently

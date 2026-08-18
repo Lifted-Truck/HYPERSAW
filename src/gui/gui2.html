@@ -74,6 +74,8 @@
   #carpetC, #stripC, #vmapC { width:100%; background:var(--panel2);
                               border:1px solid var(--line); display:block; }
   .vlabel { color:var(--dim); font-size:10px; margin:6px 0 3px; }
+  .oscbar h2 { display:flex; align-items:center; gap:8px; }
+  .oscbar { border-color:var(--pull); }
 </style></head><body>
 
 <!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
@@ -86,12 +88,24 @@
 <div class="tabs" id="tabs"><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
-  <div class="cluster"><h2>XY — x=detune · y=pull K <span class="oscSel" id="oscSelMain"></span></h2>
+  <!-- ONE selector per page, ahead of everything it governs. Five copies
+       scattered through the clusters answered "which osc?" wherever you
+       happened to be looking, which sounds helpful and reads as clutter
+       once a page has more than two panels. Scope is a property of the
+       PAGE, so it is declared once, at the top, before anything it
+       governs. All copies still bind to the one `editOsc`, so a page
+       without a bar is simply a page with nothing osc-scoped on it. -->
+  <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
+    <div class="note">Selects which oscillator this page edits AND which one the
+      engine renders in the visualizers. Global parameters are unaffected — they
+      have no per-oscillator twin, so they never remap.</div>
+  </div>
+  <div class="cluster"><h2>XY — x=detune · y=pull K</h2>
     <canvas id="xy" class="xy" width="340" height="212"></canvas>
     <div class="note" style="margin-top:5px">Drives the ACTIVE oscillator (the plumbing rule this
       interface is built on: nothing is hardwired to oscillator 1).</div>
   </div>
-  <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span><span class="oscSel" id="oscSelViz"></span></h2>
+  <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
     <canvas id="specC" width="330" height="70" style="width:100%"></canvas>
@@ -182,7 +196,19 @@
 </div>
 
 <div class="page" id="pg-OSC">
-  <div class="cluster"><h2>The swarm <span class="oscSel" id="oscSelOsc"></span></h2>
+  <!-- ONE selector per page, ahead of everything it governs. Five copies
+       scattered through the clusters answered "which osc?" wherever you
+       happened to be looking, which sounds helpful and reads as clutter
+       once a page has more than two panels. Scope is a property of the
+       PAGE, so it is declared once, at the top, before anything it
+       governs. All copies still bind to the one `editOsc`, so a page
+       without a bar is simply a page with nothing osc-scoped on it. -->
+  <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelOsc"></span></h2>
+    <div class="note">Selects which oscillator this page edits AND which one the
+      engine renders in the visualizers. Global parameters are unaffected — they
+      have no per-oscillator twin, so they never remap.</div>
+  </div>
+  <div class="cluster"><h2>The swarm</h2>
     <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1" value="7"><output></output></div>
     <div class="row"><label>detune</label><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"><output></output></div>
     <div class="row"><label>seed</label><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"><output></output></div>
@@ -203,7 +229,7 @@
     <div class="row"><label>fine</label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
   </div>
 
-  <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span><span class="oscSel" id="oscSelVizOsc"></span></h2>
+  <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
          visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
@@ -216,7 +242,7 @@
     <div id="vmapScope2"><div class="vlabel">Voice map · pan × pitch</div>
       <canvas id="vmapC" width="256" height="96"></canvas></div>
   </div>
-  <div class="cluster"><h2>XY — x=detune · y=pull K <span class="oscSel" id="oscSelXyOsc"></span></h2>
+  <div class="cluster"><h2>XY — x=detune · y=pull K</h2>
     <!-- The SAME pad as MAIN, not a copy of its picture: both are `canvas.xy`,
          both are painted from the one (curX, curK) and both write the same two
          params, so they cannot drift apart the way two hand-maintained pads would. -->
