@@ -8,70 +8,16 @@ TARGET="${1:-fast}"
 HARNESS_DIR=".harness"
 mkdir -p "$HARNESS_DIR"
 
-record() { # record <target> <exit_code>
-  local git_hash; git_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "no-git")
-  printf '{"target":"%s","exit":%d,"git":"%s","ts":"%s"}\n' \
-    "$1" "$2" "$git_hash" "$(date -u +%FT%TZ)" > "$HARNESS_DIR/last-verify.json"
-  rm -f "$HARNESS_DIR/dirty"
-  return "$2"
-}
-
-# --- leak gate (kit-core — DO NOT delete; keep self-contained) --------------
-# No machine-absolute home paths in tracked files: they bake the local username
-# and directory layout into the repo — and into any public remote. Use a
-# ~/-relative path or an env var instead. Prose placeholders (/Users/<user>/,
-# /home/$USER/) are docs ABOUT the pattern, not leaks, and are allowed.
-# NB: git grep uses POSIX ERE — no \s, no \d. (A \s here silently matches
-# NOTHING; that is how the fleet scanner once shipped blind. Keep it ERE-safe.)
-# --untracked is load-bearing: git grep defaults to TRACKED files only, so a
-# brand-new file is invisible to the gate until it is staged. Running verify
-# before `git add` then passes, and CI fails after the commit lands — which is
-# exactly how the first version of this gate shipped its own leak. Untracked
-# but not-gitignored == about to be committed, so scan it.
-# Allowlist: security docs legitimately CONTAIN the patterns (they are docs
-# ABOUT leaks). `.leakcheck-allow` lists exempt paths/globs, one per line
-# (# comments ok). Exemptions are commits too — justify sensitive ones in
-# DECISIONS.md. The scanner and the allowlist file are always exempt.
-leak_gate() {
-  local hits excludes=(':(exclude)*leak_scan.py' ':(exclude).leakcheck-allow')
-  if [ -f .leakcheck-allow ]; then
-    local line
-    while IFS= read -r line; do
-      line="${line%%#*}"; line="${line#"${line%%[![:space:]]*}"}"  # strip comment + lead ws
-      line="${line%"${line##*[![:space:]]}"}"                       # strip trailing ws
-      [ -n "$line" ] && excludes+=(":(exclude)$line")
-    done < .leakcheck-allow
-  fi
-  hits=$(git grep --untracked -nIE '/(Users|home)/[^/]+/' -- . "${excludes[@]}" 2>/dev/null \
-         | grep -vE '/(Users|home)/[<$@{%]' || true)
-  if [ -n "$hits" ]; then
-    echo "verify: LEAK — machine-absolute path in a tracked file (use ~/ instead):" >&2
-    echo "$hits" | sed 's/^/    /' >&2
-    return 1
-  fi
-  # PRIVATE-SIBLING NAMES (ADR-014). The alias rule was prose-only until
-  # 2026-08-17 — this gate checked paths, never names — and three tracked files
-  # carried real names, two of them the lead's own from quoting a correspondent.
-  # The names themselves live in .leakcheck-names, UNTRACKED, so this tracked
-  # gate never has to contain the thing it forbids. CI has no such file and
-  # says SKIPPED rather than pretending it ran (same idiom as conformance_check).
-  if [ -f .leakcheck-names ]; then
-    local pat
-    pat=$(grep -vE '^\s*(#|$)' .leakcheck-names | paste -sd'|' -)
-    if [ -n "$pat" ]; then
-      hits=$(git grep --untracked -nIP "($pat)" -- . "${excludes[@]}" \
-               ':(exclude)PRIVATE-NOTES.md' ':(exclude).leakcheck-names' 2>/dev/null || true)
-      if [ -n "$hits" ]; then
-        echo "verify: LEAK — a private sibling's real name in a tracked file (alias it; map in PRIVATE-NOTES.md):" >&2
-        echo "$hits" | sed 's/^/    /' >&2
-        return 1
-      fi
-    fi
-  else
-    echo "verify: .leakcheck-names absent — private-name leak check SKIPPED (expected off this Mac)" >&2
-  fi
-  return 0
-}
+# Kit-owned gates: record, leak_gate, kit_integrity. A repo missing this file
+# is not a lesser repo, it is an UNGATED one, so failing loudly beats degrading
+# quietly — a silently skipped privacy gate is exactly the shape of bug the
+# gate exists to prevent.
+if [ -r .kit/kit-gates.sh ]; then
+  . .kit/kit-gates.sh
+else
+  echo "verify: .kit/kit-gates.sh missing — run kit_sync.py (gates cannot be skipped)" >&2
+  exit 1
+fi
 
 # M_PI is a POSIX extension, NOT standard C++: MSVC does not define it without
 # _USE_MATH_DEFINES, so it compiles everywhere the authors work and fails only on
@@ -90,6 +36,34 @@ portability_gate() {
   return 1
 }
 
+# PROJECT-OWNED GATE (not kit-owned; never move this into .kit/).
+# Private-sibling real names in tracked files — ADR-014. This lived INSIDE the
+# kit's leak_gate() until 2026-08-18, so the 2.4.0 vendoring migration removed it
+# along with that function. It was never kit-owned: the alias rule is HYPERSAW
+# substance, and the kit gate's business is identity PATHS, not our
+# correspondents' names. Restored here, where it belongs — the misplacement is
+# what the migration usefully exposed.
+# The names live in .leakcheck-names, UNTRACKED, so this tracked gate never
+# contains the thing it forbids. CI has no such file and says SKIPPED rather than
+# pretending it ran (same idiom as conformance_check).
+private_name_gate() {
+  if [ ! -f .leakcheck-names ]; then
+    echo "verify: .leakcheck-names absent — private-name leak check SKIPPED (expected off this Mac)" >&2
+    return 0
+  fi
+  local pat hits
+  pat=$(grep -vE '^[[:space:]]*(#|$)' .leakcheck-names | paste -sd'|' -)
+  [ -n "$pat" ] || return 0
+  # Case-SENSITIVE by design: a case-insensitive first draft tripped on ordinary
+  # prose ("re-strikes in place"). -P for alternation.
+  hits=$(git grep --untracked -nIP "($pat)" -- . \
+           ':(exclude)PRIVATE-NOTES.md' ':(exclude).leakcheck-names' 2>/dev/null || true)
+  [ -n "$hits" ] || return 0
+  echo "verify: LEAK — a private sibling's real name in a tracked file (alias it; map in PRIVATE-NOTES.md):" >&2
+  echo "$hits" | sed 's/^/    /' >&2
+  return 1
+}
+
 fast() {
   # ---- Layer-0: seconds, not minutes. CI-blocking. -------------------------
   # Honestly-scoped day-zero oracle: structure + manifest sanity. The real L0
@@ -97,7 +71,9 @@ fast() {
   # lands in Phase 1 and REPLACES nothing here; it adds. Never weaken without
   # a human decision recorded in ROADMAP.md.
   local ok=0
+  kit_integrity || ok=1   # kit-owned files match .kit/MANIFEST
   leak_gate || ok=1          # privacy gate: kit-core, keep it first
+  private_name_gate || ok=1  # privacy gate: OURS (ADR-014 alias rule)
 
   # OUTBOUND FILINGS ACTUALLY REACHED THE READER. Three forms of one failure in a
   # single day (uncommitted / side-branch / committed-but-never-pushed) stranded
