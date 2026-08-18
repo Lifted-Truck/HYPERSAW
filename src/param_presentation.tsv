@@ -69,18 +69,18 @@ osc2.width	osc2	Width	MIX	Mix	knob
 mono	global	Mono Fold	MIX	Output & perception	toggle		
 osc1.digital	osc1	Digital	MIX	Output & perception	knob		
 osc2.digital	osc2	Digital	MIX	Output & perception	knob		
-osc1.vol	osc1	Volume	MIX	Mix	knob		
-osc2.vol	osc2	Volume	MIX	Mix	knob		
+osc1.vol	osc1	Volume	MIX	Mix	slider		
+osc2.vol	osc2	Volume	MIX	Mix	slider		
 osc1.retrig	osc1	Retrigger	OSC	The coupling	toggle		
 osc2.retrig	osc2	Retrigger	OSC	The coupling	toggle		
-osc1.attack	osc1	Attack (s)	MAIN	Envelope	knob		
-osc2.attack	osc2	Attack (s)	MAIN	Envelope	knob		
-osc1.decay	osc1	Decay (s)	MAIN	Envelope	knob		
-osc2.decay	osc2	Decay (s)	MAIN	Envelope	knob		
-osc1.sustain	osc1	Sustain	MAIN	Envelope	knob		
-osc2.sustain	osc2	Sustain	MAIN	Envelope	knob		
-osc1.release	osc1	Release (s)	MAIN	Envelope	knob		
-osc2.release	osc2	Release (s)	MAIN	Envelope	knob		
+osc1.attack	osc1	Attack (s)	MAIN	Envelope	slider		
+osc2.attack	osc2	Attack (s)	MAIN	Envelope	slider		
+osc1.decay	osc1	Decay (s)	MAIN	Envelope	slider		
+osc2.decay	osc2	Decay (s)	MAIN	Envelope	slider		
+osc1.sustain	osc1	Sustain	MAIN	Envelope	slider		
+osc2.sustain	osc2	Sustain	MAIN	Envelope	slider		
+osc1.release	osc1	Release (s)	MAIN	Envelope	slider		
+osc2.release	osc2	Release (s)	MAIN	Envelope	slider		
 osc1.beatMult	osc1	Grid Cycles/Beat	OSC	The swarm	select		
 osc2.beatMult	osc2	Grid Cycles/Beat	OSC	The swarm	select		
 osc1.topo	osc1	Topology	MAIN	Dynamics	select		
@@ -135,8 +135,8 @@ osc1.cascade	osc1	Cascade	OSC	Spectra	knob
 osc2.cascade	osc2	Cascade	OSC	Spectra	knob		
 osc1.subOn	osc1	Sub Osc	OSC	Spectra	toggle		
 osc2.subOn	osc2	Sub Osc	OSC	Spectra	toggle		
-osc1.subVol	osc1	Sub Level	OSC	Spectra	knob		
-osc2.subVol	osc2	Sub Level	OSC	Spectra	knob		
+osc1.subVol	osc1	Sub Level	OSC	Spectra	slider		
+osc2.subVol	osc2	Sub Level	OSC	Spectra	slider		
 osc1.subWave	osc1	Sub Wave	OSC	Spectra	knob		
 osc2.subWave	osc2	Sub Wave	OSC	Spectra	knob		
 osc1.subOct	osc1	Sub Octave	OSC	Spectra	knob		
@@ -151,14 +151,14 @@ fx3type	global	FX3 Type	FX	FX rack	select
 fx3amt	global	FX3 Amount	FX	FX rack	knob		
 fx4type	global	FX4 Type	FX	FX rack	select		
 fx4amt	global	FX4 Amount	FX	FX rack	knob		
-osc1.sAttack	osc1	S.Attack (s)	MAIN	Envelope	knob		
-osc2.sAttack	osc2	S.Attack (s)	MAIN	Envelope	knob		
-osc1.sDecay	osc1	S.Decay (s)	MAIN	Envelope	knob		
-osc2.sDecay	osc2	S.Decay (s)	MAIN	Envelope	knob		
-osc1.sSustain	osc1	S.Sustain	MAIN	Envelope	knob		
-osc2.sSustain	osc2	S.Sustain	MAIN	Envelope	knob		
-osc1.sRelease	osc1	S.Release (s)	MAIN	Envelope	knob		
-osc2.sRelease	osc2	S.Release (s)	MAIN	Envelope	knob		
+osc1.sAttack	osc1	S.Attack (s)	MAIN	Envelope	slider		
+osc2.sAttack	osc2	S.Attack (s)	MAIN	Envelope	slider		
+osc1.sDecay	osc1	S.Decay (s)	MAIN	Envelope	slider		
+osc2.sDecay	osc2	S.Decay (s)	MAIN	Envelope	slider		
+osc1.sSustain	osc1	S.Sustain	MAIN	Envelope	slider		
+osc2.sSustain	osc2	S.Sustain	MAIN	Envelope	slider		
+osc1.sRelease	osc1	S.Release (s)	MAIN	Envelope	slider		
+osc2.sRelease	osc2	S.Release (s)	MAIN	Envelope	slider		
 osc1.shape	osc1	Saw Shape	OSC	The swarm	knob		
 osc2.shape	osc2	Saw Shape	OSC	The swarm	knob		
 osc1.toneTilt	osc1	Tone Tilt	MIX	Output & perception	knob		
@@ -197,22 +197,22 @@ osc2.superMode	osc2	Super-Width Mode	MIX	Output & perception	select
 oversample	global	Oversample 2x	MIX	Output & perception	toggle		
 polyGlide	global	Poly Glide	MAIN	Voice	toggle		
 glideMode	global	Glide From	MAIN	Voice	select		
-osc1.onsetScatter	osc1	Onset Scatter (ms)	MAIN	Envelope	knob		
-osc2.onsetScatter	osc2	Onset Scatter (ms)	MAIN	Envelope	knob		
-osc1.onsetAlpha	osc1	Timing Correction	MAIN	Envelope	knob		
-osc2.onsetAlpha	osc2	Timing Correction	MAIN	Envelope	knob		
-osc1.attackScatter	osc1	Attack Scatter	MAIN	Envelope	knob		
-osc2.attackScatter	osc2	Attack Scatter	MAIN	Envelope	knob		
+osc1.onsetScatter	osc1	Onset Scatter (ms)	MAIN	Envelope	slider		
+osc2.onsetScatter	osc2	Onset Scatter (ms)	MAIN	Envelope	slider		
+osc1.onsetAlpha	osc1	Timing Correction	MAIN	Envelope	slider		
+osc2.onsetAlpha	osc2	Timing Correction	MAIN	Envelope	slider		
+osc1.attackScatter	osc1	Attack Scatter	MAIN	Envelope	slider		
+osc2.attackScatter	osc2	Attack Scatter	MAIN	Envelope	slider		
 osc1.voiceEnv	osc1	Per-Partial Env	MAIN	Envelope	toggle		
 osc2.voiceEnv	osc2	Per-Partial Env	MAIN	Envelope	toggle		
-osc1.relScatter	osc1	Release Scatter	MAIN	Envelope	knob		
-osc2.relScatter	osc2	Release Scatter	MAIN	Envelope	knob		
+osc1.relScatter	osc1	Release Scatter	MAIN	Envelope	slider		
+osc2.relScatter	osc2	Release Scatter	MAIN	Envelope	slider		
 fx1tone	global	FX1 Tone	FX	FX rack	knob		
 fx2tone	global	FX2 Tone	FX	FX rack	knob		
 fx3tone	global	FX3 Tone	FX	FX rack	knob		
 fx4tone	global	FX4 Tone	FX	FX rack	knob		
 inertiaCurve	global	Inertia Curve (dev)	OSC	The coupling	knob		
-masterVol	global	Master Volume	MIX	Mix	knob		
+masterVol	global	Master Volume	MIX	Mix	slider		
 gSemi	global	Pitch	MIX	Mix	knob		
 gFine	global	Fine	MIX	Mix	knob		
 gOct	global	Master Octave	MIX	(ungrouped)	knob		

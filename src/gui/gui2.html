@@ -69,6 +69,24 @@
   .oscSel .oscTab.silent { opacity:.62; }
   .oscSel .oscTab.on.silent { opacity:1; }
   .note { color:var(--dim); font-size:10.5px; }
+  /* ---- ROTARY AUDITION (2026-08-18) --------------------------------------
+     Widget kind per param is DECLARED in src/param_presentation.tsv and mirrored
+     into WIDGET below; nothing here decides it. The rule the table encodes:
+     LINEAR where a value is read against its siblings — envelope stages compared
+     stage-to-stage, levels compared channel-to-channel — and ROTARY for every
+     other continuous param, where the gesture matters more than the absolute
+     readout and compactness wins. 101 knob / 29 slider / 33 select / 18 toggle
+     across the full surface; 25 / 3 / 8 / 1 of those are placed on this page set.
+     The <input type=range> STAYS in the DOM as the value owner and keyboard
+     target — the dial reads and writes it and dispatches 'input', so every
+     existing binding keeps working and no param plumbing changed to get a knob. */
+  .row canvas.dial { display:block; cursor:ns-resize; touch-action:none; outline:none;
+                     border-radius:50%; flex:0 0 auto; }
+  .row canvas.dial:focus-visible { box-shadow:0 0 0 3px var(--pull); }
+  .row.rotary input[type=range] { position:absolute; width:1px; height:1px; opacity:0;
+                                  pointer-events:none; }
+  .row.rotary { position:relative; }
+
 </style></head><body>
 
 <!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
@@ -599,4 +617,93 @@ window.addEventListener('load', async () => {
   drawXY();
   setInterval(() => syncFromEngine().catch(() => {}), 500);
 });
+/* ---- ROTARY AUDITION ------------------------------------------------------
+   Ported from docs/design/aesthetics-lab.html (dark theme, rotary style) — the
+   rendering the human picked at the bench. Deliberately a thin upgrade PASS
+   rather than new markup: it finds rows whose param is declared `knob` and gives
+   them a dial bound to the existing range input. Angles are degrees clockwise
+   from 12 o'clock, the convention every hardware knob uses; the conversion to
+   canvas's 3-o'clock-zero lives in one place. Vertical drag, not angular: a
+   circular gesture makes fine adjustment hostage to how far the pointer happens
+   to be from the centre. */
+const WIDGET = {"1": "knob", "100": "slider", "101": "knob", "1014": "knob", "1017": "slider", "102": "knob", "103": "knob", "1035": "knob", "1036": "knob", "1037": "knob", "104": "select", "105": "select", "1104": "select", "1105": "select", "14": "knob", "17": "slider", "18": "toggle", "3": "knob", "35": "knob", "36": "knob", "37": "knob", "4": "knob", "57": "select", "58": "knob", "59": "select", "6": "knob", "60": "knob", "61": "select", "62": "knob", "63": "select", "64": "knob", "7": "knob", "8": "knob", "96": "knob", "97": "knob", "98": "knob", "99": "knob"};
+const SWEEP = 280, BASE_R = 17;
+const toCanvasAngle = deg => (deg - 90 - SWEEP / 2 + SWEEP / 2) * Math.PI / 180;
+function dialAngle(t){ return (-SWEEP / 2 + t * SWEEP - 90) * Math.PI / 180; }
+
+function drawDial(cv, inp){
+  const ctx = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+  const r = BASE_R, pad = 6, size = 2 * (r + pad);
+  if (cv.width !== size * dpr){ cv.width = cv.height = size * dpr; cv.style.width = cv.style.height = size + 'px'; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const cx = size / 2, cy = size / 2, trackR = r + 4;
+  const lo = +inp.min, hi = +inp.max, t = (+inp.value - lo) / (hi - lo || 1);
+  const css = getComputedStyle(document.body);
+  const line = css.getPropertyValue('--line').trim() || '#2a3040';
+  const acc  = css.getPropertyValue('--pull').trim() || '#5ff2e0';
+  const dim  = css.getPropertyValue('--dim').trim() || '#7f8899';
+  const a0 = dialAngle(0), a1 = dialAngle(1);
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(cx, cy, trackR, a0, a1); ctx.strokeStyle = line; ctx.lineWidth = 3; ctx.stroke();
+  // bipolar params fill FROM CENTRE, so "no effect" is a gap at 12 o'clock rather
+  // than a half-full ring that reads as a value.
+  const bipolar = lo < 0 && hi > 0;
+  const from = bipolar ? dialAngle((0 - lo) / (hi - lo)) : a0;
+  if (Math.abs(t - (bipolar ? (0 - lo) / (hi - lo) : 0)) > 1e-6){
+    ctx.beginPath(); ctx.arc(cx, cy, trackR, Math.min(from, dialAngle(t)), Math.max(from, dialAngle(t)));
+    ctx.strokeStyle = acc; ctx.lineWidth = 3; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = css.getPropertyValue('--panel2').trim() || '#161b28'; ctx.fill();
+  ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.stroke();
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(dialAngle(t));
+  ctx.strokeStyle = acc; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(r * 0.15, 0); ctx.lineTo(r * 0.8, 0); ctx.stroke();
+  ctx.restore();
+  if (bipolar){ // detent: zero is a POSITION, not just a number
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(dialAngle((0 - lo) / (hi - lo)));
+    ctx.strokeStyle = dim; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(trackR + 2, 0); ctx.lineTo(trackR + 5, 0); ctx.stroke(); ctx.restore();
+  }
+}
+
+function upgradeRotaries(root){
+  (root || document).querySelectorAll('.row input[type=range][data-p]').forEach(inp => {
+    const row = inp.closest('.row');
+    if (!row || row.classList.contains('rotary')) return;
+    if (WIDGET[inp.dataset.p] !== 'knob') return;              // table decides, not this code
+    const cv = document.createElement('canvas');
+    cv.className = 'dial'; cv.tabIndex = 0;
+    cv.setAttribute('role', 'slider'); cv.setAttribute('aria-label', (row.querySelector('label') || {}).textContent || 'control');
+    row.classList.add('rotary');
+    inp.after(cv);
+    const paint = () => drawDial(cv, inp);
+    const commit = v => {
+      const lo = +inp.min, hi = +inp.max, st = +inp.step || 0.001;
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st));
+      inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); paint();
+    };
+    let dragging = false, lastY = 0;
+    cv.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; cv.setPointerCapture(e.pointerId); e.preventDefault(); });
+    cv.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const span = (+inp.max - +inp.min);
+      const fine = e.shiftKey ? 0.25 : 1;                       // shift = fine, the studio idiom
+      commit(+inp.value - (e.clientY - lastY) * span / 150 * fine);
+      lastY = e.clientY;
+    });
+    const stop = e => { dragging = false; try { cv.releasePointerCapture(e.pointerId); } catch (_) {} };
+    cv.addEventListener('pointerup', stop); cv.addEventListener('pointercancel', stop);
+    cv.addEventListener('keydown', e => {
+      const st = (+inp.step || 0.001) * (e.shiftKey ? 10 : 1);
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { commit(+inp.value + st); e.preventDefault(); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { commit(+inp.value - st); e.preventDefault(); }
+    });
+    inp.addEventListener('input', paint);
+    paint();
+  });
+}
+upgradeRotaries();
+
 </script></body></html>

@@ -8,6 +8,49 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## GUI2 AUDITION: ROTARY/LINEAR MIX DECIDED IN THE TABLE, RENDERED IN THE DARK THEME (2026-08-18)
+
+Human: *"let's audition the dark mode on GUI 2; I would like a sensible mix of rotary and
+linear controls."*
+
+**The mix was an unmade decision, not a styling tweak.** `src/param_presentation.tsv`
+declared **130 knob / 33 select / 18 toggle and zero linear** — every continuous param was
+a knob by default, which is not a mix, it is an absence of one. The decision now lives in
+the table, address-keyed, where the generator and the GUI both read it:
+
+**Rule: LINEAR where a value is read against its siblings; ROTARY otherwise.**
+Envelope stages are compared stage-to-stage (a row of linear controls IS the envelope
+shape), and levels are compared channel-to-channel (the mixer idiom). Everything else
+continuous — amounts, times, rates, depths, widths, spreads, drive, feedback — is a gesture
+param where compactness wins and the absolute readout matters less. That moved 29 rows:
+**101 knob / 29 slider / 33 select / 18 toggle**, of which gui2 places 25 / 3 / 8 / 1.
+
+**Rendered as an upgrade PASS, not new markup.** The `<input type=range>` stays in the DOM
+as the value owner and keyboard target; the dial reads and writes it and dispatches
+`input`. **No param plumbing changed to get a knob** — which is the point, because the
+alternative (hand-writing 25 dial controls) is the triple-maintenance scar FOUNDATIONS'
+standing GUI criterion exists to prevent. Ported from the aesthetics lab: vertical drag
+rather than angular (a circular gesture makes fine adjustment hostage to pointer distance
+from centre), shift for fine, arrows for keyboard, bipolar params filling **from centre**
+with a detent mark so "no effect" is a gap at 12 o'clock rather than a half-full ring.
+
+**Verified in the browser, end to end:** 29 dials, **29 painted, 0 blank**, zero JS errors;
+a synthetic drag moved `width` 0.8 → 1.1 and a key press moved it again, with the `input`
+events firing so every existing binding saw them. Control checked: a declared-`slider` row
+(`level`) has **no** dial and is still a plain range — the pass must be able to leave things
+alone, or "it added dials" would be indistinguishable from "it added dials everywhere".
+
+**One coincidence caught before it could rot.** The dial first read `--acc`, which does not
+exist in gui2; it rendered in the right colour purely because the fallback literal happened
+to equal `--pull`. Bound to the real token. A binding that works by accident is a binding
+that breaks silently the day the palette moves.
+
+**Known gap, not guessed at:** 8 params declared `select` still render as numeric ranges —
+the human's earlier complaint that *"sections that should be dropdowns are incoherent
+numeric sliders"*. The presentation table carries no enum-label column, so rendering them
+as real dropdowns would mean inventing option names. Needs either an `options` column or
+the labels from the shell; deliberately left as-is rather than fabricated.
+
 ## CORNER RINGS WERE DRAWN OUTSIDE THE CANVAS; LIGHT THEME RESKINNED (2026-08-18)
 
 **"The morph colour rings around the knobs are barely visible."** They were barely
