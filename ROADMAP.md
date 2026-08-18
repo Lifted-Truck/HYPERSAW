@@ -8,6 +8,35 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## gui2 REACHES 105/105 — GENERATED, NOT PLACED (2026-08-18)
+
+Human: *"I want to have nearly all features testable by EOD so we need to start speeding up."*
+
+**The lever was already built and unused.** `src/param_presentation.tsv` had 181 rows with an
+empty `chunk` column, and `gen_gui_controls.py` generates a control for every row whose chunk
+is named. Naming them — chunk = the row's own group, slugified, so generated markup lands in
+group-sized clusters rather than one wall — took one pass and produced **75 controls across 3
+pages**. gui2 goes **30/105 → 105/105**; `gui_reach` GREEN.
+
+This is FOUNDATIONS' D1 ruling paying out: structure DERIVED from declarations, not
+hand-placed. The alternative — hand-writing 75 controls — is the triple-maintenance scar
+their standing GUI criterion exists to prevent, and it is what we would have spent the day on.
+
+**The enum complaint is fixed as a side effect.** The generator reads enum labels from the
+shell, so params declared `select` now render as real dropdowns with real option text
+(`Off · Drive · Filter · Gain · Comp`), not the *"incoherent numeric sliders"* reported on
+2026-08-17. Nobody wrote those labels twice: they come from `kParams` and cannot drift.
+
+**Verified in the browser, not inferred from a count:** 117 controls across four pages
+(MAIN 29 · MIX 34 · FX 12 · OSC 42), four real dropdowns carrying shell labels, **zero JS
+errors, zero duplicate ids**. Four controls report no `<label>` — the hand-written M/S buttons,
+whose glyph is the label; checked rather than assumed, and not a defect.
+
+**What this does and does not mean.** Every declared parameter is now REACHABLE and therefore
+testable. It does not mean the layout is designed — 42 controls on OSC in group clusters is a
+generated surface, not a considered one, and the GUI pass the human deferred is still the GUI
+pass. Reach first, taste after; that ordering was the point.
+
 ## RETROFIT TO KIT 2.1.0 — and we had no mailbox of our own (2026-08-18)
 
 `/retrofit` run against `kit/currency.py`, which is the only source of truth for what
