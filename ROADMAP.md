@@ -723,6 +723,126 @@ habit of branching from `main` and then anchoring on un-merged prose is the thin
 fixed. **Standing correction: check `grep -n "^## " ROADMAP.md` on the current branch before writing
 an anchor, not after.**
 
+## FEEDBACK FIELD SURVEY — and OQ #23 is missing a half (2026-08-15)
+
+> **Superseded in part (2026-08-17):** OQ #23 was subsequently ruled — cycles are legal, with a
+> mandatory unit delay at block rate — and the missing half this entry names is the half our own
+> evidence supplied. See *OQ #23 RULED* above. **Landed late:** this entry and the survey report
+> sat on an unmerged branch from 2026-08-15 until 2026-08-18, found by a routine check for
+> unmerged work rather than by anything noticing they were absent.
+
+Four-agent research swarm at the human's request. Report:
+`docs/reports/2026-08-15-feedback-field-survey.md`.
+
+**The headline is about the QUESTION, not the options.** Every stable feedback architecture surveyed
+uses one of **two** bounding strategies, and the robust ones use both because they are orthogonal:
+**(1) a structurally enforced minimum delay** makes the loop *computable* (Max/MSP one vector,
+Bitwig one block, Reaktor/VCV/Pd one sample, Csound one k-cycle); **(2) bounded loop gain plus
+smoothing inside the loop** makes it *stable* (DX7's eight power-of-two steps and two-sample average,
+Karplus-Strong's sub-unity-at-every-frequency loop filter, FDN's unitary matrix, analog's attenuator
+plus limiter).
+
+**OQ #23's three options are all answers to (1). None answers (2)** — and the survey says (2) is
+where real systems fail. **The natural experiment is Reaktor:** sample-accurate feedback with the
+gain bound pushed onto the user, and documented `+INF/-INF/NaN` overflow as the result. The DX7
+cannot blow up and is remembered for the sound. **Recommend telling FOUNDATIONS that #23 needs a
+companion ruling** requiring every feedback edge to declare a bounded gain and carry smoothing.
+
+**Option (b) is not a peer of (a) and (c)** — verified, not relayed: a directed graph with a cycle has
+no topological ordering, so "fixed evaluation order" must break the cycle somewhere, which *is* a
+unit delay placed implicitly by the sort. It does not hide its cost; it **pays the identical cost at
+a location nobody chose.**
+
+**Disconfirming evidence against the option we endorsed twice, recorded as such.** Block-granular
+**audio** feedback draws complaints (Bitwig's Grid, ~5.33 ms, "not a substitute for serious
+building"; Pd users defeat Max's vector with `[block~ 1]`), while control-rate cycle lag draws none
+(Csound's init/performance-pass convention). **Our modulation is control-rate on a 16-sample tick, so
+we are on the uncomplained-about side — stated as an inference, unmeasured.** The honest question is
+not "which option" but **"what travels on our feedback edges?"**
+
+### Occluded solutions
+
+- **A frequency shift inside the loop buys gain margin** — Berdahl et al. (JASA 2012), ~3 Hz for
+  ≥3 dB, because no frequency re-enters at its own phase. **Cross-confirmed from two directions:** the
+  acoustic-control literature measures it, and **Massive X ships a frequency shifter inside its
+  feedback loop** — sold as a tone colour, not as the stabiliser it is. **A Kuramoto swarm is already
+  a population of frequency-shifted copies of itself.**
+- **Chaos inside an atomic node instead of cycles in the graph** (Lorenz/Rössler/Chua as a source
+  type). **And we already are one:** our order parameter, phases and phase-velocity spread are
+  living, deterministic, seedable signals **already computed in the audio path**. Exposing them as
+  modulation sources delivers what people build feedback loops to get, **with no cycle at all** —
+  which may shrink #23 enough that a conservative ruling costs little.
+- **Unitary feedback matrices** guarantee FDN stability by construction; whether a *modulation*
+  matrix could be constrained the same way is unexplored. Speculative transfer, not a recommendation.
+
+### A correction to our own filed decision
+
+Smoothing in a loop is a **stabiliser**, not a tone control (DX7's average is documented as
+anti-oscillation). **A spring with ζ < 1 does the opposite — it ADDS gain at its resonant
+frequency.** So route inertia with low damping on a feedback edge is a destabiliser. The caution we
+filed this morning said *"its stability is not obvious"*; it should say **an underdamped spring on a
+feedback edge adds loop gain and must be prohibited or clamped to ζ ≥ 1.** Owed as a follow-up
+filing.
+
+### The tension nobody resolves, and it is a design target
+
+**DSP theory optimises for guaranteed stability; performance practice optimises for a wide,
+controllable region NEAR instability** — gain staged up "until you can just hear it", the resonance
+knob prized for approaching self-oscillation without committing, the TB-303 valued because it never
+quite oscillates. **A design that hears only the DSP literature will be provably stable and musically
+dead, and its own tests will not notice.** Two corollaries: put a controllable attenuator INSIDE the
+loop so gain is a modulation target (analog practice notes filter resonance already is exactly
+this), and keep the limiter as a backstop **distinct** from the musical control.
+
+**Gaps the agents reported rather than filled:** no evidence any commercial mod matrix documents
+refusing cycles (prohibition is implicit — the UI just does not expose it); unverified how Phase
+Plant / Vital / Pigments / Serum break zero-delay cycles internally; and "feedback patches do not
+recall identically" is **inference, not evidence** — worth measuring on our own seeded system.
+
+## INERTIA DECIDED — a property of the ROUTE, filed as extraction evidence (2026-08-15)
+
+Human: *"Feel free to lock in your decision about inertia and file a brief."* Decided and filed
+(`brief-route-inertia.md`, `0249431`, verified on their origin/main).
+
+**Decision: inertia is a property of a modulation ROUTE, not of a destination.** A route carrying
+inertia post-processes the value in transit through a damped second-order spring with two controls —
+**rate** and **damping (ζ)**, the two the human asked for.
+
+**Rejected alternative:** inertia per destination ("cutoff has a glide", "K has a glide"). That is N
+implementations of one idea, it multiplies with every destination added, and it makes the *same
+physical behaviour* a different feature in each place. On the edge, one implementation serves every
+source→destination pair.
+
+**We already own the mechanism.** `bend-lab.html`'s `Inertia` is exactly this spring — `springF` and
+`zeta`, already characterised (step response with lag / overshoot / settle / reversals, plus a
+vibrato-retention meter, because the price of inertia is that it eats fast wheel vibrato and we
+wanted that cost as a number). Route inertia is a **reuse**, not a second spring.
+
+**Why FOUNDATIONS was told.** Their `mod_routing.h` five-tuple already makes a route first-class, so
+"what happens to the value in transit" is a route property and inertia is the first non-trivial
+instance of that category. Their own R3 rule is the safety argument we cited back: inertia must be an
+**instance** of a route-transform category, never a named field — **a five-tuple that grows
+`smoothing: bool` is sealed and fails their own review.**
+
+**Build first: the route into K.** Inertia on the coupling gives a swarm that *settles* into
+coherence with overshoot — a physical system finding order rather than being told to be ordered.
+That is the instrument's premise expressed as a modulation route, and the K route is non-cyclic, so
+it is buildable before #23.
+
+**Two hazards designed against, not discovered.** State is `routes × polyphony × 2` — real at
+`kPoly = 16` — so inertia is **opt-in per route** and its state is allocated with the voice, never in
+`process()`. And a spring on a feedback edge is a second-order system inside a loop.
+
+**That second hazard produced a SECOND, independent argument for unit-delay-at-block-rate**, which is
+the part worth keeping: under a fixed unit delay a spring in a loop has a stateable gain bound; under
+*fixed evaluation order* its behaviour depends on the topological sort, so the same patch behaves
+differently as the graph changes; under *iterative settlement* the spring is state the settlement
+pass must iterate over and convergence stops being obvious. **The first argument came from wanting
+feedback sends; this one from wanting springs on edges** — a separate observation under their
+independent-arrival rule, not the same one twice. Filed as evidence for their human, not as pressure.
+
+Commitment unchanged: **nothing lands on cyclic routes before OQ #23 is ruled.**
+
 ## INERTIA EVERYWHERE + SEMI-GRADUAL MORPH + REVERB RESEARCH (2026-08-15)
 
 Three human items. Report: `docs/reports/2026-08-15-supersaw-reverb-research.md`.
