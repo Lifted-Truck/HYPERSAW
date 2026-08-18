@@ -115,32 +115,32 @@ bassMono	global	Bass Mono	MIX	Output & perception	toggle		output-perception
 bassMonoHz	global	Bass XOver (Hz)	MIX	Output & perception	knob		output-perception
 osc1.panScatter	osc1	Pan Scatter	MIX	Output & perception	knob		output-perception
 osc2.panScatter	osc2	Pan Scatter	MIX	Output & perception	knob		output-perception
-osc1.engine	osc1	Engine	OSC	The swarm	select		the-swarm
-osc2.engine	osc2	Engine	OSC	The swarm	select		the-swarm
-osc1.partials	osc1	Partials	OSC	Spectra	knob		spectra
-osc2.partials	osc2	Partials	OSC	Spectra	knob		spectra
-osc1.tilt	osc1	Amp Tilt	OSC	Spectra	knob		spectra
-osc2.tilt	osc2	Amp Tilt	OSC	Spectra	knob		spectra
-osc1.stretch	osc1	Stretch	OSC	Spectra	knob		spectra
-osc2.stretch	osc2	Stretch	OSC	Spectra	knob		spectra
-osc1.cloud	osc1	Cloud Voices	OSC	Spectra	knob		spectra
-osc2.cloud	osc2	Cloud Voices	OSC	Spectra	knob		spectra
-osc1.cwidth	osc1	Cloud Width	OSC	Spectra	knob		spectra
-osc2.cwidth	osc2	Cloud Width	OSC	Spectra	knob		spectra
-osc1.wtilt	osc1	Width Tilt	OSC	Spectra	knob		spectra
-osc2.wtilt	osc2	Width Tilt	OSC	Spectra	knob		spectra
-osc1.wlaw	osc1	Width Law	OSC	Spectra	select		spectra
-osc2.wlaw	osc2	Width Law	OSC	Spectra	select		spectra
-osc1.cascade	osc1	Cascade	OSC	Spectra	knob		spectra
-osc2.cascade	osc2	Cascade	OSC	Spectra	knob		spectra
-osc1.subOn	osc1	Sub Osc	OSC	Spectra	toggle		spectra
-osc2.subOn	osc2	Sub Osc	OSC	Spectra	toggle		spectra
-osc1.subVol	osc1	Sub Level	OSC	Spectra	knob		spectra
-osc2.subVol	osc2	Sub Level	OSC	Spectra	knob		spectra
-osc1.subWave	osc1	Sub Wave	OSC	Spectra	knob		spectra
-osc2.subWave	osc2	Sub Wave	OSC	Spectra	knob		spectra
-osc1.subOct	osc1	Sub Octave	OSC	Spectra	knob		spectra
-osc2.subOct	osc2	Sub Octave	OSC	Spectra	knob		spectra
+osc1.engine	osc1	Engine	OSC	The swarm	select		
+osc2.engine	osc2	Engine	OSC	The swarm	select		
+osc1.partials	osc1	Partials	OSC	Spectra	knob		
+osc2.partials	osc2	Partials	OSC	Spectra	knob		
+osc1.tilt	osc1	Amp Tilt	OSC	Spectra	knob		
+osc2.tilt	osc2	Amp Tilt	OSC	Spectra	knob		
+osc1.stretch	osc1	Stretch	OSC	Spectra	knob		
+osc2.stretch	osc2	Stretch	OSC	Spectra	knob		
+osc1.cloud	osc1	Cloud Voices	OSC	Spectra	knob		
+osc2.cloud	osc2	Cloud Voices	OSC	Spectra	knob		
+osc1.cwidth	osc1	Cloud Width	OSC	Spectra	knob		
+osc2.cwidth	osc2	Cloud Width	OSC	Spectra	knob		
+osc1.wtilt	osc1	Width Tilt	OSC	Spectra	knob		
+osc2.wtilt	osc2	Width Tilt	OSC	Spectra	knob		
+osc1.wlaw	osc1	Width Law	OSC	Spectra	select		
+osc2.wlaw	osc2	Width Law	OSC	Spectra	select		
+osc1.cascade	osc1	Cascade	OSC	Spectra	knob		
+osc2.cascade	osc2	Cascade	OSC	Spectra	knob		
+osc1.subOn	osc1	Sub Osc	OSC	Spectra	toggle		
+osc2.subOn	osc2	Sub Osc	OSC	Spectra	toggle		
+osc1.subVol	osc1	Sub Level	OSC	Spectra	knob		
+osc2.subVol	osc2	Sub Level	OSC	Spectra	knob		
+osc1.subWave	osc1	Sub Wave	OSC	Spectra	knob		
+osc2.subWave	osc2	Sub Wave	OSC	Spectra	knob		
+osc1.subOct	osc1	Sub Octave	OSC	Spectra	knob		
+osc2.subOct	osc2	Sub Octave	OSC	Spectra	knob		
 osc1.balance	osc1	A/B Balance	MAIN	Dynamics	knob		dynamics
 osc2.balance	osc2	A/B Balance	MAIN	Dynamics	knob		dynamics
 fx1type	global	FX1 Type	FX	FX rack	select		fx-rack
