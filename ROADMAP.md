@@ -8,6 +8,45 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## RETROFIT TO KIT 2.1.0 — and we had no mailbox of our own (2026-08-18)
+
+`/retrofit` run against `kit/currency.py`, which is the only source of truth for what
+the retrofit is for. Opening state: **`declared: pre-2.0.0`, BEHIND by 2 entries**;
+closing state: **`declared: 2.1.0`, CURRENT — nothing to do.** Idempotence checked,
+not hoped.
+
+**2.0.0 baseline — all eleven items already present, and one of them was a lie the
+checker cannot catch.** `.gitattributes` scored `[x]` because `currency.py` reads the
+filesystem, and it was **untracked**. A clone — including CI — had no such file, so
+the LF guarantee that Decision 34 calls load-bearing for every byte-comparison gate
+(hash ledgers, golden renders, byte-identical replay) did not exist anywhere except
+this laptop. Now tracked. The general shape is the one this session kept meeting: a
+presence check that reads the working tree answers a different question from the one
+that matters, and answers it reassuringly.
+
+**2.1.0 — `## Mailbox` in the charter, and the gap it exposed.** HYPERSAW had **no
+`integrations/` directory at all.** We consume autonomous's doctrine and harness kit
+and are a named GUI/viz extraction donor for FOUNDATIONS, and every brief naming us
+has had to arrive through a correspondent's tree or a side channel. That is the exact
+finding we filed in `hypersaw-001` Q4 and autonomous accepted — *a slot should exist
+when a consumption relationship exists, not when a problem appears* — applied to
+ourselves. `integrations/README.md` now names it and states what lives here versus in
+a provider's tree.
+
+**One deliberate divergence from the kit, ruled by the human.** The 2.1.0 retrofit
+action says to write *"exchanges between other repos are ignored"* into the charter.
+INTEGRATIONS §3 was corrected on **2026-08-18, on this repo's own brief** — reading is
+never bounded; only *acting on* another repo's obligation, or *raising it to the human*
+as though it were ours, is. Applying the action verbatim would have installed the
+superseded rule in our charter on the day it was superseded. Our §Mailbox states the
+corrected form and says so in place. Filed to autonomous, because the stale text is in
+two places that will propagate it: the CHANGELOG's retrofit action, and autonomous's
+**own** `CLAUDE.md`, which still reads *"not a to-do, not a warning, not context"* —
+the precise phrase §3 now says over-reached into informational quarantine.
+
+**Not touched:** protected paths, `./verify` and its gates, the untracked `GoopBox.jsx`.
+`./verify fast` green; `currency.py` CURRENT.
+
 ## THREE FX MODULES QUEUED — and the alias rule finally has a gate (2026-08-17)
 
 Human: *"a pared-down version of [the granular sibling] turned into an FX module in here. Also a
