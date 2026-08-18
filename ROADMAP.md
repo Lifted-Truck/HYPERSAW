@@ -8,6 +8,47 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## OSC BATCH 1b: EVERY VIZ FOLLOWS THE SELECTED OSC, AND THE SCOPING WAS ALREADY RIGHT (2026-08-18)
+
+Human: *"let's make sure the phase carpet, voice map, XY, etc. all link to the currently
+selected osc"* and *"are you intending to appropriately wire the osc parameters so they
+affect only the osc and not the global settings?"*
+
+**The scoping answer is yes, and it predates this batch — verified rather than asserted.**
+`learnOscLayout()` derives the split from the engine's own param list at runtime:
+`OSC_STRIDE = 1000`, and a base id is **global iff it has no `+stride` twin**. `effId()`
+then remaps per-osc ids and leaves globals alone. Nothing is hardcoded, so the rule cannot
+drift from the shell. Driven with a synthetic two-oscillator param set:
+
+| | editOsc = 0 | editOsc = 1 |
+|---|---|---|
+| detune (per-osc) | **4** | **1004** |
+| pull K (per-osc) | **6** | **1006** |
+| a global id | **50** | **50** |
+
+Per-osc remaps, global never does. That is the whole of the guarantee, and it applies to
+everything placed through the normal control path — the new clusters included, because they
+go through `effId` like the rest.
+
+**The viz link needed one thing and exposed a latent bug.** Carpet, voice map, phase and
+strips draw from `bridge.getViz()`, and the engine decides which oscillator that describes,
+so they follow via `bridge.setVizOsc(k)` on tab click — confirmed: clicking the tab in the
+new cluster called `setVizOsc(1)`. The XY follows by reading `effId(4)`/`effId(6)`, and did:
+`(0.10, 0.10) → (0.90, 0.90)` on switching, reading ids **1004 / 1006**.
+
+**The latent bug:** the osc-naming label used a hardcoded id list `['vizWho', 'vizWho2']`,
+and `#vizWho2` **already existed on MAIN**. A second cluster naming its osc would have
+reused that id — duplicate ids are invalid and `getElementById` returns only the first, so
+the new label would have sat permanently reading "OSC 1" while the page showed OSC 2. It
+would have looked like a viz-routing bug and been a markup one. Replaced with a `.whoOsc`
+class: adding an osc-naming label to a future cluster is now markup and nothing else, with
+no id list to keep in step. Whole file re-scanned: **zero duplicate ids**.
+
+Every osc-dependent cluster now carries its own selector (5 selectors, 10 tabs, all synced
+to the one `editOsc`), so "which oscillator am I looking at?" is never answered by scrolling
+to another panel. Confirmed after a click: all tabs for OSC 2 lit, all three naming labels
+read "OSC 2".
+
 ## OSC PAGE BATCH 1: THE SWARM VISUALIZERS AND A SECOND XY (2026-08-18)
 
 Human: *"let's revert for now to the sliders; the gui pass will come after we've wired

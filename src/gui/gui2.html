@@ -203,7 +203,7 @@
     <div class="row"><label>fine</label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
   </div>
 
-  <div class="cluster"><h2>The swarm, seen <span class="oscSel" id="oscSelVizOsc"></span></h2>
+  <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span><span class="oscSel" id="oscSelVizOsc"></span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
          visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
@@ -216,7 +216,7 @@
     <div id="vmapScope2"><div class="vlabel">Voice map · pan × pitch</div>
       <canvas id="vmapC" width="256" height="96"></canvas></div>
   </div>
-  <div class="cluster"><h2>XY — x=detune · y=pull K</h2>
+  <div class="cluster"><h2>XY — x=detune · y=pull K <span class="oscSel" id="oscSelXyOsc"></span></h2>
     <!-- The SAME pad as MAIN, not a copy of its picture: both are `canvas.xy`,
          both are painted from the one (curX, curK) and both write the same two
          params, so they cannot drift apart the way two hand-maintained pads would. -->
@@ -422,9 +422,12 @@ function paintOscTabs(ps) {
     // 500 ms instead of leaving a permanently unlit tab.
     b.classList.toggle('on', k === editOsc);
     const who = 'OSC ' + (editOsc + 1);
-    for (const id of ['vizWho', 'vizWho2']) {
-      const el = document.getElementById(id);
-      if (el && el.textContent !== who) el.textContent = who;
+    // Class, not an id list: every element that names the edited osc updates,
+    // so adding one to a new cluster is markup and nothing else. (The id list
+    // this replaces already had a collision waiting — a second cluster reusing
+    // #vizWho2 would have been silently skipped by getElementById.)
+    for (const el of document.querySelectorAll('#vizWho, #vizWho2, .whoOsc')) {
+      if (el.textContent !== who) el.textContent = who;
     }
     const vol = ps[k === 0 ? 17 : 17 + k * OSC_STRIDE];
     const silent = !(vol > 0.0005);
