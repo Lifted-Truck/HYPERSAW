@@ -8,6 +8,33 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## GENERATED GROUPS ARE THE SAME BOX AS HAND-WRITTEN ONES (2026-08-18)
+
+Human: *"all parameters should be within UI boxes; the new ones aren't."*
+
+**`.grp` had no CSS at all.** The generator wrapped each group in `<div class="grp"><h3>`,
+and the file contained **zero rules** for that class — so hand-written panels rendered as
+`.cluster` boxes (panel background, 1px border, 4px radius) while all 75 generated controls
+rendered as bare rows beside them. The generated majority looked like it had escaped the
+design, because visually it had.
+
+**Fixed by emitting `.cluster`/`<h2>` — the same element a hand-written panel uses — rather
+than styling `.grp` to match.** Styling it would have created two rules obliged to agree
+forever, and they would eventually not: this file has already produced a duplicate id, a
+stale span rule and a marker outside its container from exactly that kind of parallel
+structure. There is now **one box in this file**, and generated content cannot drift away
+from it because it is not a separate thing.
+
+**Measured, per page, in the browser:** controls **not** inside a box — MAIN 0 of 29, MIX 0
+of 34, FX 0 of 12, OSC 0 of 42. Boxes lacking a painted border or background: **0 of 25**.
+Sample computed style: `1px rgb(95,242,224)` border, `rgb(17,21,31)` background, `4px`
+radius. No JS errors. `./verify fast` green, reach 105/105.
+
+**Worth noting what the check was.** Not "does the markup say cluster" but *"does every
+control resolve to an ancestor box whose computed border and background are actually
+painted"* — the class being present is what was true before, and it was not the thing that
+mattered.
+
 ## EVERY CONTROL IS NOW THE KIND ITS PARAMETER IS (2026-08-18)
 
 Human: *"make sure they're all sorted inside proper ui elements, and are formatted per

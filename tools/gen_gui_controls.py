@@ -152,7 +152,13 @@ def main():
         end = f"<!--/GEN:{page}-->"
         out = []
         for group, items in sorted(groups.items()):
-            out.append(f'  <div class="grp"><h3>{group}</h3>')
+            # SAME ELEMENT as a hand-written panel, not a parallel one. `.grp`
+            # had no CSS at all, so generated groups rendered as bare rows beside
+            # boxed ones — the generated majority looked like it had escaped the
+            # design. Styling `.grp` to match would have created two rules that
+            # must agree forever; emitting `.cluster` means there is only one box
+            # in this file and generated content cannot drift away from it.
+            out.append(f'  <div class="cluster"><h2>{group}</h2>')
             for addr, scope, label, widget, unit, p in sorted(items, key=lambda x: x[5]["id"]):
                 df = ' data-fixed="1"' if p["id"] in fixed else ""
                 step = "1" if p["stepped"] else "0.005"
