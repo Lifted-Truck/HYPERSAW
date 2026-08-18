@@ -8,6 +8,43 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## CORNER RINGS WERE DRAWN OUTSIDE THE CANVAS; LIGHT THEME RESKINNED (2026-08-18)
+
+**"The morph colour rings around the knobs are barely visible."** They were barely
+visible because they were **barely drawn**. `dialGeom()` used a flat `pad = 10 * density`,
+making the canvas half-extent `r + 10 = 40` at density 1, while the ring was stroked at
+`trackR + 5 = r + 11 = 41` with a 2px width — spanning radius 40 to 42 in a canvas that
+ends at 40. Everything but the four tangent points was clipped away. **Widening the stroke
+alone would have widened four smudges**, which is the whole reason this is worth an entry:
+the obvious fix for the reported symptom would have produced a slightly more visible bug.
+
+Fixed by deriving the padding from the ring rather than from the dial — the ring is the
+outermost thing drawn, so it is what `pad` must clear. `RING_GAP` and `RING_W` are named
+constants; `pad = (6 + RING_GAP + RING_W + 3) * density`. Measured after: dial 96px,
+ring radius 42.5, outer edge 45, canvas half-extent 48 — **3px clearance**, stroke width
+5 (was 2), and **1639 lit pixels beyond the value track** where there had been only
+tangent contact. Ring width now scales with density like the rest of the geometry.
+
+**Light theme: vaporwave × Sanrio × death metal** (human: *"something a little more
+vibrant… vaporwave colors and an aesthetic that mixes sanrio cartoony with death metal"*),
+replacing a neutral grey-blue that was correct and forgettable. The three references pull
+against each other and that tension is the brief; resolved as **pastel ground / saturated
+signal / black ink** — lilac ground and 18px radius from Sanrio, the canonical vaporwave
+five spent ONLY on signal (accent, value fill, thumbs) so saturation lands where the eye
+should already be, and death metal supplying a 2px black keyline, near-black glyphs, a
+hard unblurred cyan drop for poster flatness, and a blackletter display face on headings.
+**Death metal contributes CONTRAST, not darkness** — this is still the light theme, so the
+black is a line weight and a typeface, never a background.
+
+**Theme contract re-verified, not assumed.** All four `.theme-*` blocks parsed and every
+declaration checked against the layout set (width/height/padding/margin/gap/grid-*/flex-*/
+position): **zero violations.** A first grep "found" a violation that turned out to be
+`body`'s padding six lines past a theme block — the same class of false positive this
+session keeps meeting, caught by checking the rule the declaration actually belongs to.
+Headings take `var(--font-display, var(--font))`, fallback at the usage site, so dark and
+skeuomorphic are provably untouched — confirmed: dark still resolves `ui-monospace`, radius
+still 6px.
+
 ## WARP INGESTED — FX-C has its prototype; and the aesthetics lab's toggle was a specificity bug (2026-08-18)
 
 **WARP (distortion engine) triaged as a CANDIDATE — ADR-092.** `horde_distortion_engine.html`
