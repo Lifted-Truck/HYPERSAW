@@ -8,6 +8,57 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## OSC PAGE BATCH 1: THE SWARM VISUALIZERS AND A SECOND XY (2026-08-18)
+
+Human: *"let's revert for now to the sliders; the gui pass will come after we've wired
+everything in and finished integrating the labs. Let's continue adding batches to the osc
+page, starting with all relevant visualizers from GUI 1 and the same X/Y pad from MAIN."*
+
+**Rotary rendering reverted.** The dial pass is out of `gui2.html`; every control is a
+linear range again. **The widget DECLARATION in `src/param_presentation.tsv` was kept**
+(101 knob / 29 slider / 33 select / 18 toggle) — it is a design record for the GUI pass,
+not a claim about what renders today, and nothing reads it now that the pass is gone. Say
+the word and it reverts too.
+
+**Which of GUI1's nine canvases are "relevant" — the call, stated rather than assumed.**
+GUI1 has phase circle, phase carpet, partial strips, voice map, scope, log spectrum, notes,
+XY and envelope. The OSC page gets the four that describe **the swarm itself** plus the pad:
+phase circle, phase carpet (voice × phase), partial strips (lock front), voice map
+(pan × pitch), XY. Scope and log spectrum read the OUTPUT stage, notes is polyphony, and
+envelope belongs to its own group — putting them on OSC would say they describe the
+oscillator, which they do not. gui2 already carried phase and spectrum on MAIN, so the new
+code is carpet + strips + voice map.
+
+**Ported verbatim, and the comment says why.** `drawCarpet` / `drawStrips` / `drawVmap` are
+copied unchanged from `gui.html` — same variable names, new element bindings — so the diff
+against GUI1's drawing code is **zero lines**. GUI1 is still the shipped default and GUI2
+is its succession (not a fork), so until the succession completes the rule is edit GUI1 and
+re-copy, never edit here.
+
+**Phase and XY now render into every canvas carrying their class**, from one piece of state
+— the discipline the aesthetics bench proved: six renderings of one value cannot drift, two
+hand-maintained copies always do. The OSC pad is not a picture of MAIN's pad; both are
+`canvas.xy`, both paint from the one `(curX, curK)`, and both write params 4 and 6.
+
+**Engine swap ordered deliberately:** carpet/voice-map (SAW) and strips (SPECTRA) are
+swapped in `vizFrame` **before** anything is drawn, so a throw in a draw cannot strand the
+pair in the wrong state — the same ordering guarantee, for the same reason, as `gui.html`.
+
+**Verified in the browser against a synthetic viz payload** (there is no plugin bridge in a
+browser, so the engine's message shape is fed in by hand): all seven canvases paint —
+carpet 14848, strips 38400, voice map 24576, both phase circles 48400 **each** and both XY
+pads 72080 **each** (identical counts because they are the same state, twice). Zero JS
+errors. The swap is exclusive in both directions. A pointer on the OSC pad moved
+`(0.28, 0) → (0.75, 0.5)` and wrote **params 4 and 6**, so it drives the instrument rather
+than only itself.
+
+**Two test artifacts worth recording, since both looked like product bugs.** The first run
+threw inside `drawPhase` — my payload lacked `R`, not a port defect. The second reported the
+OSC pad "did not move": a synthetic `pointerdown` carries a pointer id that was never really
+down, so `setPointerCapture` throws and aborts the handler before it applies, and the pad
+was inside a `display:none` page whose `getBoundingClientRect` is all zeros. Both fixed in
+the harness, not the product.
+
 ## GUI2 AUDITION: ROTARY/LINEAR MIX DECIDED IN THE TABLE, RENDERED IN THE DARK THEME (2026-08-18)
 
 Human: *"let's audition the dark mode on GUI 2; I would like a sensible mix of rotary and
