@@ -8,6 +8,70 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## LAB QUEUED — SCALE-QUANTIZED CHORD LAYER, AND SCALE BECOMES A SHARED SURFACE (2026-08-18)
+
+Human: *"a scale-quantized chord layer within the hypersaw osc engine which independently
+glides voices (I suspect we'll have multiple scale-quantized modules beyond this and the
+glide quantization, so it will be worth it to set the scale from the main page)."*
+
+### The scope call is the load-bearing half, and the human made it correctly
+
+**One scale, global, on MAIN — not one per module.** Two modules disagreeing about the scale
+is a bug generator: a chord layer quantising to D dorian while the glide quantiser holds C
+major produces notes that are in neither key, and the symptom (occasional wrong note under
+motion) is miles from the cause. Consumers already visible: **glide quantisation** (exists,
+`src/glide_core.h`), **bend quantisation** (exists and ruled 2026-08-15 — snaps the SOUNDING
+pitch, not the offset), **the chord layer** (this), and any future arp. That is past the
+two-consumer threshold before the first line is written, so the scale is a shared surface
+from day one rather than something promoted later.
+
+**Our param model gives this for free.** `learnOscLayout` derives global-vs-per-osc from the
+twin rule — a base id is global **iff** it has no `+OSC_STRIDE` twin — so declaring
+`scale.root` and `scale.class` without per-osc twins makes them global **by construction**,
+not by convention. Nothing new to build for the scoping; it falls out of the mechanism
+verified on 2026-08-18 (detune 4 → 1004, a global 50 → 50).
+
+### Build from what exists — this lab is mostly composition
+
+- `docs/design/bend-lab.html:617` already declares `SCALES`; `:302` has
+  `quantise(p, base)` with `scaleRoot` and absolute-degree math, carrying the 2026-08-15
+  ruling.
+- `src/glide_core.h` already has four glide laws (const-rate · const-time · lag · spring)
+  **and `qhyst`** — cents of stickiness at a step boundary, which is precisely what stops a
+  gliding voice chattering as it crosses a degree.
+
+Reuse both. A second scale table or a second quantiser is how the two disagree later.
+
+### The genuinely new question: what does the chord layer DO to the swarm?
+
+Two shapes, and they are **different instruments**, to be settled by ear in the lab rather
+than by argument here:
+
+- **SEAT** — partition the existing N swarm voices across chord degrees. Voice count
+  unchanged, CPU unchanged, detune becomes per-degree spread. Stays one swarm.
+- **STACK** — add a bank of voices at chord intervals. Voice count and CPU multiply, and
+  there are now two swarms that may or may not couple to each other.
+
+### Independent glide is the interesting and dangerous part
+
+Gliding voices are **moving targets for the Kuramoto pull**, so glide does not sit beside the
+coupling — it interacts with it. A voice gliding through degrees is a frequency ramp the
+swarm is actively trying to lock to. **Untested claim worth testing first:** at high K the
+independent glides will partially drag one another, so "independent" may be false *in the
+ear* while remaining true *in the code*. That is the thing this instrument exists to explore,
+and it needs a measurement rather than an impression.
+
+### Oracle before opinion
+
+The lab ships with a deterministic check or it settles nothing: **every settled voice
+frequency must equal a scale degree exactly**, not approximately — and the must-read-zero
+control is the same chord with the layer OFF, which must show zero degree-snapping. Without
+the paired control, "it sounds in key" is a claim nothing can falsify, which is the failure
+this project has now met often enough to expect (`L0032`).
+
+**Order:** scale surface (global params + reuse of the existing quantiser) → SEAT vs STACK by
+ear → independent glide under coupling, measured → only then any shell integration.
+
 ## gui2 REACHES 105/105 — GENERATED, NOT PLACED (2026-08-18)
 
 Human: *"I want to have nearly all features testable by EOD so we need to start speeding up."*
