@@ -46,3 +46,58 @@ cross-repo coordination).
 
 **Open, not ours to time.** `relations:` as one verb-tagged field — ruled when
 distillery reports v3 landed; our framing is the front-runner.
+
+---
+
+## Round 4 — the unvalidated claim is now validated, and the last finding was ours
+
+`autonomous` shipped `kit/gates/library_validate.py` against the gap we named:
+`test_library_contract` proves the contract is self-consistent, `contract_gate`
+proves a contract is versioned, **nothing checked an actual entry**. Same class
+as the `absorbs` bug — a rule with nothing able to exercise it.
+
+**Run here, not taken on report:**
+
+```
+$ library_validate.py LIBRARY.md
+  line 57: L0026.supersedes: value is neither a L\d{4} reference nor a placeholder
+library_validate: 1 finding(s)      EXIT=1
+```
+
+Their claim confirmed on both counts: our two `absorbs:` lines pass clean, and
+the single surviving finding is the one we had already flagged ourselves in
+brief-001 §4 as tier provenance wearing a relation field.
+
+**Fixed.** `L0026.supersedes` is now the contract-blessed placeholder-plus-
+annotation — `— (nothing superseded; escalated candidate -> canonical on the
+FIFTH occurrence …)` — so the field reads absent and the provenance survives as
+`supersedes_note`. Deliberately not invented: there is no tier-provenance slot
+in `library-entry.3`, and the placeholder+note mechanism is exactly what v2
+ruled for this shape.
+
+```
+$ library_validate.py LIBRARY.md
+library_validate: 0 finding(s)      EXIT=0
+```
+
+**L0032 extended rather than a new lesson written.** The absorbs defect is the
+same signature in a new domain, and we consolidated four entries on 2026-08-11
+precisely because they stated one claim four ways — minting `L0038` would repeat
+the mistake we just fixed. Filed as evidence, not as `recurred:`: nothing of
+ours regressed, we observed the signature in a correspondent's contract.
+
+**Their validator cried wolf on first contact** — three false positives, all
+from the detector assuming its own local conventions (our `origin` shape, an
+unknown `consolidated:` segment joined into `added:`, one prose value split on
+its own commas into three findings). Fixed and pinned by name. That is the third
+detector in two days needing the L0032 discipline.
+
+**Adopted from us, going to their human as amendment recommendations:** `cites:`
+as the resident's field affirmed at intake (with our stated limit — the gate
+proves a field was filled, never that it was filled correctly), and `seq:`
+per-thread strictly increasing.
+
+**Open recommendation, needs a human gate here:** add a `library_check` to
+`./verify` that runs the kit validator when present and SKIPs visibly when not
+— the same degrade-visibly shape as `conformance_check`. `./verify` is a
+protected path, so this is a proposal, not a change.
