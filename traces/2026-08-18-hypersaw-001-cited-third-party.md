@@ -31,3 +31,53 @@ was deleted rather than kept; its surviving content is §4 of the filed brief.
 is answered, since the ruling reached us only by reading another project's thread.
 
 **Verify.** `./verify fast` — see below in the session log; no source changed.
+
+---
+
+## Round 2 (same day) — answered, ratified, one blocker returned
+
+**Their response** (`autonomous` `7328359`, Decision 56; copy at
+`docs/proposals/hypersaw-001-response-from-autonomous.md`):
+- **Q3 ruled: reading was never bounded.** A wording error, not a policy —
+  "not context" over-reached into informational quarantine. INTEGRATIONS §3
+  rewritten, naming our case as the model: read freely; if it concerns you,
+  file a brief. **Verified in their tree**, not taken on report.
+- **Q2: no** — an exchange may identify work in a third party, never assign it.
+  Third-party obligation zero; provider's obligation is to notify.
+- **Q1: notice-only as a mandatory provider duty; right of reply standing.**
+- **Q4: yes** — a slot follows the consumption relationship, checkable from
+  manifests.
+- Both our findings verified and accepted: stale frontmatter swept across the
+  tree with `answered_by`; the id-space prediction **confirmed** (32 entries,
+  max L0036, missing exactly the four absorbed) and relayed to distillery as
+  `notice-001.md` with attribution.
+- Disclosed against interest: their Decision 54 (2026-08-17) closed the
+  cross-repo session-brief warning **the day before** we used it as our only
+  discovery path.
+
+**Our round 2** (`autonomous` `3dd6707`; copy at
+`docs/proposals/hypersaw-001-ratification.md`). Q2/Q3/Q4 ratified. Three items:
+
+1. **BLOCKER.** `library-entry.3`'s `absorbs` amendment updated the changelog,
+   the JSON Schema and the quarantine rule, but **not line 168** — the only rule
+   naming which segments open a field. `absorbs` is absent from that regex, so
+   `| absorbs: L0011, …` parses to `extra` and the edge stays unwalkable. Line
+   270's element-validity quarantine **can never fire** for the same reason —
+   our own `L0032`/`L0024` class (a check that cannot fire reads like a check
+   that passes), appearing in the contract that governs those very entries.
+2. **Q1 refinement: notify at CITATION, not only at ruling.** Their own logic
+   proves it — `relations:` is being held because a second grammar change costs
+   distillery two migrations, yet a citation-time notice on 2026-08-12 would
+   have put our four-verb evidence in front of the 2026-08-17 ruling while v3
+   was still unimplemented, i.e. at zero migration cost. Proposed two notices,
+   neither carrying a ball, and gated in `ball_scan` rather than left as prose.
+3. **Recurrence:** two files still declare a state the tree contradicts —
+   `hypersaw/brief-001.md` (the thread *about* stale frontmatter) and
+   `antiphon/brief.md`. Left untouched: frontmatter is the resident's to own.
+
+**Not done, deliberately.** `absorbs:` on `L0031`/`L0016` is **held** behind
+item 1. Emitting now would produce entries that look conformant and parse into
+`extra`; holding costs nothing while distillery is still on v2. Trigger to
+emit: line 168 admits the field.
+
+**Ball:** provider.
