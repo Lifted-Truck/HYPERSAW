@@ -8,6 +8,48 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## GUI2 LAYOUT: TWO HIERARCHIES, ADOPTED FROM GUI1 RATHER THAN REINVENTED (2026-08-18)
+
+Human: *"let's do columns over rows for this. Maybe we can take the GUI1 policy of having
+visualizers on the left (osc page too) and controls on the right."*
+
+**Why the page read three-quarters empty.** `#pg-MAIN` / `#pg-OSC` used
+`repeat(auto-fit, minmax(…))`, which places clusters in DOM order into equal columns. The
+osc bar — one short paragraph — was therefore given a whole column of its own, and the XY
+sat beside it with the viz pushed underneath. Nothing was broken; the layout simply had no
+concept of **kinds** of panel.
+
+**Adopted verbatim from `gui.html:45`:** *"visualizers stack in one LEFT column, control
+clusters flow in the right column — no mixed rows."* Taken rather than reinvented, because
+during the succession a user moving between the two GUIs should not have to relearn where
+things live. The XY sits with the visualizers exactly as GUI1 places it — it is a display
+you can also grab, and splitting it from the phase circle would put the swarm's two
+pictures in different columns.
+
+The osc bar now **spans** both columns: it is a mode line for the whole page, not a panel
+competing with panels.
+
+**A page with no controls does not reserve a column for them.** MAIN is all displays today,
+so its viz column spans full width and its panels flow sideways; the rule comes out the
+moment MAIN gains controls. Reserving a column "for later" is what produced the empty page
+in the first place.
+
+**Measured, at three widths:**
+
+| | MAIN | OSC |
+|---|---|---|
+| 743 px | viz spans full width, 2 panels side by side (367 px each) | viz 340 left, controls 393 right, **1** control column |
+| 1376 px | panels at x = 12 / 705 | viz 340 left, controls 1026 right, **3** control columns |
+
+No horizontal overflow at any width; every canvas stays inside the body box. The control
+column packs sideways as clusters are added rather than growing off-screen — the 1 → 3
+column change with width is that rule working, not a width-dependent bug.
+
+**Stated because it is unverified rather than passing:** the `max-width: 720px` collapse to a
+single column is written but **not exercised** — the preview pane clamps at ~980 px, so
+nothing here has driven that media query. It needs a real narrow window or a host at plugin
+size before it can be claimed.
+
 ## OSC SELECTOR IS ITS OWN SECTION; KURAMOTO VIEW BENCH INGESTED (2026-08-18)
 
 Human: *"let's just put the osc selector as its own section before the other sections on

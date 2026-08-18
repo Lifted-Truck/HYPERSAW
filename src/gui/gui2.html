@@ -30,9 +30,28 @@
   .tab.stub { opacity:.35; cursor:default; }
   .page { display:none; }
   .page.on { display:grid; gap:10px; }
-  #pg-MAIN.on { grid-template-columns: minmax(260px,340px) 1fr; align-items:start; }
+  /* Two hierarchies, not a masonry of equal tiles (gui.html:45): visualizers
+     stack in one LEFT column, control clusters flow in the right. The old
+     auto-fit grid placed clusters in DOM order into equal columns, which is why
+     the osc bar — one short paragraph — was given a full column of its own and
+     the page read as three quarters empty. The bar spans instead: it is a mode
+     line for the whole page, not a panel competing with the panels. */
+  #pg-MAIN.on, #pg-OSC.on { grid-template-columns: minmax(260px,340px) minmax(0,1fr); align-items:start; }
   #pg-MIX.on  { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items:start; }
-  #pg-OSC.on  { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items:start; }
+  .oscbar { grid-column: 1 / -1; }
+  .vizcol, .ctlcol { display:grid; gap:10px; align-content:start; min-width:0; }
+  .vizcol canvas { width:100%; }
+  /* Controls pack into balanced columns rather than one tall stack, so the right
+     column fills sideways as clusters are added instead of growing off-screen. */
+  .ctlcol { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  /* A page with no control clusters must not reserve an empty column for them.
+     MAIN is all displays today, so its viz column spans the full width and its
+     panels flow sideways; the moment MAIN gains controls this rule comes out and
+     it inherits the same left/right split as OSC. Reserving the column "for
+     later" is what produced three quarters of empty page in the first place. */
+  #pg-MAIN .vizcol { grid-column: 1 / -1;
+                     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  @media (max-width: 720px) { #pg-MAIN.on, #pg-OSC.on { grid-template-columns: 1fr; } }
   #pg-FX.on   { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items:start; }
   .cluster { background:var(--panel); border:1px solid var(--line);
     border-radius:4px; padding:8px 10px; min-width:0; }
@@ -88,18 +107,12 @@
 <div class="tabs" id="tabs"><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
-  <!-- ONE selector per page, ahead of everything it governs. Five copies
-       scattered through the clusters answered "which osc?" wherever you
-       happened to be looking, which sounds helpful and reads as clutter
-       once a page has more than two panels. Scope is a property of the
-       PAGE, so it is declared once, at the top, before anything it
-       governs. All copies still bind to the one `editOsc`, so a page
-       without a bar is simply a page with nothing osc-scoped on it. -->
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
     <div class="note">Selects which oscillator this page edits AND which one the
       engine renders in the visualizers. Global parameters are unaffected — they
       have no per-oscillator twin, so they never remap.</div>
   </div>
+  <div class="vizcol">
   <div class="cluster"><h2>XY — x=detune · y=pull K</h2>
     <canvas id="xy" class="xy" width="340" height="212"></canvas>
     <div class="note" style="margin-top:5px">Drives the ACTIVE oscillator (the plumbing rule this
@@ -113,6 +126,7 @@
       <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the plugin.</div>
   </div>
 
+  </div>
 <!--GEN:MAIN-->
 
   <!--/GEN:MAIN-->
@@ -196,40 +210,20 @@
 </div>
 
 <div class="page" id="pg-OSC">
-  <!-- ONE selector per page, ahead of everything it governs. Five copies
-       scattered through the clusters answered "which osc?" wherever you
-       happened to be looking, which sounds helpful and reads as clutter
-       once a page has more than two panels. Scope is a property of the
-       PAGE, so it is declared once, at the top, before anything it
-       governs. All copies still bind to the one `editOsc`, so a page
-       without a bar is simply a page with nothing osc-scoped on it. -->
-  <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelOsc"></span></h2>
+<div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelOsc"></span></h2>
     <div class="note">Selects which oscillator this page edits AND which one the
       engine renders in the visualizers. Global parameters are unaffected — they
       have no per-oscillator twin, so they never remap.</div>
   </div>
-  <div class="cluster"><h2>The swarm</h2>
-    <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1" value="7"><output></output></div>
-    <div class="row"><label>detune</label><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"><output></output></div>
-    <div class="row"><label>seed</label><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"><output></output></div>
-    <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
-    <div class="row"><label>level</label><input type="range" data-p="17" min="0" max="1" step="0.005" value="0.4"><output></output></div>
-  </div>
-  <div class="cluster"><h2>The coupling</h2>
-    <div class="row"><label>pull K</label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row"><label>onset</label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row"><label>dissolve</label><input type="range" data-p="8" min="0.05" max="7.94" step="0.01" value="0.63"><output></output></div>
-    <div class="row"><label>retrigger</label><input type="checkbox" data-p="18" checked><output></output></div>
-    <div class="note">retrigger OFF = free-run phases; random starts can null for
-      ~300 ms under slow detune beating (A13 — reference physics, not a bug)</div>
-  </div>
-  <div class="cluster"><h2>Pitch</h2>
-    <div class="row"><label>octave</label><input type="range" data-p="35" min="-2" max="2" step="1" value="0"><output></output></div>
-    <div class="row"><label>pitch</label><input type="range" data-p="36" min="-12" max="12" step="1" value="0"><output></output></div>
-    <div class="row"><label>fine</label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
-  </div>
-
-  <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
+  <!-- TWO HIERARCHIES, after gui.html:45 — "visualizers stack in one LEFT
+       column, control clusters flow in the right column — no mixed rows."
+       Adopted here rather than reinvented, because a user moving between the
+       two GUIs during the succession should not have to relearn where things
+       live. The XY sits with the visualizers exactly as it does in GUI1: it
+       is a display you can also grab, and splitting it from the phase circle
+       would put the swarm's two pictures in different columns. -->
+  <div class="vizcol">
+<div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
          visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
@@ -242,13 +236,44 @@
     <div id="vmapScope2"><div class="vlabel">Voice map · pan × pitch</div>
       <canvas id="vmapC" width="256" height="96"></canvas></div>
   </div>
-  <div class="cluster"><h2>XY — x=detune · y=pull K</h2>
+<div class="cluster"><h2>XY — x=detune · y=pull K</h2>
     <!-- The SAME pad as MAIN, not a copy of its picture: both are `canvas.xy`,
          both are painted from the one (curX, curK) and both write the same two
          params, so they cannot drift apart the way two hand-maintained pads would. -->
     <canvas id="xy2" class="xy" width="340" height="212"></canvas>
   </div>
-<!--GEN:OSC-->
+  </div>
+  <div class="ctlcol">
+<div class="cluster"><h2>The swarm</h2>
+    <div class="row"><label>voices</label><input type="range" data-p="1" min="1" max="32" step="1" value="7"><output></output></div>
+    <div class="row"><label>detune</label><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"><output></output></div>
+    <div class="row"><label>seed</label><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"><output></output></div>
+    <div class="row"><label>width</label><input type="range" data-p="14" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
+    <div class="row"><label>level</label><input type="range" data-p="17" min="0" max="1" step="0.005" value="0.4"><output></output></div>
+  </div>
+<div class="cluster"><h2>The coupling</h2>
+    <div class="row"><label>pull K</label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row"><label>onset</label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row"><label>dissolve</label><input type="range" data-p="8" min="0.05" max="7.94" step="0.01" value="0.63"><output></output></div>
+    <div class="row"><label>retrigger</label><input type="checkbox" data-p="18" checked><output></output></div>
+    <div class="note">retrigger OFF = free-run phases; random starts can null for
+      ~300 ms under slow detune beating (A13 — reference physics, not a bug)</div>
+  </div>
+<div class="cluster"><h2>Pitch</h2>
+    <div class="row"><label>octave</label><input type="range" data-p="35" min="-2" max="2" step="1" value="0"><output></output></div>
+    <div class="row"><label>pitch</label><input type="range" data-p="36" min="-12" max="12" step="1" value="0"><output></output></div>
+    <div class="row"><label>fine</label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
+  </div>
+  </div>
+  <!-- ONE selector per page, ahead of everything it governs. Five copies
+       scattered through the clusters answered "which osc?" wherever you
+       happened to be looking, which sounds helpful and reads as clutter
+       once a page has more than two panels. Scope is a property of the
+       PAGE, so it is declared once, at the top, before anything it
+       governs. All copies still bind to the one `editOsc`, so a page
+       without a bar is simply a page with nothing osc-scoped on it. -->
+        
+    <!--GEN:OSC-->
 
   <!--/GEN:OSC-->
 </div>
