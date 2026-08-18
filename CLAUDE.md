@@ -168,3 +168,29 @@ like a log.
 ### LIBRARY entry template
 `[Lxxxx] <title> | tier | added: YYYY-MM-DD | tags: … | lesson: … | evidence: … | falsifier: … | supersedes: …`
 <!-- KNOWLEDGE-LOOP:END -->
+
+<!-- kit:2.1.0 begin — mailbox scope, appended by /retrofit 2026-08-18 -->
+## Mailbox
+
+- **Briefs TO us land in `integrations/<sender>/` in THIS repo.** Visitors write
+  there under the INTEGRATIONS mailbox exception and nowhere else in our tree;
+  committing them is a resident act, so an uncommitted brief is still filed and
+  still ours to land.
+- **Responses to OUR briefs land in the PROVIDER's tree, not here — pull and
+  read them.** A consumer that only checks its own mailbox cannot tell an
+  answered brief from an ignored one. We lost a session to exactly that on
+  2026-08-18: a brief's frontmatter still read `ball: provider` while the ruling
+  sat committed beside it (LIBRARY L0037 — frontmatter is a claim, the tree is
+  the fact).
+- **Reading another repo's exchange is never out of bounds; acting on it is.**
+  Read freely. If it concerns us — we are cited, or work is implied in our tree
+  — **file a brief**: acting THROUGH the protocol is always in bounds. What is
+  forbidden is acting on another repo's obligation directly, or raising it to
+  the human as though it were ours. If it concerns nobody but the two parties,
+  do nothing and say nothing.
+
+  *This third clause deliberately diverges from the kit CHANGELOG's 2.1.0
+  retrofit text ("exchanges between other repos are ignored"), which predates
+  the INTEGRATIONS §3 correction of 2026-08-18 — a correction made on this
+  repo's own brief (hypersaw-001 Q3). Divergence filed with autonomous.*
+<!-- kit:2.1.0 end -->
