@@ -24,12 +24,12 @@ read-only efficiency + file-structure audit sub-agent (recommendations only).
 
 ## Alias hygiene (verified)
 - PRIVATE-NOTES: **Tonality is public — named directly** (4× in ROADMAP, OK).
-- Place = "terrain sibling" (aliased); TERRANE/ORRERY not named. grep of ROADMAP
-  for {Place|PLACE|TERRANE|ORRERY|Auricle} → none. `./verify fast` leak gate EXIT 0.
+- terrain sibling (aliased); the other private siblings not named. grep of ROADMAP
+  for the private-sibling real names listed in PRIVATE-NOTES.md (plus ORRERY, public) → none. `./verify fast` leak gate EXIT 0.
 
 ## Flags to the human (not acted on)
 - The QM specs + demo sit UNTRACKED at repo root and name a private sibling
-  (Place). Leak risk if ever `git add`-ed. Recommend: relocate specs →
+  (the terrain sibling, by real name). Leak risk if ever `git add`-ed. Recommend: relocate specs →
   `docs/proposals/`, demo → `docs/design/`, and alias private names OR gitignore
   before tracking. Left in place pending the human's call (they "dropped" them).
 - Efficiency/file-structure audit sub-agent running (read-only); findings to be
