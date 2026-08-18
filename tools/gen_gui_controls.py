@@ -64,11 +64,27 @@ def shell_params():
         decl)
     gl = src.split("kGlobalIds[] = {", 1)[1].split("};", 1)[0]
     globals_ = {int(x) for x in re.findall(r"\b(\d+)\b", re.sub(r"//.*", "", gl))}
+    # ENUM LABELS. The regex has always captured the label-array name and thrown
+    # it away, so every stepped param arrived here looking like a bare number and
+    # the generator had no way to emit a <select>. The arrays exist in the shell
+    # (kDistLabels, kTopoLabels, ... ) and the strings are the SAME ones CLAP
+    # reports to the host, so resolving them here keeps one source: a label
+    # retyped into the table would be a second copy free to drift.
+    def enum_labels(arr):
+        if arr in ("nullptr", "NULL", "0"):
+            return None
+        m = re.search(r'k%s\b[^=]*=\s*\{(.*?)\};' % re.escape(arr[1:]) if arr.startswith("k")
+                      else r'\b%s\b[^=]*=\s*\{(.*?)\};' % re.escape(arr), src, re.S)
+        if not m:
+            return None
+        return re.findall(r'"([^"]*)"', m.group(1)) or None
+
     by_addr = {}
     for sid, key, name, mn, mx, dv, stepped, labels in rows:
         i = int(sid)
         num = lambda t: float(eval(t.strip(), {"__builtins__": {}}, {}))
-        base = dict(min=num(mn), max=num(mx), default=num(dv), stepped=stepped == "true")
+        base = dict(min=num(mn), max=num(mx), default=num(dv), stepped=stepped == "true",
+                    enum=enum_labels(labels))
         if i in globals_:
             by_addr[key] = dict(base, id=i)
         else:
@@ -142,10 +158,36 @@ def main():
                 step = "1" if p["stepped"] else "0.005"
                 sfx = "" if scope == "global" else f' <span class="sc">{scope}</span>'
                 u = f' <span class="u">{unit}</span>' if unit else ""
+                # ONE CONTROL KIND PER PARAMETER TYPE, decided by the SHELL, not by
+                # the table's `widget` hint: the shell owns whether a parameter is
+                # stepped and what its values are called, and a hint that disagreed
+                # would render a dropdown over a continuous range. The table still
+                # decides page/group/label/unit — presentation — which is the split
+                # FOUNDATIONS' D1 ruling draws.
+                # An off/on pair is a BOOLEAN wearing enum labels — a checkbox says
+                # that in one glance where a two-option dropdown makes you read.
+                # Any other enum keeps its dropdown, because there the labels ARE
+                # the meaning ("held note (legato)" vs "last note (memory)" is not
+                # a thing a tick box can say). Matches the hand-placed retrig
+                # control, which was right before this rule existed.
+                boolish = [x.strip().lower() for x in (p.get("enum") or [])] in (["off", "on"],)
+                if p.get("enum") and not boolish:
+                    opts = "".join(
+                        f'<option value="{p["min"] + k:g}"'
+                        f'{" selected" if abs(p["min"] + k - p["default"]) < 1e-9 else ""}'
+                        f'>{lab}</option>'
+                        for k, lab in enumerate(p["enum"]))
+                    ctrl = (f'<select data-p="{p["id"]}"{df}>{opts}</select>')
+                elif boolish or (p["stepped"] and p["max"] - p["min"] == 1):
+                    chk = " checked" if p["default"] >= 0.5 else ""
+                    ctrl = (f'<input type="checkbox" data-p="{p["id"]}"{df}{chk}>')
+                else:
+                    ctrl = (f'<input type="range" data-p="{p["id"]}"{df}'
+                            f' min="{p["min"]:g}" max="{p["max"]:g}"'
+                            f' step="{step}" value="{p["default"]:g}">')
                 out.append(
                     f'    <div class="row" data-addr="{addr}"><label>{label}{sfx}{u}</label>'
-                    f'<input type="range" data-p="{p["id"]}"{df} min="{p["min"]:g}" max="{p["max"]:g}"'
-                    f' step="{step}" value="{p["default"]:g}"><output></output></div>')
+                    f'{ctrl}<output></output></div>')
                 total += 1
             out.append("  </div>")
         block = marker + "\n" + "\n".join(out) + "\n  " + end
