@@ -901,7 +901,15 @@ struct Plugin
      downstream only ever reads {root, mask}. That is exactly what the standing
      ruling bought: consumers transmit the mask, never a scale ID, so the thing
      that PRODUCES the mask is swappable. */
-  struct ScaleState
+  /* Tet12 IS IN THE NAME ON PURPOSE (Tonality, HYPERSAW-002 §5, 2026-08-19).
+     `root` 0-11 with twelve slots is not "a scale" — it is a 12-TET scale, and
+     their Decision 6 keeps tuning behind a reduction boundary precisely so the
+     assumption cannot leak by being unnamed. Their words: the cost is a rename
+     today; the cost of not doing it is that in two years something reads
+     `ScaleState` and assumes a generality it never had.
+     Neither project supports anything beyond 12-TET, and neither is asking to.
+     The ask was only that the name carry the assumption. */
+  struct Tet12ScaleState
   {
     double root = 0;                                        // 0..11, C..B
     int mask[12] = {1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1};    // C major, as shipped
