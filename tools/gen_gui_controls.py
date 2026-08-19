@@ -159,7 +159,16 @@ def main():
             # design. Styling `.grp` to match would have created two rules that
             # must agree forever; emitting `.cluster` means there is only one box
             # in this file and generated content cannot drift away from it.
+            # A group may declare a VISUAL. Kept as a small map here rather than a
+            # table column because it names a DRAW FUNCTION in the GUI, not a fact
+            # about the parameter — presentation code, not presentation data. The
+            # canvas is emitted inside the generated cluster so the picture sits
+            # with the controls that change it.
+            VISUALS = {"Envelope": "envelope", "Onset & scatter": "scatter"}
+            viz = VISUALS.get(group)
             out.append(f'  <div class="cluster"><h2>{group}</h2>')
+            if viz:
+                out.append(f'    <canvas class="gviz" data-viz="{viz}" width="260" height="72"></canvas>')
             for addr, scope, label, widget, unit, p, when in sorted(items, key=lambda x: x[5]["id"]):
                 df = ' data-fixed="1"' if p["id"] in fixed else ""
                 step = "1" if p["stepped"] else "0.005"

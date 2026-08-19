@@ -159,14 +159,14 @@ fx3type	global	FX3 Type	FX	FX rack	select		fx-rack
 fx3amt	global	FX3 Amount	FX	FX rack	knob		fx-rack	
 fx4type	global	FX4 Type	FX	FX rack	select		fx-rack	
 fx4amt	global	FX4 Amount	FX	FX rack	knob		fx-rack	
-osc1.sAttack	osc1	S.Attack (s)	OSC	Envelope	knob		envelope	
-osc2.sAttack	osc2	S.Attack (s)	OSC	Envelope	knob		envelope	
-osc1.sDecay	osc1	S.Decay (s)	OSC	Envelope	knob		envelope	
-osc2.sDecay	osc2	S.Decay (s)	OSC	Envelope	knob		envelope	
-osc1.sSustain	osc1	S.Sustain	OSC	Envelope	knob		envelope	
-osc2.sSustain	osc2	S.Sustain	OSC	Envelope	knob		envelope	
-osc1.sRelease	osc1	S.Release (s)	OSC	Envelope	knob		envelope	
-osc2.sRelease	osc2	S.Release (s)	OSC	Envelope	knob		envelope	
+osc1.sAttack	osc1	S.Attack (s)	OSC	Envelope	knob			
+osc2.sAttack	osc2	S.Attack (s)	OSC	Envelope	knob			
+osc1.sDecay	osc1	S.Decay (s)	OSC	Envelope	knob			
+osc2.sDecay	osc2	S.Decay (s)	OSC	Envelope	knob			
+osc1.sSustain	osc1	S.Sustain	OSC	Envelope	knob			
+osc2.sSustain	osc2	S.Sustain	OSC	Envelope	knob			
+osc1.sRelease	osc1	S.Release (s)	OSC	Envelope	knob			
+osc2.sRelease	osc2	S.Release (s)	OSC	Envelope	knob			
 osc1.shape	osc1	Saw Shape	OSC	The swarm	knob		the-swarm	
 osc2.shape	osc2	Saw Shape	OSC	The swarm	knob		the-swarm	
 osc1.toneTilt	osc1	Tone Tilt	OSC	Image & tone	knob		image-tone	
@@ -205,16 +205,16 @@ osc2.superMode	osc2	Super-Width Mode	OSC	Image & tone	select		image-tone
 oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception	
 polyGlide	global	Poly Glide	OSC	Voice	toggle		voice	
 glideMode	global	Glide From	OSC	Voice	select		voice	
-osc1.onsetScatter	osc1	Onset Scatter (ms)	OSC	Envelope	knob		envelope	
-osc2.onsetScatter	osc2	Onset Scatter (ms)	OSC	Envelope	knob		envelope	
-osc1.onsetAlpha	osc1	Timing Correction	OSC	Envelope	knob		envelope	
-osc2.onsetAlpha	osc2	Timing Correction	OSC	Envelope	knob		envelope	
-osc1.attackScatter	osc1	Attack Scatter	OSC	Envelope	knob		envelope	
-osc2.attackScatter	osc2	Attack Scatter	OSC	Envelope	knob		envelope	
-osc1.voiceEnv	osc1	Per-Partial Env	OSC	Envelope	toggle		envelope	
-osc2.voiceEnv	osc2	Per-Partial Env	OSC	Envelope	toggle		envelope	
-osc1.relScatter	osc1	Release Scatter	OSC	Envelope	knob		envelope	
-osc2.relScatter	osc2	Release Scatter	OSC	Envelope	knob		envelope	
+osc1.onsetScatter	osc1	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter	
+osc2.onsetScatter	osc2	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter	
+osc1.onsetAlpha	osc1	Timing Correction	OSC	Onset & scatter	knob		onset-scatter	
+osc2.onsetAlpha	osc2	Timing Correction	OSC	Onset & scatter	knob		onset-scatter	
+osc1.attackScatter	osc1	Attack Scatter	OSC	Onset & scatter	knob		onset-scatter	
+osc2.attackScatter	osc2	Attack Scatter	OSC	Onset & scatter	knob		onset-scatter	
+osc1.voiceEnv	osc1	Per-Partial Env	OSC	Onset & scatter	toggle		onset-scatter	
+osc2.voiceEnv	osc2	Per-Partial Env	OSC	Onset & scatter	toggle		onset-scatter	
+osc1.relScatter	osc1	Release Scatter	OSC	Onset & scatter	knob		onset-scatter	
+osc2.relScatter	osc2	Release Scatter	OSC	Onset & scatter	knob		onset-scatter	
 fx1tone	global	FX1 Tone	FX	FX rack	knob		fx-rack	
 fx2tone	global	FX2 Tone	FX	FX rack	knob		fx-rack	
 fx3tone	global	FX3 Tone	FX	FX rack	knob		fx-rack	
