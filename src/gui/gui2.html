@@ -134,7 +134,7 @@
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
-    <canvas id="specC" width="330" height="70" style="width:100%"></canvas>
+    <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
     <div class="note" style="margin-top:4px">Phase circle + K vector show
       <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the plugin.</div>
   </div>
@@ -243,6 +243,8 @@
   <div class="vizcol">
 <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <div class="vlabel">Log spectrum · MASTER bus</div>
+    <canvas id="specC2" class="spec" width="256" height="58"></canvas>
     <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
          visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
          so a draw exception can never strand the pair in the wrong state
@@ -285,10 +287,10 @@
   </div>
   <div class="cluster"><h2>Envelope</h2>
     <canvas class="gviz" data-viz="envelope" width="260" height="72"></canvas>
-    <div class="row" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="19" min="0.001" max="2" step="0.005" value="0.003"><output></output></div>
-    <div class="row" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="20" min="0.005" max="4" step="0.005" value="0.16"><output></output></div>
+    <div class="row" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="19" data-log10="1" min="-3" max="0.301" step="0.001" value="-2.523"><output></output></div>
+    <div class="row" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="20" data-log10="1" min="-2.301" max="0.6021" step="0.001" value="-0.7959"><output></output></div>
     <div class="row" data-addr="osc1.sustain"><label>Sustain <span class="sc">osc1</span></label><input type="range" data-p="21" min="0" max="1" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><input type="range" data-p="22" min="0.005" max="8" step="0.005" value="0.16"><output></output></div>
+    <div class="row" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><input type="range" data-p="22" data-log10="1" min="-2.301" max="0.9031" step="0.001" value="-0.7959"><output></output></div>
   </div>
   <div class="cluster"><h2>Image & tone</h2>
     <div class="row" data-addr="osc1.rtone"><label>R->Tone <span class="sc">osc1</span></label><input type="range" data-p="12" min="-1" max="1" step="0.005" value="0"><output></output></div>
@@ -316,7 +318,7 @@
   <div class="cluster"><h2>The coupling</h2>
     <div class="row" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.onset"><label>Onset Lock <span class="sc">osc1</span></label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.dissolve"><label>Dissolve (s) <span class="sc">osc1</span></label><input type="range" data-p="8" min="0.05" max="7.94" step="0.005" value="0.63"><output></output></div>
+    <div class="row" data-addr="osc1.dissolve"><label>Dissolve (s) <span class="sc">osc1</span></label><input type="range" data-p="8" data-log10="1" min="-1.301" max="0.8998" step="0.001" value="-0.2007"><output></output></div>
     <div class="row" data-addr="inertia"><label>Inertia</label><input type="range" data-p="11" min="0" max="1" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.retrig"><label>Retrigger <span class="sc">osc1</span></label><input type="checkbox" data-p="18" checked><output></output></div>
     <div class="row" data-addr="osc1.scatter"><label>Phase Scatter <span class="sc">osc1</span></label><input type="range" data-p="39" min="0" max="1" step="0.005" value="0"><output></output></div>
@@ -453,6 +455,17 @@ function effId(base) {
   if (!globalIds || editOsc === 0) return base;
   return globalIds.has(base) ? base : base + editOsc * OSC_STRIDE;
 }
+
+/* ---- LOG-SCALED CONTROLS ----------------------------------------------------
+   `data-log10` says the CONTROL is logarithmic; the PARAMETER is not. Everything
+   outside these two functions — CLAP, the core, the host, state — sees linear
+   seconds, so the log domain never escapes the GUI. Time is perceived
+   logarithmically (1->2 ms matters as much as 1->2 s), and a linear seconds
+   slider over 0.001..2 with a 5 ms step offered about ten usable positions
+   across the entire musical range. */
+const ctlToParam = el => el.dataset.log10 ? Math.pow(10, +el.value) : +el.value;
+const paramToCtl = (el, v) => el.dataset.log10 ? Math.log10(Math.max(v, 1e-6)) : v;
+
 function displayValue(el, v) {
   const out = el.closest('.row') ? el.closest('.row').querySelector('output') : null;
   if (out) out.textContent = (+v).toFixed(el.step && +el.step >= 1 ? 0 : 2);
@@ -464,8 +477,8 @@ function paintControl(el, v) {
   // user actually clicks.
   if (el.classList.contains('msbtn')) { el.classList.toggle('on', v > 0.5); paintSolo(); return; }
   if (el.type === 'checkbox') el.checked = v > 0.5;
-  else el.value = v;
-  displayValue(el, v);
+  else el.value = paramToCtl(el, v);      // engine speaks seconds; the control may be log10
+  displayValue(el, v);                    // the READOUT always shows the real value
 }
 
 // A strip silenced by SOMEONE ELSE's solo is dimmed, and that is deliberately
@@ -505,7 +518,7 @@ document.querySelectorAll('[data-p]').forEach(el => {
   }
   const evName = el.type === 'checkbox' ? 'change' : 'input';
   el.addEventListener(evName, () => {
-    const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : +el.value;
+    const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : ctlToParam(el);
     bridge.setParam(id_(), v);
     displayValue(el, v);
     lastParams[id_()] = v;
@@ -668,7 +681,12 @@ function drawXY() {
    viz to another page is now a <canvas class="phase"> and nothing else. */
 const PHASE = () => [...document.querySelectorAll('canvas.phase')];
 let pc = null, pctx = null;
-const sc2 = document.getElementById('specC'), sctx2 = sc2.getContext('2d');
+/* The spectrum renders into EVERY canvas carrying `.spec`, from the one smoothed
+   buffer — the discipline the aesthetics bench proved and phase/XY already use.
+   It is the MASTER bus either way, so two copies of one picture cannot disagree;
+   a second smoothing pass could. */
+const SPECS = () => [...document.querySelectorAll('canvas.spec')];
+let sc2 = null, sctx2 = null;
 let kSmX = 0, kSmY = 0, kSmR = 0, vizBusy = false, specBusy = false, specSm = null;
 function drawPhase(s) {
   for (const _cv of PHASE()) { pc = _cv; pctx = _cv.getContext('2d'); _drawPhaseOne(s); }
@@ -760,6 +778,15 @@ async function specFrame() {
       const v = bins[i];
       specSm[i] = v > specSm[i] ? v : specSm[i] + (v - specSm[i]) * 0.28;
     }
+    for (const _cv of SPECS()) { sc2 = _cv; sctx2 = _cv.getContext('2d'); _drawSpecOne(specSm); }
+  } catch (e) {}
+  specBusy = false;
+}
+
+// One canvas's worth of spectrum. Split out so the fan-out above stays inside
+// specFrame's try — an earlier splice put a function declaration between the
+// try and its catch, which the lab-load gate rejected as a syntax error.
+function _drawSpecOne(specSm) {
     const w = sc2.width, h = sc2.height;
     sctx2.fillStyle = '#0b0e14'; sctx2.fillRect(0, 0, w, h);
     sctx2.strokeStyle = '#5ff2e0'; sctx2.lineWidth = 1.2;
@@ -774,9 +801,8 @@ async function specFrame() {
       if (i === 0) sctx2.moveTo(x, y); else sctx2.lineTo(x, y);
     }
     sctx2.stroke();
-  } catch (e) {}
-  specBusy = false;
 }
+
 
 /* build stamp + boot */
 window.addEventListener('load', async () => {
@@ -1010,13 +1036,16 @@ function gvizCtx(kind) {
   return { ctx, w, h };
 }
 const rdp = id => { const el = document.querySelector(`[data-p="${id}"]:not([data-fixed])`);
-                    return el ? +el.value : null; };
+                    return el ? ctlToParam(el) : null; };   // always the PARAMETER value
 function drawEnvelope(s) {
   const g = gvizCtx('envelope'); if (!g) return;
   const { ctx, w, h } = g;
-  // A/D/R sliders are log10 seconds (same convention gui.html reads); S is linear.
-  const A = Math.pow(10, rdp(19) ?? -2.5), D = Math.pow(10, rdp(20) ?? -1.5);
-  const S = rdp(21) ?? 0.7, R = Math.pow(10, rdp(22) ?? -1);
+  // Read SECONDS. The earlier version applied gui.html's log10 slider convention
+  // to controls that were linear, so an attack of 0.003 s drew as 10^0.003 = 1.007 s
+  // — a slow swell where the readout said 0.00. Ask the control what domain it is
+  // in rather than assuming; `rdp` now returns the parameter value either way.
+  const A = rdp(19) ?? 0.003, D = rdp(20) ?? 0.16;
+  const S = rdp(21) ?? 1.0, R = rdp(22) ?? 0.16;
   const gate = (A + D) * 1000 * 1.3 + 120, span = gate + R * 1000 * 2.2;
   const X = ms => ms / span * (w - 2) + 1, Y = v => h - 3 - v * (h - 8);
   ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0';
