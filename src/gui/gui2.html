@@ -681,8 +681,17 @@ for (const [name, live] of PAGES) {
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
     document.querySelectorAll('.page').forEach(x => x.classList.remove('on'));
     t.classList.add('on');
-    if (typeof canPaint === 'function' && canPaint()) { drawEnvelope(null); drawScatter(lastViz); }
+    // REVEAL FIRST, THEN PAINT. These draws used to run before the line below,
+    // so every one of them measured the canvas while the page was still
+    // display:none — zero CSS size, and the ink lands outside the bitmap.
+    // Envelope and scatter only looked correct because a separate `input`
+    // listener repaints them afterwards; the bend pair has no such second
+    // chance and stayed blank (measured litPx 0 on arrival, 2032 from an
+    // identical call once visible).
     document.getElementById('pg-' + name).classList.add('on');
+    if (typeof canPaint === 'function' && canPaint()) {
+      drawEnvelope(null); drawScatter(lastViz); drawBendStep(); drawBendVib();
+    }
   });
   tabs.appendChild(t);
 }
