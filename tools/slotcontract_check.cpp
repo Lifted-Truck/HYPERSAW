@@ -102,7 +102,7 @@ struct Render
 // case). Every render builds a FRESH plugin instance (paramscope_check's
 // established pattern in this repo) so no case can leak rack/population
 // state — NotchCore's internal drift, in particular — into the next.
-Render render(int fxType, double fxAmt, double noteHz)
+Render render(int fxType, double fxAmt, double noteHz, double fxMix = 1.0)
 {
   auto *factory =
       (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
@@ -169,6 +169,7 @@ Render render(int fxType, double fxAmt, double noteHz)
   {
     param(57, (double)fxType);  // fx1type
     param(58, fxAmt);           // fx1amt
+    param(133, fxMix);          // fx1mix — rack-owned dry/wet (1 = today's path)
   }
   run(4, false);  // let param smoothing settle before the note
 
@@ -253,8 +254,9 @@ double sideEnergy(const Render &r)
  */
 struct Pin { const char *slot; const char *what; };
 constexpr Pin kPinned[] = {
-    {"Comp", "no identity point"},
-    {"Notch", "no identity point"},
+    // Comp and Notch's "no identity point" pins are GONE — retired by the
+    // rack-owned mix, which is what paying the debt looks like. Comb's finding is
+    // about the AMOUNT axis at 0.5 and is untouched by bypass, so it stands.
     {"Comb", "changes level"},
 };
 
@@ -284,6 +286,21 @@ int main()
   {
     const hypersaw::SlotContract &c = hypersaw::kSlotContract[t];
 
+    /* THE UNIVERSAL GUARANTEE, and the reason the contract exists: with the rack
+       owning dry/wet, `mix = 0` is a bit-exact bypass for EVERY slot type — by
+       construction, not by each slot remembering. This is the assertion a new
+       slot type cannot escape, and it replaces the per-slot `identity_at` hunt
+       that let Comp and Notch have no identity point at all. */
+    {
+      const Render byp = render(t, 0.5, f0, 0.0);   // any amount, mix = 0
+      const double d = std::max(maxAbsDiff(noSlot.L, byp.L), maxAbsDiff(noSlot.R, byp.R));
+      if (d != 0.0)
+      {
+        char b[96]; std::snprintf(b, sizeof(b), "mix = 0 is not bypass, max|diff| = %.3g", d);
+        fail(names[t], "rack bypass broken", b);
+      }
+    }
+
     // 1. IDENTITY. A slot that declares an identity point must be bit-exact there.
     if (c.identity_at >= 0)
     {
@@ -296,11 +313,10 @@ int main()
         fail(names[t], "identity is not identity", b);
       }
     }
-    else
-    {
-      // No identity point at all is the defect the contract exists to remove.
-      fail(names[t], "no identity point", "cannot be bypassed at any amount (contract: rack-owned mix)");
-    }
+    // A slot with no `amount` identity point is no longer a defect: the rack's
+    // `mix = 0` bypasses it, which is exactly what the contract bought. The
+    // declaration now records a fact about the AMOUNT axis, not about bypass.
+
 
     // 2. IMAGE. Undeclared collapse of the stereo image is what Notch did.
     const Render on = render(t, 0.5, f0);

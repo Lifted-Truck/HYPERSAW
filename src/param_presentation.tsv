@@ -265,3 +265,7 @@ osc2.sawBase	osc2	Saw Base	OSC	Saw shape	knob		saw-shape
 osc2.sawProfile	osc2	Roundness Shape	OSC	Saw shape	knob		saw-shape		
 osc2.round	osc2	Roundness	OSC	Saw shape	knob		saw-shape		
 osc2.roundHi	osc2	Round x Pitch	OSC	Saw shape	knob		saw-shape		
+fx1mix	global	FX1 Mix	FX	FX rack	knob		fx-rack		
+fx2mix	global	FX2 Mix	FX	FX rack	knob		fx-rack		
+fx3mix	global	FX3 Mix	FX	FX rack	knob		fx-rack		
+fx4mix	global	FX4 Mix	FX	FX rack	knob		fx-rack		
