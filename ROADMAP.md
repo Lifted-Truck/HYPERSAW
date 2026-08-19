@@ -8,6 +8,36 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## PAGE ORDER FOLLOWS THE ORDER OF WORK; THE LABS HAVE AN INDEX AGAIN (2026-08-19)
+
+Human: *"the osc panel should come second after main and mix should come later"*, and
+*"let's not forget the shape labs — your dev server isn't linked to the labs folder anymore."*
+
+**Tabs are now MAIN · OSC · MIX · FX.** The old order was MAIN · MIX · OSC · FX, which was the
+order the pages happened to be BUILT in, not the order they are used in. OSC is where the
+instrument is shaped and MIX is where a finished sound is balanced, so shaping comes first.
+Verified in the DOM: tab bar reads MAIN, OSC, MIX, FX, then the SPACE / MOD / MORPH stubs, with
+MAIN open on load.
+
+**The labs were never unlinked — the INDEX was missing.** `.claude/launch.json` roots the dev
+server at the repo, so every bench under `docs/design/` has been reachable the whole time;
+what disappeared was the curated page that listed them, so you had to already know a filename
+to reach one. That is the same failure as a parameter with no control: present, and
+unreachable in practice.
+
+`docs/design/index.html` now lists all **19** benches — both shape labs included
+(`shape-lab.html`, sync · phase-warp formants · ripple; `shape-lab-mod.html`, the LFO/envelope
+breakpoint builder) — and links gui1 and gui2 at the top.
+
+**Each card's text is the lab's OWN `<title>` and `.tagline`, read from the file**, not a
+description written into the index. A hand-written summary would be a second copy of what every
+lab already says about itself, and it would drift the first time a lab changed — the same rule
+that makes the GUI derive its controls from the presentation table and the bend graphs draw
+from the shipped core rather than a JS twin. `tools/gen_lab_index.py` regenerates it; five labs
+have no tagline and the index says so rather than inventing one.
+
+**Verified by fetching every link:** 19 cards, **zero broken**.
+
 ## TIE-BREAK FIXED IN THE LAB, THEN THE PORT — AND IT FOUND A SECOND DEFECT (2026-08-19)
 
 Human: *"should we fix it in the lab and then in the C++?"* — yes, and the order is forced

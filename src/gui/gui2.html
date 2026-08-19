@@ -644,7 +644,10 @@ async function syncFromEngine() {
   if (!xyDown) { const xv = ps[effId(4)]; if (xv !== undefined) { curX = xv; xyDirty = true; } }
 }
 /* ============ page shell ================================================== */
-const PAGES = [['MAIN', true], ['MIX', true], ['OSC', true], ['FX', true],
+// OSC sits second: it is where the instrument is SHAPED, and MIX is where a
+// finished sound is balanced — so the order follows the order of work rather
+// than the order the pages happened to be built in (human, 2026-08-19).
+const PAGES = [['MAIN', true], ['OSC', true], ['MIX', true], ['FX', true],
                ['SPACE', false], ['MOD', false], ['MORPH', false]];
 const tabs = $('#tabs');
 for (const [name, live] of PAGES) {
