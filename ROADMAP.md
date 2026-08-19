@@ -8,6 +8,66 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## GLOBAL SCALE SURFACE — the ruling already exists, and it decides the param shape (2026-08-19)
+
+Human: *"set up the optional global scale selector and wire it in to the quantize to scale
+mode."* Lands with the glide fold, as one unit, for the reason in the previous entry: the
+quantiser lives in `glide_core`, so a scale surface built first would be controls that move
+nothing.
+
+### This is a KNOWN gap, already written down
+
+`glide_core.h:40` declares `Quant { kQuantOff, kQuantChromatic, kQuantScale }` and holds
+`scaleRoot` + `scaleMask[12]`, defaulting to major. But the ROADMAP already records the
+consequence: *"with nothing anywhere able to set them. Scale mode has therefore only ever
+meant C major, and the option even said so. A reachable range with no control is an invisible
+feature."* So `kQuantScale` has shipped as a mode with exactly one scale since it was written.
+
+### The representation is already ruled, and it is not a dropdown
+
+> **"The mask is the truth, the name is UI.** Consumers store and transmit `{root, mask}`
+> only, never a scale ID. That is what keeps `glide_core.h` free of a scale table: adding a
+> named scale is a UI-table edit that adds **no core change and no parity surface**, and
+> hand-drawn sets are first-class rather than a degraded mode (the dropdown reverse-matches,
+> or reads *custom*)."
+
+That rules out the obvious design. A `scaleName` enum param would transmit a scale ID, put a
+scale table in the core, and make a hand-drawn set a second-class citizen. So:
+
+**The parameter surface is 13 globals:** `scaleRoot` (enum, C…B) and `scaleDeg0..scaleDeg11`
+(twelve toggles). Global by construction — no `+kOscStride` twin, so `learnOscLayout` derives
+them as global with nothing to declare. Append-only from the block the previous entry opens,
+after the bend law params.
+
+**The named-scale dropdown is GUI, not a parameter.** Picking *dorian* writes root + twelve
+toggles; editing any toggle leaves the dropdown reading **custom**; loading a patch
+reverse-matches the mask back to a name where one fits. The 18 names come from
+`bend-lab.html:617` — the reference the goldens are sliced from — so the GUI's vocabulary and
+the parity corpus cannot disagree about what *dorian* means.
+
+**Why 12 toggles and not one packed integer.** A single 0…4095 mask param is one control that
+no host can automate meaningfully and no user can read. Twelve booleans are honest CLAP
+parameters: automatable, modulatable, and individually visible — which is what makes a
+hand-drawn set first-class, exactly as the ruling requires.
+
+### What "optional" means mechanically
+
+The scale is **not** a mode switch of its own. Each consumer keeps its own quantiser setting —
+bend has `bendQuant` (off · chromatic · scale) — and only `kQuantScale` reads the global scale.
+So the surface is inert until something opts in, and the existing `shown_when` mechanism hides
+the thirteen rows entirely while no consumer is set to scale.
+
+**Consumers already visible, which is why this is global rather than per-feature:** the bend
+quantiser (this), the note-pitch quantiser (same core, other lane), the chord layer
+(2026-08-18 entry), and any future arp. Four, which is past the two-consumer threshold before
+the first one ships.
+
+### Order within the fold
+
+`glide_core` into the audio path → bend law params → **scale globals** → the bend section and
+its graphs. The scale rows sit on MAIN, not in the bend section, because they are not bend's
+property: bend is the first consumer, not the owner.
+
 ## BEND IS ITS OWN SECTION, AND ALL FIVE TRAVEL LAWS SHIP (human ruling, 2026-08-19)
 
 Human: *"I believe I already said that I want all of these modes, and I want bend to have its
