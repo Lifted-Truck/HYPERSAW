@@ -224,6 +224,13 @@ endif()
 # factory exactly like mixer_check/steal_check, not a standalone core harness.
 add_executable(notchslot_check tools/notchslot_check.cpp)
 target_link_libraries(notchslot_check PRIVATE ${PROJECT_NAME}-impl)
+
+# slotcontract_check: every FX slot keeps the promise it declares in
+# kSlotContract. Drives the real rack through the CLAP factory; the declaration
+# lives in fx_rack.h so a NEW slot type must state its identity point and side
+# effects, and this measures whether it told the truth.
+add_executable(slotcontract_check tools/slotcontract_check.cpp)
+target_link_libraries(slotcontract_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
   target_compile_options(notchslot_check PRIVATE -O2)
 endif()

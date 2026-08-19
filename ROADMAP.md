@@ -8,6 +8,57 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE FX SLOT CONTRACT HAS A GATE, AND IT FOUND A DEFECT THE SURVEY MISSED (2026-08-19)
+
+The approved contract (2026-08-15, *"the rack owns dry/wet"*) gets its enforcement half first,
+before the rack is touched — the same order the glide fold used, and for the same reason:
+measure the problem before restructuring around it.
+
+**The promise is declared as data.** `kSlotContract` in `src/fx_rack.h` carries, per slot type,
+`{identity_at, blends_dry, changes_image, changes_level, latency_samples}`. `identity_at < 0`
+means **the slot cannot be bypassed at any setting** — recorded so the gate can name it rather
+than let it hide. A new slot type must now state its identity point and its side effects, and
+`slotcontract_check` measures whether it told the truth.
+
+**The gate drives the real rack through the CLAP factory**, never a slot class directly, because
+the thing under test is the route from a param event to audio. Harness lifted from
+`notchslot_check` rather than rewritten — a second CLAP driver is a second thing to keep in
+step. Input is **decorrelated stereo** (L 220 Hz, R 330 Hz), the input that caught Notch: a
+mono-summing slot is invisible to a correlated input, so a probe using one would certify
+exactly the defect this exists to prevent. The floor is checked first — explicit `Off` must be
+bit-exact to a never-touched render — so "the slot is clean" and "the harness is blind" cannot
+look alike.
+
+**It found something the survey did not.** The proposal's table listed six slots; five of its
+six rows were *documentation*. The gate measured them:
+
+| slot | verdict |
+|---|---|
+| Comp | no identity point — cannot be bypassed at any amount |
+| Notch | no identity point — the known −5.4 dB / mono case |
+| **Comb** | **+8.80 dB at amount 0.5, with `changes_level = false`** |
+
+**Comb was not on the list.** Its documented behaviour was *"0 = dry (early-out below 0.001)"*
+and nothing about level. That is the difference between a table someone wrote and a
+measurement: two of three findings were known, and the third was not.
+
+**Pinned, not silenced.** All three are recorded in `kPinned` so the gate is green on *nothing
+NEW is broken* while the rack-side fix is outstanding — the same device as `conformance_check`'s
+pinned sets. A pin is a debt with a name: removing one is how the fix proves itself, a violation
+outside the list turns the gate red immediately, and a pin that STOPS firing is reported too,
+so a stale pin cannot sit there looking like coverage.
+
+**Negative-tested before being trusted** (`L0032`): declaring a false identity for Drive —
+0.5 where its identity is 0 — turns the gate **RED naming Drive**, with `max|diff| = 0.151`.
+Restored, green again.
+
+**`FX-5` is no longer an assertion nobody runs.** It named `oracle: none`; it now names
+`slotcontract_check`, which drops the *awaiting an oracle* count from four to three.
+
+`./verify full` EXIT=0, parity **147/147** unchanged. Next on this track: the rack-side fix —
+rack-owned `mix` with a `mix == 0` early-out, which makes passthrough bit-identical **by
+construction** and lets all three pins come out.
+
 ## THE BEND GRAPHS ARE DRAWN BY THE ENGINE, NOT BY A JS TWIN (2026-08-19)
 
 Last piece of the glide fold. The Bend section now carries **two** graphs, and the choice that

@@ -31,6 +31,43 @@
 namespace hypersaw
 {
 
+/* ---- THE SLOT CONTRACT, DECLARED AS DATA -----------------------------------
+ * Approved 2026-08-15 ("the rack owns dry/wet"). Six slot types currently mean
+ * four different things by `amount`, with THREE different identity points and
+ * two slots that cannot be bypassed at all — which is how Notch shipped
+ * collapsing stereo to mono at a setting a patch author would read as "off".
+ *
+ * This table is the promise each slot makes. `slotcontract_check` reads it and
+ * holds every slot to it, so a NEW slot type cannot quietly acquire the same
+ * defect: it has to state its identity point and its side effects, and the gate
+ * measures whether it told the truth.
+ *
+ * `identity_at < 0` means THE SLOT HAS NO IDENTITY POINT — it cannot be
+ * bypassed at any setting. That is a defect the contract exists to remove, not
+ * a property to be tolerated; it is recorded here so the gate can name it rather
+ * than let it hide. Fixing it is the rack-side half (rack-owned `mix`), which
+ * lands after this gate proves what is broken.
+ */
+struct SlotContract
+{
+  double identity_at;     // amount at which the slot is a bit-exact passthrough
+  bool blends_dry;        // is dry+wet "less effect", or a DIFFERENT effect?
+  bool changes_image;     // may legitimately alter stereo image / channel count
+  bool changes_level;     // may legitimately alter broadband level
+  int latency_samples;    // declared group delay of the wet path
+};
+
+// Indexed by FxType. Off is trivially an identity at every amount.
+constexpr SlotContract kSlotContract[] = {
+    /* Off    */ {0.0, true, false, false, 0},
+    /* Drive  */ {0.0, true, false, false, 0},
+    /* Filter */ {0.0, false, false, false, 0},   // dry+lowpass is a shelf, not a gentler lowpass
+    /* Gain   */ {0.5, true, false, true, 0},     // 0.5 is unity; level IS its effect
+    /* Comp   */ {-1.0, false, false, true, 0},   // 0.98 brickwall always on: NO identity point
+    /* Comb   */ {0.0, true, false, false, 0},    // delayed wet: blending dry combs unless compensated
+    /* Notch  */ {-1.0, false, true, true, 0},    // measured -5.4 dB and mono at amount 0
+};
+
 constexpr int kRackSlots = 4;
 
 // Effect types. Off is the inert default; Drive/Filter/Gain are the increment-1
