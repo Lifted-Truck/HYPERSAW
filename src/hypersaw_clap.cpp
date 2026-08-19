@@ -78,6 +78,7 @@ static const char *const kGlideModeLabels[] = {"held note (legato)", "last note 
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kNoteNames[] = {"C", "C#", "D", "D#", "E", "F",
                                         "F#", "G", "G#", "A", "A#", "B"};
+static const char *const kNoteLinkLabels[] = {"own settings", "follow bend law"};
 static const char *const kBendLawLabels[] = {"off (instant)", "constant time", "constant rate",
                                             "lag (one-pole)", "mass-spring"};
 static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale"};
@@ -130,7 +131,7 @@ static const ParamDef kParams[] = {
     // Voice mode (ADR-026): mono/glide/legato are SHELL note-routing plus the
     // core's glide param; octave is a pure shell transpose.
     {32, "voiceMono", "Mono", 0, 1, 0, true, kOffOn},
-    {33, "glide", "Glide (s)", 0, 2.0, 0, false, nullptr},
+    {33, "glide", "Note Lag (s)", 0, 2.0, 0, false, nullptr},
     {34, "voiceLegato", "Legato", 0, 1, 1, true, kOffOn},
     {35, "octave", "Octave", -2, 2, 0, true, nullptr},
     // Transposition suite (ADR-027): all four combine into ONE live core tune
@@ -285,7 +286,7 @@ static const ParamDef kParams[] = {
     {106, "bendLaw", "Bend Law", 0, 4, 0, true, kBendLawLabels},
     {107, "bendTime", "Bend Time (ms)", 5, 1500, 120, false, nullptr},
     {108, "bendRate", "Bend Rate (st/s)", 0.5, 200, 24, false, nullptr},
-    {109, "bendTau", "Bend Lag (ms)", 1, 400, 60, false, nullptr},
+    {109, "bendTau", "Bend Lag (ms)", 1, 2000, 60, false, nullptr},
     {110, "bendSpringF", "Spring (Hz)", 0.5, 20, 4, false, nullptr},
     {111, "bendDamp", "Damping", 0, 1, 0.6, false, nullptr},
     {112, "bendDistOver", "Distance Curve", 0, 2, 1, false, nullptr},
@@ -334,6 +335,31 @@ static const ParamDef kParams[] = {
     {134, "fx2mix", "FX2 Mix", 0, 1, 1, false, nullptr},
     {135, "fx3mix", "FX3 Mix", 0, 1, 1, false, nullptr},
     {136, "fx4mix", "FX4 Mix", 0, 1, 1, false, nullptr},
+    /* NOTE-PITCH TRAVEL LANE (ids 137-145). The bend law and the note law are the
+       same five-law GlideCore; what differs is what they travel. ADR-026's `glide`
+       (id 33) WAS this lane, hard-wired to one law — a one-pole in Hz
+       (swarm_core.h:1238, `coef = 1 - exp(-dt / glide)`). The law system supersedes
+       that knob rather than sitting beside it, which is why id 33 is re-labelled
+       into this block instead of a `noteTau` being minted: id 33 already holds a
+       lag time in SECONDS, and `serum-parity-reference.json` already stores
+       0.89 in it. Minting a twin in MILLIseconds would have put a silent 1000x
+       between a shipped preset and its meaning.
+       `noteLawLink` ships OWN SETTINGS, and `noteLaw` ships LAG, because that pair
+       reproduces id 33 exactly. FOLLOW cannot be the default: `bendLaw` ships off,
+       so a lane following it would travel instantly and portamento would vanish
+       from every patch that ever set glide. Sync is the option, not the base state
+       (human ruling 2026-08-19: "each has its own setting with an option to sync
+       them to global"). retMul is absent by the same rule as the bend
+       block above: a note has no home pitch to spring back to. */
+    {137, "noteLawLink", "Note Law", 0, 1, 0, true, kNoteLinkLabels},
+    {138, "noteLaw", "Note Travel", 0, 4, 3, true, kBendLawLabels},
+    {139, "noteTime", "Note Time (ms)", 5, 1500, 120, false, nullptr},
+    {140, "noteRate", "Note Rate (st/s)", 0.5, 200, 24, false, nullptr},
+    {141, "noteSpringF", "Note Spring (Hz)", 0.5, 20, 4, false, nullptr},
+    {142, "noteDamp", "Note Damping", 0, 1, 0.6, false, nullptr},
+    {143, "noteDistOver", "Note Distance Curve", 0, 2, 1, false, nullptr},
+    {144, "noteQuant", "Note Quantise", 0, 2, 0, true, kBendQuantLabels},
+    {145, "noteHyst", "Note Quant Hyst (c)", 0, 50, 8, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -417,6 +443,7 @@ constexpr clap_id kGlobalIds[] = {
     100, 101, 102, 103,                          // masterVol + global pitch
     106, 107, 108, 109, 110, 111, 112, 113, 114, 115,  // bend travel law (global: the wheel bends the patch)
     133, 134, 135, 136,                          // FX slot mix (rack-owned dry/wet)
+    137, 138, 139, 140, 141, 142, 143, 144, 145,  // note travel law (global: it joins id 33, already here)
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
 };
@@ -940,6 +967,29 @@ struct Plugin
     return g < 1 ? 1 : g;
   }
   bool bendActive() const { return (int)bendLaw.model != hypersaw::GlideCore::kOff; }
+
+  /* NOTE LANE (ADR-096). `noteLawOwn` ships LAG because that is precisely what
+     id 33 has always done, so a plugin that loads an old patch travels exactly
+     as it used to. The link is resolved HERE and pushed as a finished struct:
+     resolving it in the core would put a shell-only concept (which of two
+     parameter sets is live) inside the DSP. */
+  hypersaw::GlideCore::Params noteLawOwn = [] {
+    hypersaw::GlideCore::Params q;
+    q.model = hypersaw::GlideCore::kLag;
+    return q;
+  }();
+  double noteLink = 0;   // 0 = own settings, 1 = follow bend law
+
+  void pushNoteLaw()
+  {
+    hypersaw::GlideCore::Params e = noteLink >= 0.5 ? bendLaw : noteLawOwn;
+    // retMul is bend-only by construction (a note has no home pitch), so a
+    // FOLLOWING note lane must not inherit the bend lane's return multiplier.
+    e.retMul = 1.0;
+    e.scaleRoot = scale.root;
+    for (int d = 0; d < 12; d++) e.scaleMask[d] = scale.mask[d];
+    for (auto &c : cores) c.setNoteLaw(e);
+  }
   // ADR-035 bass-mono output stage: ONE 2nd-order TPT SVF high-pass on the
   // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
   // no crossover phase mismatch, the classic vinyl-elliptic routing.
@@ -1645,17 +1695,40 @@ struct Plugin
           case 115: bendLaw.qhyst = applied; break;
           default: break;
         }
+        pushNoteLaw();   // a FOLLOWING note lane tracks every bend edit
         return;
       }
-      /* GLOBAL SCALE -> the mask the quantiser actually reads. Written straight
-         into `bendLaw` because bend is the only consumer today; when the chord
-         layer or an arp arrives this becomes a shared struct they all read, which
-         is the whole reason the surface is global rather than bend's property. */
+      /* GLOBAL SCALE -> the mask the quantiser actually reads. The second
+         consumer has now arrived (the note lane, ADR-096), which is why this
+         writes to `scale` and both lanes read it rather than either owning it —
+         the surface was made global for exactly this. */
       if (id >= 133 && id <= 136) { rack.setMix((int)(id - 133), applied); return; }
+      /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
+         retMul. Note the absent tau: id 33 carries the note lag, in seconds, and
+         the core converts at the use site — see the swarm_core comment. */
+      if (id >= 137 && id <= 145)
+      {
+        switch (id)
+        {
+          case 137: noteLink = applied; break;
+          case 138: noteLawOwn.model = applied; break;
+          case 139: noteLawOwn.gtime = applied; break;
+          case 140: noteLawOwn.rate = applied; break;
+          case 141: noteLawOwn.springF = applied; break;
+          case 142: noteLawOwn.damp = applied; break;
+          case 143: noteLawOwn.distOver = applied; break;
+          case 144: noteLawOwn.quant = applied; break;
+          case 145: noteLawOwn.qhyst = applied; break;
+          default: break;
+        }
+        pushNoteLaw();
+        return;
+      }
       if (id >= 116 && id <= 128)
       {
         if (id == 116) scale.root = applied;
         else scale.mask[id - 117] = applied >= 0.5 ? 1 : 0;
+        pushNoteLaw();
         return;
       }
       if (id == 38)

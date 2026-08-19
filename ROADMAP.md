@@ -8,6 +8,80 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## MORPH CORNER EDITING — the human's model, recorded before the page exists (2026-08-19)
+
+Human, as a note for when quantum morph is built:
+
+> *"Each page should have four color boxes, of which one can be selected or none can be
+> selected. If none are selected, you'll edit the parameter of whichever corner controls the
+> setting. If a color is selected, you're editing the baseline parameters for whichever corner
+> corresponds to the selected color. We'll have to decide on how it behaves when it's in
+> continuous mode, the parameter in question is continuous, and the current morph position is
+> somewhere in the middle. Maybe it edits both in such a way that their average arrives at that
+> point along the morph path?"*
+
+**What this settles.** Corner editing is a **page-level mode**, not a per-control affordance:
+four boxes in the corner vocabulary already fixed (A GLASS `#f2b134` · B GRIT `#ff4d6d` ·
+C HOLLOW `#4cc9f0` · D BLOOM `#7ae582`), with a fifth state — *none selected* — that is the
+default and means **edit what you hear**. That is the right default: a player turning a knob
+expects the sound to change, and "which corner did that land in" is a question only a patch
+author asks.
+
+It also means the corner colour rings the aesthetics lab auditioned are not decoration —
+**with none selected they are the answer to "which corner am I about to edit?"**, which is the
+question the mode raises.
+
+**The open question is real and the human framed it correctly.** In frozen/quantum flip modes
+a parameter belongs to exactly one corner at a time, so an edit has one destination. In
+**continuous** mode at a mid-morph position, a continuous parameter is a blend of two corners
+and an edit has no single destination.
+
+Their proposal — *edit both so their average arrives at the point along the morph path* — is
+the generalisation of "edit what you hear", and it has a property worth naming: it is the only
+rule under which **the sound you get is the sound you edited**. Distributing the delta by morph
+weight (corner A takes `1−t`, corner B takes `t`) keeps the heard value exactly where the
+player put it.
+
+**The cost, which the lab must judge by ear:** it silently moves a corner the player is not
+looking at. At `t = 0.5` a nudge moves both corners half as far each, so returning to a corner
+later shows a value nobody set there deliberately. The alternatives are worse in different
+ways — refusing the edit (a dead knob), or writing only the nearest corner (the heard value
+jumps away from where you put it).
+
+**Not decided here.** This is the human's model recorded verbatim with the tradeoff named, so
+the morph lab starts from it rather than re-deriving it. The rule to test first is
+weight-proportional distribution, with the honest failure mode above measured rather than
+assumed.
+
+## THE NOTE LANE GETS ALL FIVE TRAVEL LAWS (2026-08-19)
+
+ADR-096. The bend law now replaces the glide logic in the OSC page's voice area, which is
+what the human could actually reach ("right now that's all I can access").
+
+**The merge, as ruled by the human** ("could we increase the bendTau range and then merge
+them?"): `bendTau` widened 1-400 -> 1-2000 ms, and the redundant pair collapsed. The survivor
+is **id 33**, not `bendTau`, and that inversion is the whole point —
+`docs/presets/serum-parity-reference.json` stores `"glide":0.89` in SECONDS, and retiring id 33
+in favour of a millisecond twin would read 0.89 as 0.89 ms: not slow portamento, no portamento.
+Widening `bendTau` is free (nothing has ever stored it; it shipped hours earlier). **A merge
+across two units is a migration, not a rename** — take the direction where the stored value
+never moves.
+
+**Shipped defaults reproduce the old sound exactly**: own-settings + lag + tau-from-id-33 IS
+what ADR-026 did. FOLLOW could not be the default, because `bendLaw` ships off and a following
+lane would travel instantly — deleting portamento from every patch that set glide.
+
+**The divergence, stated rather than buried:** travel moved from HERTZ to SEMITONES. Same
+one-pole, different domain; Hz-linear travel accelerates audibly at the bottom of a wide
+interval. `trajectory_check` measures "within 1c in 12 tau" — tau-relative, so it cannot see
+this; a tau-x10 plant WAS run and the gate went RED, which proves it covers the lane's timing
+and proves timing is all it covers. Parity is silent by construction (the reference has no
+glide; 156/156 unmoved, worst 4.262e-09). **Curve shape is a human ear ruling — NTR-3, open.**
+
+`shown_when` gained AND across comma-separated clauses; one key could not express
+`noteLawLink=0,noteLaw=3` without showing dead controls in one direction or the other. Same
+missing capability the chord layer needs for OR-across-keys.
+
 ## THE FX RACK OWNS DRY/WET — two pins retired, and a plant that was right to fail (2026-08-19)
 
 ADR-095, the rack-side half of the contract approved 2026-08-15. The **gate landed first**, so
