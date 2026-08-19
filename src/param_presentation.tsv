@@ -257,3 +257,11 @@ scaleDeg8	global	b6	MAIN	Scale	toggle		scale	bendQuant=2
 scaleDeg9	global	6	MAIN	Scale	toggle		scale	bendQuant=2	
 scaleDeg10	global	b7	MAIN	Scale	toggle		scale	bendQuant=2	
 scaleDeg11	global	7	MAIN	Scale	toggle		scale	bendQuant=2	
+osc1.sawBase	osc1	Saw Base	OSC	Saw shape	knob		saw-shape		
+osc1.sawProfile	osc1	Roundness Shape	OSC	Saw shape	knob		saw-shape		
+osc1.round	osc1	Roundness	OSC	Saw shape	knob		saw-shape		
+osc1.roundHi	osc1	Round x Pitch	OSC	Saw shape	knob		saw-shape		
+osc2.sawBase	osc2	Saw Base	OSC	Saw shape	knob		saw-shape		
+osc2.sawProfile	osc2	Roundness Shape	OSC	Saw shape	knob		saw-shape		
+osc2.round	osc2	Roundness	OSC	Saw shape	knob		saw-shape		
+osc2.roundHi	osc2	Round x Pitch	OSC	Saw shape	knob		saw-shape		

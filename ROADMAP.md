@@ -8,6 +8,48 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## SAW SHAPE (GLASS) FOLDED — the fifth detune-lab fold, and the one that was skipped (2026-08-19)
+
+Human: *"we also never ported over the saw shape (glass) section from the detune-lab"* —
+correct, and it was larger than a missing panel. **All four controls existed only in the lab.**
+Zero occurrences in the SAW reference, the core, the shell or the presentation table. `shape`
+(id 69, ADR-058) is a different axis — saw to band-limited square, not roundness. ADR-094.
+
+**Fifth in a sequence that had simply skipped one.** Tone tilt (ADR-060), hi-tame (061), drift
+modes (062), glide (063) — each *"folded from the detune-lab audition into the real thing"*,
+each a parity-safe superset. This is the same move on the same terms; nothing about it was
+novel except that nobody had done it.
+
+**Reference first, then the port**, forced for the same reason as ADR-093: the goldens are
+sliced live from `swarmsaw.html`, so a port-first fold would break parity against a reference
+that lacked the feature.
+
+**Placement, which parity alone would not have caught.** The port carries a stage the reference
+does not — ADR-058's `shape`, a C++-only superset. The new stages go **before** it, exactly
+where the reference puts them, because ADR-058 is the one with no reference to be faithful to.
+The other order would have been invisible to parity until someone set both non-zero.
+
+**Inert, then actually exercised — the ADR-093 lesson applied.** The fold moved 147/147 to
+147/147, bit-identical by construction. **That green says nothing about the feature.** Three
+scenarios added (`saw-base`, `saw-glass`, `saw-round-hi`) taking parity to **156/156**, and
+both were proved able to fail:
+
+| plant | result |
+|---|---|
+| drop the `roundHi` pitch scaling | **FAIL** `saw-round-hi` rms 3.591e-02 |
+| swap the hollow anchor for glass | **FAIL** `saw-round-hi` rms 8.329e-03 |
+| restored | 156/156, worst 4.262e-09 |
+
+**Carried verbatim, placeholders included.** The base bank's four variants are the lab's own
+PLACEHOLDER profiles — its comment says the real ones are still to be measured from synths.
+They were not improved in transit: a fold moves code, it does not change what it computes, or
+parity stops meaning anything. **Measuring those profiles is now a real queued item**, and it
+is a listening/measurement job rather than a coding one.
+
+**Surface:** four per-oscillator params (ids 129-132, appended), a *Saw shape* group on the OSC
+page. Per-oscillator because giving each oscillator its own saw character is the point of
+having two. `./verify full` EXIT=0.
+
 ## PAGE ORDER FOLLOWS THE ORDER OF WORK; THE LABS HAVE AN INDEX AGAIN (2026-08-19)
 
 Human: *"the osc panel should come second after main and mix should come later"*, and

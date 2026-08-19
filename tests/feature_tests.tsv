@@ -78,3 +78,6 @@ BND-2	MAIN	Bend	agentic	ENCODING	hypersaw	parity_check	bendLaw=off is a pass-thr
 BND-3	MAIN	Bend	human	RULING	human	manual	switching law mid-bend does not make the pitch jump — the filter resets to the sounding value, only the trajectory changes
 SCL-1	MAIN	Scale	agentic	ENCODING	hypersaw	glide_check	quantise-to-scale snaps to the declared mask, not to a scale name — the core carries {root, mask} and no scale table
 SCL-2	MAIN	Scale	human	RULING	human	manual	the named-scale dropdown writes root + twelve toggles; editing any toggle leaves it reading 'custom'
+SAW-1	OSC	Saw shape	agentic	ENCODING	hypersaw	parity_check	base crossfade, roundness morph and pitch-scaled roundness each match the SAW reference (saw-base, saw-glass, saw-round-hi)
+SAW-2	OSC	Saw shape	agentic	ENCODING	hypersaw	parity_check	both axes at 0 are bit-exact passthrough — the fold is a parity-safe superset (147 pre-existing scenarios unmoved)
+SAW-3	OSC	Saw shape	human	RULING	human	manual	roundHi makes higher voices round more — audible as the top of the stack softening while the root stays edged

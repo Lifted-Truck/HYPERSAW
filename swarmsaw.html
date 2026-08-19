@@ -207,7 +207,7 @@ class SwarmSynth {
   constructor(sr) {
     this.sr = sr;
     this.p = { n:7, dist:1, seed:1234, detune:0.28, law:0, K:0, onset:0, dissolve:0.63,
-               driftDepth:0, driftRate:0.4, inertia:0, rtone:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
+               driftDepth:0, driftRate:0.4, inertia:0, rtone:0, sawBase:0, sawProfile:0, round:0, roundHi:0, normExp:0.75, width:0.8, mono:0, digital:1, vol:0.4, retrig:1, tilt:0, hiTame:0,
                driftMode:0, keepPhase:0, freqGlide:0, panMotion:0, panMode:0, motionCenter:0, harmReach:1, stretchB:0, spread:1, anchor:0, pivotMode:0, panLayout:0, panCurve:0.5, panInvert:0 };
     this.x = new Float64Array(MAXV);
     this.panL = new Float64Array(MAXV);
@@ -230,6 +230,7 @@ class SwarmSynth {
         lpL: 0, lpR: 0, lpc: 1,
         vlp: new Float64Array(MAXV), vlpc: new Float64Array(MAXV).fill(1),
         hg: new Float64Array(MAXV).fill(1),
+        rnd: new Float64Array(MAXV),   // per-voice roundness (0 = untouched)
         driftPh: new Float64Array(MAXV), driftHoldT: new Float64Array(MAXV),
         vfSm: new Float64Array(MAXV), fRun: new Float64Array(MAXV), vfInit: 0,
         cdist: new Float64Array(MAXV)
@@ -464,6 +465,19 @@ class SwarmSynth {
     // hi-tame: equal-loudness per-voice roll-off — turn the higher voices down by
     // (f0/f)^hiTame so a tall stack isn't harsh up top. hiTame 0 → inert.
     if (p.hiTame > 0) for (let i = 0; i < n; i++) s.hg[i] = Math.pow(s.f0 / Math.max(s.f0, s.vf[i]), p.hiTame);
+    // per-voice roundness: how far this voice morphs toward the profile shape,
+    // optionally scaled by its position in the spread (roundHi > 0 => higher
+    // voices round more — "rounder as they climb"). Zero when `round` is zero,
+    // which is what keeps the whole feature inert at its default.
+    if (p.round > 0.001) {
+      let xmin = this.x[0], xmax = this.x[0];
+      for (let i = 1; i < n; i++) { if (this.x[i] < xmin) xmin = this.x[i]; if (this.x[i] > xmax) xmax = this.x[i]; }
+      const span = (xmax - xmin) || 1;
+      for (let i = 0; i < n; i++) {
+        const up = (p.law === 4) ? ((n === 1) ? 0 : i / (n - 1)) : (this.x[i] - xmin) / span;
+        s.rnd[i] = Math.max(0, Math.min(1, p.round * (1 + p.roundHi * (2 * up - 1))));
+      }
+    } else for (let i = 0; i < n; i++) s.rnd[i] = 0;
     // coupling targets in units of measured spread; squared taper, bipolar knob:
     // positive = sync attractor (mean-field Kuramoto), negative = splay attractor
     const km = 4 * p.K * Math.abs(p.K);
@@ -528,6 +542,42 @@ class SwarmSynth {
     s.lpc = 1 - Math.exp(-6.283185307 * fc / this.sr);
     if (glideOn && firstTick) for (let i = 0; i < n; i++) s.fRun[i] = s.eff[i];   // snap the per-sample glide
   }
+
+  /* SAW SHAPE (glass) — folded from docs/design/detune-lab.html, 2026-08-19.
+     Fifth lab->reference fold after tone tilt (ADR-060), hi-tame (061), drift
+     modes (062) and glide (063), and parity-safe on the same terms: BOTH knobs
+     default to 0, `sawBase <= 0.001` skips the base crossfade entirely and
+     `round <= 0.001` leaves every voice's roundness at 0, so an untouched patch
+     renders the identical samples it always did.
+
+     Two independent axes, applied in this order:
+       BASE     — the top-level saw itself morphs through sawtooth-flavoured
+                  variants. Anchor 0 IS the BLEP saw, so the crossfade starts
+                  from exactly what the engine already produced.
+       ROUNDNESS— the result is then morphed TOWARD a rounder anchor shape, per
+                  voice, optionally scaled by where the voice sits in the spread.
+
+     The base bank's contents are PLACEHOLDERS in the lab (its own comment says
+     real profiles are to be measured from synths) and are carried over verbatim
+     rather than improved here: a fold changes WHERE code lives, never what it
+     computes, or parity stops meaning anything. */
+  sawShape(k, ph) {
+    // 0 glass (parabola arch) · 1 soft · 2 hollow (triangle) · 3 pure (sine) · 4 reedy (+3rd)
+    const s2 = 2 * ph - 1, tri = 1 - 4 * Math.abs(ph - 0.5), par = 0.6667 - 2 * s2 * s2;
+    if (k <= 0) return par;
+    if (k === 1) return 0.5 * par + 0.5 * tri;
+    if (k === 2) return tri;
+    if (k === 3) return Math.sin(6.283185307 * ph);
+    return 0.8 * Math.sin(6.283185307 * ph) + 0.2 * Math.sin(18.849555922 * ph);
+  }
+  sawBaseVar(k, ph) {
+    const r = 2 * ph - 1;
+    if (k <= 1) return Math.sign(r) * Math.pow(Math.abs(r), 1.4);   // 1 curved
+    if (k === 2) return 0.85 * r + 0.15 * (0.6667 - 2 * r * r);     // 2 fat
+    if (k === 3) return Math.tanh(2.2 * r) / 0.97574;               // 3 driven
+    return Math.sign(r) * Math.pow(Math.abs(r), 0.6);               // 4 aggressive
+  }
+
   render(outL, outR) {
     const sr = this.sr, p = this.p, n = p.n;
     const gain = p.vol * 0.9 / Math.pow(n, p.normExp);
@@ -580,6 +630,19 @@ class SwarmSynth {
             if (ph < d) { const t = ph / d; bl = t + t - t * t - 1; }
             else if (ph > 1 - d) { const t = (ph - 1) / d; bl = t * t + t + t + 1; }
             v = naive - p.digital * bl;
+          }
+          if (p.sawBase > 0.001) {
+            // anchor 0 IS the BLEP saw, so the crossfade begins at `v` itself
+            const sbF = Math.max(0, Math.min(4, p.sawBase * 4));
+            const bi0 = Math.min(3, Math.floor(sbF)), bfr = sbF - bi0;
+            const b0 = bi0 === 0 ? v : this.sawBaseVar(bi0, ph);
+            v = b0 * (1 - bfr) + this.sawBaseVar(bi0 + 1, ph) * bfr;
+          }
+          if (s.rnd[i] > 0.001) {
+            const spF = Math.max(0, Math.min(4, p.sawProfile * 4));
+            const pi0 = Math.min(3, Math.floor(spF)), pfr = spF - pi0;
+            const shaped = this.sawShape(pi0, ph) * (1 - pfr) + this.sawShape(pi0 + 1, ph) * pfr;
+            v = v * (1 - s.rnd[i]) + shaped * s.rnd[i];
           }
           if (s.vlpc[i] < 1) { s.vlp[i] += s.vlpc[i] * (v - s.vlp[i]); v = this.tiltHP ? (v - s.vlp[i]) : s.vlp[i]; }
           if (p.hiTame > 0) v *= s.hg[i];

@@ -1184,6 +1184,73 @@ roadmapped, not started.
   engine selector's real-surface gating both grow. That is the design work, and it
   is on the ROADMAP rather than implied.
 
+## ADR-094 — Saw shape (glass) folded from the detune lab (ACCEPTED)
+
+**Date:** 2026-08-19 · **Status:** ACCEPTED (human: *"I approve of that plan"*).
+**Spec change:** yes — `swarmsaw.html` is a protected reference and it changed;
+the port changed identically in the same commit, so this is a fold, not a
+divergence.
+
+### What was missing
+
+All four controls — `sawBase`, `sawProfile`, `round`, `roundHi` — existed **only**
+in `docs/design/detune-lab.html`. Zero occurrences in the SAW reference, the core,
+the shell or the presentation table. This was never a GUI omission: **the fold had
+never happened.** `shape` (id 69, ADR-058) is a different axis entirely — saw to
+band-limited square, not roundness.
+
+The fifth fold in an established sequence: tone tilt (ADR-060), hi-tame (061),
+drift modes + keep-phase (062), glide (063), and now this. Same terms as all four:
+**parity-safe superset, inert at its defaults.**
+
+### The feature
+
+Two independent axes, applied in the reference's order — BLEP, then base, then
+roundness:
+
+- **BASE** (`sawBase`) crossfades the top-level saw through four
+  sawtooth-flavoured variants: curved, fat, driven, aggressive. **Anchor 0 is the
+  BLEP saw**, so the crossfade begins at exactly what the engine already produced.
+- **ROUNDNESS** (`round`, `sawProfile`, `roundHi`) morphs the result toward one of
+  five anchors — glass (parabola) · soft · hollow (triangle) · pure (sine) · reedy
+  — per voice, optionally scaled by the voice's position in the spread so higher
+  voices round more.
+
+Both banks are carried over **verbatim**, placeholders and all: the lab's own
+comment says the real profiles are still to be measured from synths, and a fold
+moves code rather than improving it, or parity stops meaning anything.
+
+### Placement, which parity alone would not have caught
+
+The port carries a stage the reference does not — ADR-058's `shape`, a C++-only
+superset. The new stages go **before** it, exactly where the reference puts them.
+ADR-058 is the stage that yields position because it has no reference to be
+faithful to. Ordering them the other way would have been invisible to parity until
+someone set both non-zero, which is the kind of latency this project keeps paying
+for.
+
+### Inert first, then actually exercised
+
+The fold moved **147/147 to 147/147** — bit-identical, by construction, because
+`sawBase <= 0.001` skips the crossfade and `round <= 0.001` leaves every voice at
+zero roundness.
+
+**That green says nothing about the feature**, which is exactly the hole ADR-093
+found in the glide goldens. Three scenarios added — `saw-base`, `saw-glass`,
+`saw-round-hi` — taking parity to **156/156**, and both proved able to fail:
+
+| plant | result |
+|---|---|
+| drop the `roundHi` pitch scaling | **FAIL** `saw-round-hi`, rms 3.591e-02 |
+| swap the hollow anchor for glass | **FAIL** `saw-round-hi`, rms 8.329e-03 |
+| restored | 156/156, worst 4.262e-09 |
+
+### Surface
+
+Four **per-oscillator** params, ids 129-132 appended (`params.h:212` — ids never
+change). Per-oscillator because giving each oscillator its own saw character is
+the point of having two. Presented as a *Saw shape* group on the OSC page.
+
 ## ADR-093 — Quantiser ties resolve toward the previous emitted step (ACCEPTED)
 
 **Date:** 2026-08-19 · **Status:** ACCEPTED (human ruling in session, "go for it").

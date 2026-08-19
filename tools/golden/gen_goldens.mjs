@@ -86,6 +86,14 @@ const SCENARIOS = [
   { name: 'tilt-thin',     p: { tilt: -0.6, detune: 0.5, n: 7 } },
   // Hi-tame (ADR-061) — per-voice equal-loudness roll-off across a wide stack.
   { name: 'hi-tame',       p: { hiTame: 1.0, detune: 0.6, n: 12 } },
+  /* Saw shape / glass (ADR-094) — the fifth detune-lab fold. Three scenarios so
+     each axis is exercised separately and then together: the base crossfade
+     alone, the roundness morph alone, and roundness scaled by voice pitch.
+     Without these the feature would be inert-and-green, which says nothing —
+     exactly the hole ADR-093 found in the glide goldens. */
+  { name: 'saw-base',      p: { sawBase: 0.55, detune: 0.5, n: 7 } },
+  { name: 'saw-glass',     p: { round: 0.8, sawProfile: 0.0, detune: 0.5, n: 7 } },
+  { name: 'saw-round-hi',  p: { round: 0.7, roundHi: 0.9, sawProfile: 0.6, detune: 0.6, n: 9 } },
   // Drift modes + keep-phase (ADR-062). keep-phase also exercises the rngNext-skip
   // in note-on (it must leave rngState identical across engines → same drift).
   { name: 'drift-sine',    p: { driftDepth: 15, driftRate: 0.5, driftMode: 1, detune: 0.4, n: 7 } },

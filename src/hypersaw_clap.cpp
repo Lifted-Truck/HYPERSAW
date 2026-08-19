@@ -318,6 +318,14 @@ static const ParamDef kParams[] = {
     {126, "scaleDeg9", "Degree 6", 0, 1, 1, true, kOffOn},
     {127, "scaleDeg10", "Degree b7", 0, 1, 0, true, kOffOn},
     {128, "scaleDeg11", "Degree 7", 0, 1, 1, true, kOffOn},
+    /* SAW SHAPE (glass) — ADR-094, the fifth detune-lab fold. PER-OSCILLATOR:
+       each oscillator gets its own saw character, which is the point of having
+       two. Both axes default to 0 and each stage is guarded, so these are a
+       parity-safe superset like ADR-060..063 before them. */
+    {129, "sawBase", "Saw Base", 0, 1, 0, false, nullptr},
+    {130, "sawProfile", "Roundness Shape", 0, 1, 0, false, nullptr},
+    {131, "round", "Roundness", 0, 1, 0, false, nullptr},
+    {132, "roundHi", "Round x Pitch", 0, 1, 0, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.

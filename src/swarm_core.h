@@ -51,6 +51,30 @@ constexpr int kTick = 16;
 // closed. Expressed in seconds it obeys ADR-009 like every other time constant.
 // The value is exactly 256/44100 so `gravGridSamples()` returns exactly 256 at
 // 44.1 kHz and every golden stays bit-identical.
+/* SAW SHAPE (glass) banks — ported verbatim from swarmsaw.html, ADR-094.
+   Contents are the lab's PLACEHOLDER profiles (its own comment says the real
+   ones are to be measured from synths); a fold moves code, it does not improve
+   it, or parity stops meaning anything. */
+inline double sawShapeAnchor(int k, double ph)
+{
+  // 0 glass (parabola arch) · 1 soft · 2 hollow (triangle) · 3 pure (sine) · 4 reedy (+3rd)
+  const double s2 = 2 * ph - 1, tri = 1 - 4 * std::fabs(ph - 0.5), par = 0.6667 - 2 * s2 * s2;
+  if (k <= 0) return par;
+  if (k == 1) return 0.5 * par + 0.5 * tri;
+  if (k == 2) return tri;
+  if (k == 3) return std::sin(6.283185307 * ph);
+  return 0.8 * std::sin(6.283185307 * ph) + 0.2 * std::sin(18.849555922 * ph);
+}
+inline double sawBaseAnchor(int k, double ph)
+{
+  const double r = 2 * ph - 1;
+  const double sgn = r < 0 ? -1.0 : (r > 0 ? 1.0 : 0.0);   // Math.sign
+  if (k <= 1) return sgn * std::pow(std::fabs(r), 1.4);    // 1 curved
+  if (k == 2) return 0.85 * r + 0.15 * (0.6667 - 2 * r * r);  // 2 fat
+  if (k == 3) return std::tanh(2.2 * r) / 0.97574;         // 3 driven
+  return sgn * std::pow(std::fabs(r), 0.6);                // 4 aggressive
+}
+
 constexpr double kGravGridSeconds = 256.0 / 44100.0;   // 5.805 ms
 constexpr double kTau = 6.283185307;   // matches the reference's literal
 constexpr double kPiRef = 3.14159265;  // ditto — NOT M_PI, parity over precision
@@ -77,6 +101,9 @@ struct Params
   // R->tone output pole — the one structural difference between the two
   // references (DynSynth has no output filter).
   double topo = 0, reach = 5, mu = 0.6, alpha = 0, poles = 1, grav = 0, basin = 35, lpOut = 1;
+    // ADR-094 saw shape (glass), folded from the detune lab. BOTH default to 0
+    // and each stage is guarded, so an untouched patch is bit-identical.
+    double sawBase = 0, sawProfile = 0, round = 0, roundHi = 0;
   // Two-cluster A/B balance (ADR-051): 0 = both clusters full K (bit-inert
   // default); >0 scales cluster B's intra-coupling by kB = 1-2*balance, so one
   // knob sweeps symmetric → B-uncoupled (0.5) → B-splayed (1.0, kB=-1).
@@ -206,6 +233,7 @@ class SwarmCore
     double lpL = 0, lpR = 0, lpc = 1;
     double vlp[kMaxV] = {0}, vlpc[kMaxV];  // per-voice tone-tilt state (vlpc init 1 in ctor)
     double hg[kMaxV];                      // per-voice hi-tame gain (init 1 in ctor)
+    double rnd[kMaxV];                     // ADR-094 per-voice roundness (0 = untouched)
     double driftPh[kMaxV] = {0}, driftHoldT[kMaxV] = {0};  // sine / S&H drift-mode state
     double vfSm[kMaxV] = {0}, fRun[kMaxV] = {0};           // ADR-063 frequency-glide state
     float itdRing[kMaxV][256] = {};                        // ADR-074 far-channel rings
@@ -254,7 +282,7 @@ class SwarmCore
       std::memset(s.eff, 0, sizeof(s.eff));
       std::memset(s.mom, 0, sizeof(s.mom));
       std::memset(s.vlp, 0, sizeof(s.vlp));
-      for (int i = 0; i < kMaxV; i++) { s.vlpc[i] = 1.0; s.hg[i] = 1.0; }  // tilt/hi-tame passthrough
+      for (int i = 0; i < kMaxV; i++) { s.vlpc[i] = 1.0; s.hg[i] = 1.0; s.rnd[i] = 0.0; }  // tilt/hi-tame passthrough
     }
     rebuild();
   }
@@ -699,6 +727,29 @@ private:
             else if (ph > 1 - d) { const double t = (ph - 1) / d; bl = t * t + t + t + 1; }
             v = naive - p.digital * bl;
           }
+          /* ADR-094 saw shape (glass). Placed HERE — immediately after the BLEP
+             and BEFORE the ADR-058 shape morph — because that is where
+             swarmsaw.html puts it. ADR-058 is a C++-only superset with no
+             reference, so it is the stage that must yield position; putting it
+             first would order the reference-defined stages differently from the
+             reference and parity would only notice once both were non-zero. */
+          if (p.sawBase > 0.001)
+          {
+            const double sbF = std::max(0.0, std::min(4.0, p.sawBase * 4));
+            const int bi0 = std::min(3, (int)std::floor(sbF));
+            const double bfr = sbF - bi0;
+            const double b0 = bi0 == 0 ? v : sawBaseAnchor(bi0, ph);
+            v = b0 * (1 - bfr) + sawBaseAnchor(bi0 + 1, ph) * bfr;
+          }
+          if (s.rnd[i] > 0.001)
+          {
+            const double spF = std::max(0.0, std::min(4.0, p.sawProfile * 4));
+            const int pi0 = std::min(3, (int)std::floor(spF));
+            const double pfr = spF - pi0;
+            const double shaped = sawShapeAnchor(pi0, ph) * (1 - pfr)
+                                + sawShapeAnchor(pi0 + 1, ph) * pfr;
+            v = v * (1 - s.rnd[i]) + shaped * s.rnd[i];
+          }
           // ADR-058 waveshape morph: v = saw − shape·saw(ph+½). shape 0 = saw
           // (bit-exact, guarded); shape 1 = a band-limited square (the two
           // half-cycle-offset saws' difference). Both saws carry the SAME
@@ -940,6 +991,10 @@ public:
     if (k == "scatter") return &p.scatter;
     if (k == "panScatter") return &p.panScatter;
     if (k == "shape") return &p.shape;  // ADR-058 waveshape morph
+    if (k == "sawBase") return &p.sawBase;        // ADR-094 saw shape (glass)
+    if (k == "sawProfile") return &p.sawProfile;
+    if (k == "round") return &p.round;
+    if (k == "roundHi") return &p.roundHi;
     if (k == "tilt") return &p.tilt;    // ADR-060 tone tilt
     // "toneTilt" is the CLAP-facing alias for the same field (ADR-072): the
     // shell mirrors unguarded param keys into BOTH cores, and SPECTRA already
@@ -1298,6 +1353,23 @@ public:
     // hi-tame (ADR-061, parity with swarmsaw.html): equal-loudness roll-off,
     // gain (f0/f)^hiTame turns the higher voices down. hiTame 0 → inert.
     if (p.hiTame > 0) for (int i = 0; i < n; i++) s.hg[i] = std::pow(s.f0 / std::max(s.f0, s.vf[i]), p.hiTame);
+    // ADR-094 per-voice roundness: how far this voice morphs toward the profile
+    // shape, optionally scaled by its position in the spread (roundHi > 0 =>
+    // higher voices round more). Zero when `round` is zero, which is what keeps
+    // the whole feature inert at its default.
+    if (p.round > 0.001)
+    {
+      double xmin = x[0], xmax = x[0];
+      for (int i = 1; i < n; i++) { if (x[i] < xmin) xmin = x[i]; if (x[i] > xmax) xmax = x[i]; }
+      const double span = (xmax - xmin) != 0.0 ? (xmax - xmin) : 1.0;
+      for (int i = 0; i < n; i++)
+      {
+        const double up = ((int)p.law == 4) ? ((n == 1) ? 0.0 : (double)i / (n - 1))
+                                            : (x[i] - xmin) / span;
+        s.rnd[i] = std::max(0.0, std::min(1.0, p.round * (1 + p.roundHi * (2 * up - 1))));
+      }
+    }
+    else for (int i = 0; i < n; i++) s.rnd[i] = 0.0;
     const double km = 4 * p.K * std::fabs(p.K);
     // absK (ADR-004/ADR-033): coupling in absolute units of 2.5 Hz (max
     // pull 4*K^2*2.5 = 10 Hz at knob 1) so identical-oscillator states are
