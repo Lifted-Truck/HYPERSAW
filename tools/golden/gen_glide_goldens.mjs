@@ -20,6 +20,24 @@ const CR = 44100 / 16;            // the 16-sample control tick
 const TICKS = Math.round(2.4 * CR);
 
 // the gesture every scenario runs, in semitones
+/* TIE-LANDING GESTURE (added 2026-08-19 with the tie-break fix). The standing
+   gesture settles at 0.5, which in C major is NOT equidistant from anything — so
+   the entire tie path was untested code and both defects lived there unseen:
+   ties resolving downward by loop order, and chromatic disagreeing between
+   Math.round and std::lround on negatives. `L0031`: a reference oracle certifies
+   agreement only over the surface the reference RENDERS, and this surface was
+   never rendered.
+   Lands on exact ties of both signs: +1 (C-major tie between 0 and 2) and -1.5
+   (a chromatic tie, and the sign where the two rounding functions disagreed). */
+function tieTargetAt(i) {
+  const t = i / CR;
+  if (t < 0.10) return 0;
+  if (t < 0.60) return 1;        // scale tie: equidistant from 0 and 2 in C major
+  if (t < 1.10) return -1.5;     // chromatic tie, negative: lround vs Math.round
+  if (t < 1.60) return 2.5;      // chromatic tie, positive
+  return 1;                      // settle ON the tie, so the held value is the tie
+}
+
 function targetAt(i) {
   const t = i / CR;
   if (t < 0.05) return 0;
@@ -40,6 +58,16 @@ export const SCENARIOS = [
   { name: 'glide-quant-chrom',  p: { model: 2, quant: 1 } },
   { name: 'glide-quant-scale',  p: { model: 3, quant: 2 } },
   { name: 'glide-quant-hyst',   p: { model: 4, quant: 1, qhyst: 25 } },
+  // Ties, both modes and both signs, with hysteresis OFF so the tie-break itself
+  // is what is measured rather than the stickiness that usually masks it.
+  // model 0 (OFF) IS LOAD-BEARING HERE, not a lazy choice. Under any moving law
+  // the output approaches its target asymptotically and never lands exactly on a
+  // midpoint, so the tie path is unreachable and a scenario using one is a test
+  // that cannot fail — the first version of these two used model 1 and a planted
+  // regression sailed straight through them. With the law off `x = target`
+  // bit-exactly, which is also the only way a real patch reaches a tie.
+  { name: 'glide-tie-scale',    p: { model: 0, quant: 2, qhyst: 0 }, gesture: 'tie' },
+  { name: 'glide-tie-chrom',    p: { model: 0, quant: 1, qhyst: 0 }, gesture: 'tie' },
   // The scale MASK is now user-drawable (bend-lab's hzScalePicker), so the
   // quantiser must be proven over more than the one hardcoded C-major set it
   // shipped with. These three cover what the picker can actually produce:
@@ -61,7 +89,9 @@ function render(sc) {
   const inr = new Inertia(CR, sc.p.lane === 'note' ? 'note' : 'bend');
   inr.reset(0);
   const out = new Float32Array(TICKS);
-  for (let i = 0; i < TICKS; i++) out[i] = inr.step(targetAt(i), p);
+  // A scenario may pick the tie-landing gesture instead of the standard one.
+  const gest = sc.gesture === 'tie' ? tieTargetAt : targetAt;
+  for (let i = 0; i < TICKS; i++) out[i] = inr.step(gest(i), p);
   return out;
 }
 

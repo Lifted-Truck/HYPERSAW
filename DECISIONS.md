@@ -1184,6 +1184,82 @@ roadmapped, not started.
   engine selector's real-surface gating both grow. That is the design work, and it
   is on the ROADMAP rather than implied.
 
+## ADR-093 — Quantiser ties resolve toward the previous emitted step (ACCEPTED)
+
+**Date:** 2026-08-19 · **Status:** ACCEPTED (human ruling in session, "go for it").
+**Spec change:** yes — `docs/design/bend-lab.html` is a protected path and the
+reference changed. The port changed identically in the same commit, so this is a
+spec change, NOT a divergence.
+
+### Two defects, one code path
+
+**1. Ties resolved by loop order.** `if (d < bestD)` with a scan ascending from
+`floor(semis) − 12` means the lower candidate arrives first, claims `bestD`, and
+the equal-distance higher candidate fails `d < bestD`. Every tie resolved
+**downward**, decided by iteration order rather than by any musical choice.
+
+Tonality found this first, in their own quantiser, independently
+(`HYPERSAW-002` §2). Their domain made it severe: `conform_to_scale` quantises
+**integer MIDI notes**, so every out-of-scale pitch class is exactly equidistant
+and all five accidentals in a major scale tie deterministically — a fixed
+direction did not resolve a corner, it decided every accidental and sagged
+chromatic lines flat. **Ours is narrower and we said so** after first overstating
+it: our input is the glide's continuous output, so a tie is a knife edge one ULP
+wide, reachable when the law is off (`x = target` bit-exactly) and rare otherwise.
+
+**2. Chromatic mode disagreed between reference and port.** Chromatic never ran
+the candidate loop at all — the reference used `Math.round`, the port used
+`std::lround`, and those **differ on negatives**: `Math.round(-1.5) = -1` (half
+toward +∞) versus `lround(-1.5) = -2` (half away from zero). A full semitone of
+divergence in the shipped plugin, at every exact negative half-step, in a project
+whose definition of correctness is 1e-6 parity with that reference.
+
+### Decision
+
+- **One candidate search for both modes.** Chromatic is "every pitch class
+  admitted" running the same loop. There is no rounding function left to
+  disagree about, which closes defect 2 by construction rather than by matching
+  two library behaviours.
+- **On an exact tie, prefer the candidate nearer the previous EMITTED step.** The
+  output line is the melody a listener hears, so continuity is owed to the output,
+  not the input (Tonality's ruling, adopted). Deterministic and replayable, where
+  the existing hysteresis is continuity-in-time and depends on wobble history —
+  both are kept because they do different jobs.
+- **With nothing emitted yet, keep the lower candidate.** Stated as a choice
+  rather than left to loop order; reachable only on the first quantised sample.
+
+### Why the goldens never saw either defect
+
+The standing gesture settles at **0.5**, which in C major is equidistant from
+nothing. The whole tie path was unrendered, so 147/147 and `glide_check` were
+silent about it — `L0031` exactly: a reference oracle certifies agreement over
+the surface the reference RENDERS, and this surface was never rendered.
+
+Two scenarios added, `glide-tie-scale` and `glide-tie-chrom`, landing on exact
+ties of both signs. **`model = kOff` is load-bearing in both**: under any moving
+law the output approaches asymptotically and never lands exactly on a midpoint,
+so a tie scenario using one is a test that cannot fail. The first version used
+`kConstTime` and a planted regression sailed straight through it.
+
+### Proof the gate can fire
+
+- Remove the tie-break → **RED**, `glide-tie-scale` rms 1.1547, `glide-tie-chrom`
+  rms 0.4564.
+- Put chromatic back on `lround` → **RED**, same two scenarios.
+- Restored → **GREEN**, both at rms **0**.
+
+`./verify full` green; parity 147/147 unchanged (worst 4.262e-09), the pre-existing
+five glide goldens byte-identical.
+
+### One thing this exposed and did not fix
+
+The scenario list exists **twice** — `tools/golden/gen_glide_goldens.mjs` and
+`tools/glide_check.cpp` — including the gesture. Adding a scenario to one produced
+goldens the other never read, and the check stayed green while covering nothing.
+Recorded as a known duplication; the fix is for the C++ to read the generator's
+manifest rather than mirror its table.
+
+
 ## ADR-092 — WARP (distortion engine) ingested as a CANDIDATE; it is FX-C's prototype, not a fourth voice engine
 
 **Date:** 2026-08-18 · **Status:** accepted · **Human:** *"just finished another
