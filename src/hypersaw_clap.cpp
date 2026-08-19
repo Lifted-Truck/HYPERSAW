@@ -27,6 +27,7 @@
 #include "swarm_core.h"
 #include "gui/hypersaw_gui.h"
 #include "spectra_core.h"
+#include "glide_core.h"
 #include "fx_rack.h"
 #include "routing_core.h"
 #include "hypersaw_clap_entry.h"
@@ -303,6 +304,16 @@ constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 // Chunk the extra oscillators' render through a fixed stack buffer. Small
 // enough to be free on the stack, large enough that the loop overhead is
 // irrelevant against a render of the same length.
+// ---- BEND TRAVEL GRID (ADR-086 Amendment 1's construction, reused) ----------
+// The bend glide advances on a fixed TIME grid, not a fixed sample count. The
+// amendment exists because the first version of that idea (kGravGrid = 256
+// SAMPLES) was a duration that shrank as the sample rate rose, so the trajectory
+// tracked the rate; expressed in seconds it obeys ADR-009 like every other time
+// constant. The value is exactly 16/44100 so the grid is EXACTLY 16 samples at
+// 44.1 kHz — which is the rate `bend-lab.html` was benched at and therefore the
+// rate glide_check's goldens encode. Any other value silently invalidates them.
+constexpr double kBendGridSeconds = 16.0 / 44100.0;   // 0.363 ms
+
 constexpr int kMixChunk = 256;
 constexpr uint32_t kOscStride = 1000;
 constexpr uint32_t kMaxOsc = 2;   // ratified 2026-08-06; 2000-2999 stays free for a third
@@ -807,6 +818,35 @@ struct Plugin
     return (!anySolo || oscSolo[k] != 0) ? 1.0 : 0.0;
   }
   double pitchBend = 0, gSemi = 0, gFine = 0, gOct = 0;   // global transpose (101/102/103)
+
+  /* BEND TRAVEL LAW (glide_core, folded 2026-08-19). `pitchBend` is now the
+     SOUNDING bend; `bendTarget` is where the wheel asked it to go. With the law
+     OFF they are the same value and the code below is a pass-through — kOff sets
+     `x = target; vel = 0; y = target`, which is the property that lets this land
+     in the audio path with parity provably unmoved (147/147 + subdiv + the
+     sample-rate probe) BEFORE any law is exposed.
+     The law params do not exist yet, so `bendActive()` is false everywhere today
+     and the render takes exactly the path it took before this change. That is
+     deliberate: wire first, prove inert, expose second. */
+  hypersaw::GlideCore bendGlide{44100.0 / 16.0, /*bendLane=*/true};
+  // The core calls kConstRate its "ratified default" — that is the BENCH's default
+  // for auditioning. Shipping it would change how every existing patch bends, so
+  // the PLUGIN ships kOff (human ruling 2026-08-19), matching the precedent that
+  // oscillators above the first default to silent: a default must not rewrite a
+  // sound that already exists.
+  hypersaw::GlideCore::Params bendLaw = [] {
+    hypersaw::GlideCore::Params q;
+    q.model = hypersaw::GlideCore::kOff;
+    return q;
+  }();
+  double bendTarget = 0;
+  int bendAccum = 0;                     // samples owed to the bend grid
+  int bendGridSamples() const
+  {
+    const int g = (int)std::lround(sampleRate * kBendGridSeconds);
+    return g < 1 ? 1 : g;
+  }
+  bool bendActive() const { return (int)bendLaw.model != hypersaw::GlideCore::kOff; }
   // ADR-035 bass-mono output stage: ONE 2nd-order TPT SVF high-pass on the
   // SIDE channel (L = M + HP(S), R = M − HP(S)) — lows collapse to mid with
   // no crossover phase mismatch, the classic vinyl-elliptic routing.
@@ -1388,8 +1428,17 @@ struct Plugin
       }
       if (id == 38)
       {
-        pitchBend = applied;
-        updateTuneAll();
+        // The wheel sets a TARGET. With the law off the glide is a pass-through,
+        // so this stays the instant write it has always been — byte-identical,
+        // not merely equivalent. With a law on, the render advances toward it on
+        // the bend grid.
+        bendTarget = applied;
+        if (!bendActive())
+        {
+          pitchBend = applied;
+          bendGlide.reset(applied);
+          updateTuneAll();
+        }
         return;
       }
       if (id == 40)
@@ -1763,6 +1812,46 @@ struct Plugin
     }
   }
 
+  /* ONE span of oscillator rendering, extracted so the bend grid can cut a block
+     into grid-sized pieces without a second copy of this logic. Two copies of a
+     mix stage is how they disagree — the same reason the generated GUI derives
+     its controls instead of hand-placing them. */
+  void renderSpan(float *outL, float *outR, uint32_t at, uint32_t count)
+  {
+    const int n = (int)count;
+    core.render(outL + at, outR + at, n);
+    // Oscillator 0 renders STRAIGHT into the output, so its mute/solo gain
+    // and meter are applied in place afterwards rather than during a sum.
+    applyOscGainAndMeter(0, outL + at, outR + at, n, false);
+    // Oscillators 1..N-1 render into a FIXED STACK buffer, in chunks, and
+    // sum. At their default vol = 0 they add exact zeros, so a patch that
+    // never touches them is bit-identical to a one-oscillator build — which
+    // is what keeps the 147 parity goldens green.
+    //
+    // Stack, not a heap scratch. The first version sized a std::vector at
+    // activate() and skipped the oscillator when the buffer was too small;
+    // that made AUDIBLE OUTPUT conditional on activate() having run, so a
+    // restored instance silently lost oscillator 1 (state_check caught it:
+    // "restored instance renders bit-identical audio" went red). A chunk
+    // loop over a fixed buffer cannot allocate, cannot depend on block
+    // size, and cannot silently drop a voice.
+    for (uint32_t k = 1; k < kNumOsc; k++)
+    {
+      float tL[kMixChunk], tR[kMixChunk];
+      for (int off = 0; off < n; off += kMixChunk)
+      {
+        const int m = n - off < kMixChunk ? n - off : kMixChunk;
+        cores[k].render(tL, tR, m);
+        applyOscGainAndMeter(k, tL, tR, m, true);
+        for (int i = 0; i < m; i++)
+        {
+          outL[at + off + i] += tL[i];
+          outR[at + off + i] += tR[i];
+        }
+      }
+    }
+  }
+
   clap_process_status process(const clap_process_t *p)
   {
     // Host tempo drives the grid law (ADR-022); fallback stays at the last
@@ -1803,43 +1892,34 @@ struct Plugin
         handleEvent(ev);
         ++evIndex;
       }
+      /* BEND GRID. Subdividing is deliberately conditional: with no law engaged
+         the render takes exactly the span it always took, so this fold cannot
+         move a single sample of existing output — the parity claim is by
+         CONSTRUCTION, not by measurement agreeing afterwards. When a law IS
+         engaged the span is cut on the fixed grid and the tune factor is
+         recomputed at each boundary, which is where the bench measured it. */
+      if (bendActive() && !spectraMode())
+      {
+        const int grid = bendGridSamples();
+        while (frame < until)
+        {
+          const uint32_t take = (uint32_t)std::min<int>(grid - bendAccum, (int)(until - frame));
+          renderSpan(outL, outR, frame, take);
+          frame += take;
+          bendAccum += (int)take;
+          if (bendAccum >= grid)
+          {
+            bendAccum = 0;
+            const double v = bendGlide.step(bendTarget, bendLaw);
+            if (v != pitchBend) { pitchBend = v; updateTuneAll(); }
+          }
+        }
+        continue;   // `frame` is already at `until`
+      }
       if (spectraMode())
         spectra.render(outL + frame, outR + frame, (int)(until - frame));
       else
-      {
-        const int n = (int)(until - frame);
-        core.render(outL + frame, outR + frame, n);
-        // Oscillator 0 renders STRAIGHT into the output, so its mute/solo gain
-        // and meter are applied in place afterwards rather than during a sum.
-        applyOscGainAndMeter(0, outL + frame, outR + frame, n, false);
-        // Oscillators 1..N-1 render into a FIXED STACK buffer, in chunks, and
-        // sum. At their default vol = 0 they add exact zeros, so a patch that
-        // never touches them is bit-identical to a one-oscillator build — which
-        // is what keeps the 147 parity goldens green.
-        //
-        // Stack, not a heap scratch. The first version sized a std::vector at
-        // activate() and skipped the oscillator when the buffer was too small;
-        // that made AUDIBLE OUTPUT conditional on activate() having run, so a
-        // restored instance silently lost oscillator 1 (state_check caught it:
-        // "restored instance renders bit-identical audio" went red). A chunk
-        // loop over a fixed buffer cannot allocate, cannot depend on block
-        // size, and cannot silently drop a voice.
-        for (uint32_t k = 1; k < kNumOsc; k++)
-        {
-          float tL[kMixChunk], tR[kMixChunk];
-          for (int off = 0; off < n; off += kMixChunk)
-          {
-            const int m = n - off < kMixChunk ? n - off : kMixChunk;
-            cores[k].render(tL, tR, m);
-            applyOscGainAndMeter(k, tL, tR, m, true);
-            for (int i = 0; i < m; i++)
-            {
-              outL[frame + off + i] += tL[i];
-              outR[frame + off + i] += tR[i];
-            }
-          }
-        }
-      }
+        renderSpan(outL, outR, frame, (uint32_t)(until - frame));
       frame = until;
     }
 
