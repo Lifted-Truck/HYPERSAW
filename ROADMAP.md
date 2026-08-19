@@ -8,6 +8,83 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## TONALITY ANSWERED, AND WE HAVE THEIR TIE-BREAK BUG — INDEPENDENTLY (2026-08-19)
+
+`HYPERSAW-002` answered and ratified (their `response-scale-interchange.md`, copy at
+`docs/proposals/tonality-002-response.md`; our reply is their PR #282, ball none). They did
+not say our reduction was wrong — they said `{root, mask}` **is** their scale identity, not a
+lossy summary of one, and that *"the mask is the truth, the name is UI"* and their cardinal
+separation are the same ruling. Four actions came back in priority order.
+
+### The finding that matters most: we shipped their bug, without their code
+
+They described defaulting ties to *"snap down"*, discovering it decided **every accidental**,
+and fixing it to `tie_break="previous"`. We checked ours after reading that.
+
+`glide_core.h`'s candidate loop is `if (d < bestD)` scanning upward from `floor(semis) − 12`.
+**Strictly-less-than means the first candidate encountered wins a tie, and the scan ascends —
+so every tie resolves downward.** Same default, same mechanism, arrived at independently.
+
+Their count reproduces exactly on our own masks, run rather than taken:
+
+```
+C major — out-of-scale pitch classes: [1, 3, 6, 8, 10]
+          of those, TIED:             [1, 3, 6, 8, 10]     ← all five
+```
+
+So this was never a corner case. **It is every accidental in the scale, decided flat, by loop
+order.** Their consumer found it by exhaustive count; ours would have found it by ear.
+
+**BLOCKED behind our own spec gate, deliberately.** The C++ is a *port*, parity-gated at 1e-6
+RMS against `docs/design/bend-lab.html` — and **the reference has the identical structure**.
+The port is faithful to a reference that is wrong. Changing the C++ alone breaks parity;
+changing both is a **spec change to a protected path**, which needs an ADR and a human ruling.
+Filed as that, not decided in passing. The refinement to implement is theirs and we would not
+have reached it: tie-break on the previous **emitted** pitch — deterministic and replayable,
+where our hysteresis is continuity-in-time and depends on wobble history.
+
+### Done same day
+
+**§5 — the struct now says 12-TET.** `Tet12ScaleState`. Their argument is the cost asymmetry: a
+rename today against something, in two years, reading a generality that was never there. Their
+Decision 6 keeps tuning behind a reduction boundary for exactly this reason. Neither project
+supports beyond 12-TET and neither is asking to; the ask was only that the name carry the
+assumption. `./verify full` green, parity 147/147 unchanged.
+
+### Queued, with a promise attached
+
+**§3 — the snap boundary is NOT the midpoint, and they computed it.** Under a versioned
+melodic-tendency prior (`melodic-tendency.1`, Krumhansl–Kessler stabilities) with Lerdahl
+attraction, the balance point solves `x = g·√s_A / (√s_A + √s_B)`. **Shift range 0.9–14.9
+cents.** Our hysteresis window, set by ear, is **8**. `ti→do` shifts 9.8 ¢, giving the leading
+tone a 40-cent basin against the tonic's 60 — musically what you would want, since ti is the
+degree that wants to resolve.
+
+They drew the line at what they could not know: *"we can give you the number; we cannot give
+you the audibility."* That is a listening test in our signal path, not a theory query. Queued
+as an A/B, pinned to `melodic-tendency.1` if it lands, midpoint fallback for hand-drawn masks
+(equal division being correct exactly where tonal weighting has nothing to say). **We committed
+to reporting the result either way, including "we could not hear it."**
+
+### Recorded before the chord layer exists
+
+**§4a — "degrees keep a chord in key" is right and hides a trap.** With twelve independent
+toggles a degree is an *index into the sorted admitted set*, so *1-3-5* is a major triad in
+major, a 6/9-ish stack in major pentatonic, and a quartal shape in blues. The layer will
+declare a **degree pattern**, accept that quality floats with the mask — that is what "in key"
+means — and **surface the resulting interval structure**, because a chord silently changing
+shape when a toggle moves is something a player should see rather than discover.
+
+**§4b — chromatic tones have no degree at all.** A ♭9 over a major mask is not a degree of it.
+Chord tones will be modelled as `(degree, alteration)`. And unequal cardinality is a pigeonhole
+**impossibility**, not an implementation gap: mapping degrees across masks of different size
+will error rather than guess.
+
+**§6 — if they ever fill our seam**, `{root, mask}` stays the payload, provenance is read at
+configure time and never on the audio thread, and anything richer is a **frozen table**
+generated offline. Their number: twelve toggles is 4096 masks, so any per-mask theory quantity
+is a 4096-row lookup — nanoseconds, no call.
+
 ## THE FX SLOT CONTRACT HAS A GATE, AND IT FOUND A DEFECT THE SURVEY MISSED (2026-08-19)
 
 The approved contract (2026-08-15, *"the rack owns dry/wet"*) gets its enforcement half first,
