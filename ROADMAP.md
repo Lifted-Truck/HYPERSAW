@@ -53,6 +53,35 @@ the morph lab starts from it rather than re-deriving it. The rule to test first 
 weight-proportional distribution, with the honest failure mode above measured rather than
 assumed.
 
+## THE NOTE LANE GETS ALL FIVE TRAVEL LAWS (2026-08-19)
+
+ADR-096. The bend law now replaces the glide logic in the OSC page's voice area, which is
+what the human could actually reach ("right now that's all I can access").
+
+**The merge, as ruled by the human** ("could we increase the bendTau range and then merge
+them?"): `bendTau` widened 1-400 -> 1-2000 ms, and the redundant pair collapsed. The survivor
+is **id 33**, not `bendTau`, and that inversion is the whole point —
+`docs/presets/serum-parity-reference.json` stores `"glide":0.89` in SECONDS, and retiring id 33
+in favour of a millisecond twin would read 0.89 as 0.89 ms: not slow portamento, no portamento.
+Widening `bendTau` is free (nothing has ever stored it; it shipped hours earlier). **A merge
+across two units is a migration, not a rename** — take the direction where the stored value
+never moves.
+
+**Shipped defaults reproduce the old sound exactly**: own-settings + lag + tau-from-id-33 IS
+what ADR-026 did. FOLLOW could not be the default, because `bendLaw` ships off and a following
+lane would travel instantly — deleting portamento from every patch that set glide.
+
+**The divergence, stated rather than buried:** travel moved from HERTZ to SEMITONES. Same
+one-pole, different domain; Hz-linear travel accelerates audibly at the bottom of a wide
+interval. `trajectory_check` measures "within 1c in 12 tau" — tau-relative, so it cannot see
+this; a tau-x10 plant WAS run and the gate went RED, which proves it covers the lane's timing
+and proves timing is all it covers. Parity is silent by construction (the reference has no
+glide; 156/156 unmoved, worst 4.262e-09). **Curve shape is a human ear ruling — NTR-3, open.**
+
+`shown_when` gained AND across comma-separated clauses; one key could not express
+`noteLawLink=0,noteLaw=3` without showing dead controls in one direction or the other. Same
+missing capability the chord layer needs for OR-across-keys.
+
 ## THE FX RACK OWNS DRY/WET — two pins retired, and a plant that was right to fail (2026-08-19)
 
 ADR-095, the rack-side half of the contract approved 2026-08-15. The **gate landed first**, so

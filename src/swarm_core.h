@@ -32,6 +32,7 @@
 #include <string>
 
 #include "force_core.h"
+#include "glide_core.h"
 
 namespace hypersaw
 {
@@ -112,6 +113,15 @@ struct Params
   // Pure superset — the poly/default path never sets a glide target, so all
   // reference expressions stay bit-untouched.
   double glide = 0;
+  // ADR-096 note travel: the five-law GlideCore replaces the hard-wired one-pole
+  // this site used to run inline. `tau` is NOT read from here -- it is overridden
+  // from `glide` above at the use site, because id 33 stays the single source of
+  // the note lag and already holds SECONDS in shipped presets.
+  hypersaw::GlideCore::Params noteLaw = [] {
+    hypersaw::GlideCore::Params q;
+    q.model = hypersaw::GlideCore::kLag;   // = what id 33 has always done
+    return q;
+  }();
   // Live tune factor (ADR-027): one multiplicative pitch for octave/semi/
   // cents/bend, applied to the fundamental at law evaluation so it bends
   // SOUNDING notes. Default 1.0 is bit-inert (x * 1.0 == x in IEEE754).
@@ -230,6 +240,7 @@ class SwarmCore
     int inAttack = 1;  // ADSR phase flag; unread on the reference-exact path
     int glideActive = 0;
     double glideTarget = 0;
+    hypersaw::GlideCore travel{2756.0, /*bendLane=*/false};
     double lpL = 0, lpR = 0, lpc = 1;
     double vlp[kMaxV] = {0}, vlpc[kMaxV];  // per-voice tone-tilt state (vlpc init 1 in ctor)
     double hg[kMaxV];                      // per-voice hi-tame gain (init 1 in ctor)
@@ -258,6 +269,10 @@ class SwarmCore
 
   explicit SwarmCore(double sampleRate) : sr(sampleRate)
   {
+    // One traveller per VOICE (poly glide, ADR-076, gives each its own flight).
+    // GlideCore fixes its control rate at construction, so re-rate them all here
+    // rather than reaching into cr: the member initialiser is only right at 44.1k.
+    for (auto &v : voices) v.travel = hypersaw::GlideCore(sampleRate / kTick, /*bendLane=*/false);
     {   // ADR-075 halfband: windowed sinc (Blackman), unity DC gain
       const int T = kHbTaps;
       const double m = (T - 1) * 0.5, cut = 0.235;
@@ -332,6 +347,7 @@ class SwarmCore
       s.f0cur = lastNoteF;
       s.glideTarget = f;
       s.glideActive = 1;
+      s.travel.reset(std::log2(s.f0) * 12.0);
     }
     lastNoteF = f;
     return slot;
@@ -363,6 +379,7 @@ class SwarmCore
     {
       s.glideTarget = f;
       s.glideActive = 1;
+      s.travel.reset(std::log2(s.f0) * 12.0);
     }
     else
     {
@@ -459,6 +476,12 @@ class SwarmCore
 
   // MPE per-note tuning (ADR-036): relative semitones from the host's
   // note-expression stream; 0 restores the exactly-inert 1.0 factor.
+  // ADR-096: the note lane's law arrives as a whole struct rather than through
+  // setParam's key map, for the same reason the bend law does in the shell — it
+  // is one law with nine coupled fields, and nine string keys could be set into
+  // an inconsistent half-state between them.
+  void setNoteLaw(const hypersaw::GlideCore::Params &e) { p.noteLaw = e; }
+
   void setNoteExpr(int slot, double semis)
   {
     if (slot < 0 || slot >= kPoly) return;
@@ -1234,9 +1257,15 @@ public:
     const double gCoefT = glideOn ? 1 - std::exp(-dt / p.freqGlide) : 0;
     if (s.glideActive)
     {
-      // seconds -> per-tick coefficient (ADR-009 discipline)
-      const double coef = 1 - std::exp(-dt / std::max(1e-3, p.glide));
-      const double newF0 = s.f0 + (s.glideTarget - s.f0) * coef;
+      // ADR-096: the five-law traveller, stepped in SEMITONES. This site ran a
+      // one-pole in HERTZ for ADR-026/076; the law is identical (glide_core.h:110
+      // is the same `x += (target-x)*(1-exp(-dt/tau))`) but the DOMAIN is not, and
+      // Hz-linear travel accelerates audibly at the bottom of a wide interval.
+      // Semitones is the domain the bench measured and the goldens were sliced in.
+      hypersaw::GlideCore::Params lp = p.noteLaw;
+      lp.tau = p.glide * 1000.0;   // id 33 is SECONDS; GlideCore.tau is MILLIseconds
+      const double newF0 =
+          std::exp2(s.travel.step(std::log2(s.glideTarget) * 12.0, lp) / 12.0);
       const double ratio = newF0 / s.f0;
       s.f0 = newF0;
       s.f0cur *= ratio;

@@ -1421,3 +1421,64 @@ that list is the queue, not a disclaimer.
 
 **Rejected:** filing WARP as engine #4. It would give the family a member that
 generates nothing, and would duplicate FX-C rather than fulfil it.
+
+## ADR-096 — The note lane travels by the same five laws as the bend lane (ACCEPTED)
+
+**Date:** 2026-08-19 · **Status:** ACCEPTED (human proposed the merge: "could we
+increase the bendTau range and then merge them?").
+
+### The problem
+
+Two controls held the same physical quantity. `glide` (id 33, ADR-026/076) was a
+lag time in SECONDS driving a hard-wired one-pole in HERTZ at `swarm_core.h:1238`;
+`bendTau` (id 109) was a lag time in MILLIseconds feeding `GlideCore::kLag`. The
+laws were identical — `glide_core.h:110` and the old site are the same
+`x += (target - x) * (1 - exp(-dt/tau))` — so the note lane had one law where the
+bend lane had five, and the human wanted all five on both.
+
+### The ruling
+
+The note lane runs `GlideCore`, the same struct the bend lane runs. Ids 137-145
+mirror the bend block field-for-field minus `retMul` (a note has no home pitch to
+spring back to — the same rule the bend block already states). `noteLawLink`
+selects own-settings or follow-the-bend-law; the shell resolves the link and
+pushes a finished struct, so no shell-only concept enters the DSP.
+
+### Why id 33 survived instead of being superseded
+
+The tempting move — mint `noteTau` in ms and retire id 33 — puts a silent 1000x
+between a shipped preset and its meaning: `docs/presets/serum-parity-reference.json`
+already stores `"glide":0.89`, and 0.89 read as milliseconds is not slow
+portamento, it is no portamento. Id 33 therefore keeps its id, its key, its
+SECONDS and its range, and the core converts at the use site. `bendTau` widened
+1-400 -> 1-2000 ms instead, which is free because nothing has ever stored it —
+it shipped hours earlier (bbdfd0c) and appears in no preset.
+
+**A merge between two units is a migration, not a rename.** The cheap direction
+is the one where the stored value never moves.
+
+### Why the defaults are own-settings + lag
+
+`noteLawLink` could not default to FOLLOW: `bendLaw` ships off (human ruling
+2026-08-19), so a following note lane would travel instantly and portamento would
+vanish from every patch that ever set glide. Own-settings + `noteLaw = lag` +
+tau-from-id-33 reproduces the pre-ADR-096 behaviour exactly. Sync is the option,
+not the base state.
+
+### The divergence, stated plainly
+
+Travel moved from the HERTZ domain to SEMITONES. The law is the same one-pole;
+the domain is not, and Hz-linear travel audibly accelerates at the bottom of a
+wide interval. **No gate can see this.** `trajectory_check`'s glide criterion is
+"within 1c in 12 tau" — tau-relative, so both domains pass it identically; a
+plant (tau x10) was run and the gate went RED, confirming it covers the lane's
+TIMING and confirming that timing is all it covers. Parity is silent by
+construction: the JS reference has no glide at all (156/156 unmoved, worst
+4.262e-09). Curve SHAPE is therefore a human ear ruling — filed as NTR-3.
+
+### Also landed
+
+`shown_when` gained AND across comma-separated clauses. One key could not express
+`noteLawLink=0,noteLaw=3`: gating on the link alone showed all seven law controls
+at once, gating on the law alone showed them while the lane was following. This
+is the same missing capability the chord layer will need for OR-across-keys.
