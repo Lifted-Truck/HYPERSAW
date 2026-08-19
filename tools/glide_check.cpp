@@ -51,7 +51,20 @@ static double targetAt(long i)
   return 0.5;
 }
 
-struct Scenario { const char *name; GlideCore::Params p; bool noteLane; };
+/* TIE-LANDING GESTURE — must mirror `tieTargetAt` in gen_glide_goldens.mjs.
+   The standard gesture settles at 0.5, which is equidistant from nothing, so the
+   tie path was entirely uncovered and two defects lived there unseen. */
+static double tieTargetAt(long i)
+{
+  const double t = i / kCR;
+  if (t < 0.10) return 0;
+  if (t < 0.60) return 1;
+  if (t < 1.10) return -1.5;
+  if (t < 1.60) return 2.5;
+  return 1;
+}
+
+struct Scenario { const char *name; GlideCore::Params p; bool noteLane; bool tieGesture; };
 
 // Params::scaleMask is a C array, so it cannot be brace-assigned after
 // construction; this keeps the scenario table reading like the JS one.
@@ -68,7 +81,7 @@ int main(int argc, char **argv)
 
   std::vector<Scenario> scen;
   auto add = [&](const char *n, GlideCore::Params p, bool note = false) {
-    scen.push_back({n, p, note});
+    scen.push_back({n, p, note, false});
   };
   { auto p = base; p.model = GlideCore::kConstTime;  add("glide-const-time", p); }
   { auto p = base; p.model = GlideCore::kConstRate;  add("glide-const-rate", p); }
@@ -94,6 +107,15 @@ int main(int argc, char **argv)
     p.scaleRoot = 7; p.qhyst = 20; setMask(p, {1,0,1,1,0,0,0,1,1,0,0,0});
     add("glide-quant-sparse", p); }
   { auto p = base; p.model = GlideCore::kSpring; add("glide-note-lane", p, true); }
+  /* TIES. model = kOff is load-bearing: under any moving law the output
+     approaches asymptotically and never lands exactly on a midpoint, so the tie
+     path is unreachable and the scenario cannot fail. With the law off
+     `x = target` bit-exactly — which is also the only way a real patch reaches a
+     tie. A first version used kConstTime and a planted regression sailed through. */
+  { auto p = base; p.model = GlideCore::kOff; p.quant = GlideCore::kQuantScale;
+    p.qhyst = 0; scen.push_back({"glide-tie-scale", p, false, true}); }
+  { auto p = base; p.model = GlideCore::kOff; p.quant = GlideCore::kQuantChromatic;
+    p.qhyst = 0; scen.push_back({"glide-tie-chrom", p, false, true}); }
 
   double worst = 0;
   for (const auto &s : scen)
@@ -110,7 +132,7 @@ int main(int argc, char **argv)
     double acc = 0;
     for (size_t i = 0; i < ref.size(); i++)
     {
-      const double got = g.step(targetAt((long)i), s.p);
+      const double got = g.step(s.tieGesture ? tieTargetAt((long)i) : targetAt((long)i), s.p);
       const double d = got - (double)ref[i];
       acc += d * d;
     }

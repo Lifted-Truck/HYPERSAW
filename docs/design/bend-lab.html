@@ -303,15 +303,42 @@ class Inertia {
     const q = p.quant | 0;
     if (!q) { this.q = this.x; return this.x; }
     const semis = base + this.x;                // ABSOLUTE pitch, not the offset
-    let best = Math.round(semis), bestD = Infinity;
-    if (q === 2 && p.scaleMask) {
-      // nearest allowed scale degree, searching a couple of octaves either way
-      const root = p.scaleRoot || 0;
-      for (let c = Math.floor(semis) - 12; c <= Math.ceil(semis) + 12; c++)
-        if (p.scaleMask[((c - root) % 12 + 12) % 12]) {
-          const d = Math.abs(c - semis);
-          if (d < bestD) { bestD = d; best = c; }
-        }
+    /* ONE CANDIDATE SEARCH FOR BOTH MODES. Chromatic is simply "every pitch
+       class admitted", so it runs the same loop with an all-ones mask instead of
+       a rounding function. That removes a divergence the goldens could never see:
+       chromatic used Math.round here and std::lround in the C++ port, and those
+       disagree on exact ties for NEGATIVE values — Math.round(-1.5) is -1
+       (half toward +inf) while lround(-1.5) is -2 (half away from zero). A full
+       semitone apart, in the shipped plugin, at any exact negative half-step.
+       No golden lands on a tie, so 1e-6 parity has been silent about it.
+
+       TIE-BREAK: toward the PREVIOUS EMITTED step (Tonality, HYPERSAW-002 §2).
+       Strict `<` plus an ascending scan meant the lower candidate simply arrived
+       first and won, so ties resolved downward by loop order rather than by any
+       decision. Tonality shipped that same default, measured that it decided
+       every accidental in their integer domain, and fixed it to resolve toward
+       the previous note's ALREADY-QUANTISED value: the output line is the melody
+       a listener hears, so continuity is owed to the output, not the input.
+       Hysteresis below is continuity-in-TIME and depends on wobble history; this
+       is deterministic and replayable, which is why both exist. */
+    const root = q === 2 ? (p.scaleRoot || 0) : 0;
+    const admitted = c => (q === 2 && p.scaleMask)
+      ? !!p.scaleMask[((c - root) % 12 + 12) % 12] : true;
+    let best = Math.round(semis), bestD = Infinity, tied = null;
+    for (let c = Math.floor(semis) - 12; c <= Math.ceil(semis) + 12; c++) {
+      if (!admitted(c)) continue;
+      const d = Math.abs(c - semis);
+      if (d < bestD) { bestD = d; best = c; tied = null; }
+      else if (d === bestD && c !== best) tied = c;
+    }
+    if (tied !== null) {
+      // Prefer whichever candidate the previous emitted step is nearer to. With
+      // nothing emitted yet there is no continuity to honour, so keep the lower
+      // — stated as a choice rather than left to loop order.
+      if (this.qStep !== undefined) {
+        const dPrev = Math.abs(best - this.qStep), dTied = Math.abs(tied - this.qStep);
+        if (dTied < dPrev) best = tied;
+      } else if (tied < best) best = tied;
     }
     // stick to the previous step until the new one wins by qh cents
     const hyst = Math.max(0, p.qhyst || 0) / 100;

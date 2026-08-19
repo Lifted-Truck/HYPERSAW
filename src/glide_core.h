@@ -152,18 +152,46 @@ class GlideCore
     const int qm = (int)p.quant;
     if (!qm) { q = x; return x; }
     const double semis = x;
+    /* ONE CANDIDATE SEARCH FOR BOTH MODES, mirroring the reference exactly.
+       Chromatic used std::lround here while the reference used Math.round, and
+       those disagree on exact ties for NEGATIVE values — lround(-1.5) = -2 (half
+       away from zero), Math.round(-1.5) = -1 (half toward +inf). A whole semitone
+       of divergence in the shipped plugin that 1e-6 parity could never see,
+       because no golden lands on a tie. Chromatic is now just "every pitch class
+       admitted" running the same loop, so there is no rounding function left to
+       disagree about.
+
+       TIE-BREAK: toward the PREVIOUS EMITTED step (Tonality, HYPERSAW-002 §2).
+       Strict `<` plus an ascending scan meant the lower candidate arrived first
+       and won, so ties resolved downward by loop order rather than by decision. */
     double bestD = 1e300;
     long best = (long)std::lround(semis);
-    if (qm == kQuantScale)
+    bool haveTie = false;
+    long tied = 0;
     {
-      const long root = (long)p.scaleRoot;
+      const long root = (qm == kQuantScale) ? (long)p.scaleRoot : 0;
       for (long c = (long)std::floor(semis) - 12; c <= (long)std::ceil(semis) + 12; c++)
       {
-        const int idx = (int)(((c - root) % 12 + 12) % 12);
-        if (!p.scaleMask[idx]) continue;
+        if (qm == kQuantScale)
+        {
+          const int idx = (int)(((c - root) % 12 + 12) % 12);
+          if (!p.scaleMask[idx]) continue;
+        }
         const double d = std::fabs((double)c - semis);
-        if (d < bestD) { bestD = d; best = c; }
+        if (d < bestD) { bestD = d; best = c; haveTie = false; }
+        else if (d == bestD && c != best) { haveTie = true; tied = c; }
       }
+    }
+    if (haveTie)
+    {
+      // Prefer whichever candidate the previous emitted step is nearer to. With
+      // nothing emitted yet there is no continuity to honour, so keep the lower —
+      // stated as a choice rather than left to loop order.
+      if (qArmed)
+      {
+        if (std::labs(tied - qStep) < std::labs(best - qStep)) best = tied;
+      }
+      else if (tied < best) best = tied;
     }
     // stick to the previous step until the challenger wins by qhyst cents
     const double hyst = std::max(0.0, p.qhyst) / 100.0;

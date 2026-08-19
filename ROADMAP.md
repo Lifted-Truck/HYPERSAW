@@ -8,6 +8,67 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## TIE-BREAK FIXED IN THE LAB, THEN THE PORT — AND IT FOUND A SECOND DEFECT (2026-08-19)
+
+Human: *"should we fix it in the lab and then in the C++?"* — yes, and the order is forced
+rather than preferred: `gen_glide_goldens.mjs` slices the reference **live**, so fixing the
+port first would break parity against a reference that still had the bug. ADR-093.
+
+**Asking about chromatic mode found a second, worse defect.** The question was whether the new
+tie rule should apply to `kQuantChromatic` too. Checking rather than assuming: chromatic never
+ran the candidate loop at all — the reference used `Math.round`, the port used `std::lround`,
+and **those disagree on negatives**. `Math.round(-1.5) = -1` (half toward +∞);
+`lround(-1.5) = -2` (half away from zero). A **full semitone** of divergence in the shipped
+plugin, at every exact negative half-step, in a project whose definition of correctness is
+1e-6 parity with that reference. My original framing — *"ties can't occur in chromatic"* — was
+simply wrong; they occur at every exact half-integer.
+
+Both are closed by one change: **chromatic is now "every pitch class admitted" running the same
+candidate loop**, so there is no rounding function left to disagree about. Defect closed by
+construction rather than by making two library behaviours match.
+
+**The tie rule itself is Tonality's:** prefer the candidate nearer the previous **emitted**
+step, because the output line is the melody a listener hears, so continuity is owed to the
+output rather than the input. Deterministic and replayable, where hysteresis is
+continuity-in-time and depends on wobble history — both kept, they do different jobs.
+
+### The coverage hole was the real finding
+
+The standing gesture settles at **0.5**, equidistant from nothing in C major. **The entire tie
+path was unrendered**, so 147/147 and `glide_check` had been silent about both defects for
+their whole existence. `L0031` verbatim: a reference oracle certifies agreement over the
+surface the reference RENDERS.
+
+Two scenarios added. **`model = kOff` is load-bearing in both** — under any moving law the
+output approaches asymptotically and never lands exactly on a midpoint, so a tie scenario using
+one is a test that cannot fail. **The first version used `kConstTime` and a planted regression
+sailed straight through it**, which is the only reason the hole was found rather than papered
+over; the plant is the only thing that distinguished "covered" from "looks covered".
+
+### Proof the gate fires
+
+| plant | result |
+|---|---|
+| remove the tie-break | **RED** — `glide-tie-scale` rms 1.1547, `glide-tie-chrom` rms 0.4564 |
+| chromatic back on `lround` | **RED** — same two scenarios |
+| restored | **GREEN** — both at rms **0** |
+
+`./verify full` EXIT=0, parity **147/147** unchanged, the five pre-existing glide goldens
+byte-identical.
+
+### Recorded, not fixed: the scenario list exists twice
+
+`gen_glide_goldens.mjs` and `glide_check.cpp` both carry the scenario table **and the gesture**.
+Adding scenarios to the generator alone produced goldens the C++ never read, and the check
+stayed green while covering nothing — it took a second plant to notice. The fix is for the
+check to read the generator's manifest rather than mirror its table; filed rather than done,
+because it is a different change from this one.
+
+**A testing gotcha worth keeping:** after restoring a planted header, `make` reported *"Built
+target"* without recompiling and the check reported the PLANTED result on clean source. A
+`touch` forced the rebuild. A stale binary reporting a stale verdict looks exactly like a real
+failure.
+
 ## TONALITY ANSWERED, AND WE HAVE THEIR TIE-BREAK BUG — INDEPENDENTLY (2026-08-19)
 
 `HYPERSAW-002` answered and ratified (their `response-scale-interchange.md`, copy at
