@@ -8,6 +8,53 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## OSC PAGE OWNS THE OSCILLATOR; GATED ROWS; DOUBLE-CLICK RESTORED (2026-08-18)
+
+Four human notes, all landed. Two of them turned out to be repairs rather than additions.
+
+**Dynamics · Envelope · Voice moved MAIN → OSC** (58 rows). MAIN keeps the osc selector, the
+XY and the viz; everything that shapes an oscillator now lives on the oscillator page. **The
+test-table gate caught the move** — three features changed page and their test rows did not
+follow, so `./verify` went red until the 12 rows were re-homed. Exactly what that gate is for.
+
+**All the pitch dials are in Voice, and they always could have been.** `octave`, `fineCents`,
+`pitchBend`, `glide` and `glideMode` were already declared in the **Voice** group — but a
+hand-written `Pitch` box on OSC claimed the same ids, and the generator skips ids a human
+already placed, so they could never generate into Voice. Removed the hand-written box; they
+generate into Voice now. The declaration was right the whole time; a hand-written panel was
+shadowing it.
+
+**Double-click to default already existed and had been silently dead for every generated
+control.** `gui2.html:497` has had a `dblclick` handler since before tonight — it read a
+hand-maintained `DEFAULTS` literal covering only the originally hand-placed controls, so for
+all 69 generated ones `def === undefined` and the handler **returned without doing
+anything**. Not a missing feature: a feature whose lookup table stopped being complete the
+moment generation existed.
+
+Fixed by reading the DOM's own default — `value=` in the markup **is** `defaultValue`, and
+the generator writes it from the shell's default, so the two cannot drift. Extending
+`DEFAULTS` would have been a second copy of a number CLAP also reports, the same mistake as
+retyping enum labels into the presentation table; `DEFAULTS` keeps its other job (standing in
+for `hzGetParams` in a browser) as the fallback, not the source. Verified on all three control
+kinds by spying the send path, because a restored-looking value proves nothing about whether
+the parameter moved: range · select · checkbox each restore **and write the default to the
+engine**.
+
+**Rows hide when the engine cannot read them.** New `shown_when` column, grammar
+`<base-key>=<value>[|<value>]`, carried into the markup as `data-when` and evaluated at
+runtime. **Every pair verified against the core's own topology branch** (`swarm_core.h`),
+never inferred from a name: `topo==0` reads `poles`, `topo==1` reads `reach`, and the `else`
+branch (two-cluster) reads `mu` and `balance`. Measured by driving topology through all three
+values — mean-field shows **poles** only, ring shows **reach** only, two-cluster shows **mu +
+balance**. Hidden rather than greyed: a disabled control still occupies the eye and still
+invites a click, while hidden says the true thing, which is that the parameter is not part of
+the patch in this mode.
+
+**A bug caught in my own new code before it shipped:** the empty-box rule targeted `.grp`, a
+class that stopped existing when generated groups were folded into `.cluster`. It matched
+nothing, so a fully-gated group would have left an empty titled box. Found by a DOM probe
+returning `grpCount: 0`.
+
 ## SPECTRA PARKED, TWIN PANELS REMOVED — AND THE TABLE HAD WARNED ABOUT BOTH (2026-08-18)
 
 Human: *"remove the spectra section; that isn't a part of the hypersaw engine at all and

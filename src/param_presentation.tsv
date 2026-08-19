@@ -22,6 +22,14 @@
 # patch-scope, ask gui_reach; it is the owner.
 #
 # `chunk` IS THE QUEUE, AND EMPTY MEANS NOT-YET-DESIGNED.
+#
+# `shown_when` HIDES A ROW THAT CANNOT AFFECT THE SOUND. Grammar:
+#   <base-key>=<value>[|<value>]   e.g. reach -> topo=1
+# A control for a parameter the engine does not read in the current mode is
+# not information, it is furniture that lies. Every entry here is VERIFIED
+# against the core's own branch (swarm_core.h topology switch), never
+# inferred from a name: topo==0 reads poles, topo==1 reads reach, and the
+# else branch (two-cluster) reads mu and balance.
 # A row renders only when its chunk is named. This exists because the first pass
 # generated a control for EVERY row at once to make gui_reach report 105/105 —
 # a number, not a design. It surfaced SPECTRA and the engine selector into a GUI
@@ -38,185 +46,185 @@
 # already reaches 102/105 params — so the starting data is what we ship, not a
 # guess. page=TODO and group=(ungrouped) are the honest gaps, and are counted by
 # presentation_check rather than hidden.
-address	scope	label	page	group	widget	unit	chunk
-osc1.n	osc1	Voices	OSC	The swarm	knob		the-swarm
-osc2.n	osc2	Voices	OSC	The swarm	knob		the-swarm
-osc1.dist	osc1	Distribution	OSC	The swarm	select		the-swarm
-osc2.dist	osc2	Distribution	OSC	The swarm	select		the-swarm
-osc1.seed	osc1	Seed	OSC	The swarm	knob		the-swarm
-osc2.seed	osc2	Seed	OSC	The swarm	knob		the-swarm
-osc1.detune	osc1	Detune	OSC	The swarm	knob		the-swarm
-osc2.detune	osc2	Detune	OSC	The swarm	knob		the-swarm
-osc1.law	osc1	Detune Law	OSC	The swarm	select		the-swarm
-osc2.law	osc2	Detune Law	OSC	The swarm	select		the-swarm
-osc1.K	osc1	Pull K	OSC	The coupling	knob		the-coupling
-osc2.K	osc2	Pull K	OSC	The coupling	knob		the-coupling
-osc1.onset	osc1	Onset Lock	OSC	The coupling	knob		the-coupling
-osc2.onset	osc2	Onset Lock	OSC	The coupling	knob		the-coupling
-osc1.dissolve	osc1	Dissolve (s)	OSC	The coupling	knob		the-coupling
-osc2.dissolve	osc2	Dissolve (s)	OSC	The coupling	knob		the-coupling
-osc1.driftDepth	osc1	Drift Depth (c)	OSC	Drift	knob		drift
-osc2.driftDepth	osc2	Drift Depth (c)	OSC	Drift	knob		drift
-osc1.driftRate	osc1	Drift Rate	OSC	Drift	knob		drift
-osc2.driftRate	osc2	Drift Rate	OSC	Drift	knob		drift
-inertia	global	Inertia	OSC	The coupling	knob		the-coupling
-osc1.rtone	osc1	R->Tone	MIX	Output & perception	knob		output-perception
-osc2.rtone	osc2	R->Tone	MIX	Output & perception	knob		output-perception
-osc1.normExp	osc1	Density Comp	MIX	Output & perception	knob		output-perception
-osc2.normExp	osc2	Density Comp	MIX	Output & perception	knob		output-perception
-osc1.width	osc1	Width	MIX	Mix	knob		mix
-osc2.width	osc2	Width	MIX	Mix	knob		mix
-mono	global	Mono Fold	MIX	Output & perception	toggle		output-perception
-osc1.digital	osc1	Digital	MIX	Output & perception	knob		output-perception
-osc2.digital	osc2	Digital	MIX	Output & perception	knob		output-perception
-osc1.vol	osc1	Volume	MIX	Mix	knob		mix
-osc2.vol	osc2	Volume	MIX	Mix	knob		mix
-osc1.retrig	osc1	Retrigger	OSC	The coupling	toggle		the-coupling
-osc2.retrig	osc2	Retrigger	OSC	The coupling	toggle		the-coupling
-osc1.attack	osc1	Attack (s)	MAIN	Envelope	knob		envelope
-osc2.attack	osc2	Attack (s)	MAIN	Envelope	knob		envelope
-osc1.decay	osc1	Decay (s)	MAIN	Envelope	knob		envelope
-osc2.decay	osc2	Decay (s)	MAIN	Envelope	knob		envelope
-osc1.sustain	osc1	Sustain	MAIN	Envelope	knob		envelope
-osc2.sustain	osc2	Sustain	MAIN	Envelope	knob		envelope
-osc1.release	osc1	Release (s)	MAIN	Envelope	knob		envelope
-osc2.release	osc2	Release (s)	MAIN	Envelope	knob		envelope
-osc1.beatMult	osc1	Grid Cycles/Beat	OSC	The swarm	select		the-swarm
-osc2.beatMult	osc2	Grid Cycles/Beat	OSC	The swarm	select		the-swarm
-osc1.topo	osc1	Topology	MAIN	Dynamics	select		dynamics
-osc2.topo	osc2	Topology	MAIN	Dynamics	select		dynamics
-osc1.reach	osc1	Ring Reach	MAIN	Dynamics	knob		dynamics
-osc2.reach	osc2	Ring Reach	MAIN	Dynamics	knob		dynamics
-osc1.mu	osc1	Cluster Link	MAIN	Dynamics	knob		dynamics
-osc2.mu	osc2	Cluster Link	MAIN	Dynamics	knob		dynamics
-osc1.alpha	osc1	Phase Lag	MAIN	Dynamics	knob		dynamics
-osc2.alpha	osc2	Phase Lag	MAIN	Dynamics	knob		dynamics
-osc1.poles	osc1	Poles q	MAIN	Dynamics	select		dynamics
-osc2.poles	osc2	Poles q	MAIN	Dynamics	select		dynamics
-osc1.grav	osc1	Gravity	MAIN	Dynamics	knob		dynamics
-osc2.grav	osc2	Gravity	MAIN	Dynamics	knob		dynamics
-osc1.basin	osc1	Basin (c)	MAIN	Dynamics	knob		dynamics
-osc2.basin	osc2	Basin (c)	MAIN	Dynamics	knob		dynamics
-osc1.absK	osc1	Absolute K	MAIN	Dynamics	toggle		dynamics
-osc2.absK	osc2	Absolute K	MAIN	Dynamics	toggle		dynamics
-voiceMono	global	Mono	MAIN	Voice	toggle		voice
-glide	global	Glide (s)	MAIN	Voice	knob		voice
-voiceLegato	global	Legato	MAIN	Voice	toggle		voice
-osc1.octave	osc1	Octave	MAIN	Voice	knob		voice
-osc2.octave	osc2	Octave	MAIN	Voice	knob		voice
-osc1.semi	osc1	Semitones	MAIN	Voice	knob		voice
-osc2.semi	osc2	Semitones	MAIN	Voice	knob		voice
-osc1.fineCents	osc1	Fine (c)	MAIN	Voice	knob		voice
-osc2.fineCents	osc2	Fine (c)	MAIN	Voice	knob		voice
-pitchBend	global	Pitch	MAIN	Voice	knob		voice
-osc1.scatter	osc1	Phase Scatter	OSC	The coupling	knob		the-coupling
-osc2.scatter	osc2	Phase Scatter	OSC	The coupling	knob		the-coupling
-bassMono	global	Bass Mono	MIX	Output & perception	toggle		output-perception
-bassMonoHz	global	Bass XOver (Hz)	MIX	Output & perception	knob		output-perception
-osc1.panScatter	osc1	Pan Scatter	MIX	Output & perception	knob		output-perception
-osc2.panScatter	osc2	Pan Scatter	MIX	Output & perception	knob		output-perception
-osc1.engine	osc1	Engine	OSC	The swarm	select		
-osc2.engine	osc2	Engine	OSC	The swarm	select		
-osc1.partials	osc1	Partials	OSC	Spectra	knob		
-osc2.partials	osc2	Partials	OSC	Spectra	knob		
-osc1.tilt	osc1	Amp Tilt	OSC	Spectra	knob		
-osc2.tilt	osc2	Amp Tilt	OSC	Spectra	knob		
-osc1.stretch	osc1	Stretch	OSC	Spectra	knob		
-osc2.stretch	osc2	Stretch	OSC	Spectra	knob		
-osc1.cloud	osc1	Cloud Voices	OSC	Spectra	knob		
-osc2.cloud	osc2	Cloud Voices	OSC	Spectra	knob		
-osc1.cwidth	osc1	Cloud Width	OSC	Spectra	knob		
-osc2.cwidth	osc2	Cloud Width	OSC	Spectra	knob		
-osc1.wtilt	osc1	Width Tilt	OSC	Spectra	knob		
-osc2.wtilt	osc2	Width Tilt	OSC	Spectra	knob		
-osc1.wlaw	osc1	Width Law	OSC	Spectra	select		
-osc2.wlaw	osc2	Width Law	OSC	Spectra	select		
-osc1.cascade	osc1	Cascade	OSC	Spectra	knob		
-osc2.cascade	osc2	Cascade	OSC	Spectra	knob		
-osc1.subOn	osc1	Sub Osc	OSC	Spectra	toggle		
-osc2.subOn	osc2	Sub Osc	OSC	Spectra	toggle		
-osc1.subVol	osc1	Sub Level	OSC	Spectra	knob		
-osc2.subVol	osc2	Sub Level	OSC	Spectra	knob		
-osc1.subWave	osc1	Sub Wave	OSC	Spectra	knob		
-osc2.subWave	osc2	Sub Wave	OSC	Spectra	knob		
-osc1.subOct	osc1	Sub Octave	OSC	Spectra	knob		
-osc2.subOct	osc2	Sub Octave	OSC	Spectra	knob		
-osc1.balance	osc1	A/B Balance	MAIN	Dynamics	knob		dynamics
-osc2.balance	osc2	A/B Balance	MAIN	Dynamics	knob		dynamics
-fx1type	global	FX1 Type	FX	FX rack	select		fx-rack
-fx1amt	global	FX1 Amount	FX	FX rack	knob		fx-rack
-fx2type	global	FX2 Type	FX	FX rack	select		fx-rack
-fx2amt	global	FX2 Amount	FX	FX rack	knob		fx-rack
-fx3type	global	FX3 Type	FX	FX rack	select		fx-rack
-fx3amt	global	FX3 Amount	FX	FX rack	knob		fx-rack
-fx4type	global	FX4 Type	FX	FX rack	select		fx-rack
-fx4amt	global	FX4 Amount	FX	FX rack	knob		fx-rack
-osc1.sAttack	osc1	S.Attack (s)	MAIN	Envelope	knob		envelope
-osc2.sAttack	osc2	S.Attack (s)	MAIN	Envelope	knob		envelope
-osc1.sDecay	osc1	S.Decay (s)	MAIN	Envelope	knob		envelope
-osc2.sDecay	osc2	S.Decay (s)	MAIN	Envelope	knob		envelope
-osc1.sSustain	osc1	S.Sustain	MAIN	Envelope	knob		envelope
-osc2.sSustain	osc2	S.Sustain	MAIN	Envelope	knob		envelope
-osc1.sRelease	osc1	S.Release (s)	MAIN	Envelope	knob		envelope
-osc2.sRelease	osc2	S.Release (s)	MAIN	Envelope	knob		envelope
-osc1.shape	osc1	Saw Shape	OSC	The swarm	knob		the-swarm
-osc2.shape	osc2	Saw Shape	OSC	The swarm	knob		the-swarm
-osc1.toneTilt	osc1	Tone Tilt	MIX	Output & perception	knob		output-perception
-osc2.toneTilt	osc2	Tone Tilt	MIX	Output & perception	knob		output-perception
-osc1.hiTame	osc1	Hi Tame	MIX	Output & perception	knob		output-perception
-osc2.hiTame	osc2	Hi Tame	MIX	Output & perception	knob		output-perception
-osc1.driftMode	osc1	Drift Mode	OSC	Drift	select		drift
-osc2.driftMode	osc2	Drift Mode	OSC	Drift	select		drift
-osc1.keepPhase	osc1	Keep Phase	OSC	Drift	toggle		drift
-osc2.keepPhase	osc2	Keep Phase	OSC	Drift	toggle		drift
-freqGlide	global	Freq Glide (s)	OSC	Drift	knob		drift
-osc1.panMotion	osc1	Pan Motion	MIX	Output & perception	knob		output-perception
-osc2.panMotion	osc2	Pan Motion	MIX	Output & perception	knob		output-perception
-osc1.panMode	osc1	Pan Motion Mode	MIX	Output & perception	select		output-perception
-osc2.panMode	osc2	Pan Motion Mode	MIX	Output & perception	select		output-perception
-osc1.motionCenter	osc1	Centre Pin	OSC	Drift	knob		drift
-osc2.motionCenter	osc2	Centre Pin	OSC	Drift	knob		drift
-osc1.harmReach	osc1	Harmonic Reach	OSC	The swarm	knob		the-swarm
-osc2.harmReach	osc2	Harmonic Reach	OSC	The swarm	knob		the-swarm
-osc1.stretchB	osc1	Stretch B	OSC	The swarm	knob		the-swarm
-osc2.stretchB	osc2	Stretch B	OSC	The swarm	knob		the-swarm
-osc1.spread	osc1	Octave Spread	OSC	The swarm	knob		the-swarm
-osc2.spread	osc2	Octave Spread	OSC	The swarm	knob		the-swarm
-osc1.anchor	osc1	Root Anchor	OSC	The swarm	knob		the-swarm
-osc2.anchor	osc2	Root Anchor	OSC	The swarm	knob		the-swarm
-osc1.pivotMode	osc1	Pivot	MAIN	Dynamics	select		dynamics
-osc2.pivotMode	osc2	Pivot	MAIN	Dynamics	select		dynamics
-osc1.panLayout	osc1	Pan Image	MIX	Output & perception	select		output-perception
-osc2.panLayout	osc2	Pan Image	MIX	Output & perception	select		output-perception
-osc1.panCurve	osc1	Fan Curve	MIX	Output & perception	knob		output-perception
-osc2.panCurve	osc2	Fan Curve	MIX	Output & perception	knob		output-perception
-osc1.panInvert	osc1	Fan Invert	MIX	Output & perception	toggle		output-perception
-osc2.panInvert	osc2	Fan Invert	MIX	Output & perception	toggle		output-perception
-osc1.superMode	osc1	Super-Width Mode	MIX	Output & perception	select		output-perception
-osc2.superMode	osc2	Super-Width Mode	MIX	Output & perception	select		output-perception
-oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception
-polyGlide	global	Poly Glide	MAIN	Voice	toggle		voice
-glideMode	global	Glide From	MAIN	Voice	select		voice
-osc1.onsetScatter	osc1	Onset Scatter (ms)	MAIN	Envelope	knob		envelope
-osc2.onsetScatter	osc2	Onset Scatter (ms)	MAIN	Envelope	knob		envelope
-osc1.onsetAlpha	osc1	Timing Correction	MAIN	Envelope	knob		envelope
-osc2.onsetAlpha	osc2	Timing Correction	MAIN	Envelope	knob		envelope
-osc1.attackScatter	osc1	Attack Scatter	MAIN	Envelope	knob		envelope
-osc2.attackScatter	osc2	Attack Scatter	MAIN	Envelope	knob		envelope
-osc1.voiceEnv	osc1	Per-Partial Env	MAIN	Envelope	toggle		envelope
-osc2.voiceEnv	osc2	Per-Partial Env	MAIN	Envelope	toggle		envelope
-osc1.relScatter	osc1	Release Scatter	MAIN	Envelope	knob		envelope
-osc2.relScatter	osc2	Release Scatter	MAIN	Envelope	knob		envelope
-fx1tone	global	FX1 Tone	FX	FX rack	knob		fx-rack
-fx2tone	global	FX2 Tone	FX	FX rack	knob		fx-rack
-fx3tone	global	FX3 Tone	FX	FX rack	knob		fx-rack
-fx4tone	global	FX4 Tone	FX	FX rack	knob		fx-rack
-inertiaCurve	global	Inertia Curve (dev)	OSC	The coupling	knob		the-coupling
-masterVol	global	Master Volume	MIX	Mix	knob		mix
-gSemi	global	Pitch	MIX	Mix	knob		mix
-gFine	global	Fine	MIX	Mix	knob		mix
-gOct	global	Master Octave	MIX	(ungrouped)	knob		ungrouped
-osc1.oscMute	osc1	Mute	MIX	(ungrouped)	select		ungrouped
-osc2.oscMute	osc2	Mute	MIX	(ungrouped)	select		ungrouped
-osc1.oscSolo	osc1	Solo	MIX	(ungrouped)	select		ungrouped
-osc2.oscSolo	osc2	Solo	MIX	(ungrouped)	select		ungrouped
+address	scope	label	page	group	widget	unit	chunk	shown_when
+osc1.n	osc1	Voices	OSC	The swarm	knob		the-swarm	
+osc2.n	osc2	Voices	OSC	The swarm	knob		the-swarm	
+osc1.dist	osc1	Distribution	OSC	The swarm	select		the-swarm	
+osc2.dist	osc2	Distribution	OSC	The swarm	select		the-swarm	
+osc1.seed	osc1	Seed	OSC	The swarm	knob		the-swarm	
+osc2.seed	osc2	Seed	OSC	The swarm	knob		the-swarm	
+osc1.detune	osc1	Detune	OSC	The swarm	knob		the-swarm	
+osc2.detune	osc2	Detune	OSC	The swarm	knob		the-swarm	
+osc1.law	osc1	Detune Law	OSC	The swarm	select		the-swarm	
+osc2.law	osc2	Detune Law	OSC	The swarm	select		the-swarm	
+osc1.K	osc1	Pull K	OSC	The coupling	knob		the-coupling	
+osc2.K	osc2	Pull K	OSC	The coupling	knob		the-coupling	
+osc1.onset	osc1	Onset Lock	OSC	The coupling	knob		the-coupling	
+osc2.onset	osc2	Onset Lock	OSC	The coupling	knob		the-coupling	
+osc1.dissolve	osc1	Dissolve (s)	OSC	The coupling	knob		the-coupling	
+osc2.dissolve	osc2	Dissolve (s)	OSC	The coupling	knob		the-coupling	
+osc1.driftDepth	osc1	Drift Depth (c)	OSC	Drift	knob		drift	
+osc2.driftDepth	osc2	Drift Depth (c)	OSC	Drift	knob		drift	
+osc1.driftRate	osc1	Drift Rate	OSC	Drift	knob		drift	
+osc2.driftRate	osc2	Drift Rate	OSC	Drift	knob		drift	
+inertia	global	Inertia	OSC	The coupling	knob		the-coupling	
+osc1.rtone	osc1	R->Tone	MIX	Output & perception	knob		output-perception	
+osc2.rtone	osc2	R->Tone	MIX	Output & perception	knob		output-perception	
+osc1.normExp	osc1	Density Comp	MIX	Output & perception	knob		output-perception	
+osc2.normExp	osc2	Density Comp	MIX	Output & perception	knob		output-perception	
+osc1.width	osc1	Width	MIX	Mix	knob		mix	
+osc2.width	osc2	Width	MIX	Mix	knob		mix	
+mono	global	Mono Fold	MIX	Output & perception	toggle		output-perception	
+osc1.digital	osc1	Digital	MIX	Output & perception	knob		output-perception	
+osc2.digital	osc2	Digital	MIX	Output & perception	knob		output-perception	
+osc1.vol	osc1	Volume	MIX	Mix	knob		mix	
+osc2.vol	osc2	Volume	MIX	Mix	knob		mix	
+osc1.retrig	osc1	Retrigger	OSC	The coupling	toggle		the-coupling	
+osc2.retrig	osc2	Retrigger	OSC	The coupling	toggle		the-coupling	
+osc1.attack	osc1	Attack (s)	OSC	Envelope	knob		envelope	
+osc2.attack	osc2	Attack (s)	OSC	Envelope	knob		envelope	
+osc1.decay	osc1	Decay (s)	OSC	Envelope	knob		envelope	
+osc2.decay	osc2	Decay (s)	OSC	Envelope	knob		envelope	
+osc1.sustain	osc1	Sustain	OSC	Envelope	knob		envelope	
+osc2.sustain	osc2	Sustain	OSC	Envelope	knob		envelope	
+osc1.release	osc1	Release (s)	OSC	Envelope	knob		envelope	
+osc2.release	osc2	Release (s)	OSC	Envelope	knob		envelope	
+osc1.beatMult	osc1	Grid Cycles/Beat	OSC	The swarm	select		the-swarm	
+osc2.beatMult	osc2	Grid Cycles/Beat	OSC	The swarm	select		the-swarm	
+osc1.topo	osc1	Topology	OSC	Dynamics	select		dynamics	
+osc2.topo	osc2	Topology	OSC	Dynamics	select		dynamics	
+osc1.reach	osc1	Ring Reach	OSC	Dynamics	knob		dynamics	topo=1
+osc2.reach	osc2	Ring Reach	OSC	Dynamics	knob		dynamics	topo=1
+osc1.mu	osc1	Cluster Link	OSC	Dynamics	knob		dynamics	topo=2
+osc2.mu	osc2	Cluster Link	OSC	Dynamics	knob		dynamics	topo=2
+osc1.alpha	osc1	Phase Lag	OSC	Dynamics	knob		dynamics	
+osc2.alpha	osc2	Phase Lag	OSC	Dynamics	knob		dynamics	
+osc1.poles	osc1	Poles q	OSC	Dynamics	select		dynamics	topo=0
+osc2.poles	osc2	Poles q	OSC	Dynamics	select		dynamics	topo=0
+osc1.grav	osc1	Gravity	OSC	Dynamics	knob		dynamics	
+osc2.grav	osc2	Gravity	OSC	Dynamics	knob		dynamics	
+osc1.basin	osc1	Basin (c)	OSC	Dynamics	knob		dynamics	
+osc2.basin	osc2	Basin (c)	OSC	Dynamics	knob		dynamics	
+osc1.absK	osc1	Absolute K	OSC	Dynamics	toggle		dynamics	
+osc2.absK	osc2	Absolute K	OSC	Dynamics	toggle		dynamics	
+voiceMono	global	Mono	OSC	Voice	toggle		voice	
+glide	global	Glide (s)	OSC	Voice	knob		voice	
+voiceLegato	global	Legato	OSC	Voice	toggle		voice	
+osc1.octave	osc1	Octave	OSC	Voice	knob		voice	
+osc2.octave	osc2	Octave	OSC	Voice	knob		voice	
+osc1.semi	osc1	Semitones	OSC	Voice	knob		voice	
+osc2.semi	osc2	Semitones	OSC	Voice	knob		voice	
+osc1.fineCents	osc1	Fine (c)	OSC	Voice	knob		voice	
+osc2.fineCents	osc2	Fine (c)	OSC	Voice	knob		voice	
+pitchBend	global	Pitch	OSC	Voice	knob		voice	
+osc1.scatter	osc1	Phase Scatter	OSC	The coupling	knob		the-coupling	
+osc2.scatter	osc2	Phase Scatter	OSC	The coupling	knob		the-coupling	
+bassMono	global	Bass Mono	MIX	Output & perception	toggle		output-perception	
+bassMonoHz	global	Bass XOver (Hz)	MIX	Output & perception	knob		output-perception	
+osc1.panScatter	osc1	Pan Scatter	MIX	Output & perception	knob		output-perception	
+osc2.panScatter	osc2	Pan Scatter	MIX	Output & perception	knob		output-perception	
+osc1.engine	osc1	Engine	OSC	The swarm	select			
+osc2.engine	osc2	Engine	OSC	The swarm	select			
+osc1.partials	osc1	Partials	OSC	Spectra	knob			
+osc2.partials	osc2	Partials	OSC	Spectra	knob			
+osc1.tilt	osc1	Amp Tilt	OSC	Spectra	knob			
+osc2.tilt	osc2	Amp Tilt	OSC	Spectra	knob			
+osc1.stretch	osc1	Stretch	OSC	Spectra	knob			
+osc2.stretch	osc2	Stretch	OSC	Spectra	knob			
+osc1.cloud	osc1	Cloud Voices	OSC	Spectra	knob			
+osc2.cloud	osc2	Cloud Voices	OSC	Spectra	knob			
+osc1.cwidth	osc1	Cloud Width	OSC	Spectra	knob			
+osc2.cwidth	osc2	Cloud Width	OSC	Spectra	knob			
+osc1.wtilt	osc1	Width Tilt	OSC	Spectra	knob			
+osc2.wtilt	osc2	Width Tilt	OSC	Spectra	knob			
+osc1.wlaw	osc1	Width Law	OSC	Spectra	select			
+osc2.wlaw	osc2	Width Law	OSC	Spectra	select			
+osc1.cascade	osc1	Cascade	OSC	Spectra	knob			
+osc2.cascade	osc2	Cascade	OSC	Spectra	knob			
+osc1.subOn	osc1	Sub Osc	OSC	Spectra	toggle			
+osc2.subOn	osc2	Sub Osc	OSC	Spectra	toggle			
+osc1.subVol	osc1	Sub Level	OSC	Spectra	knob			
+osc2.subVol	osc2	Sub Level	OSC	Spectra	knob			
+osc1.subWave	osc1	Sub Wave	OSC	Spectra	knob			
+osc2.subWave	osc2	Sub Wave	OSC	Spectra	knob			
+osc1.subOct	osc1	Sub Octave	OSC	Spectra	knob			
+osc2.subOct	osc2	Sub Octave	OSC	Spectra	knob			
+osc1.balance	osc1	A/B Balance	OSC	Dynamics	knob		dynamics	topo=2
+osc2.balance	osc2	A/B Balance	OSC	Dynamics	knob		dynamics	topo=2
+fx1type	global	FX1 Type	FX	FX rack	select		fx-rack	
+fx1amt	global	FX1 Amount	FX	FX rack	knob		fx-rack	
+fx2type	global	FX2 Type	FX	FX rack	select		fx-rack	
+fx2amt	global	FX2 Amount	FX	FX rack	knob		fx-rack	
+fx3type	global	FX3 Type	FX	FX rack	select		fx-rack	
+fx3amt	global	FX3 Amount	FX	FX rack	knob		fx-rack	
+fx4type	global	FX4 Type	FX	FX rack	select		fx-rack	
+fx4amt	global	FX4 Amount	FX	FX rack	knob		fx-rack	
+osc1.sAttack	osc1	S.Attack (s)	OSC	Envelope	knob		envelope	
+osc2.sAttack	osc2	S.Attack (s)	OSC	Envelope	knob		envelope	
+osc1.sDecay	osc1	S.Decay (s)	OSC	Envelope	knob		envelope	
+osc2.sDecay	osc2	S.Decay (s)	OSC	Envelope	knob		envelope	
+osc1.sSustain	osc1	S.Sustain	OSC	Envelope	knob		envelope	
+osc2.sSustain	osc2	S.Sustain	OSC	Envelope	knob		envelope	
+osc1.sRelease	osc1	S.Release (s)	OSC	Envelope	knob		envelope	
+osc2.sRelease	osc2	S.Release (s)	OSC	Envelope	knob		envelope	
+osc1.shape	osc1	Saw Shape	OSC	The swarm	knob		the-swarm	
+osc2.shape	osc2	Saw Shape	OSC	The swarm	knob		the-swarm	
+osc1.toneTilt	osc1	Tone Tilt	MIX	Output & perception	knob		output-perception	
+osc2.toneTilt	osc2	Tone Tilt	MIX	Output & perception	knob		output-perception	
+osc1.hiTame	osc1	Hi Tame	MIX	Output & perception	knob		output-perception	
+osc2.hiTame	osc2	Hi Tame	MIX	Output & perception	knob		output-perception	
+osc1.driftMode	osc1	Drift Mode	OSC	Drift	select		drift	
+osc2.driftMode	osc2	Drift Mode	OSC	Drift	select		drift	
+osc1.keepPhase	osc1	Keep Phase	OSC	Drift	toggle		drift	
+osc2.keepPhase	osc2	Keep Phase	OSC	Drift	toggle		drift	
+freqGlide	global	Freq Glide (s)	OSC	Drift	knob		drift	
+osc1.panMotion	osc1	Pan Motion	MIX	Output & perception	knob		output-perception	
+osc2.panMotion	osc2	Pan Motion	MIX	Output & perception	knob		output-perception	
+osc1.panMode	osc1	Pan Motion Mode	MIX	Output & perception	select		output-perception	
+osc2.panMode	osc2	Pan Motion Mode	MIX	Output & perception	select		output-perception	
+osc1.motionCenter	osc1	Centre Pin	OSC	Drift	knob		drift	
+osc2.motionCenter	osc2	Centre Pin	OSC	Drift	knob		drift	
+osc1.harmReach	osc1	Harmonic Reach	OSC	The swarm	knob		the-swarm	
+osc2.harmReach	osc2	Harmonic Reach	OSC	The swarm	knob		the-swarm	
+osc1.stretchB	osc1	Stretch B	OSC	The swarm	knob		the-swarm	
+osc2.stretchB	osc2	Stretch B	OSC	The swarm	knob		the-swarm	
+osc1.spread	osc1	Octave Spread	OSC	The swarm	knob		the-swarm	
+osc2.spread	osc2	Octave Spread	OSC	The swarm	knob		the-swarm	
+osc1.anchor	osc1	Root Anchor	OSC	The swarm	knob		the-swarm	
+osc2.anchor	osc2	Root Anchor	OSC	The swarm	knob		the-swarm	
+osc1.pivotMode	osc1	Pivot	OSC	Dynamics	select		dynamics	
+osc2.pivotMode	osc2	Pivot	OSC	Dynamics	select		dynamics	
+osc1.panLayout	osc1	Pan Image	MIX	Output & perception	select		output-perception	
+osc2.panLayout	osc2	Pan Image	MIX	Output & perception	select		output-perception	
+osc1.panCurve	osc1	Fan Curve	MIX	Output & perception	knob		output-perception	
+osc2.panCurve	osc2	Fan Curve	MIX	Output & perception	knob		output-perception	
+osc1.panInvert	osc1	Fan Invert	MIX	Output & perception	toggle		output-perception	
+osc2.panInvert	osc2	Fan Invert	MIX	Output & perception	toggle		output-perception	
+osc1.superMode	osc1	Super-Width Mode	MIX	Output & perception	select		output-perception	
+osc2.superMode	osc2	Super-Width Mode	MIX	Output & perception	select		output-perception	
+oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception	
+polyGlide	global	Poly Glide	OSC	Voice	toggle		voice	
+glideMode	global	Glide From	OSC	Voice	select		voice	
+osc1.onsetScatter	osc1	Onset Scatter (ms)	OSC	Envelope	knob		envelope	
+osc2.onsetScatter	osc2	Onset Scatter (ms)	OSC	Envelope	knob		envelope	
+osc1.onsetAlpha	osc1	Timing Correction	OSC	Envelope	knob		envelope	
+osc2.onsetAlpha	osc2	Timing Correction	OSC	Envelope	knob		envelope	
+osc1.attackScatter	osc1	Attack Scatter	OSC	Envelope	knob		envelope	
+osc2.attackScatter	osc2	Attack Scatter	OSC	Envelope	knob		envelope	
+osc1.voiceEnv	osc1	Per-Partial Env	OSC	Envelope	toggle		envelope	
+osc2.voiceEnv	osc2	Per-Partial Env	OSC	Envelope	toggle		envelope	
+osc1.relScatter	osc1	Release Scatter	OSC	Envelope	knob		envelope	
+osc2.relScatter	osc2	Release Scatter	OSC	Envelope	knob		envelope	
+fx1tone	global	FX1 Tone	FX	FX rack	knob		fx-rack	
+fx2tone	global	FX2 Tone	FX	FX rack	knob		fx-rack	
+fx3tone	global	FX3 Tone	FX	FX rack	knob		fx-rack	
+fx4tone	global	FX4 Tone	FX	FX rack	knob		fx-rack	
+inertiaCurve	global	Inertia Curve (dev)	OSC	The coupling	knob		the-coupling	
+masterVol	global	Master Volume	MIX	Mix	knob		mix	
+gSemi	global	Pitch	MIX	Mix	knob		mix	
+gFine	global	Fine	MIX	Mix	knob		mix	
+gOct	global	Master Octave	MIX	(ungrouped)	knob		ungrouped	
+osc1.oscMute	osc1	Mute	MIX	(ungrouped)	select		ungrouped	
+osc2.oscMute	osc2	Mute	MIX	(ungrouped)	select		ungrouped	
+osc1.oscSolo	osc1	Solo	MIX	(ungrouped)	select		ungrouped	
+osc2.oscSolo	osc2	Solo	MIX	(ungrouped)	select		ungrouped	

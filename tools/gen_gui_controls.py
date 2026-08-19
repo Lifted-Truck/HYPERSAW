@@ -137,7 +137,8 @@ def main():
         # duplicated panel, and a SPECTRA surface nobody asked for.
         if len(r) < 8 or not r[7].strip():
             continue
-        per_page.setdefault(page, {}).setdefault(group, []).append((addr, scope, label, widget, unit, p))
+        when = r[8].strip() if len(r) > 8 else ""
+        per_page.setdefault(page, {}).setdefault(group, []).append((addr, scope, label, widget, unit, p, when))
 
     total = 0
     # ITERATE THE MARKERS IN THE FILE, not the pages we have content for. Looping
@@ -159,7 +160,7 @@ def main():
             # must agree forever; emitting `.cluster` means there is only one box
             # in this file and generated content cannot drift away from it.
             out.append(f'  <div class="cluster"><h2>{group}</h2>')
-            for addr, scope, label, widget, unit, p in sorted(items, key=lambda x: x[5]["id"]):
+            for addr, scope, label, widget, unit, p, when in sorted(items, key=lambda x: x[5]["id"]):
                 df = ' data-fixed="1"' if p["id"] in fixed else ""
                 step = "1" if p["stepped"] else "0.005"
                 sfx = "" if scope == "global" else f' <span class="sc">{scope}</span>'
@@ -191,8 +192,13 @@ def main():
                     ctrl = (f'<input type="range" data-p="{p["id"]}"{df}'
                             f' min="{p["min"]:g}" max="{p["max"]:g}"'
                             f' step="{step}" value="{p["default"]:g}">')
+                # data-when carries the GATING declaration to the runtime: the base
+                # key of the controlling param and the values under which this row
+                # has any effect. A control the engine cannot read in the current
+                # mode is furniture that lies, so it is hidden rather than greyed.
+                dw = f' data-when="{when}"' if when else ""
                 out.append(
-                    f'    <div class="row" data-addr="{addr}"><label>{label}{sfx}{u}</label>'
+                    f'    <div class="row" data-addr="{addr}"{dw}><label>{label}{sfx}{u}</label>'
                     f'{ctrl}<output></output></div>')
                 total += 1
             out.append("  </div>")
