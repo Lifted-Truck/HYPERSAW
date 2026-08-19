@@ -8,6 +8,45 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## GLIDE CORE IS IN THE AUDIO PATH, AND PROVABLY DOES NOTHING YET (2026-08-19)
+
+Human ruling: *"we can say bend inertia defaults to off."* Placement (A) from
+`docs/proposals/glide-fold-placement.md`, merged as PR #342.
+
+**What landed.** `glide_core.h` is included by the shell, `pitchBend` (id 38) is now a
+**target** rather than a value, and the render advances the glide on a fixed time grid.
+
+**The grid is ADR-086 Amendment 1's construction, reused rather than re-derived.**
+`kBendGridSeconds = 16.0 / 44100.0`, `lround(sampleRate * kBendGridSeconds)` — chosen so the
+grid is **exactly 16 samples at 44.1 kHz**, which is the rate `bend-lab.html` was benched at
+and therefore the rate `glide_check`'s goldens encode. Any other value would have silently
+invalidated them. The amendment exists because the first version of that idea was a fixed
+sample count — a duration that shrank as the rate rose — so this is a lesson already paid for
+once and not paid for again.
+
+**The parity claim is by construction, not by measurement.** Subdividing is **conditional**:
+`bendActive()` is false while the law is `kOff`, so the render takes exactly the span it always
+took and cannot move a sample of existing output. `kOff` in the core is `x = target; vel = 0;
+y = target` — a clean pass-through — so the param write stays the instant write it has always
+been. Measurement then agrees, which is the right order: **parity 147/147** (worst 4.262e-09,
+unchanged), `subdiv_check` · `samplerate_check` · `state_check` · `routing_check` ·
+`waveshape_check` · `trajectory_check` all GREEN, and `glide_check` GREEN at worst parity RMS
+3.51e-08.
+
+**The default is `kOff`, and that is a ruling, not an oversight.** The core calls `kConstRate`
+its *"ratified default: keeps 93% of wheel vibrato"* — but that is the **bench's** default for
+auditioning. Shipping it would change how every existing patch bends. The plugin ships `kOff`,
+matching the precedent that oscillators above the first default to silent: *a default must not
+rewrite a sound that already exists.*
+
+**One extraction, deliberately.** The oscillator mix span moved into `renderSpan()` so the grid
+can cut a block into pieces without a second copy of the mix logic. Two copies of a mix stage is
+how they disagree — the same reason the GUI derives its controls instead of hand-placing them.
+
+**What this is NOT.** No law is reachable: the law parameters do not exist yet, so `bendActive()`
+is false everywhere and the feature is wired, inert and unshippable-as-a-feature by design.
+Next: the law params from id 106, then the scale globals, then the section and its two graphs.
+
 ## GLOBAL SCALE SURFACE — the ruling already exists, and it decides the param shape (2026-08-19)
 
 Human: *"set up the optional global scale selector and wire it in to the quantize to scale
