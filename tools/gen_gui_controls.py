@@ -138,7 +138,8 @@ def main():
         if len(r) < 8 or not r[7].strip():
             continue
         when = r[8].strip() if len(r) > 8 else ""
-        per_page.setdefault(page, {}).setdefault(group, []).append((addr, scope, label, widget, unit, p, when))
+        scale = r[9].strip() if len(r) > 9 else ""
+        per_page.setdefault(page, {}).setdefault(group, []).append((addr, scope, label, widget, unit, p, when, scale))
 
     total = 0
     # ITERATE THE MARKERS IN THE FILE, not the pages we have content for. Looping
@@ -159,8 +160,17 @@ def main():
             # design. Styling `.grp` to match would have created two rules that
             # must agree forever; emitting `.cluster` means there is only one box
             # in this file and generated content cannot drift away from it.
+            # A group may declare a VISUAL. Kept as a small map here rather than a
+            # table column because it names a DRAW FUNCTION in the GUI, not a fact
+            # about the parameter — presentation code, not presentation data. The
+            # canvas is emitted inside the generated cluster so the picture sits
+            # with the controls that change it.
+            VISUALS = {"Envelope": "envelope", "Onset & scatter": "scatter"}
+            viz = VISUALS.get(group)
             out.append(f'  <div class="cluster"><h2>{group}</h2>')
-            for addr, scope, label, widget, unit, p, when in sorted(items, key=lambda x: x[5]["id"]):
+            if viz:
+                out.append(f'    <canvas class="gviz" data-viz="{viz}" width="260" height="72"></canvas>')
+            for addr, scope, label, widget, unit, p, when, scale in sorted(items, key=lambda x: x[5]["id"]):
                 df = ' data-fixed="1"' if p["id"] in fixed else ""
                 step = "1" if p["stepped"] else "0.005"
                 sfx = "" if scope == "global" else f' <span class="sc">{scope}</span>'
@@ -188,6 +198,15 @@ def main():
                 elif boolish or (p["stepped"] and p["max"] - p["min"] == 1):
                     chk = " checked" if p["default"] >= 0.5 else ""
                     ctrl = (f'<input type="checkbox" data-p="{p["id"]}"{df}{chk}>')
+                elif scale == "log10" and p["min"] > 0:
+                    # The CONTROL is log10; the PARAMETER stays linear seconds. The
+                    # GUI converts on send and on paint, so CLAP, the core and the
+                    # host never see the log domain — same convention as gui.html.
+                    import math as _m
+                    lo, hi = _m.log10(p["min"]), _m.log10(p["max"])
+                    dv = _m.log10(max(p["default"], p["min"]))
+                    ctrl = (f'<input type="range" data-p="{p["id"]}"{df} data-log10="1"'
+                            f' min="{lo:.4g}" max="{hi:.4g}" step="0.001" value="{dv:.4g}">')
                 else:
                     ctrl = (f'<input type="range" data-p="{p["id"]}"{df}'
                             f' min="{p["min"]:g}" max="{p["max"]:g}"'

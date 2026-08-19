@@ -153,6 +153,10 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   web->bind("hzGetParams", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getParamsJson());
   });
+  web->bind("hzGetDefaults", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    return choc::value::createString(host.getDefaultsJson ? host.getDefaultsJson()
+                                                          : std::string("{}"));
+  });
   web->bind("hzSetParam", [&host](const choc::value::ValueView &args) -> choc::value::Value {
     if (args.isArray() && args.size() >= 2)
       host.setParam((uint32_t)args[0].getWithDefault<int64_t>(0),

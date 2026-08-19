@@ -91,6 +91,23 @@
   .vlabel { color:var(--dim); font-size:10px; margin:6px 0 3px; }
   .oscbar h2 { display:flex; align-items:center; gap:8px; }
   .oscbar { border-color:var(--pull); }
+  /* [hidden] IS NOT ENOUGH when the element sets its own display. `.row` is
+     `display:grid` and `.cluster` is a block box, and both beat the UA sheet's
+     `[hidden] { display:none }` on specificity — so gating set `hidden` faithfully
+     and every gated row stayed on screen. Found because a DOM probe reported
+     `hidden: true` while the human reported seeing the controls: the property was
+     the mechanism, the pixels were the outcome, and only one of them was checked. */
+  .row[hidden], .cluster[hidden], .grp[hidden] { display: none; }
+
+  /* COLLAPSIBLE SECTIONS. The heading is the control — no extra chrome to hunt
+     for — and the state lives in the DOM, so a collapsed section is one attribute
+     rather than a parallel bookkeeping map that can disagree with the screen. */
+  .cluster > h2 { cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px; }
+  .cluster > h2::before { content:'\25be'; font-size:9px; opacity:.75; transition:transform .12s; }
+  .cluster.folded > h2::before { transform:rotate(-90deg); }
+  .cluster.folded > *:not(h2) { display:none; }
+  canvas.gviz { width:100%; height:auto; display:block; background:var(--panel2);
+                border:1px solid var(--line); border-radius:3px; margin-bottom:6px; }
 </style></head><body>
 
 <!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
@@ -117,7 +134,7 @@
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
-    <canvas id="specC" width="330" height="70" style="width:100%"></canvas>
+    <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
     <div class="note" style="margin-top:4px">Phase circle + K vector show
       <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the plugin.</div>
   </div>
@@ -134,7 +151,6 @@
   <div class="cluster"><h2>OSC 1</h2><div class="strip"><b>OSC 1</b>
     <div class="msrow"><div class="msbtn" data-ms="m" data-p="104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="105" data-fixed="1">S</div><div class="meter" data-osc="0"><i></i></div></div>
     <div class="row"><label>level</label><input type="range" data-p="17" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><output></output></div>
-    <div class="row"><label>width</label><input type="range" data-p="14" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="35" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="36" data-fixed="1" min="-12" max="12" step="1" value="0"><output></output></div>
     <div class="row"><label>fine</label><input type="range" data-p="37" data-fixed="1" min="-100" max="100" step="1" value="0"><output></output></div>
@@ -142,7 +158,6 @@
   <div class="cluster"><h2>OSC 2</h2><div class="strip"><b>OSC 2</b>
     <div class="msrow"><div class="msbtn" data-ms="m" data-p="1104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="1105" data-fixed="1">S</div><div class="meter" data-osc="1"><i></i></div></div>
     <div class="row"><label>level</label><input type="range" data-p="1017" data-fixed="1" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row"><label>width</label><input type="range" data-p="1014" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="1035" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="1036" data-fixed="1" min="-12" max="12" step="1" value="0"><output></output></div>
     <div class="row"><label>fine</label><input type="range" data-p="1037" data-fixed="1" min="-100" max="100" step="1" value="0"><output></output></div>
@@ -156,21 +171,9 @@
 
 <!--GEN:MIX-->
   <div class="cluster"><h2>Output & perception</h2>
-    <div class="row" data-addr="osc1.rtone"><label>R->Tone <span class="sc">osc1</span></label><input type="range" data-p="12" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.normExp"><label>Density Comp <span class="sc">osc1</span></label><input type="range" data-p="13" min="0.5" max="1" step="0.005" value="0.75"><output></output></div>
     <div class="row" data-addr="mono"><label>Mono Fold</label><input type="checkbox" data-p="15"><output></output></div>
-    <div class="row" data-addr="osc1.digital"><label>Digital <span class="sc">osc1</span></label><input type="range" data-p="16" min="0" max="1" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="bassMono"><label>Bass Mono</label><input type="checkbox" data-p="40"><output></output></div>
     <div class="row" data-addr="bassMonoHz"><label>Bass XOver (Hz)</label><input type="range" data-p="41" min="60" max="500" step="0.005" value="120"><output></output></div>
-    <div class="row" data-addr="osc1.panScatter"><label>Pan Scatter <span class="sc">osc1</span></label><input type="range" data-p="42" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.toneTilt"><label>Tone Tilt <span class="sc">osc1</span></label><input type="range" data-p="71" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.hiTame"><label>Hi Tame <span class="sc">osc1</span></label><input type="range" data-p="72" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.panMotion"><label>Pan Motion <span class="sc">osc1</span></label><input type="range" data-p="76" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.panMode"><label>Pan Motion Mode <span class="sc">osc1</span></label><select data-p="77"><option value="0" selected>drift (per-voice)</option><option value="1">sweep (whole image)</option></select><output></output></div>
-    <div class="row" data-addr="osc1.panLayout"><label>Pan Image <span class="sc">osc1</span></label><select data-p="84"><option value="0" selected>pitch fan</option><option value="1">legacy (x-position)</option></select><output></output></div>
-    <div class="row" data-addr="osc1.panCurve"><label>Fan Curve <span class="sc">osc1</span></label><input type="range" data-p="85" min="0" max="1" step="0.005" value="0.5"><output></output></div>
-    <div class="row" data-addr="osc1.panInvert"><label>Fan Invert <span class="sc">osc1</span></label><input type="checkbox" data-p="86"><output></output></div>
-    <div class="row" data-addr="osc1.superMode"><label>Super-Width Mode <span class="sc">osc1</span></label><select data-p="87"><option value="0" selected>wide (clean)</option><option value="1">pulse (M/S)</option><option value="2">smear (allpass)</option></select><output></output></div>
     <div class="row" data-addr="oversample"><label>Oversample 2x</label><input type="checkbox" data-p="88"><output></output></div>
   </div>
   <!--/GEN:MIX-->
@@ -240,6 +243,8 @@
   <div class="vizcol">
 <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <div class="vlabel">Log spectrum · MASTER bus</div>
+    <canvas id="specC2" class="spec" width="256" height="58"></canvas>
     <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
          visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
          so a draw exception can never strand the pair in the wrong state
@@ -281,14 +286,29 @@
     <div class="row" data-addr="osc1.pivotMode"><label>Pivot <span class="sc">osc1</span></label><select data-p="83"><option value="0" selected>mean field</option><option value="1">root (fundamental)</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Envelope</h2>
-    <div class="row" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="19" min="0.001" max="2" step="0.005" value="0.003"><output></output></div>
-    <div class="row" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="20" min="0.005" max="4" step="0.005" value="0.16"><output></output></div>
+    <canvas class="gviz" data-viz="envelope" width="260" height="72"></canvas>
+    <div class="row" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="19" data-log10="1" min="-3" max="0.301" step="0.001" value="-2.523"><output></output></div>
+    <div class="row" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="20" data-log10="1" min="-2.301" max="0.6021" step="0.001" value="-0.7959"><output></output></div>
     <div class="row" data-addr="osc1.sustain"><label>Sustain <span class="sc">osc1</span></label><input type="range" data-p="21" min="0" max="1" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><input type="range" data-p="22" min="0.005" max="8" step="0.005" value="0.16"><output></output></div>
-    <div class="row" data-addr="osc1.sAttack"><label>S.Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="65" data-fixed="1" min="0.001" max="2" step="0.005" value="0.004"><output></output></div>
-    <div class="row" data-addr="osc1.sDecay"><label>S.Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="66" data-fixed="1" min="0.005" max="4" step="0.005" value="0.18"><output></output></div>
-    <div class="row" data-addr="osc1.sSustain"><label>S.Sustain <span class="sc">osc1</span></label><input type="range" data-p="67" data-fixed="1" min="0" max="1" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="osc1.sRelease"><label>S.Release (s) <span class="sc">osc1</span></label><input type="range" data-p="68" data-fixed="1" min="0.005" max="8" step="0.005" value="0.18"><output></output></div>
+    <div class="row" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><input type="range" data-p="22" data-log10="1" min="-2.301" max="0.9031" step="0.001" value="-0.7959"><output></output></div>
+  </div>
+  <div class="cluster"><h2>Image & tone</h2>
+    <div class="row" data-addr="osc1.rtone"><label>R->Tone <span class="sc">osc1</span></label><input type="range" data-p="12" min="-1" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.normExp"><label>Density Comp <span class="sc">osc1</span></label><input type="range" data-p="13" min="0.5" max="1" step="0.005" value="0.75"><output></output></div>
+    <div class="row" data-addr="osc1.width"><label>Width <span class="sc">osc1</span></label><input type="range" data-p="14" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
+    <div class="row" data-addr="osc1.digital"><label>Digital <span class="sc">osc1</span></label><input type="range" data-p="16" min="0" max="1" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="osc1.panScatter"><label>Pan Scatter <span class="sc">osc1</span></label><input type="range" data-p="42" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.toneTilt"><label>Tone Tilt <span class="sc">osc1</span></label><input type="range" data-p="71" min="-1" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.hiTame"><label>Hi Tame <span class="sc">osc1</span></label><input type="range" data-p="72" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.panMotion"><label>Pan Motion <span class="sc">osc1</span></label><input type="range" data-p="76" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.panMode"><label>Pan Motion Mode <span class="sc">osc1</span></label><select data-p="77"><option value="0" selected>drift (per-voice)</option><option value="1">sweep (whole image)</option></select><output></output></div>
+    <div class="row" data-addr="osc1.panLayout"><label>Pan Image <span class="sc">osc1</span></label><select data-p="84"><option value="0" selected>pitch fan</option><option value="1">legacy (x-position)</option></select><output></output></div>
+    <div class="row" data-addr="osc1.panCurve"><label>Fan Curve <span class="sc">osc1</span></label><input type="range" data-p="85" min="0" max="1" step="0.005" value="0.5"><output></output></div>
+    <div class="row" data-addr="osc1.panInvert"><label>Fan Invert <span class="sc">osc1</span></label><input type="checkbox" data-p="86"><output></output></div>
+    <div class="row" data-addr="osc1.superMode"><label>Super-Width Mode <span class="sc">osc1</span></label><select data-p="87"><option value="0" selected>wide (clean)</option><option value="1">pulse (M/S)</option><option value="2">smear (allpass)</option></select><output></output></div>
+  </div>
+  <div class="cluster"><h2>Onset & scatter</h2>
+    <canvas class="gviz" data-viz="scatter" width="260" height="72"></canvas>
     <div class="row" data-addr="osc1.onsetScatter"><label>Onset Scatter (ms) <span class="sc">osc1</span></label><input type="range" data-p="91" min="0" max="80" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.onsetAlpha"><label>Timing Correction <span class="sc">osc1</span></label><input type="range" data-p="92" min="0" max="1.5" step="0.005" value="0.25"><output></output></div>
     <div class="row" data-addr="osc1.attackScatter"><label>Attack Scatter <span class="sc">osc1</span></label><input type="range" data-p="93" min="0" max="1" step="0.005" value="0"><output></output></div>
@@ -298,7 +318,7 @@
   <div class="cluster"><h2>The coupling</h2>
     <div class="row" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.onset"><label>Onset Lock <span class="sc">osc1</span></label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.dissolve"><label>Dissolve (s) <span class="sc">osc1</span></label><input type="range" data-p="8" min="0.05" max="7.94" step="0.005" value="0.63"><output></output></div>
+    <div class="row" data-addr="osc1.dissolve"><label>Dissolve (s) <span class="sc">osc1</span></label><input type="range" data-p="8" data-log10="1" min="-1.301" max="0.8998" step="0.001" value="-0.2007"><output></output></div>
     <div class="row" data-addr="inertia"><label>Inertia</label><input type="range" data-p="11" min="0" max="1" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.retrig"><label>Retrigger <span class="sc">osc1</span></label><input type="checkbox" data-p="18" checked><output></output></div>
     <div class="row" data-addr="osc1.scatter"><label>Phase Scatter <span class="sc">osc1</span></label><input type="range" data-p="39" min="0" max="1" step="0.005" value="0"><output></output></div>
@@ -343,6 +363,7 @@
 "use strict";
 /* ============ PLUMBING (ported from gui.html — proven, do not fork) ======= */
 const $ = s => document.querySelector(s);
+let SHELL_DEFAULTS = {};   // id -> default, served by the shell at load
 const DEFAULTS = {100:1,101:0,102:0,103:0,18:1,1017:0,1014:0.8,1035:0,1036:0,1037:0,1:7,3:1234,4:0.28,6:0,7:0,8:0.63,
   14:0.8,17:0.4,35:0,36:0,37:0};
 if (!window.hzGetParams) {   /* standalone/dev mocks */
@@ -372,6 +393,7 @@ const bridge = {
   getBuild: () => window.hzGetBuild(),
   getHostHint: () => window.hzGetHostHint ? window.hzGetHostHint() : Promise.resolve(''),
   releaseKeyFocus: () => window.hzReleaseKeyFocus ? window.hzReleaseKeyFocus() : Promise.resolve(0),
+  getDefaults: () => window.hzGetDefaults ? window.hzGetDefaults() : Promise.resolve('{}'),
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
   panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
@@ -433,6 +455,17 @@ function effId(base) {
   if (!globalIds || editOsc === 0) return base;
   return globalIds.has(base) ? base : base + editOsc * OSC_STRIDE;
 }
+
+/* ---- LOG-SCALED CONTROLS ----------------------------------------------------
+   `data-log10` says the CONTROL is logarithmic; the PARAMETER is not. Everything
+   outside these two functions — CLAP, the core, the host, state — sees linear
+   seconds, so the log domain never escapes the GUI. Time is perceived
+   logarithmically (1->2 ms matters as much as 1->2 s), and a linear seconds
+   slider over 0.001..2 with a 5 ms step offered about ten usable positions
+   across the entire musical range. */
+const ctlToParam = el => el.dataset.log10 ? Math.pow(10, +el.value) : +el.value;
+const paramToCtl = (el, v) => el.dataset.log10 ? Math.log10(Math.max(v, 1e-6)) : v;
+
 function displayValue(el, v) {
   const out = el.closest('.row') ? el.closest('.row').querySelector('output') : null;
   if (out) out.textContent = (+v).toFixed(el.step && +el.step >= 1 ? 0 : 2);
@@ -444,8 +477,8 @@ function paintControl(el, v) {
   // user actually clicks.
   if (el.classList.contains('msbtn')) { el.classList.toggle('on', v > 0.5); paintSolo(); return; }
   if (el.type === 'checkbox') el.checked = v > 0.5;
-  else el.value = v;
-  displayValue(el, v);
+  else el.value = paramToCtl(el, v);      // engine speaks seconds; the control may be log10
+  displayValue(el, v);                    // the READOUT always shows the real value
 }
 
 // A strip silenced by SOMEONE ELSE's solo is dimmed, and that is deliberately
@@ -485,7 +518,7 @@ document.querySelectorAll('[data-p]').forEach(el => {
   }
   const evName = el.type === 'checkbox' ? 'change' : 'input';
   el.addEventListener(evName, () => {
-    const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : +el.value;
+    const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : ctlToParam(el);
     bridge.setParam(id_(), v);
     displayValue(el, v);
     lastParams[id_()] = v;
@@ -504,8 +537,14 @@ document.querySelectorAll('[data-p]').forEach(el => {
     // of a number CLAP also reports, which is the same mistake as retyping enum
     // labels into the presentation table. DEFAULTS keeps its OTHER job (standing
     // in for hzGetParams in a browser) and is the fallback here, not the source.
-    let def;
-    if (el.type === 'checkbox') def = el.defaultChecked ? 1 : 0;
+    // THE SHELL IS THE SOURCE. SHELL_DEFAULTS comes from the same defaultFor()
+    // that fills clap_param_info.default_value, so double-click here and a host's
+    // "reset to default" cannot disagree — and the defaults outlive this GUI,
+    // which is the point: markup attributes vanish with the markup. The DOM
+    // default stays as the fallback for the dev server, where there is no plugin.
+    let def = SHELL_DEFAULTS[id_()];
+    if (def !== undefined) { /* shell wins */ }
+    else if (el.type === 'checkbox') def = el.defaultChecked ? 1 : 0;
     else if (el.tagName === 'SELECT') {
       const d = [...el.options].find(o => o.defaultSelected);
       if (d) def = +d.value;
@@ -588,6 +627,7 @@ for (const [name, live] of PAGES) {
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
     document.querySelectorAll('.page').forEach(x => x.classList.remove('on'));
     t.classList.add('on');
+    if (typeof canPaint === 'function' && canPaint()) { drawEnvelope(null); drawScatter(lastViz); }
     document.getElementById('pg-' + name).classList.add('on');
   });
   tabs.appendChild(t);
@@ -641,7 +681,12 @@ function drawXY() {
    viz to another page is now a <canvas class="phase"> and nothing else. */
 const PHASE = () => [...document.querySelectorAll('canvas.phase')];
 let pc = null, pctx = null;
-const sc2 = document.getElementById('specC'), sctx2 = sc2.getContext('2d');
+/* The spectrum renders into EVERY canvas carrying `.spec`, from the one smoothed
+   buffer — the discipline the aesthetics bench proved and phase/XY already use.
+   It is the MASTER bus either way, so two copies of one picture cannot disagree;
+   a second smoothing pass could. */
+const SPECS = () => [...document.querySelectorAll('canvas.spec')];
+let sc2 = null, sctx2 = null;
 let kSmX = 0, kSmY = 0, kSmR = 0, vizBusy = false, specBusy = false, specSm = null;
 function drawPhase(s) {
   for (const _cv of PHASE()) { pc = _cv; pctx = _cv.getContext('2d'); _drawPhaseOne(s); }
@@ -697,11 +742,13 @@ function drawMeters(s) {
     bar.classList.toggle('clip', meterHold[k] >= 1.0);
   });
 }
+let lastViz = null;
 async function vizFrame() {
   if (vizBusy) return;
   vizBusy = true;
   try {
     const s = await bridge.getViz();
+    lastViz = s;
     // Swap the engine-specific pair BEFORE drawing anything, so a throw below
     // cannot leave SPECTRA's strips hidden behind SAW's carpet (gui.html, same order).
     const spectraOn = !!(s && s.spectra);
@@ -710,6 +757,8 @@ async function vizFrame() {
     document.getElementById('vmapScope2').style.display   = spectraOn ? 'none' : '';
     drawPhase(s);
     drawMeters(s);
+    drawEnvelope(s);
+    drawScatter(s);
     if (spectraOn) drawStrips(s); else { drawCarpet(s); drawVmap(s); }
   } catch (e) {}
   vizBusy = false;
@@ -729,6 +778,15 @@ async function specFrame() {
       const v = bins[i];
       specSm[i] = v > specSm[i] ? v : specSm[i] + (v - specSm[i]) * 0.28;
     }
+    for (const _cv of SPECS()) { sc2 = _cv; sctx2 = _cv.getContext('2d'); _drawSpecOne(specSm); }
+  } catch (e) {}
+  specBusy = false;
+}
+
+// One canvas's worth of spectrum. Split out so the fan-out above stays inside
+// specFrame's try — an earlier splice put a function declaration between the
+// try and its catch, which the lab-load gate rejected as a syntax error.
+function _drawSpecOne(specSm) {
     const w = sc2.width, h = sc2.height;
     sctx2.fillStyle = '#0b0e14'; sctx2.fillRect(0, 0, w, h);
     sctx2.strokeStyle = '#5ff2e0'; sctx2.lineWidth = 1.2;
@@ -743,9 +801,8 @@ async function specFrame() {
       if (i === 0) sctx2.moveTo(x, y); else sctx2.lineTo(x, y);
     }
     sctx2.stroke();
-  } catch (e) {}
-  specBusy = false;
 }
+
 
 /* build stamp + boot */
 window.addEventListener('load', async () => {
@@ -913,8 +970,131 @@ function applyGates() {
     g.hidden = rows.length > 0 && rows.every(r => r.hidden);
   });
 }
+bridge.getDefaults().then(j => { SHELL_DEFAULTS = JSON.parse(j || '{}'); }).catch(() => {});
 learnGateKeys();
 document.addEventListener('input', e => { if (e.target.closest('[data-p]')) applyGates(); });
 applyGates();
+
+/* ---- COLLAPSIBLE SECTIONS ---------------------------------------------------
+   Click a heading to fold its box. State is a class on the element and is
+   remembered per section for the session, so opening the plugin twice in a row
+   does not re-litigate which panels you had closed. Deliberately NOT persisted
+   into plugin state: what a user folded is a view preference, not part of the
+   patch, and writing it into the patch would make two identical sounds compare
+   unequal. */
+// sessionStorage is not guaranteed: the lab-load gate runs these scripts in a
+// headless context without it, and a webview host may withhold it too. Fold state
+// is a convenience, so it degrades to memory-only rather than taking the script
+// down with it — the gate caught exactly this.
+const FOLD_STORE = (() => {
+  try { sessionStorage.getItem('hzFolded'); return sessionStorage; }
+  catch (_) { return { getItem: () => null, setItem: () => {} }; }
+})();
+const FOLDED = new Set(JSON.parse((typeof FOLD_STORE.getItem === 'function'
+                                   && FOLD_STORE.getItem('hzFolded')) || '[]'));
+function sectionKey(c) {
+  const h = c.querySelector('h2');
+  return (c.closest('.page') || {}).id + '/' + (h ? h.textContent.trim().slice(0, 40) : '?');
+}
+function wireFolding() {
+  document.querySelectorAll('.cluster').forEach(c => {
+    const h = c.querySelector('h2');
+    if (!h || h.dataset.foldWired) return;
+    h.dataset.foldWired = '1';
+    if (FOLDED.has(sectionKey(c))) c.classList.add('folded');
+    h.addEventListener('click', e => {
+      // The osc selector lives IN a heading; clicking a tab must not fold the bar.
+      if (e.target.closest('.oscSel, button, select, input')) return;
+      c.classList.toggle('folded');
+      const k = sectionKey(c);
+      c.classList.contains('folded') ? FOLDED.add(k) : FOLDED.delete(k);
+      FOLD_STORE.setItem('hzFolded', JSON.stringify([...FOLDED]));
+    });
+  });
+}
+wireFolding();
+
+/* ---- GROUP VISUALS ----------------------------------------------------------
+   Two pictures of the SAME engine data, separated because they answer different
+   questions. `envOnset`/`envAtk`/`envRel` are per-voice arrays the engine already
+   publishes (gui.html's drawEnv consumes them):
+     · ENVELOPE — the shape one voice traces. Reads the A/D/S/R controls, so it
+       responds while you drag even before a note sounds.
+     · SCATTER  — how far apart the voices are. The same arrays, plotted as
+       spread rather than shape, which is the thing the scatter controls move
+       and the thing the envelope curve hides by averaging.
+   Both no-op without engine data rather than drawing a fiction. */
+function gvizCtx(kind) {
+  const cv = document.querySelector(`canvas.gviz[data-viz="${kind}"]`);
+  if (!cv || !cv.offsetParent) return null;              // folded or off-page: skip
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(80, cv.clientWidth), h = 72;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+const rdp = id => { const el = document.querySelector(`[data-p="${id}"]:not([data-fixed])`);
+                    return el ? ctlToParam(el) : null; };   // always the PARAMETER value
+function drawEnvelope(s) {
+  const g = gvizCtx('envelope'); if (!g) return;
+  const { ctx, w, h } = g;
+  // Read SECONDS. The earlier version applied gui.html's log10 slider convention
+  // to controls that were linear, so an attack of 0.003 s drew as 10^0.003 = 1.007 s
+  // — a slow swell where the readout said 0.00. Ask the control what domain it is
+  // in rather than assuming; `rdp` now returns the parameter value either way.
+  const A = rdp(19) ?? 0.003, D = rdp(20) ?? 0.16;
+  const S = rdp(21) ?? 1.0, R = rdp(22) ?? 0.16;
+  const gate = (A + D) * 1000 * 1.3 + 120, span = gate + R * 1000 * 2.2;
+  const X = ms => ms / span * (w - 2) + 1, Y = v => h - 3 - v * (h - 8);
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0';
+  ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let px = 0; px < w; px++) {
+    const t = px / (w - 2) * span;
+    let v;
+    if (t < gate) { const a = 1 - Math.exp(-t / Math.max(1e-3, A * 1000));
+                    const d = S + (1 - S) * Math.exp(-t / Math.max(1e-3, D * 1000)); v = Math.min(a, d); }
+    else v = S * Math.exp(-(t - gate) / Math.max(1e-3, R * 1000));
+    px ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v));
+  }
+  ctx.stroke();
+  ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(X(gate), 0); ctx.lineTo(X(gate), h); ctx.stroke();
+}
+function drawScatter(s) {
+  const g = gvizCtx('scatter'); if (!g) return;
+  const { ctx, w, h } = g;
+  const ons = (s && s.envOnset) || [], atk = (s && s.envAtk) || [];
+  const dim = getComputedStyle(document.body).getPropertyValue('--dim').trim() || '#7f8899';
+  if (!ons.length) {                                     // no engine data: say so
+    ctx.fillStyle = dim; ctx.font = '10px ui-monospace,Menlo,monospace';
+    ctx.fillText('play a note to see voice spread', 8, h / 2);
+    return;
+  }
+  let maxT = 1;
+  for (let i = 0; i < ons.length; i++) maxT = Math.max(maxT, ons[i] + (atk[i] || 0));
+  const X = ms => 4 + ms / maxT * (w - 8);
+  ctx.strokeStyle = '#2a3040'; ctx.beginPath();
+  ctx.moveTo(4, h - 10); ctx.lineTo(w - 4, h - 10); ctx.stroke();
+  const acc = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0';
+  for (let i = 0; i < ons.length; i++) {
+    const y = 6 + (h - 22) * (ons.length === 1 ? 0.5 : i / (ons.length - 1));
+    ctx.strokeStyle = acc; ctx.globalAlpha = 0.5; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(ons[i]), y); ctx.lineTo(X(ons[i] + (atk[i] || 0)), y); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.fillStyle = acc;
+    ctx.beginPath(); ctx.arc(X(ons[i]), y, 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = dim; ctx.font = '9px ui-monospace,Menlo,monospace';
+  ctx.fillText(ons.length + ' voices · ' + maxT.toFixed(0) + ' ms spread', 6, h - 2);
+}
+// Guarded because these run at parse time: the lab-load gate executes this script
+// with no layout engine, where getComputedStyle does not exist. The visuals are
+// decoration for a live GUI, so they simply do not run there rather than taking
+// the whole script down — which is what the gate caught, twice in a row.
+const canPaint = () => typeof getComputedStyle === 'function' && typeof document.querySelector === 'function';
+document.addEventListener('input', () => { if (canPaint()) drawEnvelope(null); });
+if (canPaint()) { drawEnvelope(null); drawScatter(null); }
 
 </script></body></html>

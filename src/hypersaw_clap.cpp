@@ -269,6 +269,17 @@ static const ParamDef kParams[] = {
     {104, "oscMute", "Mute", 0, 1, 0, true, kOffOn},
     {105, "oscSolo", "Solo", 0, 1, 0, true, kOffOn},
 };
+
+// THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
+// default_value`) and the GUI bridge ask here, so a host's "reset to default"
+// and the GUI's double-click cannot disagree. They already could: oscillators
+// above the first default to SILENT, and a GUI reading the default out of its
+// own markup restored 0.4 to a parameter CLAP reports as 0.0. File scope
+// deliberately — it depends on nothing but the row and the oscillator index.
+static double defaultFor(const ParamDef &d, uint32_t osc)
+{
+  return (osc > 0 && d.id == 17) ? 0.0 : d.defV;
+}
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
 /* ---- ADR-082 multi-oscillator namespace (increment 1: mechanism only) -----
@@ -1227,6 +1238,28 @@ struct Plugin
     }
   }
 
+  // Defaults for EVERY id, same shape and same loop as paramsJson so the two
+  // cannot disagree about which ids exist. This is what makes the defaults
+  // survive the GUI: they live in the shell and are served to whatever asks —
+  // webview today, anything else later — rather than living in HTML attributes
+  // that vanish with the markup.
+  std::string defaultsJson() const
+  {
+    std::string out = "{";
+    char buf[48];
+    for (uint32_t k = 0; k < kNumOsc; k++)
+      for (const auto &d : kParams)
+      {
+        if (k > 0 && isGlobalId(d.id)) continue;
+        const clap_id id = (clap_id)(d.id + k * kOscStride);
+        std::snprintf(buf, sizeof(buf), "%s\"%u\":%.6g", out.size() > 1 ? "," : "", id,
+                      defaultFor(d, k));
+        out += buf;
+      }
+    out += "}";
+    return out;
+  }
+
   std::string paramsJson() const
   {
     // ADR-082: emit EVERY oscillator's block, not just oscillator 0. Without
@@ -2065,7 +2098,7 @@ bool params_get_info(const clap_plugin_t *, uint32_t index, clap_param_info_t *i
   // second oscillator would sound the instant kNumOsc rose, changing every
   // existing patch — a host "reset to defaults" must give silence too, not
   // just our constructor.
-  info->default_value = (osc > 0 && d.id == 17) ? 0.0 : d.defV;
+  info->default_value = defaultFor(d, osc);
   return true;
 }
 
@@ -2339,6 +2372,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
       l[i] = pl->scopeL[k]; r[i] = pl->scopeR[k]; }
   };
   hostIf.getParamsJson = [pl]() { return pl->paramsJson(); };
+  hostIf.getDefaultsJson = [pl]() { return pl->defaultsJson(); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
   // Stamp carries hash AND build time: a hash alone cannot distinguish "the

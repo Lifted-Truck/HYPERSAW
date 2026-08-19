@@ -8,6 +8,124 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## ZERO ATTACK DREW A ONE-SECOND SWELL; TIME CONTROLS ARE LOG NOW (2026-08-19)
+
+Human, with a screenshot: *"this isn't what zero attack should look like."* Correct, and the
+picture was the smaller half of it.
+
+**The visual bug.** `drawEnvelope` applied `gui.html`'s log10 slider convention to controls
+that are linear. The shell declares `{19, "attack", "Attack (s)", 0.001, 2.0, 0.003}` —
+**linear seconds** — and `gui.html` converts to log in its own markup (`min="-3" max="0.301"
+data-log10="1"`). The generated controls do not. So an attack of 0.003 s was drawn as
+`10^0.003 = 1.007 s`: a slow swell above a readout saying 0.00. My comment in that function
+even asserted the log convention, which is how the mistake survived being read twice.
+
+**The bigger bug the screenshot exposed.** A linear seconds slider is the wrong control for a
+time parameter. Over 0.001–2.0 s with `step="0.005"`, the entire musical range below 50 ms —
+where attack actually lives — had **about ten reachable positions**, and 0.003 s was
+unreachable except as the default. `gui.html` marked every `(s)` control `data-log10` for
+exactly this reason; the generated surface lost that knowledge.
+
+**Fixed as a declaration, not a special case.** New `scale` column, `log10` on the eleven time
+rows. The generator emits `min=log10(min) … data-log10="1"` with a 0.001 step, and **the GUI
+converts on send and on paint** — `ctlToParam` / `paramToCtl` — so the log domain never leaves
+the interface: CLAP, the core, the host and saved state all still see linear seconds.
+
+**Measured across five decades:** slider positions send `0.001 → 0.001`, `0.003 → 0.003`,
+`0.05 → 0.05`, `0.5 → 0.5`, `2.0 → 1.9999` s. Paint round-trips exactly (engine sends 0.003 s,
+slider lands at −2.523 = log10 0.003). And the curve: a **1 ms** attack reaches full at
+**0.5%** of the width, a **1500 ms** attack at **66.9%**.
+
+**Spectrum added to OSC**, rendered from the one smoothed buffer into every `.spec` canvas —
+the same fan-out phase and XY already use, so two pictures of the master bus cannot disagree.
+A second smoothing pass could. The lab-load gate caught a malformed splice here (a function
+declaration between `try` and `catch`) before it shipped.
+
+## ROADMAP — a description for every parameter, and a panel that can be turned off
+
+Human: *"add a robust description to every parameter, and create a description panel that can
+be toggled on and off."*
+
+**Where the text lives is the load-bearing decision, and it is already settled by precedent.**
+Labels and units live in `param_presentation.tsv`; enum value names live in the shell because
+CLAP reports them; both moved there after a copy drifted. A description is presentation prose
+about a parameter — **the table, keyed on address**, is its home. A `desc` column, not a
+sidecar file, so a parameter cannot exist without one being conspicuously blank.
+
+**The gate writes itself, and should:** `presentation_check` already counts rows whose `chunk`
+is unset. It can count rows whose `desc` is empty the same way, so "every parameter is
+described" becomes a number that CI reports rather than an intention. Same shape as
+`test_table_check` refusing a feature with no tests.
+
+**What "robust" has to mean, or the column fills with restatements of the label.** A
+description earns its place only if it says something the control cannot: what the parameter
+does to the SOUND, what it interacts with, and where the useful range sits. *"Sets the
+attack"* is worthless beside a slider labelled Attack. *"How long each voice takes to reach
+full level. Under high K the swarm pulls late voices toward the early ones, so long attacks
+plus strong coupling smear the onset rather than staggering it"* is worth reading once.
+
+**The panel:** one toggle, off by default, revealing the description under each control —
+reusing the fold machinery landed today rather than inventing a second show/hide mechanism.
+Off by default because a description panel that is always open is a manual, and nobody reads
+a manual twice.
+
+**Sequencing:** the column and the gate first (so the gap is visible and counted), then the
+descriptions in batches by group, then the panel — which is the cheapest part and worth
+nothing until there is text to show.
+
+## GATING SET `hidden` AND NOTHING HID; THE IMAGE PANEL MOVES TO OSC (2026-08-19)
+
+Human: *"the dynamics controls aren't hiding when they're irrelevant"* and *"a lot of missing
+controls like K→tilt and the width settings … its whole panel should be available from the
+osc page."*
+
+### The gate worked and the pixels did not
+
+`applyGates()` set `row.hidden = true` faithfully. **`.row` is `display:grid` and `.cluster`
+is a block box, and both beat the UA stylesheet's `[hidden] { display:none }` on
+specificity** — so every gated control stayed on screen while the DOM insisted it was hidden.
+
+**My verification is what let this ship.** The probe asked `r.hidden` — the *mechanism* — and
+got `true`, so it reported success while the human was looking at the controls. `offsetHeight`
+read 0 for every row including the ungated ones, because the page was inactive, so the one
+measurement that could have caught it was silently uninformative. `L0032` again, in its
+purest form yet: **the property was the mechanism, the pixels were the outcome, and only the
+mechanism was checked.** Fixed with an explicit
+`.row[hidden], .cluster[hidden] { display:none }` and re-measured **by pixels on the active
+page**: mean-field shows `poles`, ring shows `reach`, two-cluster shows `mu` + `balance`.
+
+### Correction of record: nothing of HYPERSAW's was parked
+
+I claimed the `Spectra` group was mixed and had taken HYPERSAW params down with it. **Wrong,
+and checked properly this time against the two cores:** `wtilt`, `wlaw`, `cwidth`, `partials`,
+`cloud`, `stretch`, `cascade` and the `sub*` family are read only by `spectra_core.h`. `tilt`
+(id 45) is SPECTRA's — HYPERSAW's tone tilt is the separate CLAP param **`toneTilt`**, aliased
+deliberately (ADR-072) precisely because the key collided. The park was correct.
+
+### The controls were not missing, they were on the mixer page
+
+`width`, `toneTilt`, `hiTame`, `superMode`, `rtone`, `digital`, `normExp` and the whole pan
+family lived on **MIX**, inside a group called *Output & perception* that mixed **per-
+oscillator image/tone controls** with **master-bus globals** (`bassMono`, `mono`,
+`oversample`).
+
+**The split is mechanical, because the table already carries scope:** every per-oscillator row
+on MIX moves to OSC as **Image & tone** (26 rows), every global stays on MIX. The one
+exception is the mixer strip itself — level, mute, solo — which is what a mixer page is for.
+`width` needed one extra step: hand-placed copies in the MIX strips were the only reason the
+generator skipped it, since generation never fights a human; removed those and it generates
+with its family. OSC's Image & tone box now carries all thirteen.
+
+**The test-table gate did its job twice on the way**, refusing a new feature with no tests and
+then refusing `pins: INVARIANT`, which is not one of the two legal classifications. Two rows
+added: the width superset invariant (which already has a real gate — `waveshape_check` is what
+found the >1 cliff) and the pan-image ear test.
+
+**Offer accepted for the next round:** the human has the dependency map for the remaining
+gates. Only the topology group is currently declared, because those four are the only pairs I
+could verify from the core; `driftMode`, `panMode` and `superMode` almost certainly gate their
+own families, and guessing them is exactly the failure this entry is about.
+
 ## OSC PAGE OWNS THE OSCILLATOR; GATED ROWS; DOUBLE-CLICK RESTORED (2026-08-18)
 
 Four human notes, all landed. Two of them turned out to be repairs rather than additions.
