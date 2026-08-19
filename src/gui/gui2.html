@@ -143,6 +143,8 @@
   <div class="ctlcol">
 <!--GEN:MAIN-->
   <div class="cluster"><h2>Bend</h2>
+    <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
+    <canvas class="gviz" data-viz="bendvib" width="260" height="72"></canvas>
     <div class="row" data-addr="bendLaw"><label>Bend Law</label><select data-p="106"><option value="0" selected>off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3">lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
     <div class="row" data-addr="bendTime" data-when="bendLaw=1"><label>Bend Time <span class="u">ms</span></label><input type="range" data-p="107" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
     <div class="row" data-addr="bendRate" data-when="bendLaw=2"><label>Bend Rate <span class="u">st/s</span></label><input type="range" data-p="108" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><output></output></div>
@@ -420,6 +422,7 @@ const bridge = {
   getHostHint: () => window.hzGetHostHint ? window.hzGetHostHint() : Promise.resolve(''),
   releaseKeyFocus: () => window.hzReleaseKeyFocus ? window.hzReleaseKeyFocus() : Promise.resolve(0),
   getDefaults: () => window.hzGetDefaults ? window.hzGetDefaults() : Promise.resolve('{}'),
+  getBendCurve: () => window.hzGetBendCurve ? window.hzGetBendCurve() : Promise.resolve('{}'),
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
   panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
@@ -1198,5 +1201,80 @@ function buildScalePicker() {
   sync();
 }
 if (typeof canPaint === 'function' && canPaint()) buildScalePicker();
+
+/* ---- BEND GRAPHS ------------------------------------------------------------
+   Two pictures, because the bench proved one cannot say both. Neither is drawn
+   from a JavaScript model of the laws: the PLUGIN simulates them with the same
+   GlideCore that renders audio and hands back the curve, so the graph cannot
+   quietly disagree with the instrument. In a browser there is no plugin, so both
+   say so rather than drawing a fiction.
+     · STEP  — target vs actual for +2 st held 0.05-0.65 s. Where the laws
+               visibly differ: lag is proportional, rate limit is not, only the
+               spring overshoots and rings.
+     · COST  — depth kept and lag at a 5 Hz wobble. Every law is a low-pass on
+               the player's hand, and this is the bill; a trajectory plot hides
+               it completely. */
+let bendCurve = null, bendBusy = false;
+function refreshBendCurve() {
+  if (bendBusy) return;
+  bendBusy = true;
+  bridge.getBendCurve()
+    .then(j => { bendCurve = JSON.parse(j || '{}'); drawBendStep(); drawBendVib(); })
+    .catch(() => { bendCurve = null; drawBendStep(); drawBendVib(); })
+    .finally(() => { bendBusy = false; });
+}
+function noCurve(g, why) {
+  const { ctx, w, h } = g;
+  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--dim').trim() || '#7f8899';
+  ctx.font = '10px ui-monospace,Menlo,monospace';
+  ctx.fillText(why, 8, h / 2);
+}
+function drawBendStep() {
+  const g = gvizCtx('bendstep'); if (!g) return;
+  const { ctx, w, h } = g;
+  if (!bendCurve || !bendCurve.traj) return noCurve(g, 'no engine — open in the plugin');
+  const { traj, tgt, amp } = bendCurve;
+  const Y = v => h - 4 - (v / (amp * 1.35) * 0.5 + 0.25) * (h - 8);
+  const X = i => i / (traj.length - 1) * (w - 2) + 1;
+  ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(1, Y(0)); ctx.lineTo(w - 1, Y(0)); ctx.stroke();
+  const line = (arr, col, lw, dash) => {
+    ctx.setLineDash(dash || []); ctx.strokeStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath();
+    arr.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  line(tgt, '#7f8899', 1, [3, 3]);                       // what the wheel asked for
+  line(traj, getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0', 1.6);
+  ctx.fillStyle = '#7f8899'; ctx.font = '9px ui-monospace,Menlo,monospace';
+  const st = bendCurve.settle < 0 ? 'never' : bendCurve.settle.toFixed(0) + ' ms';
+  ctx.fillText(`lag50 ${bendCurve.lag50.toFixed(0)} ms · over ${bendCurve.over.toFixed(1)} ¢ · settle ${st} · rings ${bendCurve.rings}`, 5, 10);
+}
+function drawBendVib() {
+  const g = gvizCtx('bendvib'); if (!g) return;
+  const { ctx, w, h } = g;
+  if (!bendCurve || bendCurve.depth === undefined) return noCurve(g, 'no engine — open in the plugin');
+  const pct = Math.max(0, Math.min(100, bendCurve.depth));
+  const acc = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0';
+  ctx.fillStyle = '#2a3040'; ctx.fillRect(6, h - 26, w - 12, 10);
+  ctx.fillStyle = pct < 60 ? '#ff4d6d' : acc;            // losing 40% of a wobble is a real cost
+  ctx.fillRect(6, h - 26, (w - 12) * pct / 100, 10);
+  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--fg').trim() || '#cdd6e4';
+  ctx.font = '11px ui-monospace,Menlo,monospace';
+  ctx.fillText(`${pct.toFixed(0)}% of a 5 Hz wobble kept`, 6, 16);
+  ctx.fillStyle = '#7f8899'; ctx.font = '9px ui-monospace,Menlo,monospace';
+  ctx.fillText(`arrives ${Math.abs(bendCurve.wlag).toFixed(0)} ms late`, 6, 30);
+  ctx.fillText('the bill inertia charges for a slow bend', 6, h - 6);
+}
+// A law change or a knob move changes the curve; nothing else does.
+document.addEventListener('input', e => {
+  const r = e.target.closest('.row[data-addr^="bend"]');
+  if (r) refreshBendCurve();
+});
+document.addEventListener('change', e => {
+  const r = e.target.closest('.row[data-addr^="bend"]');
+  if (r) refreshBendCurve();
+});
+if (typeof canPaint === 'function' && canPaint()) refreshBendCurve();
 
 </script></body></html>

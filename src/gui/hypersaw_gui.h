@@ -90,6 +90,11 @@ struct GuiHost
   // clap_param_info reports 0 for osc2 level while the markup says 0.4. Served
   // from the same defaultFor() that fills clap_param_info.default_value.
   std::function<std::string()> getDefaultsJson;          // {"<id>":default,...}
+  // Bend trajectory + vibrato cost, computed by the SHIPPED GlideCore so the
+  // graph cannot disagree with the instrument. A JS twin of the laws would be a
+  // second implementation to keep in step, which is the thing the graph exists
+  // to make visible in the first place.
+  std::function<std::string()> getBendCurveJson;
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin
   std::function<void(uint32_t)> setVizOsc;               // visuals follow the GUI's active osc

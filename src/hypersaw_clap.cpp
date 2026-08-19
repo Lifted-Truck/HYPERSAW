@@ -1368,6 +1368,97 @@ struct Plugin
     return out;
   }
 
+
+  /* BEND CURVES FOR THE GUI. Computed HERE, by the shipped GlideCore, rather than
+     by a JavaScript twin of the laws: a second implementation of a trajectory is
+     a second thing to keep in step, and the whole point of the graph is to show
+     what the instrument actually does. Runs on the GUI thread via the bridge —
+     never the audio thread — so allocating a scratch core is fine.
+     Both simulations are the bench's, so the picture in the plugin and the
+     picture in bend-lab.html answer the same question the same way:
+       · STEP    — +range held from 0.05 s to 0.65 s of a 1.4 s window, which is
+                   where the laws visibly differ.
+       · WOBBLE  — a sine on the wheel, measured at the FUNDAMENTAL. Rate limiting
+                   is nonlinear, so this is the first harmonic rather than the
+                   whole story — but it is the part heard as depth, and it is the
+                   bill inertia charges for a slow bend. */
+  std::string bendCurveJson() const
+  {
+    const double cr = 1.0 / kBendGridSeconds;          // ticks per second
+    const double A = 2.0;                              // +2 semitones, the bench's range
+    hypersaw::GlideCore::Params lp = bendLaw;
+    lp.scaleRoot = scale.root;
+    for (int d = 0; d < 12; d++) lp.scaleMask[d] = scale.mask[d];
+
+    const int N = (int)(1.4 * cr), t0 = (int)(0.05 * cr), t1 = (int)(0.65 * cr);
+    constexpr int kPts = 240;                          // enough for a 316 px canvas
+    std::string traj = "[", tgts = "[";
+    double lag50 = -1, peak = 0, prevSgn = 0;
+    int settleIdx = -1, rings = 0;
+    hypersaw::GlideCore g(cr, true);
+    g.reset(0);
+    for (int i = 0; i < N; i++)
+    {
+      const double t = (i >= t0 && i < t1) ? A : 0.0;
+      const double x = g.step(t, lp);
+      if (i >= t0 && i < t1)
+      {
+        const double e = x - A;
+        if (lag50 < 0 && std::fabs(x) >= 0.5 * std::fabs(A)) lag50 = (i - t0) / cr * 1000.0;
+        if (std::fabs(x) > std::fabs(peak)) peak = x;
+        if (std::fabs(e) > 0.05) settleIdx = i;
+        if (std::fabs(e) > 0.02)
+        {
+          const double sg = e < 0 ? -1.0 : 1.0;
+          if (prevSgn != 0 && sg != prevSgn) rings++;
+          prevSgn = sg;
+        }
+      }
+      if (i % (N / kPts + 1) == 0)
+      {
+        char b[40];
+        std::snprintf(b, sizeof(b), "%s%.4g", traj.size() > 1 ? "," : "", x);
+        traj += b;
+        std::snprintf(b, sizeof(b), "%s%.4g", tgts.size() > 1 ? "," : "", t);
+        tgts += b;
+      }
+    }
+    traj += "]"; tgts += "]";
+    const double over = std::max(0.0, (std::fabs(peak) - std::fabs(A)) * 100.0);
+    const bool never = settleIdx >= t1 - 2;
+    const double settle = never ? -1.0 : (settleIdx < 0 ? 0.0 : (settleIdx - t0 + 1) / cr * 1000.0);
+
+    // vibrato cost: one-bin DFT at the wobble rate, target and actual
+    const double f = 5.0, TAU = 6.283185307179586, WA = A * 0.5;
+    const int NW = (int)(2.0 * cr), startW = (int)(1.0 * cr);
+    double reX = 0, imX = 0, reT = 0, imT = 0;
+    hypersaw::GlideCore gw(cr, true);
+    gw.reset(0);
+    for (int i = 0; i < NW; i++)
+    {
+      const double ph = TAU * f * i / cr;
+      const double t = WA * std::sin(ph);
+      const double x = gw.step(t, lp);
+      if (i >= startW)
+      {
+        const double c = std::cos(ph), sn = std::sin(ph);
+        reX += x * c; imX -= x * sn; reT += t * c; imT -= t * sn;
+      }
+    }
+    const double magX = std::hypot(reX, imX), magT = std::hypot(reT, imT);
+    double d = std::atan2(imX, reX) - std::atan2(imT, reT);
+    while (d > 3.141592653589793) d -= TAU;
+    while (d < -3.141592653589793) d += TAU;
+
+    char out[256];
+    std::snprintf(out, sizeof(out),
+                  "{\"lag50\":%.4g,\"over\":%.4g,\"settle\":%.4g,\"rings\":%d,"
+                  "\"depth\":%.4g,\"wlag\":%.4g,\"span\":%.4g,\"amp\":%.4g,",
+                  lag50 < 0 ? 0.0 : lag50, over, settle, rings,
+                  magT > 0 ? magX / magT * 100.0 : 0.0, -d / (TAU * f) * 1000.0, 1.4, A);
+    return std::string(out) + "\"traj\":" + traj + ",\"tgt\":" + tgts + "}";
+  }
+
   std::string paramsJson() const
   {
     // ADR-082: emit EVERY oscillator's block, not just oscillator 0. Without
@@ -2595,6 +2686,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   };
   hostIf.getParamsJson = [pl]() { return pl->paramsJson(); };
   hostIf.getDefaultsJson = [pl]() { return pl->defaultsJson(); };
+  hostIf.getBendCurveJson = [pl]() { return pl->bendCurveJson(); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
   // Stamp carries hash AND build time: a hash alone cannot distinguish "the

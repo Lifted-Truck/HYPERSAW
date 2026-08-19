@@ -8,6 +8,43 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE BEND GRAPHS ARE DRAWN BY THE ENGINE, NOT BY A JS TWIN (2026-08-19)
+
+Last piece of the glide fold. The Bend section now carries **two** graphs, and the choice that
+matters is where the curve comes from.
+
+**The plugin computes them.** `bendCurveJson()` runs the **shipped `GlideCore`** — the same one
+that renders audio — over the bench's two simulations and hands back the trajectory plus the
+meters. The obvious alternative was porting `bend-lab.html`'s JS `Inertia` class into the GUI,
+and that would have been a **second implementation of the laws**, free to drift from the one
+that makes sound. The graph exists to show what the instrument does; a graph that can disagree
+with the instrument is worse than no graph. Runs on the GUI thread via the bridge, never the
+audio thread, so a scratch core costs nothing that matters.
+
+**Two graphs, because the bench proved one cannot say both.**
+
+- **Step** — target vs actual for +2 st held 0.05–0.65 s, the window where the laws visibly
+  differ: a lag is proportional, a rate limit is not, and only the spring overshoots and rings.
+  Meters read out lag-to-50%, overshoot in cents, settle-to-±5¢ (or *never*), and reversals.
+- **Cost** — depth kept and lag at a 5 Hz wobble, measured at the fundamental. Every law is a
+  low-pass on the player's hand and this is the bill; **a trajectory plot hides it completely**.
+  The bar turns red below 60% kept, because losing 40% of a vibrato is a real cost and should
+  not look like a neutral readout.
+
+Both are honest about absence: in a browser there is no plugin, so they say *"no engine — open
+in the plugin"* rather than drawing a fiction. Verified by pixels — 1908 lit for the message,
+3883 and 11525 once fed the payload shape the plugin sends.
+
+**The generator learned that a group may declare SEVERAL visuals**, which is what Bend needed;
+Envelope and Onset & scatter keep one each.
+
+`./verify full` EXIT=0, parity **147/147** unchanged. Built, installed and sealed VALID, with
+`hzGetBendCurve` · `bendstep` · `bendvib` · `scalePick` confirmed present in the shipped binary.
+
+**The glide fold is complete**: core in the audio path (inert by default) → ten law params →
+thirteen scale globals with the picker as GUI → two graphs. Bend inertia is now a feature a
+player can find, set, see and hear.
+
 ## THE SCALE HAS ONE HOME AND AN OPEN SEAM; TONALITY ASKED WHETHER IT IS HONEST (2026-08-19)
 
 Human: *"feel free to file a brief with Tonality if that would help figure out the logic here;
