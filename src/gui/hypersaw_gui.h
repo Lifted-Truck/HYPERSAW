@@ -84,6 +84,12 @@ struct GuiHost
   std::function<void(float *, int)> getSpectrum;  // log-spaced 0..1 bins
   std::function<void(float *, float *, int)> getScope;  // raw L/R tail, newest last
   std::function<std::string()> getParamsJson;            // {"<id>":value,...}
+  // Defaults live in the SHELL, not in GUI markup. A GUI that reads a default out
+  // of its own HTML loses it the moment that GUI is replaced — and can already
+  // disagree with the host: oscillators above the first default to SILENT, so
+  // clap_param_info reports 0 for osc2 level while the markup says 0.4. Served
+  // from the same defaultFor() that fills clap_param_info.default_value.
+  std::function<std::string()> getDefaultsJson;          // {"<id>":default,...}
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin
   std::function<void(uint32_t)> setVizOsc;               // visuals follow the GUI's active osc

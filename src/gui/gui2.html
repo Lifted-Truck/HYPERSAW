@@ -91,6 +91,14 @@
   .vlabel { color:var(--dim); font-size:10px; margin:6px 0 3px; }
   .oscbar h2 { display:flex; align-items:center; gap:8px; }
   .oscbar { border-color:var(--pull); }
+  /* [hidden] IS NOT ENOUGH when the element sets its own display. `.row` is
+     `display:grid` and `.cluster` is a block box, and both beat the UA sheet's
+     `[hidden] { display:none }` on specificity — so gating set `hidden` faithfully
+     and every gated row stayed on screen. Found because a DOM probe reported
+     `hidden: true` while the human reported seeing the controls: the property was
+     the mechanism, the pixels were the outcome, and only one of them was checked. */
+  .row[hidden], .cluster[hidden], .grp[hidden] { display: none; }
+
 </style></head><body>
 
 <!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
@@ -134,7 +142,6 @@
   <div class="cluster"><h2>OSC 1</h2><div class="strip"><b>OSC 1</b>
     <div class="msrow"><div class="msbtn" data-ms="m" data-p="104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="105" data-fixed="1">S</div><div class="meter" data-osc="0"><i></i></div></div>
     <div class="row"><label>level</label><input type="range" data-p="17" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><output></output></div>
-    <div class="row"><label>width</label><input type="range" data-p="14" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="35" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="36" data-fixed="1" min="-12" max="12" step="1" value="0"><output></output></div>
     <div class="row"><label>fine</label><input type="range" data-p="37" data-fixed="1" min="-100" max="100" step="1" value="0"><output></output></div>
@@ -142,7 +149,6 @@
   <div class="cluster"><h2>OSC 2</h2><div class="strip"><b>OSC 2</b>
     <div class="msrow"><div class="msbtn" data-ms="m" data-p="1104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="1105" data-fixed="1">S</div><div class="meter" data-osc="1"><i></i></div></div>
     <div class="row"><label>level</label><input type="range" data-p="1017" data-fixed="1" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row"><label>width</label><input type="range" data-p="1014" data-fixed="1" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="1035" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="1036" data-fixed="1" min="-12" max="12" step="1" value="0"><output></output></div>
     <div class="row"><label>fine</label><input type="range" data-p="1037" data-fixed="1" min="-100" max="100" step="1" value="0"><output></output></div>
@@ -156,21 +162,9 @@
 
 <!--GEN:MIX-->
   <div class="cluster"><h2>Output & perception</h2>
-    <div class="row" data-addr="osc1.rtone"><label>R->Tone <span class="sc">osc1</span></label><input type="range" data-p="12" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.normExp"><label>Density Comp <span class="sc">osc1</span></label><input type="range" data-p="13" min="0.5" max="1" step="0.005" value="0.75"><output></output></div>
     <div class="row" data-addr="mono"><label>Mono Fold</label><input type="checkbox" data-p="15"><output></output></div>
-    <div class="row" data-addr="osc1.digital"><label>Digital <span class="sc">osc1</span></label><input type="range" data-p="16" min="0" max="1" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="bassMono"><label>Bass Mono</label><input type="checkbox" data-p="40"><output></output></div>
     <div class="row" data-addr="bassMonoHz"><label>Bass XOver (Hz)</label><input type="range" data-p="41" min="60" max="500" step="0.005" value="120"><output></output></div>
-    <div class="row" data-addr="osc1.panScatter"><label>Pan Scatter <span class="sc">osc1</span></label><input type="range" data-p="42" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.toneTilt"><label>Tone Tilt <span class="sc">osc1</span></label><input type="range" data-p="71" min="-1" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.hiTame"><label>Hi Tame <span class="sc">osc1</span></label><input type="range" data-p="72" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.panMotion"><label>Pan Motion <span class="sc">osc1</span></label><input type="range" data-p="76" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.panMode"><label>Pan Motion Mode <span class="sc">osc1</span></label><select data-p="77"><option value="0" selected>drift (per-voice)</option><option value="1">sweep (whole image)</option></select><output></output></div>
-    <div class="row" data-addr="osc1.panLayout"><label>Pan Image <span class="sc">osc1</span></label><select data-p="84"><option value="0" selected>pitch fan</option><option value="1">legacy (x-position)</option></select><output></output></div>
-    <div class="row" data-addr="osc1.panCurve"><label>Fan Curve <span class="sc">osc1</span></label><input type="range" data-p="85" min="0" max="1" step="0.005" value="0.5"><output></output></div>
-    <div class="row" data-addr="osc1.panInvert"><label>Fan Invert <span class="sc">osc1</span></label><input type="checkbox" data-p="86"><output></output></div>
-    <div class="row" data-addr="osc1.superMode"><label>Super-Width Mode <span class="sc">osc1</span></label><select data-p="87"><option value="0" selected>wide (clean)</option><option value="1">pulse (M/S)</option><option value="2">smear (allpass)</option></select><output></output></div>
     <div class="row" data-addr="oversample"><label>Oversample 2x</label><input type="checkbox" data-p="88"><output></output></div>
   </div>
   <!--/GEN:MIX-->
@@ -295,6 +289,21 @@
     <div class="row" data-addr="osc1.voiceEnv"><label>Per-Partial Env <span class="sc">osc1</span></label><input type="checkbox" data-p="94"><output></output></div>
     <div class="row" data-addr="osc1.relScatter"><label>Release Scatter <span class="sc">osc1</span></label><input type="range" data-p="95" min="0" max="1" step="0.005" value="0"><output></output></div>
   </div>
+  <div class="cluster"><h2>Image & tone</h2>
+    <div class="row" data-addr="osc1.rtone"><label>R->Tone <span class="sc">osc1</span></label><input type="range" data-p="12" min="-1" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.normExp"><label>Density Comp <span class="sc">osc1</span></label><input type="range" data-p="13" min="0.5" max="1" step="0.005" value="0.75"><output></output></div>
+    <div class="row" data-addr="osc1.width"><label>Width <span class="sc">osc1</span></label><input type="range" data-p="14" min="0" max="1.5" step="0.005" value="0.8"><output></output></div>
+    <div class="row" data-addr="osc1.digital"><label>Digital <span class="sc">osc1</span></label><input type="range" data-p="16" min="0" max="1" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="osc1.panScatter"><label>Pan Scatter <span class="sc">osc1</span></label><input type="range" data-p="42" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.toneTilt"><label>Tone Tilt <span class="sc">osc1</span></label><input type="range" data-p="71" min="-1" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.hiTame"><label>Hi Tame <span class="sc">osc1</span></label><input type="range" data-p="72" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.panMotion"><label>Pan Motion <span class="sc">osc1</span></label><input type="range" data-p="76" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.panMode"><label>Pan Motion Mode <span class="sc">osc1</span></label><select data-p="77"><option value="0" selected>drift (per-voice)</option><option value="1">sweep (whole image)</option></select><output></output></div>
+    <div class="row" data-addr="osc1.panLayout"><label>Pan Image <span class="sc">osc1</span></label><select data-p="84"><option value="0" selected>pitch fan</option><option value="1">legacy (x-position)</option></select><output></output></div>
+    <div class="row" data-addr="osc1.panCurve"><label>Fan Curve <span class="sc">osc1</span></label><input type="range" data-p="85" min="0" max="1" step="0.005" value="0.5"><output></output></div>
+    <div class="row" data-addr="osc1.panInvert"><label>Fan Invert <span class="sc">osc1</span></label><input type="checkbox" data-p="86"><output></output></div>
+    <div class="row" data-addr="osc1.superMode"><label>Super-Width Mode <span class="sc">osc1</span></label><select data-p="87"><option value="0" selected>wide (clean)</option><option value="1">pulse (M/S)</option><option value="2">smear (allpass)</option></select><output></output></div>
+  </div>
   <div class="cluster"><h2>The coupling</h2>
     <div class="row" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.onset"><label>Onset Lock <span class="sc">osc1</span></label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
@@ -343,6 +352,7 @@
 "use strict";
 /* ============ PLUMBING (ported from gui.html — proven, do not fork) ======= */
 const $ = s => document.querySelector(s);
+let SHELL_DEFAULTS = {};   // id -> default, served by the shell at load
 const DEFAULTS = {100:1,101:0,102:0,103:0,18:1,1017:0,1014:0.8,1035:0,1036:0,1037:0,1:7,3:1234,4:0.28,6:0,7:0,8:0.63,
   14:0.8,17:0.4,35:0,36:0,37:0};
 if (!window.hzGetParams) {   /* standalone/dev mocks */
@@ -372,6 +382,7 @@ const bridge = {
   getBuild: () => window.hzGetBuild(),
   getHostHint: () => window.hzGetHostHint ? window.hzGetHostHint() : Promise.resolve(''),
   releaseKeyFocus: () => window.hzReleaseKeyFocus ? window.hzReleaseKeyFocus() : Promise.resolve(0),
+  getDefaults: () => window.hzGetDefaults ? window.hzGetDefaults() : Promise.resolve('{}'),
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
   panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
@@ -504,8 +515,14 @@ document.querySelectorAll('[data-p]').forEach(el => {
     // of a number CLAP also reports, which is the same mistake as retyping enum
     // labels into the presentation table. DEFAULTS keeps its OTHER job (standing
     // in for hzGetParams in a browser) and is the fallback here, not the source.
-    let def;
-    if (el.type === 'checkbox') def = el.defaultChecked ? 1 : 0;
+    // THE SHELL IS THE SOURCE. SHELL_DEFAULTS comes from the same defaultFor()
+    // that fills clap_param_info.default_value, so double-click here and a host's
+    // "reset to default" cannot disagree — and the defaults outlive this GUI,
+    // which is the point: markup attributes vanish with the markup. The DOM
+    // default stays as the fallback for the dev server, where there is no plugin.
+    let def = SHELL_DEFAULTS[id_()];
+    if (def !== undefined) { /* shell wins */ }
+    else if (el.type === 'checkbox') def = el.defaultChecked ? 1 : 0;
     else if (el.tagName === 'SELECT') {
       const d = [...el.options].find(o => o.defaultSelected);
       if (d) def = +d.value;
@@ -913,6 +930,7 @@ function applyGates() {
     g.hidden = rows.length > 0 && rows.every(r => r.hidden);
   });
 }
+bridge.getDefaults().then(j => { SHELL_DEFAULTS = JSON.parse(j || '{}'); }).catch(() => {});
 learnGateKeys();
 document.addEventListener('input', e => { if (e.target.closest('[data-p]')) applyGates(); });
 applyGates();

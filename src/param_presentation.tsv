@@ -68,15 +68,15 @@ osc2.driftDepth	osc2	Drift Depth (c)	OSC	Drift	knob		drift
 osc1.driftRate	osc1	Drift Rate	OSC	Drift	knob		drift	
 osc2.driftRate	osc2	Drift Rate	OSC	Drift	knob		drift	
 inertia	global	Inertia	OSC	The coupling	knob		the-coupling	
-osc1.rtone	osc1	R->Tone	MIX	Output & perception	knob		output-perception	
-osc2.rtone	osc2	R->Tone	MIX	Output & perception	knob		output-perception	
-osc1.normExp	osc1	Density Comp	MIX	Output & perception	knob		output-perception	
-osc2.normExp	osc2	Density Comp	MIX	Output & perception	knob		output-perception	
-osc1.width	osc1	Width	MIX	Mix	knob		mix	
-osc2.width	osc2	Width	MIX	Mix	knob		mix	
+osc1.rtone	osc1	R->Tone	OSC	Image & tone	knob		image-tone	
+osc2.rtone	osc2	R->Tone	OSC	Image & tone	knob		image-tone	
+osc1.normExp	osc1	Density Comp	OSC	Image & tone	knob		image-tone	
+osc2.normExp	osc2	Density Comp	OSC	Image & tone	knob		image-tone	
+osc1.width	osc1	Width	OSC	Image & tone	knob		image-tone	
+osc2.width	osc2	Width	OSC	Image & tone	knob		image-tone	
 mono	global	Mono Fold	MIX	Output & perception	toggle		output-perception	
-osc1.digital	osc1	Digital	MIX	Output & perception	knob		output-perception	
-osc2.digital	osc2	Digital	MIX	Output & perception	knob		output-perception	
+osc1.digital	osc1	Digital	OSC	Image & tone	knob		image-tone	
+osc2.digital	osc2	Digital	OSC	Image & tone	knob		image-tone	
 osc1.vol	osc1	Volume	MIX	Mix	knob		mix	
 osc2.vol	osc2	Volume	MIX	Mix	knob		mix	
 osc1.retrig	osc1	Retrigger	OSC	The coupling	toggle		the-coupling	
@@ -121,8 +121,8 @@ osc1.scatter	osc1	Phase Scatter	OSC	The coupling	knob		the-coupling
 osc2.scatter	osc2	Phase Scatter	OSC	The coupling	knob		the-coupling	
 bassMono	global	Bass Mono	MIX	Output & perception	toggle		output-perception	
 bassMonoHz	global	Bass XOver (Hz)	MIX	Output & perception	knob		output-perception	
-osc1.panScatter	osc1	Pan Scatter	MIX	Output & perception	knob		output-perception	
-osc2.panScatter	osc2	Pan Scatter	MIX	Output & perception	knob		output-perception	
+osc1.panScatter	osc1	Pan Scatter	OSC	Image & tone	knob		image-tone	
+osc2.panScatter	osc2	Pan Scatter	OSC	Image & tone	knob		image-tone	
 osc1.engine	osc1	Engine	OSC	The swarm	select			
 osc2.engine	osc2	Engine	OSC	The swarm	select			
 osc1.partials	osc1	Partials	OSC	Spectra	knob			
@@ -169,19 +169,19 @@ osc1.sRelease	osc1	S.Release (s)	OSC	Envelope	knob		envelope
 osc2.sRelease	osc2	S.Release (s)	OSC	Envelope	knob		envelope	
 osc1.shape	osc1	Saw Shape	OSC	The swarm	knob		the-swarm	
 osc2.shape	osc2	Saw Shape	OSC	The swarm	knob		the-swarm	
-osc1.toneTilt	osc1	Tone Tilt	MIX	Output & perception	knob		output-perception	
-osc2.toneTilt	osc2	Tone Tilt	MIX	Output & perception	knob		output-perception	
-osc1.hiTame	osc1	Hi Tame	MIX	Output & perception	knob		output-perception	
-osc2.hiTame	osc2	Hi Tame	MIX	Output & perception	knob		output-perception	
+osc1.toneTilt	osc1	Tone Tilt	OSC	Image & tone	knob		image-tone	
+osc2.toneTilt	osc2	Tone Tilt	OSC	Image & tone	knob		image-tone	
+osc1.hiTame	osc1	Hi Tame	OSC	Image & tone	knob		image-tone	
+osc2.hiTame	osc2	Hi Tame	OSC	Image & tone	knob		image-tone	
 osc1.driftMode	osc1	Drift Mode	OSC	Drift	select		drift	
 osc2.driftMode	osc2	Drift Mode	OSC	Drift	select		drift	
 osc1.keepPhase	osc1	Keep Phase	OSC	Drift	toggle		drift	
 osc2.keepPhase	osc2	Keep Phase	OSC	Drift	toggle		drift	
 freqGlide	global	Freq Glide (s)	OSC	Drift	knob		drift	
-osc1.panMotion	osc1	Pan Motion	MIX	Output & perception	knob		output-perception	
-osc2.panMotion	osc2	Pan Motion	MIX	Output & perception	knob		output-perception	
-osc1.panMode	osc1	Pan Motion Mode	MIX	Output & perception	select		output-perception	
-osc2.panMode	osc2	Pan Motion Mode	MIX	Output & perception	select		output-perception	
+osc1.panMotion	osc1	Pan Motion	OSC	Image & tone	knob		image-tone	
+osc2.panMotion	osc2	Pan Motion	OSC	Image & tone	knob		image-tone	
+osc1.panMode	osc1	Pan Motion Mode	OSC	Image & tone	select		image-tone	
+osc2.panMode	osc2	Pan Motion Mode	OSC	Image & tone	select		image-tone	
 osc1.motionCenter	osc1	Centre Pin	OSC	Drift	knob		drift	
 osc2.motionCenter	osc2	Centre Pin	OSC	Drift	knob		drift	
 osc1.harmReach	osc1	Harmonic Reach	OSC	The swarm	knob		the-swarm	
@@ -194,14 +194,14 @@ osc1.anchor	osc1	Root Anchor	OSC	The swarm	knob		the-swarm
 osc2.anchor	osc2	Root Anchor	OSC	The swarm	knob		the-swarm	
 osc1.pivotMode	osc1	Pivot	OSC	Dynamics	select		dynamics	
 osc2.pivotMode	osc2	Pivot	OSC	Dynamics	select		dynamics	
-osc1.panLayout	osc1	Pan Image	MIX	Output & perception	select		output-perception	
-osc2.panLayout	osc2	Pan Image	MIX	Output & perception	select		output-perception	
-osc1.panCurve	osc1	Fan Curve	MIX	Output & perception	knob		output-perception	
-osc2.panCurve	osc2	Fan Curve	MIX	Output & perception	knob		output-perception	
-osc1.panInvert	osc1	Fan Invert	MIX	Output & perception	toggle		output-perception	
-osc2.panInvert	osc2	Fan Invert	MIX	Output & perception	toggle		output-perception	
-osc1.superMode	osc1	Super-Width Mode	MIX	Output & perception	select		output-perception	
-osc2.superMode	osc2	Super-Width Mode	MIX	Output & perception	select		output-perception	
+osc1.panLayout	osc1	Pan Image	OSC	Image & tone	select		image-tone	
+osc2.panLayout	osc2	Pan Image	OSC	Image & tone	select		image-tone	
+osc1.panCurve	osc1	Fan Curve	OSC	Image & tone	knob		image-tone	
+osc2.panCurve	osc2	Fan Curve	OSC	Image & tone	knob		image-tone	
+osc1.panInvert	osc1	Fan Invert	OSC	Image & tone	toggle		image-tone	
+osc2.panInvert	osc2	Fan Invert	OSC	Image & tone	toggle		image-tone	
+osc1.superMode	osc1	Super-Width Mode	OSC	Image & tone	select		image-tone	
+osc2.superMode	osc2	Super-Width Mode	OSC	Image & tone	select		image-tone	
 oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception	
 polyGlide	global	Poly Glide	OSC	Voice	toggle		voice	
 glideMode	global	Glide From	OSC	Voice	select		voice	
