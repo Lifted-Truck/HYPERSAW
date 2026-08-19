@@ -85,3 +85,6 @@ NTR-1	OSC	Note travel	agentic	ENCODING	hypersaw	trajectory_check	a note retarget
 NTR-2	OSC	Note travel	agentic	ENCODING	hypersaw	parity_check	the note lane is invisible to the JS reference, which has no glide at all — the goldens must be unmoved by ADR-096
 NTR-3	OSC	Note travel	human	RULING	human	manual	shipped defaults (own settings + lag, tau from id 33) sound like the pre-ADR-096 glide; the Hz->semitone domain change is the audible delta to judge
 NTR-4	OSC	Note travel	human	RULING	human	manual	switching the link to "follow bend law" makes played notes travel by the same law as the wheel, and no control is shown for a law that is not selected
+PIT-1	OSC	Pitch	agentic	ENCODING	hypersaw	gen_gui_controls	exactly one NON-fixed control claims base ids 35/36/37, so effId() addresses the selected oscillator instead of a duplicate row (the MIX strips stay data-fixed mirrors)
+PIT-2	OSC	Pitch	human	RULING	human	manual	the OSC-page octave/semi/fine dials follow the oscillator selector, and the MIX channel strip for that oscillator repaints to match
+NTR-5	OSC	Note travel	agentic	ENCODING	hypersaw	trajectory_check	a law carrying its own time arms with glide 0 and TRAVELS rather than snapping (mid-flight sample; arrival alone cannot fail, since a lane that never arms snaps and arrives perfectly)

@@ -283,6 +283,20 @@
   </div>
   </div>
   <div class="ctlcol">
+    <!--HAND-PLACED, and it has to be. The generator skips any id already written
+        by a human ("generation never fights a human"), and MIX's channel strips
+        already spell out 35/36/37 — so these dials could never be generated onto
+        this page no matter what the presentation table said, which is why the
+        Voice panel read empty. Those strips are data-fixed and address one
+        oscillator each; these are NOT fixed, so effId() remaps them to whichever
+        oscillator the selector is editing, and setControl repaints the MIX
+        mirrors from the same push. Exactly one non-fixed claimant per base id,
+        which is what gen_gui_controls' collision gate requires. -->
+  <div class="cluster"><h2>Pitch</h2>
+    <div class="row" data-addr="osc1.octave"><label>Octave <span class="sc">osc1</span></label><input type="range" data-p="35" min="-2" max="2" step="1" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.semi"><label>Semitones <span class="sc">osc1</span></label><input type="range" data-p="36" min="-12" max="12" step="1" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.fineCents"><label>Fine (c) <span class="sc">osc1</span></label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
+  </div>
     <!--GEN:OSC-->
   <div class="cluster"><h2>Bend</h2>
     <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
@@ -341,7 +355,10 @@
     <div class="row" data-addr="osc1.superMode"><label>Super-Width Mode <span class="sc">osc1</span></label><select data-p="87"><option value="0" selected>wide (clean)</option><option value="1">pulse (M/S)</option><option value="2">smear (allpass)</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Note travel</h2>
+    <div class="row" data-addr="voiceMono"><label>Mono</label><input type="checkbox" data-p="32"><output></output></div>
     <div class="row" data-addr="glide" data-when="noteLawLink=0,noteLaw=3"><label>Note Lag <span class="u">s</span></label><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
+    <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="polyGlide"><label>Poly Glide</label><input type="checkbox" data-p="89"><output></output></div>
     <div class="row" data-addr="glideMode"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (memory)</option></select><output></output></div>
     <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0" selected>own settings</option><option value="1">follow bend law</option></select><output></output></div>
@@ -389,11 +406,6 @@
     <div class="row" data-addr="osc1.stretchB"><label>Stretch B <span class="sc">osc1</span></label><input type="range" data-p="80" min="0" max="6" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.spread"><label>Octave Spread <span class="sc">osc1</span></label><input type="range" data-p="81" min="1" max="24" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="osc1.anchor"><label>Root Anchor <span class="sc">osc1</span></label><input type="range" data-p="82" min="0" max="1" step="0.005" value="0"><output></output></div>
-  </div>
-  <div class="cluster"><h2>Voice</h2>
-    <div class="row" data-addr="voiceMono"><label>Mono</label><input type="checkbox" data-p="32"><output></output></div>
-    <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
-    <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
   </div>
   <!--/GEN:OSC-->
     <div class="note">retrigger OFF = free-run phases; random starts can null for
@@ -628,6 +640,11 @@ function buildOscSelectors() {
         // highlight the button" (human report 2026-08-08).
         document.querySelectorAll('.oscSel .oscTab').forEach(t =>
           t.classList.toggle('on', +t.dataset.osc === k));
+        // Every per-oscillator row carries a static `osc1` tag from generation
+        // time, so selecting OSC 2 left the whole page insisting you were editing
+        // OSC 1 while effId() quietly sent everything to OSC 2. The scope tag is
+        // a label for the CURRENT selection, not for the row's birth.
+        document.querySelectorAll('.sc').forEach(t => { t.textContent = 'osc' + (k + 1); });
         try { bridge.setVizOsc(k); } catch (e) {}
         const ps = JSON.parse(await bridge.getParams());
         for (const [id, v] of Object.entries(ps)) setControl(+id, v);

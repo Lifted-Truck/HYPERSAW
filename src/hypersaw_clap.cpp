@@ -2404,6 +2404,11 @@ bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
   pl->spectra.p = sp;
   pl->spectra.rebuild();
   pl->rack.setSampleRate(sr);  // ADR-071: size comb lines + derive comp coeffs at sr
+  // The shell owns the note law (it resolves the link), so push it once here.
+  // Without this the cores run GlideCore's OWN defaults until the first edit of
+  // a note/bend/scale param -- including an empty scale mask, which the
+  // quantiser would read as "no degree admitted".
+  pl->pushNoteLaw();
   return true;
 }
 

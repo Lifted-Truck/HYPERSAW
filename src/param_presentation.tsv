@@ -113,16 +113,16 @@ osc1.basin	osc1	Basin (c)	OSC	Dynamics	knob		dynamics
 osc2.basin	osc2	Basin (c)	OSC	Dynamics	knob		dynamics		
 osc1.absK	osc1	Absolute K	OSC	Dynamics	toggle		dynamics		
 osc2.absK	osc2	Absolute K	OSC	Dynamics	toggle		dynamics		
-voiceMono	global	Mono	OSC	Voice	toggle		voice		
+voiceMono	global	Mono	OSC	Note travel	toggle		voice		
 glide	global	Note Lag	OSC	Note travel	knob	s	bend	noteLawLink=0,noteLaw=3	log10
-voiceLegato	global	Legato	OSC	Voice	toggle		voice		
-osc1.octave	osc1	Octave	OSC	Voice	knob		voice		
-osc2.octave	osc2	Octave	OSC	Voice	knob		voice		
-osc1.semi	osc1	Semitones	OSC	Voice	knob		voice		
-osc2.semi	osc2	Semitones	OSC	Voice	knob		voice		
-osc1.fineCents	osc1	Fine (c)	OSC	Voice	knob		voice		
-osc2.fineCents	osc2	Fine (c)	OSC	Voice	knob		voice		
-pitchBend	global	Pitch	OSC	Voice	knob		voice		
+voiceLegato	global	Legato	OSC	Note travel	toggle		voice		
+osc1.octave	osc1	Octave	OSC	Pitch	knob		voice		
+osc2.octave	osc2	Octave	OSC	Pitch	knob		voice		
+osc1.semi	osc1	Semitones	OSC	Pitch	knob		voice		
+osc2.semi	osc2	Semitones	OSC	Pitch	knob		voice		
+osc1.fineCents	osc1	Fine (c)	OSC	Pitch	knob		voice		
+osc2.fineCents	osc2	Fine (c)	OSC	Pitch	knob		voice		
+pitchBend	global	Pitch	OSC	Note travel	knob		voice		
 osc1.scatter	osc1	Phase Scatter	OSC	The coupling	knob		the-coupling		
 osc2.scatter	osc2	Phase Scatter	OSC	The coupling	knob		the-coupling		
 bassMono	global	Bass Mono	MIX	Output & perception	toggle		output-perception		

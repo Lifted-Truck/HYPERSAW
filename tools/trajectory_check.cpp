@@ -788,6 +788,31 @@ int main()
     check(std::fabs(cents) <= 1.0, "ADR-026 glide reaches target within 1c (12 tau)", cents);
     check(envMin > 0.5, "ADR-026 legato retarget keeps the envelope up", envMin);
 
+    /* ADR-096 REGRESSION. A law that carries its own time must arm with `glide`
+       at its default 0. The old gate asked `glide > 0` — correct while lag was
+       the only law, and wrong the moment there were five, because constant-time,
+       constant-rate and spring never read tau at all. Worse, the control holding
+       `glide` is hidden unless LAG is selected, so the lane was unreachable from
+       the GUI: the human reported "the bend still doesn't seem to be hooking
+       into the notes" and was right.
+       The MID-FLIGHT sample is the load-bearing half. Arrival alone cannot fail
+       here — a lane that never arms SNAPS to the target and arrives perfectly. */
+    {
+      SwarmCore c3(kSR);
+      hypersaw::GlideCore::Params lw;
+      lw.model = hypersaw::GlideCore::kConstRate;
+      lw.rate = 24;                       // st/s: an octave in 0.5 s
+      c3.setNoteLaw(lw);                  // `glide` deliberately left at 0
+      const int s3 = c3.noteOn(57, 220.0);
+      for (long off = 0; off < (long)(0.2 * kSR); off += kBlock) c3.render(L.data(), R.data(), kBlock);
+      c3.retargetNote(s3, 69, 440.0, true);
+      for (long off = 0; off < (long)(0.25 * kSR); off += kBlock) c3.render(L.data(), R.data(), kBlock);
+      const double mid = c3.voiceAt(s3).f0;     // ~311 Hz if travelling; 440 if snapped
+      for (long off = 0; off < (long)(1.5 * kSR); off += kBlock) c3.render(L.data(), R.data(), kBlock);
+      const double c3cents = 1200 * std::log2(c3.voiceAt(s3).f0 / 440.0);
+      check(mid > 230 && mid < 430, "ADR-096 const-rate arms with glide 0 (travels, not snaps)", mid);
+      check(std::fabs(c3cents) <= 1.0, "ADR-096 const-rate arrives", c3cents);
+    }
     // Non-legato retarget re-strikes (attack flag) but still glides from the
     // current pitch: right after retarget the pitch is near the OLD note.
     SwarmCore c2(kSR);
