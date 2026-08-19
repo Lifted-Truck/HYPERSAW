@@ -32,8 +32,29 @@ C major — out-of-scale pitch classes: [1, 3, 6, 8, 10]
           of those, TIED:             [1, 3, 6, 8, 10]     ← all five
 ```
 
-So this was never a corner case. **It is every accidental in the scale, decided flat, by loop
-order.** Their consumer found it by exhaustive count; ours would have found it by ear.
+**CORRECTION, same day, before anyone acts on this.** The sentence that first stood here —
+*"every accidental in the scale, decided flat"* — is true of THEIR domain and not of ours, and
+the difference is the input, not the mechanism.
+
+`conform_to_scale` quantises **integer MIDI notes**, so an out-of-scale pitch class is *exactly*
+equidistant from its neighbours every single time: all five accidentals tie deterministically,
+which is why a fixed direction decided every one of them. Our quantiser is handed `x`, the
+glide's **continuous** output. An exact tie needs the value to land precisely on the midpoint:
+
+```
+x = 1.0        -> 0   (tie, resolves DOWN)
+x = 1.0000001  -> 2
+x = 0.999999   -> 0
+```
+
+A knife edge one ULP wide. It is genuinely reachable — with the law off, `x = target`
+bit-exactly, so a host or automation writing exactly 1.0 lands on it — but it is not the
+common case, and in continuous motion the hysteresis already supplies the continuity that
+their tie-break supplies at integers.
+
+So: **same mechanism, materially smaller blast radius.** We copied their severity along with
+their finding, which is the error worth recording. The defect is real, the fix is still right,
+and the urgency is lower than first written.
 
 **BLOCKED behind our own spec gate, deliberately.** The C++ is a *port*, parity-gated at 1e-6
 RMS against `docs/design/bend-lab.html` — and **the reference has the identical structure**.
