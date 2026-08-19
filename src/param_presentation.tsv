@@ -234,3 +234,13 @@ osc1.oscMute	osc1	Mute	MIX	(ungrouped)	select		ungrouped
 osc2.oscMute	osc2	Mute	MIX	(ungrouped)	select		ungrouped		
 osc1.oscSolo	osc1	Solo	MIX	(ungrouped)	select		ungrouped		
 osc2.oscSolo	osc2	Solo	MIX	(ungrouped)	select		ungrouped		
+bendLaw	global	Bend Law	MAIN	Bend	select		bend		
+bendTime	global	Bend Time	MAIN	Bend	knob	ms	bend	bendLaw=1	log10
+bendRate	global	Bend Rate	MAIN	Bend	knob	st/s	bend	bendLaw=2	log10
+bendTau	global	Bend Lag	MAIN	Bend	knob	ms	bend	bendLaw=3	log10
+bendSpringF	global	Spring	MAIN	Bend	knob	Hz	bend	bendLaw=4	log10
+bendDamp	global	Damping	MAIN	Bend	knob		bend	bendLaw=4	
+bendDistOver	global	Distance Curve	MAIN	Bend	knob		bend	bendLaw=4	
+bendReturn	global	Return x	MAIN	Bend	knob		bend	bendLaw=1|2|3|4	
+bendQuant	global	Bend Quantise	MAIN	Bend	select		bend		
+bendHyst	global	Quantise Hyst	MAIN	Bend	knob	c	bend	bendQuant=1|2	
