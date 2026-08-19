@@ -1857,6 +1857,28 @@ struct Plugin
           default: break;
         }
       }
+      /* NOTE LANE readback. Its absence is why "follow bend law" would not stick:
+         applyParam stored the choice in `noteLink`, but readParam fell through to
+         the ParamDef default, so the host's very next getParams() echoed 0 back
+         and the selector snapped to "own settings". A parameter the shell OWNS
+         must be readable from where the shell keeps it — the write half alone is
+         a value the host can never see. */
+      if (d->id >= 137 && d->id <= 145)
+      {
+        switch (d->id)
+        {
+          case 137: return noteLink;
+          case 138: return noteLawOwn.model;
+          case 139: return noteLawOwn.gtime;
+          case 140: return noteLawOwn.rate;
+          case 141: return noteLawOwn.springF;
+          case 142: return noteLawOwn.damp;
+          case 143: return noteLawOwn.distOver;
+          case 144: return noteLawOwn.quant;
+          case 145: return noteLawOwn.qhyst;
+          default: break;
+        }
+      }
       if (d->id >= 133 && d->id <= 136) return rack.getMix((int)(d->id - 133));
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];

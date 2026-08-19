@@ -113,16 +113,16 @@ osc1.basin	osc1	Basin (c)	OSC	Dynamics	knob		dynamics
 osc2.basin	osc2	Basin (c)	OSC	Dynamics	knob		dynamics		
 osc1.absK	osc1	Absolute K	OSC	Dynamics	toggle		dynamics		
 osc2.absK	osc2	Absolute K	OSC	Dynamics	toggle		dynamics		
-voiceMono	global	Mono	OSC	Note travel	toggle		voice		
-glide	global	Note Lag	OSC	Note travel	knob	s	bend	noteLawLink=0,noteLaw=3	log10
-voiceLegato	global	Legato	OSC	Note travel	toggle		voice		
+voiceMono	global	Mono	OSC	Bend	toggle		voice		
+glide	global	Note Lag	OSC	Bend	knob	s	bend	noteLawLink=0,noteLaw=3	log10
+voiceLegato	global	Legato	OSC	Bend	toggle		voice		
 osc1.octave	osc1	Octave	OSC	Pitch	knob		voice		
 osc2.octave	osc2	Octave	OSC	Pitch	knob		voice		
 osc1.semi	osc1	Semitones	OSC	Pitch	knob		voice		
 osc2.semi	osc2	Semitones	OSC	Pitch	knob		voice		
 osc1.fineCents	osc1	Fine (c)	OSC	Pitch	knob		voice		
 osc2.fineCents	osc2	Fine (c)	OSC	Pitch	knob		voice		
-pitchBend	global	Pitch	OSC	Note travel	knob		voice		
+pitchBend	global	Pitch	OSC	Bend	knob		voice		
 osc1.scatter	osc1	Phase Scatter	OSC	The coupling	knob		the-coupling		
 osc2.scatter	osc2	Phase Scatter	OSC	The coupling	knob		the-coupling		
 bassMono	global	Bass Mono	MIX	Output & perception	toggle		output-perception		
@@ -209,8 +209,8 @@ osc2.panInvert	osc2	Fan Invert	OSC	Image & tone	toggle		image-tone
 osc1.superMode	osc1	Super-Width Mode	OSC	Image & tone	select		image-tone		
 osc2.superMode	osc2	Super-Width Mode	OSC	Image & tone	select		image-tone		
 oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception		
-polyGlide	global	Poly Glide	OSC	Note travel	toggle		bend		
-glideMode	global	Glide From	OSC	Note travel	select		bend		
+polyGlide	global	Poly Glide	OSC	Bend	toggle		bend		
+glideMode	global	Glide From	OSC	Bend	select		bend		
 osc1.onsetScatter	osc1	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc2.onsetScatter	osc2	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc1.onsetAlpha	osc1	Timing Correction	OSC	Onset & scatter	knob		onset-scatter		
@@ -269,12 +269,12 @@ fx1mix	global	FX1 Mix	FX	FX rack	knob		fx-rack
 fx2mix	global	FX2 Mix	FX	FX rack	knob		fx-rack		
 fx3mix	global	FX3 Mix	FX	FX rack	knob		fx-rack		
 fx4mix	global	FX4 Mix	FX	FX rack	knob		fx-rack		
-noteLawLink	global	Note Law	OSC	Note travel	select		bend		
-noteLaw	global	Note Travel	OSC	Note travel	select		bend	noteLawLink=0	
-noteTime	global	Note Time	OSC	Note travel	knob	ms	bend	noteLawLink=0,noteLaw=1	log10
-noteRate	global	Note Rate	OSC	Note travel	knob	st/s	bend	noteLawLink=0,noteLaw=2	log10
-noteSpringF	global	Note Spring	OSC	Note travel	knob	Hz	bend	noteLawLink=0,noteLaw=4	log10
-noteDamp	global	Note Damping	OSC	Note travel	knob		bend	noteLawLink=0,noteLaw=4	
-noteDistOver	global	Note Distance Curve	OSC	Note travel	knob		bend	noteLawLink=0,noteLaw=4	
-noteQuant	global	Note Quantise	OSC	Note travel	select		bend	noteLawLink=0	
-noteHyst	global	Note Quant Hyst	OSC	Note travel	knob	c	bend	noteLawLink=0,noteQuant=1|2	
+noteLawLink	global	Note Law	OSC	Bend	select		bend		
+noteLaw	global	Note Travel	OSC	Bend	select		bend	noteLawLink=0	
+noteTime	global	Note Time	OSC	Bend	knob	ms	bend	noteLawLink=0,noteLaw=1	log10
+noteRate	global	Note Rate	OSC	Bend	knob	st/s	bend	noteLawLink=0,noteLaw=2	log10
+noteSpringF	global	Note Spring	OSC	Bend	knob	Hz	bend	noteLawLink=0,noteLaw=4	log10
+noteDamp	global	Note Damping	OSC	Bend	knob		bend	noteLawLink=0,noteLaw=4	
+noteDistOver	global	Note Distance Curve	OSC	Bend	knob		bend	noteLawLink=0,noteLaw=4	
+noteQuant	global	Note Quantise	OSC	Bend	select		bend	noteLawLink=0	
+noteHyst	global	Note Quant Hyst	OSC	Bend	knob	c	bend	noteLawLink=0,noteQuant=1|2	
