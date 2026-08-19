@@ -341,7 +341,7 @@ class SwarmCore
     // with a bend" (human, 2026-07-31). lastNoteF persists across silence, so
     // the first note after a rest still bends in from wherever you last were.
     const bool glideSourceOk = (p.glideMode > 0.5) ? true : anotherHeld;
-    if (p.polyGlide > 0.5 && p.glide > 0 && glideSourceOk && lastNoteF > 0 && lastNoteF != f)
+    if (p.polyGlide > 0.5 && noteTravels() && glideSourceOk && lastNoteF > 0 && lastNoteF != f)
     {
       s.f0 = lastNoteF;
       s.f0cur = lastNoteF;
@@ -375,7 +375,7 @@ class SwarmCore
       s.midi = midi;
       s.gate = 1;
     }
-    if (p.glide > 0)
+    if (noteTravels())
     {
       s.glideTarget = f;
       s.glideActive = 1;
@@ -481,6 +481,17 @@ class SwarmCore
   // is one law with nine coupled fields, and nine string keys could be set into
   // an inconsistent half-state between them.
   void setNoteLaw(const hypersaw::GlideCore::Params &e) { p.noteLaw = e; }
+
+  // Does the note lane actually travel? Lag keeps its historical gate exactly --
+  // lag with tau 0 IS instant, and every patch that stored glide=0 must stay
+  // snapping. The other laws carry their own time and arm on selection alone.
+  bool noteTravels() const
+  {
+    const int m = (int)p.noteLaw.model;
+    if (m == hypersaw::GlideCore::kOff) return false;
+    if (m == hypersaw::GlideCore::kLag) return p.glide > 0;
+    return true;
+  }
 
   void setNoteExpr(int slot, double semis)
   {
