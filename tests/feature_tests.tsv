@@ -34,18 +34,18 @@ INV-4	*	sample-rate	agentic	RULING	adr-009	samplerate_check	time constants are s
 INV-5	*	state	agentic	RULING	spec	state_check	a saved patch reloads to the same sound; coreKey is the wire format
 INV-6	*	preset	agentic	RULING	spec	preset_check	preset load/save round-trips
 INV-7	*	param-scope	agentic	RULING	adr-088	paramscope_check	per-oscillator vs patch-scope dispatch reaches the right owner
-VOI-1	MAIN	Voice	agentic	RULING	foundations-r8	conformance_check	every identity issued returns through an END, exactly once
-VOI-2	MAIN	Voice	agentic	RULING	adr-083	steal_check	free before releasing before oldest-held; released class ranked quietest-first
-VOI-3	MAIN	Voice	agentic	RULING	spec	notefuzz_check	no note hangs under fuzzed on/off/restrike streams
-VOI-4	MAIN	Voice	agentic	RULING	spec	endprobe	a NOTE_END is emitted for every note the host must retire
-VOI-5	MAIN	Voice	agentic	RULING	spec	kstuck_probe	notes still die when COUPLING is swept high and back
-VOI-6	MAIN	Voice	agentic	ENCODING	hypersaw	trace_check	the forensic ring records the event stream in order, with note_id
-VOI-7	MAIN	Voice	agentic	RULING	adr-038	mpe_check	MPE member-channel bend is latched and applied to a fresh strike
-VOI-8	MAIN	Voice	human	RULING	human	manual	held chords sustain in Live with an Expressive Chords device (MPE on)
-ENV-1	MAIN	Envelope	agentic	RULING	adr-055	trajectory_check	ADSR trajectories match the reference within L0 criteria
-ENV-2	MAIN	Envelope	human	RULING	human	manual	per-oscillator envelope divergence is audible and musical, not a glitch
-DYN-1	MAIN	Dynamics	agentic	RULING	spec	force_check	force-core trajectories reproduce the lab seed-for-seed
-DYN-2	MAIN	Dynamics	human	RULING	human	manual	-K behaviour: amplitude loss at negative coupling is compensated, not surprising
+VOI-1	OSC	Voice	agentic	RULING	foundations-r8	conformance_check	every identity issued returns through an END, exactly once
+VOI-2	OSC	Voice	agentic	RULING	adr-083	steal_check	free before releasing before oldest-held; released class ranked quietest-first
+VOI-3	OSC	Voice	agentic	RULING	spec	notefuzz_check	no note hangs under fuzzed on/off/restrike streams
+VOI-4	OSC	Voice	agentic	RULING	spec	endprobe	a NOTE_END is emitted for every note the host must retire
+VOI-5	OSC	Voice	agentic	RULING	spec	kstuck_probe	notes still die when COUPLING is swept high and back
+VOI-6	OSC	Voice	agentic	ENCODING	hypersaw	trace_check	the forensic ring records the event stream in order, with note_id
+VOI-7	OSC	Voice	agentic	RULING	adr-038	mpe_check	MPE member-channel bend is latched and applied to a fresh strike
+VOI-8	OSC	Voice	human	RULING	human	manual	held chords sustain in Live with an Expressive Chords device (MPE on)
+ENV-1	OSC	Envelope	agentic	RULING	adr-055	trajectory_check	ADSR trajectories match the reference within L0 criteria
+ENV-2	OSC	Envelope	human	RULING	human	manual	per-oscillator envelope divergence is audible and musical, not a glitch
+DYN-1	OSC	Dynamics	agentic	RULING	spec	force_check	force-core trajectories reproduce the lab seed-for-seed
+DYN-2	OSC	Dynamics	human	RULING	human	manual	-K behaviour: amplitude loss at negative coupling is compensated, not surprising
 SWM-1	OSC	The swarm	agentic	RULING	spec	parity_check	SAW core matches the reference across the distribution and law set
 SWM-2	OSC	The swarm	agentic	RULING	adr-058	waveshape_check	waveshape morph is continuous and reaches both endpoints
 CPL-1	OSC	The coupling	agentic	RULING	spec	force_check	coupling K drives the population toward the ruled order parameter

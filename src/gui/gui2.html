@@ -125,41 +125,7 @@
   </div>
   <div class="ctlcol">
 <!--GEN:MAIN-->
-  <div class="cluster"><h2>Dynamics</h2>
-    <div class="row" data-addr="osc1.topo"><label>Topology <span class="sc">osc1</span></label><select data-p="24"><option value="0" selected>mean-field</option><option value="1">ring</option><option value="2">two-cluster</option></select><output></output></div>
-    <div class="row" data-addr="osc1.reach"><label>Ring Reach <span class="sc">osc1</span></label><input type="range" data-p="25" min="1" max="8" step="1" value="5"><output></output></div>
-    <div class="row" data-addr="osc1.mu"><label>Cluster Link <span class="sc">osc1</span></label><input type="range" data-p="26" min="0" max="1" step="0.005" value="0.6"><output></output></div>
-    <div class="row" data-addr="osc1.alpha"><label>Phase Lag <span class="sc">osc1</span></label><input type="range" data-p="27" min="-90" max="90" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.poles"><label>Poles q <span class="sc">osc1</span></label><select data-p="28"><option value="1" selected>1 — classic</option><option value="2">2 — pair</option><option value="3">3 — triad</option><option value="4">4 — quad</option></select><output></output></div>
-    <div class="row" data-addr="osc1.grav"><label>Gravity <span class="sc">osc1</span></label><input type="range" data-p="29" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.basin"><label>Basin (c) <span class="sc">osc1</span></label><input type="range" data-p="30" min="10" max="50" step="0.005" value="35"><output></output></div>
-    <div class="row" data-addr="osc1.absK"><label>Absolute K <span class="sc">osc1</span></label><input type="checkbox" data-p="31"><output></output></div>
-    <div class="row" data-addr="osc1.balance"><label>A/B Balance <span class="sc">osc1</span></label><input type="range" data-p="56" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.pivotMode"><label>Pivot <span class="sc">osc1</span></label><select data-p="83"><option value="0" selected>mean field</option><option value="1">root (fundamental)</option></select><output></output></div>
-  </div>
-  <div class="cluster"><h2>Envelope</h2>
-    <div class="row" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="19" min="0.001" max="2" step="0.005" value="0.003"><output></output></div>
-    <div class="row" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="20" min="0.005" max="4" step="0.005" value="0.16"><output></output></div>
-    <div class="row" data-addr="osc1.sustain"><label>Sustain <span class="sc">osc1</span></label><input type="range" data-p="21" min="0" max="1" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><input type="range" data-p="22" min="0.005" max="8" step="0.005" value="0.16"><output></output></div>
-    <div class="row" data-addr="osc1.sAttack"><label>S.Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="65" data-fixed="1" min="0.001" max="2" step="0.005" value="0.004"><output></output></div>
-    <div class="row" data-addr="osc1.sDecay"><label>S.Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="66" data-fixed="1" min="0.005" max="4" step="0.005" value="0.18"><output></output></div>
-    <div class="row" data-addr="osc1.sSustain"><label>S.Sustain <span class="sc">osc1</span></label><input type="range" data-p="67" data-fixed="1" min="0" max="1" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="osc1.sRelease"><label>S.Release (s) <span class="sc">osc1</span></label><input type="range" data-p="68" data-fixed="1" min="0.005" max="8" step="0.005" value="0.18"><output></output></div>
-    <div class="row" data-addr="osc1.onsetScatter"><label>Onset Scatter (ms) <span class="sc">osc1</span></label><input type="range" data-p="91" min="0" max="80" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.onsetAlpha"><label>Timing Correction <span class="sc">osc1</span></label><input type="range" data-p="92" min="0" max="1.5" step="0.005" value="0.25"><output></output></div>
-    <div class="row" data-addr="osc1.attackScatter"><label>Attack Scatter <span class="sc">osc1</span></label><input type="range" data-p="93" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.voiceEnv"><label>Per-Partial Env <span class="sc">osc1</span></label><input type="checkbox" data-p="94"><output></output></div>
-    <div class="row" data-addr="osc1.relScatter"><label>Release Scatter <span class="sc">osc1</span></label><input type="range" data-p="95" min="0" max="1" step="0.005" value="0"><output></output></div>
-  </div>
-  <div class="cluster"><h2>Voice</h2>
-    <div class="row" data-addr="voiceMono"><label>Mono</label><input type="checkbox" data-p="32"><output></output></div>
-    <div class="row" data-addr="glide"><label>Glide (s)</label><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
-    <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="polyGlide"><label>Poly Glide</label><input type="checkbox" data-p="89"><output></output></div>
-    <div class="row" data-addr="glideMode"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (memory)</option></select><output></output></div>
-  </div>
+
   <!--/GEN:MAIN-->
   </div>
 </div>
@@ -302,6 +268,33 @@
     <div class="row" data-addr="freqGlide"><label>Freq Glide (s)</label><input type="range" data-p="75" min="0" max="0.1" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.motionCenter"><label>Centre Pin <span class="sc">osc1</span></label><input type="range" data-p="78" min="0" max="1" step="0.005" value="0"><output></output></div>
   </div>
+  <div class="cluster"><h2>Dynamics</h2>
+    <div class="row" data-addr="osc1.topo"><label>Topology <span class="sc">osc1</span></label><select data-p="24"><option value="0" selected>mean-field</option><option value="1">ring</option><option value="2">two-cluster</option></select><output></output></div>
+    <div class="row" data-addr="osc1.reach" data-when="topo=1"><label>Ring Reach <span class="sc">osc1</span></label><input type="range" data-p="25" min="1" max="8" step="1" value="5"><output></output></div>
+    <div class="row" data-addr="osc1.mu" data-when="topo=2"><label>Cluster Link <span class="sc">osc1</span></label><input type="range" data-p="26" min="0" max="1" step="0.005" value="0.6"><output></output></div>
+    <div class="row" data-addr="osc1.alpha"><label>Phase Lag <span class="sc">osc1</span></label><input type="range" data-p="27" min="-90" max="90" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.poles" data-when="topo=0"><label>Poles q <span class="sc">osc1</span></label><select data-p="28"><option value="1" selected>1 — classic</option><option value="2">2 — pair</option><option value="3">3 — triad</option><option value="4">4 — quad</option></select><output></output></div>
+    <div class="row" data-addr="osc1.grav"><label>Gravity <span class="sc">osc1</span></label><input type="range" data-p="29" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.basin"><label>Basin (c) <span class="sc">osc1</span></label><input type="range" data-p="30" min="10" max="50" step="0.005" value="35"><output></output></div>
+    <div class="row" data-addr="osc1.absK"><label>Absolute K <span class="sc">osc1</span></label><input type="checkbox" data-p="31"><output></output></div>
+    <div class="row" data-addr="osc1.balance" data-when="topo=2"><label>A/B Balance <span class="sc">osc1</span></label><input type="range" data-p="56" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.pivotMode"><label>Pivot <span class="sc">osc1</span></label><select data-p="83"><option value="0" selected>mean field</option><option value="1">root (fundamental)</option></select><output></output></div>
+  </div>
+  <div class="cluster"><h2>Envelope</h2>
+    <div class="row" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="19" min="0.001" max="2" step="0.005" value="0.003"><output></output></div>
+    <div class="row" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="20" min="0.005" max="4" step="0.005" value="0.16"><output></output></div>
+    <div class="row" data-addr="osc1.sustain"><label>Sustain <span class="sc">osc1</span></label><input type="range" data-p="21" min="0" max="1" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><input type="range" data-p="22" min="0.005" max="8" step="0.005" value="0.16"><output></output></div>
+    <div class="row" data-addr="osc1.sAttack"><label>S.Attack (s) <span class="sc">osc1</span></label><input type="range" data-p="65" data-fixed="1" min="0.001" max="2" step="0.005" value="0.004"><output></output></div>
+    <div class="row" data-addr="osc1.sDecay"><label>S.Decay (s) <span class="sc">osc1</span></label><input type="range" data-p="66" data-fixed="1" min="0.005" max="4" step="0.005" value="0.18"><output></output></div>
+    <div class="row" data-addr="osc1.sSustain"><label>S.Sustain <span class="sc">osc1</span></label><input type="range" data-p="67" data-fixed="1" min="0" max="1" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="osc1.sRelease"><label>S.Release (s) <span class="sc">osc1</span></label><input type="range" data-p="68" data-fixed="1" min="0.005" max="8" step="0.005" value="0.18"><output></output></div>
+    <div class="row" data-addr="osc1.onsetScatter"><label>Onset Scatter (ms) <span class="sc">osc1</span></label><input type="range" data-p="91" min="0" max="80" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.onsetAlpha"><label>Timing Correction <span class="sc">osc1</span></label><input type="range" data-p="92" min="0" max="1.5" step="0.005" value="0.25"><output></output></div>
+    <div class="row" data-addr="osc1.attackScatter"><label>Attack Scatter <span class="sc">osc1</span></label><input type="range" data-p="93" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.voiceEnv"><label>Per-Partial Env <span class="sc">osc1</span></label><input type="checkbox" data-p="94"><output></output></div>
+    <div class="row" data-addr="osc1.relScatter"><label>Release Scatter <span class="sc">osc1</span></label><input type="range" data-p="95" min="0" max="1" step="0.005" value="0"><output></output></div>
+  </div>
   <div class="cluster"><h2>The coupling</h2>
     <div class="row" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.onset"><label>Onset Lock <span class="sc">osc1</span></label><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><output></output></div>
@@ -324,14 +317,17 @@
     <div class="row" data-addr="osc1.spread"><label>Octave Spread <span class="sc">osc1</span></label><input type="range" data-p="81" min="1" max="24" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="osc1.anchor"><label>Root Anchor <span class="sc">osc1</span></label><input type="range" data-p="82" min="0" max="1" step="0.005" value="0"><output></output></div>
   </div>
+  <div class="cluster"><h2>Voice</h2>
+    <div class="row" data-addr="voiceMono"><label>Mono</label><input type="checkbox" data-p="32"><output></output></div>
+    <div class="row" data-addr="glide"><label>Glide (s)</label><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
+    <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="polyGlide"><label>Poly Glide</label><input type="checkbox" data-p="89"><output></output></div>
+    <div class="row" data-addr="glideMode"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (memory)</option></select><output></output></div>
+  </div>
   <!--/GEN:OSC-->
     <div class="note">retrigger OFF = free-run phases; random starts can null for
       ~300 ms under slow detune beating (A13 — reference physics, not a bug)</div>
-<div class="cluster"><h2>Pitch</h2>
-    <div class="row"><label>octave</label><input type="range" data-p="35" min="-2" max="2" step="1" value="0"><output></output></div>
-    <div class="row"><label>pitch</label><input type="range" data-p="36" min="-12" max="12" step="1" value="0"><output></output></div>
-    <div class="row"><label>fine</label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
-  </div>
   </div>
   <!-- ONE selector per page, ahead of everything it governs. Five copies
        scattered through the clusters answered "which osc?" wherever you
@@ -499,9 +495,29 @@ document.querySelectorAll('[data-p]').forEach(el => {
   el.addEventListener('pointerdown', () => bridge.gesture(id_(), true));
   el.addEventListener('pointerup', () => bridge.gesture(id_(), false));
   el.addEventListener('dblclick', () => {
-    const def = DEFAULTS[el.dataset.fixed ? baseId : baseId];
+    // THE DOM ALREADY OWNS THE DEFAULT. `value=` in the markup IS `defaultValue`,
+    // and the generator writes it straight from the shell's own default — so the
+    // two cannot drift. DEFAULTS is a hand-maintained literal covering only the
+    // originally hand-placed controls; every generated control was missing from
+    // it, `def === undefined` returned early, and double-click silently did
+    // nothing for 69 of them. Extending that map would have been a second copy
+    // of a number CLAP also reports, which is the same mistake as retyping enum
+    // labels into the presentation table. DEFAULTS keeps its OTHER job (standing
+    // in for hzGetParams in a browser) and is the fallback here, not the source.
+    let def;
+    if (el.type === 'checkbox') def = el.defaultChecked ? 1 : 0;
+    else if (el.tagName === 'SELECT') {
+      const d = [...el.options].find(o => o.defaultSelected);
+      if (d) def = +d.value;
+    } else if (el.defaultValue !== '' && el.defaultValue !== undefined) def = +el.defaultValue;
+    if (def === undefined || Number.isNaN(def)) def = DEFAULTS[baseId];
     if (def === undefined) return;
-    bridge.setParam(id_(), def); paintControl(el, def);
+    bridge.gesture(id_(), true);
+    bridge.setParam(id_(), def);
+    bridge.gesture(id_(), false);
+    paintControl(el, def);
+    lastParams[id_()] = def;
+    if (typeof applyGates === 'function') applyGates();   // a mode default can re-gate rows
   });
 });
 /* osc selectors — one widget class, mounted per page, all kept in sync */
@@ -859,5 +875,46 @@ function drawVmap(s) {
     vmx.beginPath(); vmx.arc(x, Y(s.vmEff[i]), 2.2, 0, Math.PI * 2); vmx.fill();
   }
 }
+
+
+/* ---- A CONTROL THE ENGINE CANNOT READ IS HIDDEN, NOT GREYED -----------------
+   `data-when="topo=1"` means: this row matters only while the param whose base
+   key is `topo` reads 1. The pairs are declared in param_presentation.tsv and
+   were verified against the core's own topology branch — topo==0 reads poles,
+   topo==1 reads reach, the else branch reads mu and balance — so this hides
+   exactly what the DSP ignores, no more.
+   Greying was rejected: a disabled control still occupies the eye and still
+   invites a click. Hidden says the truth, which is that the parameter is not
+   part of the patch in this mode. */
+const GATE_KEY = {};                       // base key -> base id, learned from the table
+function learnGateKeys() {
+  document.querySelectorAll('.row[data-addr]').forEach(r => {
+    const el = r.querySelector('[data-p]');
+    if (el) GATE_KEY[r.dataset.addr.split('.').pop()] = +el.dataset.p % 1000;
+  });
+}
+function applyGates() {
+  document.querySelectorAll('.row[data-when]').forEach(r => {
+    const [key, vals] = r.dataset.when.split('=');
+    const base = GATE_KEY[key];
+    if (base === undefined) return;        // gate names a param this page never placed
+    const src = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
+    if (!src) return;
+    const cur = String(src.type === 'checkbox' ? (src.checked ? 1 : 0) : Math.round(+src.value));
+    r.hidden = !vals.split('|').includes(cur);
+  });
+  // A box whose every row is hidden is an empty box; hide the box too. Targets
+  // `.cluster`, which is what generated groups use since they were folded into
+  // the same element as hand-written panels — an earlier draft here said `.grp`,
+  // a class that no longer exists, so this loop matched nothing and would have
+  // left an empty titled box behind.
+  document.querySelectorAll('.cluster').forEach(g => {
+    const rows = [...g.querySelectorAll('.row')];
+    g.hidden = rows.length > 0 && rows.every(r => r.hidden);
+  });
+}
+learnGateKeys();
+document.addEventListener('input', e => { if (e.target.closest('[data-p]')) applyGates(); });
+applyGates();
 
 </script></body></html>
