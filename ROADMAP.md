@@ -8,6 +8,72 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE SAW-PROFILE SEARCH RETIRED THE QUESTION RATHER THAN ANSWERING IT (2026-08-19)
+
+Human: *"maybe we should send a small sonnet swarm around to see if we can find the reference
+waves anywhere. Otherwise, we can call it a placeholder and run a fresh install."* Three
+Sonnet agents: the local filesystem, the published literature, and this repo's own history.
+**The most valuable return was not data.**
+
+### 1. The question was already answered here, for the sibling axis, and nobody reconciled it
+
+On **2026-07-25** a 103-agent research pass closed exactly this question for `shape` (id 69,
+ADR-058) — ROADMAP:7906:
+
+> *"the base bank no longer waits on measured synth-saw captures — a ripple / phase-shape axis
+> … IS a continuum of subtle sawtooth variants, which is exactly the brief. Captured profiles
+> remain a **nice-to-have** for naming/anchoring presets, not a prerequisite."*
+
+ADR-094, written **today**, treats the `sawBase` bank as still blocked on measurement and
+**never references that ruling**. Two saw-shape axes, opposite treatment, no reconciliation
+anywhere. ADR-094 is careful that they are different axes — but "measured captures are not a
+prerequisite" is an argument about the BRIEF, not about the axis, and it transfers.
+
+### 2. The JP-8000 saw has no special shape to measure — that is a published finding
+
+Szabo's thesis is cited in `PRIOR-ART.md` only for the detune curve, and it turns out **§3.3
+looked at waveshape directly**. Quoting the abstract: *"The shape of the oscillators are found
+to be actual sawtooth waveforms, however, there is a high pass filter at the fundamental
+harmonic of the waveforms which is 'pitch tracked'."* The distinctive curvature people see on
+a scope is an **anti-aliasing high-pass across the summed seven**, not a voiced per-oscillator
+shape.
+
+So for the lineage this instrument targets, *"find the measured JP-8000 saw profiles"* is
+chasing something that does not exist. **That retires the item rather than deferring it again**,
+which is worth more than a wavetable would have been.
+
+### 3. One citable positive, narrower than it sounds
+
+Pekonen, Lazzarini, Timoney, Kleimola & Välimäki, *"Discrete-Time Modelling of the Moog
+Sawtooth Oscillator Waveform"* (EURASIP JASP 2011, open access) measured a **Minimoog Voyager**
+raw oscillator output — 47 recordings, 86 Hz–8.3 kHz — and found real curvature: *"the rising
+part of the oscillation period is not linear."* They fit a **phase-distortion model with a
+single parameter** P, with `P̂(f0) = 0.9924 − 0.00002151·f0`.
+
+That is a genuine, reproducible, citable equation — and its provenance is **one Voyager**, not
+"the analogue saw". If it is ever folded it must be labelled as that one instrument.
+
+### 4. Nothing usable on this machine
+
+Vital's factory `.vitaltable` files are spline/breakpoint constructions authored in Vital's own
+editor; `wavetable-generator` is algorithmic; a sibling's `SpectrumPalette.h` saw case is
+literally `a = 1/k`, the textbook ideal. High-confidence negative: **every saw-shaped thing on
+this filesystem is either an ideal formula or a hand-authored curve.**
+
+### Decision, and it is the human's to confirm
+
+**Keep the four as placeholders and stop treating measurement as pending work.** The 07-25
+ruling already says captures are a nice-to-have; the Szabo finding says the most-wanted capture
+is not a thing that exists; the local search says there is nothing to fold. What is left is a
+*taste* question — do the four variants sound like four useful characters — which is an
+audition in the detune lab, not a measurement campaign.
+
+**Two follow-ups worth doing, neither blocking:** cite Szabo §3.3 in `PRIOR-ART.md` so the
+negative result is recorded where the next session will look (PRIOR-ART is a protected path, so
+that edit needs a human nod), and optionally ground **one** anchor in the Pekonen model as a
+labelled "measured Voyager curvature" variant — the only anchor that could honestly carry a
+citation.
+
 ## SAW SHAPE (GLASS) FOLDED — the fifth detune-lab fold, and the one that was skipped (2026-08-19)
 
 Human: *"we also never ported over the saw shape (glass) section from the detune-lab"* —
