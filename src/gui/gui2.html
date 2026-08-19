@@ -154,6 +154,21 @@
     <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
     <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
   </div>
+  <div class="cluster"><h2>Scale</h2>
+    <div class="row" data-addr="scaleRoot" data-when="bendQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>
+    <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg1" data-when="bendQuant=2"><label>b2</label><input type="checkbox" data-p="118"><output></output></div>
+    <div class="row" data-addr="scaleDeg2" data-when="bendQuant=2"><label>2</label><input type="checkbox" data-p="119" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg3" data-when="bendQuant=2"><label>b3</label><input type="checkbox" data-p="120"><output></output></div>
+    <div class="row" data-addr="scaleDeg4" data-when="bendQuant=2"><label>3</label><input type="checkbox" data-p="121" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg5" data-when="bendQuant=2"><label>4</label><input type="checkbox" data-p="122" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg6" data-when="bendQuant=2"><label>b5</label><input type="checkbox" data-p="123"><output></output></div>
+    <div class="row" data-addr="scaleDeg7" data-when="bendQuant=2"><label>5</label><input type="checkbox" data-p="124" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg8" data-when="bendQuant=2"><label>b6</label><input type="checkbox" data-p="125"><output></output></div>
+    <div class="row" data-addr="scaleDeg9" data-when="bendQuant=2"><label>6</label><input type="checkbox" data-p="126" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg10" data-when="bendQuant=2"><label>b7</label><input type="checkbox" data-p="127"><output></output></div>
+    <div class="row" data-addr="scaleDeg11" data-when="bendQuant=2"><label>7</label><input type="checkbox" data-p="128" checked><output></output></div>
+  </div>
   <!--/GEN:MAIN-->
   </div>
 </div>
@@ -1107,5 +1122,81 @@ function drawScatter(s) {
 const canPaint = () => typeof getComputedStyle === 'function' && typeof document.querySelector === 'function';
 document.addEventListener('input', () => { if (canPaint()) drawEnvelope(null); });
 if (canPaint()) { drawEnvelope(null); drawScatter(null); }
+
+/* ---- NAMED-SCALE PICKER — GUI, not a parameter -----------------------------
+   The standing ruling: THE MASK IS THE TRUTH, THE NAME IS UI. Consumers store
+   and transmit {root, mask} only, never a scale ID — which is what keeps
+   glide_core free of a scale table and makes a hand-drawn set first-class
+   instead of a degraded mode.
+   So this picker is not a param: choosing a name WRITES root + twelve toggles,
+   and editing any toggle afterwards leaves it reading `custom`. Adding a scale
+   here is a UI edit with no core change and no parity surface.
+   The names are copied from bend-lab.html, the reference the goldens are sliced
+   from. Two copies of a NAME list can drift and the ruling says that is
+   cosmetic; two copies of a MASK could not be allowed to, and there is only one. */
+const SCALES = [
+  ['chromatic',        [0,1,2,3,4,5,6,7,8,9,10,11]],
+  ['major (ionian)',   [0,2,4,5,7,9,11]],
+  ['natural minor',    [0,2,3,5,7,8,10]],
+  ['harmonic minor',   [0,2,3,5,7,8,11]],
+  ['melodic minor',    [0,2,3,5,7,9,11]],
+  ['dorian',           [0,2,3,5,7,9,10]],
+  ['phrygian',         [0,1,3,5,7,8,10]],
+  ['lydian',           [0,2,4,6,7,9,11]],
+  ['mixolydian',       [0,2,4,5,7,9,10]],
+  ['locrian',          [0,1,3,5,6,8,10]],
+  ['major pentatonic', [0,2,4,7,9]],
+  ['minor pentatonic', [0,3,5,7,10]],
+  ['blues',            [0,3,5,6,7,10]],
+  ['whole tone',       [0,2,4,6,8,10]],
+  ['diminished (h-w)', [0,1,3,4,6,7,9,10]],
+  ['phrygian dominant',[0,1,4,5,7,8,10]],
+  ['hirajoshi',        [0,2,3,7,8]],
+  ['in-sen',           [0,1,5,7,10]],
+];
+const degEl = i => document.querySelector(`.row[data-addr="scaleDeg${i}"] [data-p]`);
+function currentMask() {
+  const m = [];
+  for (let i = 0; i < 12; i++) { const el = degEl(i); if (!el) return null; if (el.checked) m.push(i); }
+  return m;
+}
+function matchScaleName() {
+  const m = currentMask(); if (!m) return null;
+  const key = m.join(',');
+  const hit = SCALES.find(([, d]) => d.join(',') === key);
+  return hit ? hit[0] : 'custom';
+}
+function buildScalePicker() {
+  const host = document.querySelector('.row[data-addr="scaleRoot"]');
+  if (!host || document.getElementById('scalePick')) return;
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = '<label>Scale</label><select id="scalePick"></select><output></output>';
+  host.after(row);
+  const sel = row.querySelector('select');
+  sel.innerHTML = '<option value="-1">custom</option>' +
+    SCALES.map(([n], i) => `<option value="${i}">${n}</option>`).join('');
+  sel.addEventListener('change', () => {
+    const k = +sel.value; if (k < 0) return;
+    const degs = SCALES[k][1];
+    for (let i = 0; i < 12; i++) {
+      const el = degEl(i); if (!el) continue;
+      const want = degs.includes(i);
+      // 'change', not 'input': gui2 binds checkboxes on change (line ~545), so an
+      // 'input' event moves the tick and sends NOTHING. Caught by spying the send
+      // path — the picker looked right and wrote zero parameters.
+      if (el.checked !== want) { el.checked = want; el.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+  });
+  const sync = () => {
+    const name = matchScaleName();
+    const i = SCALES.findIndex(([n]) => n === name);
+    sel.value = String(i);
+  };
+  for (const evt of ['input', 'change'])
+    document.addEventListener(evt, e => { if (e.target.closest('.row[data-addr^="scaleDeg"]')) sync(); });
+  sync();
+}
+if (typeof canPaint === 'function' && canPaint()) buildScalePicker();
 
 </script></body></html>

@@ -8,6 +8,51 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE GLOBAL SCALE IS REACHABLE, AND THE PICKER IS NOT A PARAMETER (2026-08-19)
+
+Third increment of the glide fold. `kQuantScale` has existed in `glide_core` since it was
+written and had *"only ever meant C major"*, because nothing could set the root or the mask.
+It can now.
+
+**Thirteen global params, ids 116-128**: `scaleRoot` (C…B) and twelve degree toggles, defaults
+spelling C major so nothing audible changes. Wired both directions — the write path fills
+`bendLaw.scaleRoot` / `scaleMask[12]`, the read path reports them back.
+
+**Twelve booleans rather than one packed integer**, and the named-scale dropdown lives in the
+GUI and **writes** those thirteen. That is the standing ruling applied, not a preference:
+*the mask is the truth, the name is UI.* Consumers transmit `{root, mask}` only, which is what
+keeps `glide_core` free of a scale table — adding a scale is a UI edit with **no core change
+and no parity surface** — and it makes a hand-drawn set first-class rather than a degraded
+mode. A packed 0…4095 param would be one control no host can automate meaningfully and no
+user can read.
+
+**Verified against the reference, engine-side rather than by looking at ticks.** Modelling
+what the engine actually receives — starting from its current mask and applying only the
+writes that were sent — every scale lands on the reference's own degree set:
+
+| picked | engine mask | reference | writes |
+|---|---|---|---|
+| dorian | `0,2,3,5,7,9,10` | same | 0 (already there) |
+| blues | `0,3,5,6,7,10` | same | 3 |
+| hirajoshi | `0,2,3,7,8` | same | 5 |
+| major (ionian) | `0,2,4,5,7,9,11` | same | 6 |
+
+Only the degrees that actually change are written, which is why the counts differ — and why
+re-picking the current scale writes nothing at all.
+
+**A bug the send-path spy caught, which looking at the GUI could not.** The picker first
+dispatched `input` on the checkboxes. gui2 binds checkboxes on **`change`** (`gui2.html:545`),
+so the ticks moved and **zero parameters were written** — a picker that looked entirely correct
+and did nothing. Fixed, and the resync listener now takes both events so a hand-edited tick
+still falls the dropdown back to *custom*.
+
+**Section gating:** the thirteen rows are hidden unless `bendQuant = scale`, so the surface is
+inert *and* invisible until something opts in. Honest today, and a known limitation the moment
+a second consumer arrives: `shown_when` matches one key, so *"scale OR chord layer wants it"*
+is not expressible. The grammar needs an OR-across-keys before the chord layer lands.
+
+`./verify full` EXIT=0 — parity **147/147** unchanged, `glide_check` GREEN.
+
 ## THE BEND LAW IS REACHABLE — ten params, one section, gated by the core's own switch (2026-08-19)
 
 Second increment of the glide fold. The core went into the audio path inert; this makes it
