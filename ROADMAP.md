@@ -8,6 +8,73 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## BEND IS ITS OWN SECTION, AND ALL FIVE TRAVEL LAWS SHIP (human ruling, 2026-08-19)
+
+Human: *"I believe I already said that I want all of these modes, and I want bend to have its
+own section with the relevant graphs to visualize its behavior."*
+
+**They did, and it was never written down. That is the finding.** The 2026-08-03 entry still
+reads *"awaiting audition — the fold decision is open and belongs to the ear"*, and I offered
+the four questions back tonight as if they were open. Meanwhile `src/glide_core.h:39` already
+declares `enum Law { kOff, kConstTime, kConstRate, kLag, kSpring }` with **all five
+implemented**, and line 44 calls `kConstRate` the *"ratified default"* — so a ratification
+plainly happened and only the core learned about it. **Ruling recorded here: every law ships,
+selectable; the default stays `kConstRate`.**
+
+### Two different things are called inertia, and conflating them would be a bad bug
+
+- **Swarm inertia** — `p.inertia`, id 11, ADR-024. Momentum on the coupled frequency solution
+  *inside* `SwarmCore` (`swarm_core.h:1452`). **Live today.**
+- **Travel-law inertia** — `glide_core.h`. How a pitch *gets* from one value to another, for
+  the bend lane and note pitch. **Ported, gated by `glide_check` in `./verify full`, not in
+  the audio path, and with no CLAP parameters at all.**
+
+They share a word and nothing else. The bend section is new surface, not a re-label.
+
+### The order matters, and it is not the obvious one
+
+Exposing the law parameters first would put eight controls on screen that move nothing —
+precisely the class of defect this GUI spent the last day removing (gated rows, parked
+SPECTRA, dead double-click). So:
+
+1. **Wire `glide_core` into the audio path** for the bend lane. It is already proven at the
+   L0-1 parity bar against goldens sliced live from `bend-lab.html`, which is why the gate was
+   written before the fold — *"so shell integration lands on proven ground"*.
+2. **Then expose the surface**, one append-only block. Highest id today is 105, so the block
+   starts at **106** and no existing id moves (`params.h:212` — ids must never change).
+   `bendLaw` (enum: off · const-time · const-rate · lag · spring) · `bendTime` (ms) ·
+   `bendRate` (st/s) · `bendTau` (ms) · `bendSpringF` (Hz) · `bendDamp` (ζ) ·
+   `bendDistOver` · `bendReturn` (bend lane only) · `bendQuant` + `bendHyst` (cents).
+3. **Then the section and its graphs.**
+
+### The section, and what the graphs must show
+
+Gated per law, using the `shown_when` mechanism landed today and verified against
+`glide_core.h`'s own `switch`: const-time shows `bendTime`; const-rate shows `bendRate`; lag
+shows `bendTau`; spring shows `bendSpringF`, `bendDamp`, `bendDistOver`. `bendReturn` is
+**bend-lane only** — a note has no home pitch to spring back to.
+
+Two graphs, because the bench proved one picture cannot say both:
+
+- **TRAJECTORY** — the pitch path for a step input, which is where the laws visibly differ: a
+  lag is proportional, a rate limit takes twelve times as long for a −12 st dive as for a
+  1 st nudge, and only the spring overshoots and rings.
+- **VIBRATO RETENTION** — the cost. Every law is a low-pass on the player's hand, and the
+  bench measured a 60 ms lag keeping **47%** of a 5 Hz wobble, **34 ms late**. A trajectory
+  plot hides that completely, and it is the number that decides whether a setting is usable.
+
+Both already exist in `docs/design/bend-lab.html`; port them rather than reinvent, the same
+rule the OSC visualizers followed.
+
+### Still genuinely open, and only the ear can close it
+
+Whether inertia keys to bend **distance** — slow travel on a big sweep, near-instant on a
+small one. The bench calls it *"a design decision, not an implementation detail"*, and it is
+the only way to keep both a slow bend and fast wheel vibrato. And whether **note-pitch**
+inertia ships as its own feature: the spring puts a pitch blip on every onset, which is what a
+struck resonator does — *"a different feature wearing the same math, and it may be the more
+interesting one."*
+
 ## ZERO ATTACK DREW A ONE-SECOND SWELL; TIME CONTROLS ARE LOG NOW (2026-08-19)
 
 Human, with a screenshot: *"this isn't what zero attack should look like."* Correct, and the
