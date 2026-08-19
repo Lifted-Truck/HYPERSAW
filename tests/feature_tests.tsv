@@ -58,7 +58,7 @@ FX-1	FX	FX rack	agentic	RULING	adr-054	routing_check	the slot chain routes in th
 FX-2	FX	FX rack	agentic	RULING	spec	filter_check	filter core matches the lab
 FX-3	FX	FX rack	agentic	RULING	spec	notch_check	notch core matches the lab
 FX-4	FX	FX rack	agentic	RULING	hypersaw	notchslot_check	selecting Notch in a slot reaches the DSP; Off is bit-identical to no slot
-FX-5	FX	FX rack	agentic	RULING	hypersaw	slotcontract_check	every slot keeps its declared contract: identity is bit-exact, image and level unchanged unless declared (Comp/Notch have no identity point and Comb is +8.8 dB — pinned, not fixed)
+FX-5	FX	FX rack	agentic	RULING	hypersaw	slotcontract_check	mix=0 is a bit-exact bypass for EVERY slot type, by construction — the rack owns dry/wet (Comp and Notch pins retired; Comb's +8.8 dB on the amount axis remains pinned)
 FX-6	FX	FX rack	agentic	RULING	spec	time_check	echo/room time engines match the labs
 FX-7	FX	FX rack	human	RULING	human	manual	reverb ER/tail split is audibly a room, not a metallic ring
 MIX-1	MIX	Mix	agentic	RULING	hypersaw	gui_reach	every declared param is reachable in some GUI

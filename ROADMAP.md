@@ -8,6 +8,61 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE FX RACK OWNS DRY/WET — two pins retired, and a plant that was right to fail (2026-08-19)
+
+ADR-095, the rack-side half of the contract approved 2026-08-15. The **gate landed first**, so
+the defects were measured before anything was restructured — and the restructure is now judged
+by the gate that found them.
+
+**One rule, applied by the rack to every slot type:**
+
+```
+out = (mix == 0) ? in : lerp(in, wet, mix)
+```
+
+`mix == 0` early-outs, so passthrough is bit-identical **by construction** rather than by each
+slot remembering to honour it. That is the property the old design lacked and the reason Notch
+could ship collapsing stereo to mono at a setting a patch author reads as *"off"*: there was no
+rule a new slot type could not break. `mix == 1` runs the wet path untouched — no copy, no lerp
+— so every patch predating the contract is bit-identical and **parity did not move: 156/156**.
+
+`amount` stops carrying bypass duty. Gain's 0.5-is-unity and Comp's always-on brickwall are no
+longer anomalies; they are what those slots DO at `mix = 1`.
+
+**Two pins retired — what paying a debt looks like.** `slotcontract_check` pinned three
+violations when it landed. **Comp** and **Notch** had *no identity point at any amount*; both
+are universally bypassable now. **Comb's +8.8 dB at amount 0.5 stays pinned**, because that is
+the amount axis and bypass does not touch it.
+
+The gate's assertion changed with the rule: it no longer hunts a per-slot `identity_at`, it
+asserts the universal guarantee — **`mix = 0` is bit-exact for every slot type** — which is the
+assertion a new slot cannot escape.
+
+### The plant that did not fire, and was right not to
+
+The first plant removed the `mix <= 0` early-out for one slot. The gate stayed **green — and
+that was correct.** With `mix = 0` the blend path computes `dry + (wet − dry)·0 = dry`, so the
+early-out is an **optimisation** and the lerp is the actual guarantee. The plant tested a thing
+that was not the promise.
+
+Replanting against the real guarantee — inverting the blend so `mix = 0` means fully wet —
+turns the gate **RED on four slot types at once**: Drive 0.151 · Filter 0.192 · Comb 0.438 ·
+Notch 0.229. Restored: green.
+
+Worth keeping, because it cuts against yesterday's lesson rather than repeating it: **a check
+can look untested when the PLANT, not the check, is the broken thing.** The discipline is not
+"a plant must always fire" — it is "know what the promise is, and plant against that."
+
+**Also caught twice today:** a stale binary reporting a stale verdict after a restore. `make`
+said *"Built target"* without recompiling; `touch` on the sources forced it. That is the second
+time this session, and it looks exactly like a real failure.
+
+**Surface:** four global params, ids 133-136, appended, defaulting to **1**, in the FX rack
+group. `./verify full` EXIT=0.
+
+**This unblocks FX-A/B/C.** Every future slot type now inherits a bypass it cannot break, which
+was the whole point of asking for a universal solution rather than a Notch patch.
+
 ## THE SAW-PROFILE SEARCH RETIRED THE QUESTION RATHER THAN ANSWERING IT (2026-08-19)
 
 Human: *"maybe we should send a small sonnet swarm around to see if we can find the reference

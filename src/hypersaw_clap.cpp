@@ -326,6 +326,14 @@ static const ParamDef kParams[] = {
     {130, "sawProfile", "Roundness Shape", 0, 1, 0, false, nullptr},
     {131, "round", "Roundness", 0, 1, 0, false, nullptr},
     {132, "roundHi", "Round x Pitch", 0, 1, 0, false, nullptr},
+    /* FX SLOT MIX (ids 133-136) — the rack-owned dry/wet of the approved slot
+       contract. GLOBAL, like the rest of the rack. Defaults to 1 so every patch
+       predating the contract is bit-identical; 0 is a guaranteed bypass for EVERY
+       slot type, which is what retires "amount means four different things". */
+    {133, "fx1mix", "FX1 Mix", 0, 1, 1, false, nullptr},
+    {134, "fx2mix", "FX2 Mix", 0, 1, 1, false, nullptr},
+    {135, "fx3mix", "FX3 Mix", 0, 1, 1, false, nullptr},
+    {136, "fx4mix", "FX4 Mix", 0, 1, 1, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -408,6 +416,7 @@ constexpr clap_id kGlobalIds[] = {
     88,                                      // tempo grid, oversampling
     100, 101, 102, 103,                          // masterVol + global pitch
     106, 107, 108, 109, 110, 111, 112, 113, 114, 115,  // bend travel law (global: the wheel bends the patch)
+    133, 134, 135, 136,                          // FX slot mix (rack-owned dry/wet)
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
 };
@@ -1642,6 +1651,7 @@ struct Plugin
          into `bendLaw` because bend is the only consumer today; when the chord
          layer or an arp arrives this becomes a shared struct they all read, which
          is the whole reason the surface is global rather than bend's property. */
+      if (id >= 133 && id <= 136) { rack.setMix((int)(id - 133), applied); return; }
       if (id >= 116 && id <= 128)
       {
         if (id == 116) scale.root = applied;
@@ -1774,6 +1784,7 @@ struct Plugin
           default: break;
         }
       }
+      if (d->id >= 133 && d->id <= 136) return rack.getMix((int)(d->id - 133));
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
       if (d->id == 40) return bassMonoOn;

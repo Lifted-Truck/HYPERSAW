@@ -208,6 +208,12 @@ class FxRack
   {
     return (slot < 0 || slot >= kRackSlots) ? 0.5 : slots[slot].tone;
   }
+  void setMix(int slot, double v)
+  {
+    if (slot < 0 || slot >= kRackSlots) return;
+    slots[slot].mix = v < 0 ? 0 : (v > 1 ? 1 : v);
+  }
+  double getMix(int slot) const { return (slot < 0 || slot >= kRackSlots) ? 1.0 : slots[slot].mix; }
   void setAmount(int slot, double amount)
   {
     if (slot < 0 || slot >= kRackSlots) return;
@@ -245,7 +251,47 @@ class FxRack
      the routing change and an effect change would land together and neither
      could be attributed. Extracted mechanically: the switch body below is
      untouched, only its wrapper moved. The 147 parity goldens are the proof. */
+  /* THE RACK OWNS DRY/WET (approved 2026-08-15). One rule for every slot type:
+   *     out = (mix == 0) ? in : lerp(in, wet, mix)
+   * `mix == 0` is an EARLY-OUT, so passthrough is bit-identical BY CONSTRUCTION
+   * rather than by each slot's implementation remembering to honour it. That is
+   * the property the old design lacked, and the reason Notch could ship collapsing
+   * stereo to mono at a setting a patch author reads as "off": there was no rule
+   * a new slot type could not break.
+   *
+   * `mix == 1` runs the wet path untouched — no copy, no lerp — so every patch
+   * that predates the contract is bit-identical and the parity goldens cannot move.
+   *
+   * `amount` stops carrying bypass duty and becomes purely per-slot character.
+   * Gain's 0.5-is-unity and Comp's always-on brickwall stop being anomalies: they
+   * are simply what those slots DO at mix = 1. */
   void processSlot(int idx, float *L, float *R, int n)
+  {
+    if (idx < 0 || idx >= kRackSlots) return;
+    const double mix = slots[idx].mix;
+    if (mix <= 0.0) return;                                     // guaranteed bypass
+    if (mix >= 1.0) { processSlotWet(idx, L, R, n); return; }   // today's path, exactly
+
+    /* Partial blend. Chunked over a fixed stack buffer: no allocation on the audio
+     * thread. Only reachable once a patch sets an intermediate mix, so nothing that
+     * exists today takes this branch. */
+    constexpr int kFxBlend = 256;
+    float dl[kFxBlend], dr[kFxBlend];
+    for (int off = 0; off < n; off += kFxBlend)
+    {
+      const int m = n - off < kFxBlend ? n - off : kFxBlend;
+      std::memcpy(dl, L + off, (size_t)m * sizeof(float));
+      std::memcpy(dr, R + off, (size_t)m * sizeof(float));
+      processSlotWet(idx, L + off, R + off, m);
+      for (int i = 0; i < m; i++)
+      {
+        L[off + i] = (float)(dl[i] + (L[off + i] - dl[i]) * mix);
+        R[off + i] = (float)(dr[i] + (R[off + i] - dr[i]) * mix);
+      }
+    }
+  }
+
+  void processSlotWet(int idx, float *L, float *R, int n)
   {
     if (idx < 0 || idx >= kRackSlots) return;
     {
@@ -395,6 +441,9 @@ class FxRack
  private:
   struct Slot
   {
+    // Rack-owned dry/wet. Defaults to 1 (fully wet) so every patch predating the
+    // contract renders bit-identically; 0 is a universal, guaranteed bypass.
+    double mix = 1.0;
     FxType type = FxType::Off;
     double amount = 0.5;
     // Second per-slot axis (2026-08-03). ADR-071 fixed the comb's resonance at

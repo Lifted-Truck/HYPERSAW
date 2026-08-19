@@ -1184,6 +1184,60 @@ roadmapped, not started.
   engine selector's real-surface gating both grow. That is the design work, and it
   is on the ROADMAP rather than implied.
 
+## ADR-095 — The FX rack owns dry/wet (ACCEPTED)
+
+**Date:** 2026-08-19 · **Status:** ACCEPTED (human approved the contract 2026-08-15;
+this is its rack-side half). The gate half landed first, deliberately.
+
+### The rule
+
+```
+out = (mix == 0) ? in : lerp(in, wet, mix)
+```
+
+Applied by the RACK to every slot type. `mix == 0` is an early-out, so passthrough
+is bit-identical **by construction** rather than by each slot's implementation
+remembering to honour it. That is the property the old design lacked, and the
+reason Notch shipped collapsing stereo to mono at a setting a patch author reads
+as "off": there was no rule a new slot type could not break.
+
+`mix == 1` runs the wet path untouched — no copy, no lerp — which is why every
+patch predating the contract is bit-identical and parity did not move (156/156).
+
+`amount` stops carrying bypass duty and becomes purely per-slot character. Gain's
+0.5-is-unity and Comp's always-on brickwall stop being anomalies: they are simply
+what those slots DO at `mix = 1`.
+
+### Two pins retired, which is what paying a debt looks like
+
+`slotcontract_check` pinned three violations when it landed. Two are now gone:
+**Comp** and **Notch** had *no identity point at any amount* — they are bypassable
+now, universally. **Comb's +8.8 dB at amount 0.5 remains pinned**: that is a fact
+about the AMOUNT axis and bypass does not touch it.
+
+The gate's assertion changed with the rule. It no longer hunts a per-slot
+`identity_at`; it asserts the universal guarantee — **`mix = 0` is bit-exact for
+every slot type** — which is the assertion a new slot cannot escape.
+
+### The plant that did not fire, and why that mattered
+
+The first plant removed the `mix <= 0` early-out for one slot type. The gate stayed
+green — **correctly**. With `mix = 0` the blend path computes
+`dry + (wet − dry)·0 = dry`, so the early-out is an OPTIMISATION and the lerp is
+the guarantee. The plant tested the wrong thing.
+
+Replanting against the actual guarantee — inverting the blend so `mix = 0` means
+fully wet — turns the gate **RED on four slot types at once**: Drive 0.151,
+Filter 0.192, Comb 0.438, Notch 0.229. Restored: green.
+
+That distinction is worth keeping: a check can look untested when the plant, not
+the check, is the thing that is broken.
+
+### Surface
+
+Four global params, ids 133-136, appended. Default **1** so nothing existing
+changes. Placed in the FX rack group.
+
 ## ADR-094 — Saw shape (glass) folded from the detune lab (ACCEPTED)
 
 **Date:** 2026-08-19 · **Status:** ACCEPTED (human: *"I approve of that plan"*).
