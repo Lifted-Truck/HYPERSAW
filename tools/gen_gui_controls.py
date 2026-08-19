@@ -173,10 +173,14 @@ def main():
             # about the parameter — presentation code, not presentation data. The
             # canvas is emitted inside the generated cluster so the picture sits
             # with the controls that change it.
-            VISUALS = {"Envelope": "envelope", "Onset & scatter": "scatter"}
-            viz = VISUALS.get(group)
+            # A group may declare ONE OR MORE visuals. Bend needs two because the
+            # bench proved one picture cannot say both things: the trajectory shows
+            # where the laws differ, the vibrato cost shows what they charge for it,
+            # and a trajectory plot hides the cost completely.
+            VISUALS = {"Envelope": ["envelope"], "Onset & scatter": ["scatter"],
+                       "Bend": ["bendstep", "bendvib"]}
             out.append(f'  <div class="cluster"><h2>{group}</h2>')
-            if viz:
+            for viz in VISUALS.get(group, []):
                 out.append(f'    <canvas class="gviz" data-viz="{viz}" width="260" height="72"></canvas>')
             for addr, scope, label, widget, unit, p, when, scale in sorted(items, key=lambda x: x[5]["id"]):
                 df = ' data-fixed="1"' if p["id"] in fixed else ""

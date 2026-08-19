@@ -153,6 +153,10 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   web->bind("hzGetParams", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getParamsJson());
   });
+  web->bind("hzGetBendCurve", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    return choc::value::createString(host.getBendCurveJson ? host.getBendCurveJson()
+                                                           : std::string("{}"));
+  });
   web->bind("hzGetDefaults", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getDefaultsJson ? host.getDefaultsJson()
                                                           : std::string("{}"));
