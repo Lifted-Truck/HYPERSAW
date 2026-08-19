@@ -76,6 +76,8 @@ static const char *const kPanLayoutLabels[] = {"pitch fan", "legacy (x-position)
 static const char *const kSuperModeLabels[] = {"wide (clean)", "pulse (M/S)", "smear (allpass)"};
 static const char *const kGlideModeLabels[] = {"held note (legato)", "last note (memory)"};
 static const char *const kOffOn[] = {"off", "on"};
+static const char *const kNoteNames[] = {"C", "C#", "D", "D#", "E", "F",
+                                        "F#", "G", "G#", "A", "A#", "B"};
 static const char *const kBendLawLabels[] = {"off (instant)", "constant time", "constant rate",
                                             "lag (one-pole)", "mass-spring"};
 static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale"};
@@ -292,6 +294,30 @@ static const ParamDef kParams[] = {
     {113, "bendReturn", "Return x", 0.2, 3, 1, false, nullptr},
     {114, "bendQuant", "Bend Quantise", 0, 2, 0, true, kBendQuantLabels},
     {115, "bendHyst", "Quantise Hyst (c)", 0, 50, 8, false, nullptr},
+    /* GLOBAL SCALE (ids 116-128). THE MASK IS THE TRUTH, THE NAME IS UI — the
+       standing ruling. Consumers store and transmit `{root, mask}` only, never a
+       scale ID, which is what keeps `glide_core.h` free of a scale table: adding
+       a named scale becomes a UI-table edit with no core change and no parity
+       surface, and a hand-drawn set is first-class rather than a degraded mode.
+       Hence twelve honest booleans instead of one packed 0..4095 integer, which
+       no host could automate meaningfully and no user could read. The named-scale
+       dropdown lives in the GUI and WRITES these thirteen; it is not a parameter.
+       Global because four consumers are already visible — the bend quantiser, the
+       note-pitch lane, the chord layer, any arp — and two modules disagreeing
+       about the scale produce notes in neither key. */
+    {116, "scaleRoot", "Scale Root", 0, 11, 0, true, kNoteNames},
+    {117, "scaleDeg0", "Degree 1 (root)", 0, 1, 1, true, kOffOn},
+    {118, "scaleDeg1", "Degree b2", 0, 1, 0, true, kOffOn},
+    {119, "scaleDeg2", "Degree 2", 0, 1, 1, true, kOffOn},
+    {120, "scaleDeg3", "Degree b3", 0, 1, 0, true, kOffOn},
+    {121, "scaleDeg4", "Degree 3", 0, 1, 1, true, kOffOn},
+    {122, "scaleDeg5", "Degree 4", 0, 1, 1, true, kOffOn},
+    {123, "scaleDeg6", "Degree b5", 0, 1, 0, true, kOffOn},
+    {124, "scaleDeg7", "Degree 5", 0, 1, 1, true, kOffOn},
+    {125, "scaleDeg8", "Degree b6", 0, 1, 0, true, kOffOn},
+    {126, "scaleDeg9", "Degree 6", 0, 1, 1, true, kOffOn},
+    {127, "scaleDeg10", "Degree b7", 0, 1, 0, true, kOffOn},
+    {128, "scaleDeg11", "Degree 7", 0, 1, 1, true, kOffOn},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -374,6 +400,8 @@ constexpr clap_id kGlobalIds[] = {
     88,                                      // tempo grid, oversampling
     100, 101, 102, 103,                          // masterVol + global pitch
     106, 107, 108, 109, 110, 111, 112, 113, 114, 115,  // bend travel law (global: the wheel bends the patch)
+    116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
+    125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
 };
 constexpr bool isGlobalId(clap_id id)
 {
@@ -1487,6 +1515,16 @@ struct Plugin
         }
         return;
       }
+      /* GLOBAL SCALE -> the mask the quantiser actually reads. Written straight
+         into `bendLaw` because bend is the only consumer today; when the chord
+         layer or an arp arrives this becomes a shared struct they all read, which
+         is the whole reason the surface is global rather than bend's property. */
+      if (id >= 116 && id <= 128)
+      {
+        if (id == 116) bendLaw.scaleRoot = applied;
+        else bendLaw.scaleMask[id - 117] = applied >= 0.5 ? 1 : 0;
+        return;
+      }
       if (id == 38)
       {
         // The wheel sets a TARGET. With the law off the glide is a pass-through,
@@ -1613,6 +1651,8 @@ struct Plugin
           default: break;
         }
       }
+      if (d->id >= 116 && d->id <= 128)
+        return d->id == 116 ? bendLaw.scaleRoot : (double)bendLaw.scaleMask[d->id - 117];
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 100) return masterVol;
