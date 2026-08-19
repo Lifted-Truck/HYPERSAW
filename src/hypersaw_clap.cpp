@@ -76,6 +76,9 @@ static const char *const kPanLayoutLabels[] = {"pitch fan", "legacy (x-position)
 static const char *const kSuperModeLabels[] = {"wide (clean)", "pulse (M/S)", "smear (allpass)"};
 static const char *const kGlideModeLabels[] = {"held note (legato)", "last note (memory)"};
 static const char *const kOffOn[] = {"off", "on"};
+static const char *const kBendLawLabels[] = {"off (instant)", "constant time", "constant rate",
+                                            "lag (one-pole)", "mass-spring"};
+static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
 static const char *const kFxTypeLabels[] = {"Off",  "Drive", "Filter", "Gain",
@@ -269,6 +272,26 @@ static const ParamDef kParams[] = {
     // multiply, so an untouched patch stays bit-identical.
     {104, "oscMute", "Mute", 0, 1, 0, true, kOffOn},
     {105, "oscSolo", "Solo", 0, 1, 0, true, kOffOn},
+    /* BEND TRAVEL LAW (id 106+, ADR pending; folded 2026-08-19). GLOBAL — the
+       wheel bends the patch, so these are not per-oscillator. Ranges and defaults
+       are the REFERENCE's, read from docs/design/bend-lab.html's own controls, so
+       a value set here means what it meant on the bench glide_check's goldens were
+       sliced from.
+       `bendLaw` ships OFF: the core calls kConstRate its "ratified default", but
+       that is the bench's default for AUDITIONING, and shipping it would change how
+       every existing patch bends (human ruling 2026-08-19). */
+    {106, "bendLaw", "Bend Law", 0, 4, 0, true, kBendLawLabels},
+    {107, "bendTime", "Bend Time (ms)", 5, 1500, 120, false, nullptr},
+    {108, "bendRate", "Bend Rate (st/s)", 0.5, 200, 24, false, nullptr},
+    {109, "bendTau", "Bend Lag (ms)", 1, 400, 60, false, nullptr},
+    {110, "bendSpringF", "Spring (Hz)", 0.5, 20, 4, false, nullptr},
+    {111, "bendDamp", "Damping", 0, 1, 0.6, false, nullptr},
+    {112, "bendDistOver", "Distance Curve", 0, 2, 1, false, nullptr},
+    // BEND LANE ONLY, and the core enforces it: a note has no home pitch to
+    // spring back to, so retMul is meaningless on the note-pitch lane.
+    {113, "bendReturn", "Return x", 0.2, 3, 1, false, nullptr},
+    {114, "bendQuant", "Bend Quantise", 0, 2, 0, true, kBendQuantLabels},
+    {115, "bendHyst", "Quantise Hyst (c)", 0, 50, 8, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -350,6 +373,7 @@ constexpr clap_id kGlobalIds[] = {
     57, 58, 59, 60, 61, 62, 63, 64, 96, 97, 98, 99,  // FX rack
     88,                                      // tempo grid, oversampling
     100, 101, 102, 103,                          // masterVol + global pitch
+    106, 107, 108, 109, 110, 111, 112, 113, 114, 115,  // bend travel law (global: the wheel bends the patch)
 };
 constexpr bool isGlobalId(clap_id id)
 {
@@ -1426,6 +1450,43 @@ struct Plugin
         }
         return;
       }
+      /* BEND LAW. Routed here rather than through a core setParam() because the
+         law lives in the SHELL's GlideCore, not in an oscillator: bend is global.
+         Switching the law resets the filter to the current sounding bend so a
+         change of law cannot make the pitch jump — the state carries over, only
+         the trajectory changes. */
+      if (id >= 106 && id <= 115)
+      {
+        switch (id)
+        {
+          case 106:
+            if ((int)applied != (int)bendLaw.model)
+            {
+              bendLaw.model = applied;
+              bendGlide.reset(pitchBend);
+              bendAccum = 0;
+              // Leaving a law re-arrives instantly: with kOff the target IS the
+              // value, so settle now rather than at the next grid boundary.
+              if (!bendActive() && pitchBend != bendTarget)
+              {
+                pitchBend = bendTarget;
+                updateTuneAll();
+              }
+            }
+            break;
+          case 107: bendLaw.gtime = applied; break;
+          case 108: bendLaw.rate = applied; break;
+          case 109: bendLaw.tau = applied; break;
+          case 110: bendLaw.springF = applied; break;
+          case 111: bendLaw.damp = applied; break;
+          case 112: bendLaw.distOver = applied; break;
+          case 113: bendLaw.retMul = applied; break;
+          case 114: bendLaw.quant = applied; break;
+          case 115: bendLaw.qhyst = applied; break;
+          default: break;
+        }
+        return;
+      }
       if (id == 38)
       {
         // The wheel sets a TARGET. With the law off the glide is a pass-through,
@@ -1531,7 +1592,27 @@ struct Plugin
       if (d->id == 35) return octaveA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 36) return semiA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 37) return fineCentsA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
-      if (d->id == 38) return pitchBend;
+      // The wheel's TARGET is the parameter; `pitchBend` is where the glide has
+      // currently reached. Reporting the sounding value would make a host read
+      // back something the user never set, and would fight automation mid-glide.
+      if (d->id == 38) return bendTarget;
+      if (d->id >= 106 && d->id <= 115)
+      {
+        switch (d->id)
+        {
+          case 106: return bendLaw.model;
+          case 107: return bendLaw.gtime;
+          case 108: return bendLaw.rate;
+          case 109: return bendLaw.tau;
+          case 110: return bendLaw.springF;
+          case 111: return bendLaw.damp;
+          case 112: return bendLaw.distOver;
+          case 113: return bendLaw.retMul;
+          case 114: return bendLaw.quant;
+          case 115: return bendLaw.qhyst;
+          default: break;
+        }
+      }
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 100) return masterVol;

@@ -8,6 +8,58 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE BEND LAW IS REACHABLE — ten params, one section, gated by the core's own switch (2026-08-19)
+
+Second increment of the glide fold. The core went into the audio path inert; this makes it
+selectable.
+
+**Ten global params, ids 106-115**, appended so nothing existing moves (`params.h:212`).
+Global because **the wheel bends the patch** — bend is not per-oscillator. Ranges and defaults
+are read from `docs/design/bend-lab.html`'s own controls, so a value set in the plugin means
+what it meant on the bench the goldens were sliced from: `bendTime` 5-1500 ms, `bendRate`
+0.5-200 st/s, `bendTau` 1-400 ms, `bendSpringF` 0.5-20 Hz, `bendDamp` 0-1, `bendDistOver` 0-2,
+`bendReturn` 0.2-3, `bendHyst` 0-50 c.
+
+**`id 38` now reports the TARGET, not the sounding bend.** The wheel's request is the
+parameter; `pitchBend` is where the glide has reached. Reporting the sounding value would make
+a host read back something the user never set and would fight automation mid-glide.
+
+**Switching law mid-bend cannot make the pitch jump.** The filter resets to the current
+sounding value on a law change, so the state carries over and only the trajectory changes;
+leaving a law settles to the target immediately rather than at the next grid boundary.
+
+**Gating is read straight off `glide_core`'s `switch`, then measured by pixels:**
+
+| law | knobs shown |
+|---|---|
+| off (instant) | *none* |
+| constant time | `bendTime` · `bendReturn` |
+| constant rate | `bendRate` · `bendReturn` |
+| lag (one-pole) | `bendTau` · `bendReturn` |
+| mass-spring | `bendSpringF` · `bendDamp` · `bendDistOver` · `bendReturn` |
+
+`bendHyst` follows the QUANTISE mode rather than the law — hidden at off, shown for chromatic
+and scale — because that is what the core reads it for.
+
+**Three gates refused this change before it was right, which is the system working.**
+`presentation_check` refused ten declared params with no presentation rows; `gui_reach` went
+RED for ten params reachable in no GUI; `test_table_check` demanded tests for a feature the GUI
+now shows. All three are now green with `./verify full` EXIT=0 — parity **147/147** unchanged,
+`glide_check` GREEN at worst rms 3.51e-08, `state_check` · `preset_check` · `paramscope_check`
+· `subdiv_check` GREEN.
+
+**A toolchain deadlock found and fixed.** `gen_gui_controls` aborted whenever `gui_reach` was
+RED — but RED is the *normal* state while adding parameters, because reach cannot go green
+until the controls this script generates exist. The generator was therefore unable to fix the
+only problem it exists to fix. It now proceeds and lets `./verify` judge the RESULT: if the
+generated controls do not close the gap, `gui_reach` is still red afterwards and nothing has
+been hidden.
+
+**Flagged, not decided:** `bendDamp` defaults to **0.6** here, taken from `glide_core`'s
+`Params`. `bend-lab.html`'s own damping slider defaults to **0.76**. One of them is the value
+that was auditioned and the other is a port default; the difference is inaudible today because
+the law ships off, but it should be reconciled before anyone tunes a spring by ear.
+
 ## GLIDE CORE IS IN THE AUDIO PATH, AND PROVABLY DOES NOTHING YET (2026-08-19)
 
 Human ruling: *"we can say bend inertia defaults to off."* Placement (A) from

@@ -50,9 +50,17 @@ def patch_scope_ids():
         with contextlib.redirect_stdout(io.StringIO()):
             exec(compile(src, "gui_reach.py", "exec"), ns)
     except SystemExit as e:
+        # gui_reach RED is normally a real stop — but it is also the NORMAL state
+        # while adding parameters, because reach cannot go green until the very
+        # controls this script generates exist. Refusing here made the generator
+        # unable to fix the only problem it exists to fix (hit adding the bend law
+        # params, 2026-08-19). The patch-scope derivation it provides is valid
+        # either way, so carry on and let ./verify judge the RESULT: if the
+        # generated controls do not close the gap, gui_reach is still red
+        # afterwards and nothing has been hidden.
         if e.code:
-            print("gen_gui_controls: gui_reach is RED — fix it before generating", file=sys.stderr)
-            raise
+            print("gen_gui_controls: gui_reach is RED (expected while adding params) — "
+                  "generating; ./verify judges the result", file=sys.stderr)
     return ns["patch_scope"]
 
 
