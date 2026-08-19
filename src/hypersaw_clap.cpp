@@ -891,6 +891,22 @@ struct Plugin
     q.model = hypersaw::GlideCore::kOff;
     return q;
   }();
+  /* THE GLOBAL SCALE, held in ONE place rather than inside bend's law struct.
+     Bend is the first consumer, not the owner: the note-pitch lane, the chord
+     layer and any arp read the same {root, mask}, and two modules disagreeing
+     about the scale produce notes in neither key.
+     THIS IS ALSO THE SEAM. Today the root and mask come from thirteen CLAP
+     params. A future provider — Tonality is the obvious one — would fill this
+     same struct instead, and nothing downstream would need to change, because
+     downstream only ever reads {root, mask}. That is exactly what the standing
+     ruling bought: consumers transmit the mask, never a scale ID, so the thing
+     that PRODUCES the mask is swappable. */
+  struct ScaleState
+  {
+    double root = 0;                                        // 0..11, C..B
+    int mask[12] = {1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1};    // C major, as shipped
+  } scale;
+
   double bendTarget = 0;
   int bendAccum = 0;                     // samples owed to the bend grid
   int bendGridSamples() const
@@ -1521,8 +1537,8 @@ struct Plugin
          is the whole reason the surface is global rather than bend's property. */
       if (id >= 116 && id <= 128)
       {
-        if (id == 116) bendLaw.scaleRoot = applied;
-        else bendLaw.scaleMask[id - 117] = applied >= 0.5 ? 1 : 0;
+        if (id == 116) scale.root = applied;
+        else scale.mask[id - 117] = applied >= 0.5 ? 1 : 0;
         return;
       }
       if (id == 38)
@@ -1652,7 +1668,7 @@ struct Plugin
         }
       }
       if (d->id >= 116 && d->id <= 128)
-        return d->id == 116 ? bendLaw.scaleRoot : (double)bendLaw.scaleMask[d->id - 117];
+        return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
       if (d->id == 40) return bassMonoOn;
       if (d->id == 41) return bassMonoHz;
       if (d->id == 100) return masterVol;
@@ -2031,6 +2047,11 @@ struct Plugin
           if (bendAccum >= grid)
           {
             bendAccum = 0;
+            // The law carries a copy because glide_core owns its own Params;
+            // the SOURCE is `scale`, so a provider that fills it reaches the
+            // quantiser without glide_core learning anything new.
+            bendLaw.scaleRoot = scale.root;
+            for (int d = 0; d < 12; d++) bendLaw.scaleMask[d] = scale.mask[d];
             const double v = bendGlide.step(bendTarget, bendLaw);
             if (v != pitchBend) { pitchBend = v; updateTuneAll(); }
           }

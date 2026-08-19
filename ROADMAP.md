@@ -8,6 +8,49 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE SCALE HAS ONE HOME AND AN OPEN SEAM; TONALITY ASKED WHETHER IT IS HONEST (2026-08-19)
+
+Human: *"feel free to file a brief with Tonality if that would help figure out the logic here;
+we don't need to integrate just yet, but let's leave a space open for it."*
+
+**The space is now a real thing, not a comment.** The global scale lived inside `bendLaw` —
+bend's own struct — which was wrong on its face: bend is the **first consumer, not the owner**.
+Extracted to one place:
+
+```cpp
+struct ScaleState { double root; int mask[12]; } scale;
+```
+
+Bend copies `{root, mask}` into its law immediately before the glide advances, so `glide_core`
+learns nothing new and the source of truth is singular. Today thirteen CLAP params fill the
+struct; **a provider filling it instead would change nothing downstream** — which is precisely
+what the standing ruling bought. Because consumers transmit the mask and never a scale ID, the
+thing that *produces* the mask is swappable. `./verify full` EXIT=0, parity 147/147 unchanged.
+
+**Filed with Tonality as `HYPERSAW-002`** (their PR #279, direct route per their `PROTOCOL.md`;
+working copy `docs/proposals/tonality-002-scale-interchange.md`). Not a request for code, a
+dependency, or a schedule — a design review of the boundary, filed while it is still cheap to
+move. The two questions worth the filing on their own:
+
+1. **Is a 12-bit mask an honest reduction, or a lossy one we should stop calling a scale?**
+   Tonality *"returns every reading the theory admits (ranked, with evidence)"*. A mask is one
+   reading with the evidence discarded. If `{root, mask}` is not a thing their model would call
+   a scale, we would rather rename our field than imply an agreement we do not have.
+2. **A real-time consumer cannot refuse to guess, and theirs is designed to.** Their engine
+   *"refuses to guess when it doesn't know"*; our quantiser must emit a pitch every 16 samples
+   and has no *unknown* to return. What is the right **degraded** behaviour under genuine
+   ambiguity? We do nearest-by-cents with hysteresis — chosen for implementability, not for
+   being right, and that is the kind of choice worth having contradicted.
+
+Also asked: where a snap boundary really sits (we use the midpoint, 8 c hysteresis), whether
+chord tones should be **degrees or semitones** (degrees keep a chord in key under transposition,
+which looks obvious enough to be suspicious), whether the interchange quietly assumes 12-TET,
+and what they would *want* to fill the seam with if they ever did.
+
+**Ball: theirs, `respond-by` 2026-09-19, nothing of ours blocked.** The four consumers we can
+see — bend quantisation, the note-pitch lane, the chord layer, any arp — are all served by the
+surface as it stands.
+
 ## THE GLOBAL SCALE IS REACHABLE, AND THE PICKER IS NOT A PARAMETER (2026-08-19)
 
 Third increment of the glide fold. `kQuantScale` has existed in `glide_core` since it was
