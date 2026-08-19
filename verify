@@ -273,6 +273,13 @@ full() {
   # must-read-nothing control (Off must equal the no-slot case, bit-exact).
   # Calibrated: making the Notch case a no-op makes it FAIL — see the trace.
   "$build_dir/notchslot_check" || return 1
+  # FX SLOT CONTRACT (approved 2026-08-15, "the rack owns dry/wet"). Every slot
+  # keeps the promise it declares in fx_rack.h's kSlotContract. Three violations
+  # are PINNED — Comp/Notch have no identity point, Comb changes level by 8.8 dB —
+  # so the gate is green on "nothing NEW is broken" while the rack-side fix is
+  # outstanding. A pin is a debt with a name; removing one is how the fix proves
+  # itself. Negative-tested: a false identity declaration turns it red by slot.
+  "$build_dir/slotcontract_check" || return 1
 
   # FOUNDATIONS NOTE-LIFECYCLE CONFORMANCE (their R5) — run against OUR tag
   # tables, plus our own END ledger. SKIPS BY DESIGN when the binary is absent:
