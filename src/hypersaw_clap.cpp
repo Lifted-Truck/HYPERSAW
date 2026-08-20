@@ -191,7 +191,10 @@ static const ParamDef kParams[] = {
     {68, "sRelease", "S.Release (s)", 0.005, 8.0, 0.18, false, nullptr},
     // SAW waveshape morph (ADR-058): 0 = saw, 1 = square. SAW-core key, routed
     // by the applyParam fallback; default 0 is bit-inert (spectra no-ops "shape").
-    {69, "shape", "Saw Shape", 0, 1, 0, false, nullptr},
+    // Renamed from "Saw Shape" (human 2026-08-20): two unrelated things carried
+    // that name — this ADR-058 square morph in The swarm, and the ADR-094
+    // Saw shape SECTION. The key stays `shape` (state compat); only the face moved.
+    {69, "shape", "Squareness", 0, 1, 0, false, nullptr},
     // ADR-072 batched param pass (task #18): the fold-campaign features.
     // Ids START AT 71: id 70 is a GHOST — the ADR-059 dev inertia-taper
     // exponent is intercepted by number in applyParam/readParam without a row
@@ -1578,6 +1581,54 @@ struct Plugin
                    is nonlinear, so this is the first harmonic rather than the
                    whole story — but it is the part heard as depth, and it is the
                    bill inertia charges for a slow bend. */
+  /* ADR-101: one cycle of the EDITED oscillator's waveform, drawn by the same
+     stage chain the render runs — the reference anchor functions, the ADR-058
+     squareness morph — never by a JS twin (the bend graphs' rule, ADR "drawn by
+     the engine"). Display honesty notes: the ideal saw stands in for the BLEPped
+     one (band-limiting is inaudible to the eye at this size), and roundness is
+     shown at its knob value — the per-voice roundHi pitch scaling varies by
+     note, which a single static cycle cannot show. */
+  std::string shapeWaveJson()
+  {
+    const uint32_t vo = vizOsc.load(std::memory_order_relaxed);
+    const hypersaw::Params &q = cores[vo < kNumOsc ? vo : 0].p;
+    constexpr int N = 256;
+    auto stage = [&](double ph) {
+      double v = 2 * ph - 1;
+      if (q.sawBase > 0.001)
+      {
+        const double f = std::max(0.0, std::min(4.0, q.sawBase * 4));
+        const int i0 = std::min(3, (int)std::floor(f));
+        const double fr = f - i0;
+        const double b0 = i0 == 0 ? v : hypersaw::sawBaseAnchor(i0, ph);
+        v = b0 * (1 - fr) + hypersaw::sawBaseAnchor(i0 + 1, ph) * fr;
+      }
+      if (q.round > 0.001)
+      {
+        const double f = std::max(0.0, std::min(4.0, q.sawProfile * 4));
+        const int i0 = std::min(3, (int)std::floor(f));
+        const double fr = f - i0;
+        const double sh = hypersaw::sawShapeAnchor(i0, ph) * (1 - fr)
+                        + hypersaw::sawShapeAnchor(i0 + 1, ph) * fr;
+        v = v * (1 - q.round) + sh * q.round;
+      }
+      return v;
+    };
+    std::string out = "{\"wave\":[";
+    char buf[32];
+    for (int i = 0; i < N; i++)
+    {
+      const double ph = (double)i / N;
+      double v = stage(ph);
+      if (q.shape > 0.001)                      // ADR-058: v = w - shape*w(ph+1/2)
+        v -= q.shape * stage(ph >= 0.5 ? ph - 0.5 : ph + 0.5);
+      std::snprintf(buf, sizeof(buf), i ? ",%.4f" : "%.4f", v);
+      out += buf;
+    }
+    out += "]}";
+    return out;
+  }
+
   std::string bendCurveJson() const
   {
     const double cr = 1.0 / kBendGridSeconds;          // ticks per second
@@ -3056,6 +3107,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.getParamsJson = [pl]() { return pl->paramsJson(); };
   hostIf.getDefaultsJson = [pl]() { return pl->defaultsJson(); };
   hostIf.getBendCurveJson = [pl]() { return pl->bendCurveJson(); };
+  hostIf.getShapeWaveJson = [pl]() { return pl->shapeWaveJson(); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
   // Stamp carries hash AND build time: a hash alone cannot distinguish "the

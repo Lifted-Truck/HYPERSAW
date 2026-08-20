@@ -76,6 +76,53 @@ inline double sawBaseAnchor(int k, double ph)
   return sgn * std::pow(std::fabs(r), 0.6);                // 4 aggressive
 }
 
+/* ADR-101: the anchors above are the REFERENCE definitions and stay the source
+   of truth; the render loop reads these TABLES of them instead. Measured before
+   this existed: sawBase 0.5 alone took a 16-voice patch from 3.71% to 8.07% of a
+   core, all four stages to 12.38% — pow() per sample per voice, ~11M/s.
+   16384 cells + linear interpolation keeps the divergence far under the parity
+   bar: every anchor except the pow pair is smooth or piecewise-linear (error
+   ~2e-8; the triangle's corner falls exactly on a grid point at this power-of-
+   two size); the pow cusp at r=0 is the worst cell at ~5e-7 for ONE sample
+   neighbourhood per cycle, which the saw-shape goldens measure at RMS — the
+   verify run after this change is the recorded evidence. N+1 points, not N:
+   ph lives in [0,1) but the last CELL still needs f(1-) as its right edge, or
+   the wrap would interpolate +1 straight down to -1 across one cell.
+   Static tables, built at load — never on the audio thread. */
+constexpr int kAnchorN = 16384;
+struct AnchorTables
+{
+  double base[5][kAnchorN + 1];
+  double shape[5][kAnchorN + 1];
+  AnchorTables()
+  {
+    for (int k = 0; k < 5; k++)
+      for (int i = 0; i <= kAnchorN; i++)
+      {
+        const double ph = (double)i / kAnchorN;
+        base[k][i] = sawBaseAnchor(k, ph);
+        shape[k][i] = sawShapeAnchor(k, ph);
+      }
+  }
+};
+inline const AnchorTables &anchorTables() { static const AnchorTables t; return t; }
+inline double sawBaseTab(int k, double ph)
+{
+  const double x = ph * kAnchorN;
+  const int i = (int)x;
+  const double f = x - i;
+  const double *t = anchorTables().base[k];
+  return t[i] * (1 - f) + t[i + 1] * f;
+}
+inline double sawShapeTab(int k, double ph)
+{
+  const double x = ph * kAnchorN;
+  const int i = (int)x;
+  const double f = x - i;
+  const double *t = anchorTables().shape[k];
+  return t[i] * (1 - f) + t[i + 1] * f;
+}
+
 constexpr double kGravGridSeconds = 256.0 / 44100.0;   // 5.805 ms
 constexpr double kTau = 6.283185307;   // matches the reference's literal
 constexpr double kPiRef = 3.14159265;  // ditto — NOT M_PI, parity over precision
@@ -700,6 +747,15 @@ private:
     // settling difference of 0.001 cents. 256 costs +2%.
 
     const int n = (int)p.n;
+    // ADR-101 hoists: anchor index + blend fraction are pure functions of the
+    // params, invariant across the segment.
+    const bool sawBaseOn = p.sawBase > 0.001;
+    const double sawSbF = std::max(0.0, std::min(4.0, p.sawBase * 4));
+    const int sawBi0 = std::min(3, (int)std::floor(sawSbF));
+    const double sawBfr = sawSbF - sawBi0;
+    const double sawSpF = std::max(0.0, std::min(4.0, p.sawProfile * 4));
+    const int sawPi0 = std::min(3, (int)std::floor(sawSpF));
+    const double sawPfr = sawSpF - sawPi0;
     const double gain = p.vol * 0.9 / std::pow((double)n, p.normExp);
     // ADR-021: at the defaults these are the reference's exact expressions
     // (attackS = 0.003, releaseS = 0.16 — same operands, same doubles).
@@ -788,21 +844,26 @@ private:
              reference, so it is the stage that must yield position; putting it
              first would order the reference-defined stages differently from the
              reference and parity would only notice once both were non-zero. */
-          if (p.sawBase > 0.001)
+          /* ADR-101: tables, not the libm anchors (see AnchorTables); the
+             anchor SELECTION (index + blend fraction) depends only on the
+             params, so it is hoisted to the segment head — it was recomputed
+             per sample per voice, clamp, floor and all. A zero-weight side of
+             the blend is skipped: at an exact anchor position that halves the
+             lookups, and bfr multiplying an unevaluated table is the same
+             arithmetic as bfr multiplying an evaluated one by 0... except it
+             is not evaluated. */
+          if (sawBaseOn)
           {
-            const double sbF = std::max(0.0, std::min(4.0, p.sawBase * 4));
-            const int bi0 = std::min(3, (int)std::floor(sbF));
-            const double bfr = sbF - bi0;
-            const double b0 = bi0 == 0 ? v : sawBaseAnchor(bi0, ph);
-            v = b0 * (1 - bfr) + sawBaseAnchor(bi0 + 1, ph) * bfr;
+            const double b0 = sawBi0 == 0 ? v : sawBaseTab(sawBi0, ph);
+            v = sawBfr <= 0.0 ? b0
+                              : b0 * (1 - sawBfr) + sawBaseTab(sawBi0 + 1, ph) * sawBfr;
           }
           if (s.rnd[i] > 0.001)
           {
-            const double spF = std::max(0.0, std::min(4.0, p.sawProfile * 4));
-            const int pi0 = std::min(3, (int)std::floor(spF));
-            const double pfr = spF - pi0;
-            const double shaped = sawShapeAnchor(pi0, ph) * (1 - pfr)
-                                + sawShapeAnchor(pi0 + 1, ph) * pfr;
+            const double shaped =
+                sawPfr <= 0.0 ? sawShapeTab(sawPi0, ph)
+                              : sawShapeTab(sawPi0, ph) * (1 - sawPfr)
+                                    + sawShapeTab(sawPi0 + 1, ph) * sawPfr;
             v = v * (1 - s.rnd[i]) + shaped * s.rnd[i];
           }
           // ADR-058 waveshape morph: v = saw − shape·saw(ph+½). shape 0 = saw

@@ -178,7 +178,7 @@ def main():
             # where the laws differ, the vibrato cost shows what they charge for it,
             # and a trajectory plot hides the cost completely.
             VISUALS = {"Envelope": ["envelope"], "Onset & scatter": ["scatter"],
-                       "Bend": ["bendstep", "bendvib"]}
+                       "Bend": ["bendstep", "bendvib"], "Saw shape": ["shapewave"]}
             out.append(f'  <div class="cluster"><h2>{group}</h2>')
             for viz in VISUALS.get(group, []):
                 out.append(f'    <canvas class="gviz" data-viz="{viz}" width="260" height="72"></canvas>')
