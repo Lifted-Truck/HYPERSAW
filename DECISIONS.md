@@ -1656,3 +1656,49 @@ it feeds is multiplied by exactly zero (~15-20% of the remaining bill). Skipping
 it is output-identical for AUDIO but stales R/psi, which the VIZ reads — so it
 needs a design ruling on viz staleness, not a stealth optimisation. ROADMAP has
 the entry.
+
+## ADR-100 — Oscillators have an on/off switch, and OFF means gone (ACCEPTED)
+
+**Date:** 2026-08-20 · **Status:** ACCEPTED (human: "add the ability to turn
+oscillators off and on instead of just volume", with the morph design: "they can
+just toggle on and gradually increase the volume as they move between corners").
+
+### The rule
+
+`enable` (base id 150, PER-OSC so each morph corner can hold its own answer per
+oscillator). OFF hard-kills the core's voices — gate AND envelope to zero — and
+joins the ADR-099 render skip, so a disabled oscillator costs nothing at all.
+Osc 0 disabled zeroes its span by hand (it renders straight into the output
+buffer; every other path relies on render() doing the zeroing).
+
+OFF differs from vol 0 on purpose: vol 0 freezes envelopes for resume (a muted
+layer); OFF kills them (the oscillator is not part of the patch right now). Both
+transitions kill — OFF because the switch means silence now, ON because voices
+frozen since the disable would resume as zombies at whatever loudness they froze.
+
+### Measured (enable_probe, through the CLAP factory)
+
+both on 4 held: rms 0.284 / 3.71% · osc2 off: 1.96% · both off: rms 0.00000 /
+0.03%, tails KILLED · re-enable + new note: SOUNDS, old notes stay dead.
+
+### The choke, diagnosed while here (user_patch_bench, the human's own patch)
+
+Both oscillators, 16 voices, release 5 s, spring bend, comb + drive, 48 kHz /
+64-sample blocks: idle 0.14%, ~1% per held note — and EIGHT SECONDS after
+note-off the CPU had not moved (8.7% flat). The release envelope is a one-pole
+with the knob as its TIME CONSTANT and voices die at -60 dB, which a 5 s release
+reaches after ~7 tau ≈ 35 s. Every note burns full price for half a minute,
+inaudible for most of it. "Each takes a long time to let up" is that arithmetic.
+Changing the kill threshold or the curve is a SOUND change and a reference
+change — parked on the ROADMAP as an open question, not smuggled in as an
+optimisation. The debug-mode hypothesis was checked and cleared: Release, -O3,
+-DNDEBUG, zero assert strings, installed binary byte-identical to the artifact.
+
+### Also in this change
+
+- `shown_when` gained its OR tier (`;` between groups) with its first real
+  consumer: the Scale section serves BOTH quantisers, so it shows on
+  `bendQuant=2;noteQuant=2`. The tonic selector was never missing — its gate and
+  the dynamically-built picker's disagreed, so Scale showed while Root hid.
+- COPY PATCH / PASTE in the tab bar over hzGetState/hzApplyState — the "send me
+  the patch" loop the human asked for, and the seed of the preset system.

@@ -289,6 +289,12 @@ target_link_libraries(endprobe PRIVATE ${PROJECT_NAME}-impl)
 # with suspects toggled one row at a time. cpu_bench times SwarmCore alone;
 # the ADR-099 finding (a silent oscillator billed like an audible one) was
 # invisible to it and obvious here.
+# ADR-100 lifecycle probe + the tail-cost reproduction of the human's patch
+# (diagnostics, not gates — same rule as glidepath_probe).
+add_executable(enable_probe tools/enable_probe.cpp)
+target_link_libraries(enable_probe PRIVATE ${PROJECT_NAME}-impl)
+add_executable(user_patch_bench tools/user_patch_bench.cpp)
+target_link_libraries(user_patch_bench PRIVATE ${PROJECT_NAME}-impl)
 add_executable(shell_bench tools/shell_bench.cpp)
 target_link_libraries(shell_bench PRIVATE ${PROJECT_NAME}-impl)
 add_executable(glidepath_probe tools/glidepath_probe.cpp)
