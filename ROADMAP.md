@@ -8,6 +8,66 @@ Gates are blocking. "Green" = `./verify fast` passes + phase acceptance subset +
 
 *(Historical status, 2026-07-17 evening:)* Phase 0 largely complete — skeleton builds (CLAP + VST3 + AUv2 via clap-wrapper, pinned submodules), pluginval SUCCESS at strictness 10 (gate asks ≥5), auval SUCCEEDED, all three formats installed locally with intact codesign seals; ADR-006 spike run (bank 66× / iFFT 216× realtime at 2560 osc on M3) with close proposed as ADR-018 (bank); GUI stack proposed as ADR-019 (choc webview). CI matrix (macOS + Windows build + pluginval) GREEN on both platforms (run for 3283ae9; Windows needed static-MSVC-runtime + M_PI portability fixes). **PHASE 0 GATE CLOSED 2026-07-17:** ADR-018 (bank), ADR-019 (webview, with the swappability amendment), and the E-6 envelope ratified by the human; Live load test passed (VST3 loads, plays sine on MIDI input — no GUI yet, as designed). **Recorded residual (human-accepted):** Reaper/Bitwig load evidence deferred — neither host is installed on this machine; CI pluginval on both platforms is the standing proxy; do a real load check when either host is available, no later than the Phase 2 gate. **Windows runtime work deferred (human, 2026-07-18):** the WebView2 backend stays CI-compile-verified only until desktop-coordination begins; Windows runtime validation moves out of the Phase 2 gate to that milestone. Phase 1 (SwarmCore port + parity oracle) is now in progress. Proposed E-6 envelope: min-spec = Apple M1 base / 4-core 2018-class Intel ultrabook, Windows x64 AVX2; 44.1 kHz @ 128-sample buffer; E-6 patch must hold < 50% of one core on min-spec. Deferred ecosystem briefs: Tonality intake brief due at Phase 3 before consonance gravity ships; terrain-sibling intake brief due at Phase 4 with the kernel abstraction (ADR-010(d) — placeholders in the meantime).
 
+## THE LAB PORTS ARE SWEPT, AND THE SWEEP HAD TO BE MADE ABLE TO FIRE TWICE (2026-08-20)
+
+Three unported reference behaviours surfaced in two days — the plain pitch wheel, the
+quantiser's `qTime` gate, ADR-097's per-note bend — each found by the human PLAYING the
+plugin, none by anything we ran. They share a shape: the reference had it, a gate covered
+the neighbouring case, and nothing ever asked whether this one was covered at all. Parity
+structurally cannot ask: it certifies agreement over the surface the reference RENDERS
+with the settings a golden happens to use (L0031), so a parameter the port never declared
+is invisible twice over.
+
+`tools/port_gap.py` asks it. **Result: 0 unexplained names across all eight
+reference/port pairs.** The three found this week were the tail, not the middle.
+
+**The tool needed two corrections before it was worth trusting, and both were the same
+failure it exists to prevent — a check that cannot fire.**
+1. "Longest object literal" picked swarmalator's CSS-in-JS block, so that lab was compared
+   on `background, border, color` and its engine parameters were never looked at. It
+   reported eleven confident gaps and had examined nothing.
+2. "First `this.p =`" picked bend-lab's DEMO OSCILLATOR defaults rather than its
+   travel-law defaults. Caught only by planting the pre-2026-08-20 port (`qTime` deleted)
+   and watching the scan report exactly what it had reported before.
+
+Now: union every defaults-shaped literal, then intersect with the control ids the HTML
+declares — **a lab parameter is one the bench lets you set**. That is a definition, not an
+exemption list: it needs no maintenance and cannot quietly grow to cover a real gap.
+Verified both directions — delete `qTime` and it appears; restore it and it goes.
+
+Every remaining name is printed WITH its resolution (`beatQ` became detune law 3;
+`swidth` was renamed `width`; bend-lab's `n/detune/drift/vol` drive its demo oscillator),
+so an exemption stays a claim someone made rather than a silence.
+
+**Open question for the human:** at 0 steady-state this is gateable — it would go red the
+moment a lab gains a parameter the port does not declare, which is precisely the defect
+class that bit us three times. Wiring it into `./verify` edits the gate set, so it waits
+for a ruling.
+
+## OPEN — GUI2 COLUMN MARGIN LANDS ABOVE, NOT BELOW (2026-08-20, parked by the human)
+
+**Reported:** "sometimes the margins come in above instead of below columns", seen in the
+plugin. **Status: not reproduced, deliberately not guessed at.** Parked at the human's
+request; pick this up before the GUI pass, not before the lab ports.
+
+What was already ruled out, so the next session does not repeat it:
+- Swept **12 column widths** (180-560px) in the Chromium preview: every column's first
+  child sits at top offset 0.
+- Repeated with **each cluster folded** in turn: still 0.
+- The margin-collapse vector **does not exist**: `h2`'s `margin-top` computes to `0px`,
+  and the 9px above a panel title is padding (8px) + border (1px), which is intended.
+
+**Leading hypothesis:** the plugin renders in **WKWebView**, whose CSS-fragmentation
+implementation differs from the preview's Chromium. Margins at a *spontaneous* column
+break are truncated by one engine and not necessarily the other, which would make this
+real and invisible to every measurement taken so far.
+
+**What unblocks it:** the page and the approximate window width. A layout artifact is
+width-specific. Failing that, the fix that does not need a reproduction is to stop
+expressing the gap as a margin at all — the spacing would move into a wrapper's padding,
+which no fragmentation rule can truncate. That is a DOM change, so it waits for evidence
+rather than being applied speculatively.
+
 ## MORPH CORNER EDITING — the human's model, recorded before the page exists (2026-08-19)
 
 Human, as a note for when quantum morph is built:
