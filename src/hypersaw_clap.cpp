@@ -383,6 +383,14 @@ static const ParamDef kParams[] = {
        want the raw controller under their finger while the wheel keeps its
        character. */
     {149, "bendMpeLaw", "MPE Bend", 0, 1, 1, true, kMpeLawLabels},
+    /* ADR-100 (human 2026-08-20: "add the ability to turn oscillators off and on
+       instead of just volume"). PER-OSC, so the morph grid can hold "off in this
+       corner, on in that one" per corner per oscillator. OFF hard-kills the
+       core's voices (a tail outliving the switch contradicts the switch) and the
+       render skip makes it cost NOTHING — which is the difference from vol 0,
+       where ADR-099's skip already applies but held notes keep their envelopes
+       frozen for resume. Off = not part of the patch right now. */
+    {150, "enable", "Osc On", 0, 1, 1, true, kOffOn},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -1026,6 +1034,7 @@ struct Plugin
     return 0;   // continuous
   }
   double qTimeMode = 0, qTimeHz = 8, qTimeSync = 4;
+  int oscEnabled[kMaxOsc] = {1, 1};   // ADR-100
   double mpeBendLaw = 1;   // ADR-097: per-note bend follows the wheel by default
 
   void pushNoteLaw()
@@ -1851,6 +1860,20 @@ struct Plugin
         pushNoteLaw();
         return;
       }
+      if (baseIdOf(id) == 150)
+      {
+        const uint32_t osc = id / 1000;
+        const bool on = applied >= 0.5;
+        if ((oscEnabled[osc] != 0) != on)
+        {
+          oscEnabled[osc] = on ? 1 : 0;
+          // Both transitions kill: OFF because the switch means silence NOW,
+          // ON because voices frozen since the disable would otherwise resume
+          // as zombies at whatever loudness they froze at.
+          cores[osc].killAll();
+        }
+        return;
+      }
       if (id == 149)
       {
         mpeBendLaw = applied;
@@ -2028,6 +2051,7 @@ struct Plugin
          and the selector snapped to "own settings". A parameter the shell OWNS
          must be readable from where the shell keeps it — the write half alone is
          a value the host can never see. */
+      if (baseIdOf(d->id) == 150) return oscEnabled[d->id / 1000];
       if (d->id == 149) return mpeBendLaw;
       if (d->id == 146) return qTimeMode;
       if (d->id == 147) return qTimeHz;
@@ -2356,10 +2380,19 @@ struct Plugin
   void renderSpan(float *outL, float *outR, uint32_t at, uint32_t count)
   {
     const int n = (int)count;
-    core.render(outL + at, outR + at, n);
+    if (oscEnabled[0] == 0)
+    {
+      // Osc 0 renders STRAIGHT into the output buffer, so its skip must do the
+      // zeroing render() would have done. Meter to 0 for the same reason as
+      // ADR-099: a dead oscillator must not hold its last peak.
+      for (int i = 0; i < n; i++) { outL[at + i] = 0.0f; outR[at + i] = 0.0f; }
+      oscPeakViz[0] = 0.0;
+    }
+    else
+      core.render(outL + at, outR + at, n);
     // Oscillator 0 renders STRAIGHT into the output, so its mute/solo gain
     // and meter are applied in place afterwards rather than during a sum.
-    applyOscGainAndMeter(0, outL + at, outR + at, n, false);
+    if (oscEnabled[0] != 0) applyOscGainAndMeter(0, outL + at, outR + at, n, false);
     // Oscillators 1..N-1 render into a FIXED STACK buffer, in chunks, and
     // sum. At their default vol = 0 they add exact zeros, so a patch that
     // never touches them is bit-identical to a one-oscillator build — which
@@ -2389,7 +2422,7 @@ struct Plugin
          smoother to SETTLE at 0, so a fade-out completes before the core stops.
          The meter is forced to 0 — a skipped oscillator must not hold its last
          peak on the mixer. */
-      if (cores[k].p.vol == 0.0 ||
+      if (oscEnabled[k] == 0 || cores[k].p.vol == 0.0 ||
           (oscGainSm[k] == 0.0 && oscGainTarget(k) == 0.0))
       {
         oscPeakViz[k] = 0.0;

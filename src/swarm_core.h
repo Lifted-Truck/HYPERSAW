@@ -537,6 +537,14 @@ class SwarmCore
     for (auto &s : voices) s.gate = 0;
   }
 
+  // ADR-100: hard kill — gate AND envelope to zero, so nothing rings. allOff()
+  // is a release (tails decay musically); this is the oscillator being switched
+  // OFF, where a 5-second tail continuing would contradict the switch.
+  void killAll()
+  {
+    for (auto &s : voices) { s.gate = 0; s.env = 0; }
+  }
+
   // Read-only accessors for the shell (viz feed; NOTE_END bookkeeping).
   // Not used by the DSP path; parity-neutral.
   int centerIndex() const { return centerIdx; }

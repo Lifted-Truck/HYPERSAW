@@ -164,19 +164,19 @@
   <div class="ctlcol">
 <!--GEN:MAIN-->
   <div class="cluster"><h2>Scale</h2>
-    <div class="row" data-addr="scaleRoot" data-when="bendQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>
-    <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg1" data-when="bendQuant=2"><label>b2</label><input type="checkbox" data-p="118"><output></output></div>
-    <div class="row" data-addr="scaleDeg2" data-when="bendQuant=2"><label>2</label><input type="checkbox" data-p="119" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg3" data-when="bendQuant=2"><label>b3</label><input type="checkbox" data-p="120"><output></output></div>
-    <div class="row" data-addr="scaleDeg4" data-when="bendQuant=2"><label>3</label><input type="checkbox" data-p="121" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg5" data-when="bendQuant=2"><label>4</label><input type="checkbox" data-p="122" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg6" data-when="bendQuant=2"><label>b5</label><input type="checkbox" data-p="123"><output></output></div>
-    <div class="row" data-addr="scaleDeg7" data-when="bendQuant=2"><label>5</label><input type="checkbox" data-p="124" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg8" data-when="bendQuant=2"><label>b6</label><input type="checkbox" data-p="125"><output></output></div>
-    <div class="row" data-addr="scaleDeg9" data-when="bendQuant=2"><label>6</label><input type="checkbox" data-p="126" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg10" data-when="bendQuant=2"><label>b7</label><input type="checkbox" data-p="127"><output></output></div>
-    <div class="row" data-addr="scaleDeg11" data-when="bendQuant=2"><label>7</label><input type="checkbox" data-p="128" checked><output></output></div>
+    <div class="row" data-addr="scaleRoot" data-when="bendQuant=2;noteQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>
+    <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2;noteQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg1" data-when="bendQuant=2;noteQuant=2"><label>b2</label><input type="checkbox" data-p="118"><output></output></div>
+    <div class="row" data-addr="scaleDeg2" data-when="bendQuant=2;noteQuant=2"><label>2</label><input type="checkbox" data-p="119" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg3" data-when="bendQuant=2;noteQuant=2"><label>b3</label><input type="checkbox" data-p="120"><output></output></div>
+    <div class="row" data-addr="scaleDeg4" data-when="bendQuant=2;noteQuant=2"><label>3</label><input type="checkbox" data-p="121" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg5" data-when="bendQuant=2;noteQuant=2"><label>4</label><input type="checkbox" data-p="122" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg6" data-when="bendQuant=2;noteQuant=2"><label>b5</label><input type="checkbox" data-p="123"><output></output></div>
+    <div class="row" data-addr="scaleDeg7" data-when="bendQuant=2;noteQuant=2"><label>5</label><input type="checkbox" data-p="124" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg8" data-when="bendQuant=2;noteQuant=2"><label>b6</label><input type="checkbox" data-p="125"><output></output></div>
+    <div class="row" data-addr="scaleDeg9" data-when="bendQuant=2;noteQuant=2"><label>6</label><input type="checkbox" data-p="126" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg10" data-when="bendQuant=2;noteQuant=2"><label>b7</label><input type="checkbox" data-p="127"><output></output></div>
+    <div class="row" data-addr="scaleDeg11" data-when="bendQuant=2;noteQuant=2"><label>7</label><input type="checkbox" data-p="128" checked><output></output></div>
   </div>
   <!--/GEN:MAIN-->
   </div>
@@ -429,6 +429,7 @@
     <div class="row" data-addr="osc1.stretchB"><label>Stretch B <span class="sc">osc1</span></label><input type="range" data-p="80" min="0" max="6" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.spread"><label>Octave Spread <span class="sc">osc1</span></label><input type="range" data-p="81" min="1" max="24" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="osc1.anchor"><label>Root Anchor <span class="sc">osc1</span></label><input type="range" data-p="82" min="0" max="1" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.enable"><label>Osc On <span class="sc">osc1</span></label><input type="checkbox" data-p="150" checked><output></output></div>
   </div>
   <!--/GEN:OSC-->
     <div class="note">retrigger OFF = free-run phases; random starts can null for
@@ -483,6 +484,11 @@ const bridge = {
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
   panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
+  // hzGetState/hzApplyState are bound by the plugin (the dev state panel's
+  // plumbing); in the browser lab they are absent and COPY reports NO ENGINE
+  // rather than copying a fake patch.
+  getState: () => window.hzGetState ? window.hzGetState() : Promise.reject(new Error('no engine')),
+  applyState: (j) => window.hzApplyState ? window.hzApplyState(j) : Promise.reject(new Error('no engine')),
 };
 
 /* Escape = panic, matching gui.html (ADR-032). Deliberately guarded so it does
@@ -527,6 +533,44 @@ document.addEventListener('click', hzMaybeRelease, true);
 
 { const pb = document.getElementById('panicBtn');
   if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); }); }
+/* COPY / PASTE PATCH (human 2026-08-20: "add to gui2 an ability to copy the
+   patch settings so I can send it to you when I notice an issue"). The state
+   JSON already exists (hzGetState / hzApplyState — the dev state panel's
+   plumbing); these buttons are a thin clipboard face on it, and the same
+   round-trip is the seed of the preset system.
+   navigator.clipboard needs a secure context and WKWebView does not always
+   grant one, so the textarea+execCommand fallback is load-bearing, not legacy
+   politeness. PASTE deliberately reads a PROMPT, not the clipboard —
+   clipboard READ permission prompts are flaky inside plugin webviews, and a
+   paste box the human pastes into behaves identically everywhere. */
+{ const tabs = document.getElementById('tabs');
+  if (tabs) {
+    const mk = (label, title) => { const b = document.createElement('button');
+      b.textContent = label; b.title = title; tabs.appendChild(b); return b; };
+    const cp = mk('COPY PATCH', 'copy the whole patch as JSON to the clipboard');
+    cp.addEventListener('click', async () => {
+      try {
+        const j = await bridge.getState();
+        try { await navigator.clipboard.writeText(j); }
+        catch (_) {
+          const t = document.createElement('textarea');
+          t.value = j; document.body.appendChild(t); t.select();
+          document.execCommand('copy'); t.remove();
+        }
+        cp.textContent = 'COPIED'; setTimeout(() => { cp.textContent = 'COPY PATCH'; }, 1200);
+      } catch (_) { cp.textContent = 'NO ENGINE'; setTimeout(() => { cp.textContent = 'COPY PATCH'; }, 1200); }
+      cp.blur();
+    });
+    const pp = mk('PASTE', 'apply a patch JSON (paste into the box)');
+    pp.addEventListener('click', async () => {
+      const j = window.prompt('Paste patch JSON:');
+      if (!j) { pp.blur(); return; }
+      try { await bridge.applyState(j); pp.textContent = 'APPLIED'; }
+      catch (_) { pp.textContent = 'BAD JSON'; }
+      setTimeout(() => { pp.textContent = 'PASTE'; }, 1200);
+      pp.blur();
+    });
+  } }
 const OSC_STRIDE = 1000;
 let editOsc = 0, numOsc = 1, globalIds = null;
 const lastParams = {};
@@ -1079,22 +1123,25 @@ function learnGateKeys() {
 }
 function applyGates() {
   document.querySelectorAll('.row[data-when]').forEach(r => {
-    // AND across comma-separated clauses, OR across `|` within one clause. Two
-    // keys became necessary the moment a lane had BOTH a link switch and a law
-    // selector: `noteLawLink=1,noteLaw=1`. With one key only, gating on the link
-    // showed all seven law controls at once and gating on the law showed them
-    // even while the lane was following the bend law — dead controls either way.
-    let show = true;
-    for (const clause of r.dataset.when.split(',')) {
-      const [key, vals] = clause.split('=');
-      const base = GATE_KEY[key];
-      if (base === undefined) continue;    // gate names a param this page never placed
-      const src = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
-      if (!src) continue;
-      const cur = String(src.type === 'checkbox' ? (src.checked ? 1 : 0) : Math.round(+src.value));
-      if (!vals.split('|').includes(cur)) { show = false; break; }
-    }
-    r.hidden = !show;
+    // Grammar, outermost first: `;` = OR across groups, `,` = AND within a
+    // group, `|` = OR across values of one key. The `;` tier arrived with its
+    // first real consumer (2026-08-20): the Scale section serves BOTH
+    // quantisers, so it shows when `bendQuant=2;noteQuant=2` — either lane —
+    // and no single-tier grammar could say that. (The `,` tier's story: a lane
+    // with a link switch AND a law selector needed `noteLawLink=1,noteLaw=1`.)
+    const groupShows = (group) => {
+      for (const clause of group.split(',')) {
+        const [key, vals] = clause.split('=');
+        const base = GATE_KEY[key];
+        if (base === undefined) continue;  // gate names a param this page never placed
+        const src = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
+        if (!src) continue;
+        const cur = String(src.type === 'checkbox' ? (src.checked ? 1 : 0) : Math.round(+src.value));
+        if (!vals.split('|').includes(cur)) return false;
+      }
+      return true;
+    };
+    r.hidden = !r.dataset.when.split(';').some(groupShows);
   });
   // A box whose every row is hidden is an empty box; hide the box too. Targets
   // `.cluster`, which is what generated groups use since they were folded into
@@ -1281,6 +1328,11 @@ function buildScalePicker() {
   if (!host || document.getElementById('scalePick')) return;
   const row = document.createElement('div');
   row.className = 'row';
+  // The picker inherits its host's gate. Without this it showed unconditionally
+  // while Root hid behind bendQuant=2 — "the scale section has a scale selector
+  // but not a tonic selector" (human, 2026-08-20). The tonic was there all
+  // along; only its gate and the picker's disagreed.
+  if (host.dataset.when) row.dataset.when = host.dataset.when;
   row.innerHTML = '<label>Scale</label><select id="scalePick"></select><output></output>';
   host.after(row);
   const sel = row.querySelector('select');

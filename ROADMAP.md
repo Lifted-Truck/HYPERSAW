@@ -44,6 +44,27 @@ moment a lab gains a parameter the port does not declare, which is precisely the
 class that bit us three times. Wiring it into `./verify` edits the gate set, so it waits
 for a ruling.
 
+## OPEN — RELEASE TAILS BURN FULL PRICE FOR ~7 TAU (2026-08-20, needs a sound ruling)
+
+Measured on the human's own patch shape (user_patch_bench): a 5 s release keeps every
+voice rendering for ~35 s — the envelope is a one-pole with the knob as its time
+constant, and the kill threshold is -60 dB (env 1e-3), reached at ~7 tau. Eight seconds
+after an 8-note release the CPU had not dropped at all. Options, all of which CHANGE THE
+SOUND or the knob's meaning and therefore need a ruling + reference change, never an
+optimisation commit: (a) redefine the release knob as time-to--60dB (tau = t/6.9 — tails
+7x shorter than today at the same setting); (b) keep tau but add a faster-than-exponential
+floor near the end (kill at ~-80 dB with a short linear ramp-out); (c) leave the sound
+alone and make tail VOICES cheaper (skip per-voice drift/coupling below an env threshold —
+still audible-path work, needs its own care). The morph/FX layers will sit on top of
+whatever this costs, so rule before those land.
+
+## OPEN — PRESET SYSTEM (seeded 2026-08-20)
+
+COPY PATCH / PASTE now round-trips the full state JSON through the clipboard (the
+"send me the patch" loop). The preset system grows from this same surface: named saves
+of that JSON, a browser, and the docs/presets folder as the disk home. Design when the
+feature set stabilises — after morph, not before.
+
 ## OPEN — CONTROLTICK TRIG AT K=0 (recorded 2026-08-20, needs a viz ruling)
 
 The ADR-099 profile shows ~15-20%% of the remaining render bill is controlTick's
