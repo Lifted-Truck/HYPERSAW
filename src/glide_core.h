@@ -51,6 +51,10 @@ class GlideCore
     double retMul = 1;           // return-toward-rest time scale (BEND LANE ONLY)
     double quant = kQuantOff;
     double qhyst = 8;            // cents of stickiness at a step boundary
+    // ms between step COMMITS; 0 = free. The reference has carried this since
+    // 2026-08-07 and the port did not — a fold gap, not a new feature. It is
+    // what turns a quantised glide from a zipper into a glissando RUN.
+    double qTime = 0;
     double scaleRoot = 0;
     // major, as the reference literal
     int scaleMask[12] = {1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1};
@@ -63,7 +67,7 @@ class GlideCore
   void reset(double v)
   {
     x = v; vel = 0; y = v; D = 0;
-    q = v; qStep = 0; qArmed = false; qFlips = 0;
+    q = v; qStep = 0; qArmed = false; qFlips = 0; qT = 1e9;   // gate armed open
   }
 
   double step(double target, const Params &p)
@@ -198,7 +202,20 @@ class GlideCore
     if (qArmed && best != qStep &&
         std::fabs(semis - (double)qStep) - std::fabs(semis - (double)best) < hyst)
       best = qStep;
-    if (!qArmed || best != qStep) { qStep = best; qArmed = true; qFlips++; }
+    /* TIME GATE — the reference's, ported verbatim in semantics. With qTime > 0
+       a step may only COMMIT when the gate has elapsed; between gates the
+       previous step holds however far the underlying law has travelled. The
+       law's dynamics are untouched (x keeps moving), only the EMISSION is gated,
+       so spring + gated quantise still lands its overshoot wobble on the grid.
+       The timer resets on COMMIT, not on attempt — at most one step per qTime,
+       which is the glissando-run character — and reset() arms it wide open so
+       the first step of a gesture is never delayed (gating the onset just reads
+       as latency). qTime == 0 is the continuous path the goldens were sliced
+       from, so this is inert at defaults. */
+    qT += 1.0 / cr;
+    const bool gateOpen = !(p.qTime > 0) || qT >= p.qTime / 1000.0;
+    if (qArmed && best != qStep && !gateOpen) best = qStep;
+    if (!qArmed || best != qStep) { qStep = best; qArmed = true; qFlips++; qT = 0; }
     q = (double)best;
     return q;
   }
@@ -207,6 +224,7 @@ class GlideCore
   bool bend;
   double x = 0, vel = 0, y = 0, D = 0, q = 0;
   long qStep = 0;
+  double qT = 1e9;
   bool qArmed = false;
   int qFlips = 0;
 };

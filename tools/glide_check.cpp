@@ -107,6 +107,15 @@ int main(int argc, char **argv)
     p.scaleRoot = 7; p.qhyst = 20; setMask(p, {1,0,1,1,0,0,0,1,1,0,0,0});
     add("glide-quant-sparse", p); }
   { auto p = base; p.model = GlideCore::kSpring; add("glide-note-lane", p, true); }
+  /* TIME GATE — the mirror of the generator's three. This table duplicates the
+     generator's by hand (recorded, not fixed), so a scenario added there and not
+     here is a golden nothing reads. */
+  { auto p = base; p.model = GlideCore::kConstRate; p.quant = GlideCore::kQuantChromatic;
+    p.qTime = 400; p.rate = 12; add("glide-qtime-chrom", p); }
+  { auto p = base; p.model = GlideCore::kConstRate; p.quant = GlideCore::kQuantScale;
+    p.qTime = 200; p.rate = 9; add("glide-qtime-scale", p); }
+  { auto p = base; p.model = GlideCore::kSpring; p.quant = GlideCore::kQuantChromatic;
+    p.qTime = 90; p.damp = 0.25; add("glide-qtime-spring", p); }
   /* TIES. model = kOff is load-bearing: under any moving law the output
      approaches asymptotically and never lands exactly on a midpoint, so the tie
      path is unreachable and the scenario cannot fail. With the law off

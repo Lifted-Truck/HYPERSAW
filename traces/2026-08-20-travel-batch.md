@@ -40,3 +40,33 @@ change because `syncFromEngine` repaints every parameter twice a second.
 
 **Verify.** `./verify full` EXIT=0 · parity 156/156 (worst 4.262e-09) ·
 trajectory GREEN · state GREEN · mpe GREEN. Probe: all six travel scenarios ramp.
+
+## Addendum — quantise step timing was a FOLD GAP, not a feature request
+
+The human asked for "a timing mode toggle with sync and Hz, and a slider for
+each". Before designing one: `docs/design/bend-lab.html` has carried **`qTime`**
+since 2026-08-07 (human proposal), a gate that lets a quantised step COMMIT only
+once per interval — "what turns the quantiser from a zipper into a glissando
+RUN". `glide_core.h` never received it. So this was an unported reference
+feature, and the work was a fold, not an invention.
+
+- **Core**: `qTime` ported with the reference's semantics — the law's dynamics
+  keep moving, only the EMISSION is gated; the timer resets on COMMIT not on
+  attempt; `reset()` arms it open so the first step is never delayed.
+- **Goldens**: three gated scenarios (chromatic, scale, spring). The generator
+  slices the lab live, so these are the reference's own output.
+- **Shell**: ids 146-148 are the musical FACE of the one number the core reads.
+  `sync` reuses `kGridSteps` (cycles/beat) rather than minting a division table,
+  so its snapping and names are the tempo grid's. The core never learns tempo,
+  exactly as it never learned scale names.
+
+**A scenario that could not fail, caught by calibration.** `glide-qtime-chrom`
+first used qTime 120 ms against a 6 st/s climb — steps arrive every 167 ms, so a
+120 ms gate never bit and the scenario read rms=0 under a planted
+gate-ignoring defect while the other two went red. Recalibrated to 400 ms / 12
+st/s; all three now fail on the plant (worst rms 0.71) and match at rms=0.
+**Calibrate a gate against the defect it exists for, not against the happy path.**
+
+**Stale binary, twice more.** A restore-then-rebuild reported "0 files built" and
+kept the RED verdict; deleting the object file forced the recompile. Identical
+numbers across a rebuild remain the tell.

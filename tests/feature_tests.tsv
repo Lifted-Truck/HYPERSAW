@@ -95,3 +95,5 @@ BND-7	OSC	Bend	agentic	ENCODING	hypersaw	trajectory_check	mono with legato OFF g
 BND-8	OSC	Bend	agentic	ENCODING	hypersaw	trajectory_check	"follow bend law" actually follows bendTau: FOLLOW + lag 400ms ramps (240->432) instead of snapping, which it did while the core overrode tau from id 33
 BND-9	OSC	Bend	human	RULING	human	manual	the bend visualiser tracks the CURRENT quantise setting rather than the previously selected one (it redraws on the echoed parameter, not on the gesture)
 BND-10	OSC	Bend	human	RULING	human	manual	a patch saved before the note lane (glide set, no noteLawLink) restores to own-settings + lag and keeps the portamento it was saved with, despite the new FOLLOW default
+BND-11	OSC	Bend	agentic	ENCODING	hypersaw	glide_check	the reference time gate (qTime) is ported: three gated scenarios match bend-lab at the L0-1 bar, and each is calibrated to actually bite (ignoring the gate takes all three RED, worst rms 0.71)
+BND-12	OSC	Bend	human	RULING	human	manual	step timing: free (Hz) gives a fixed step rate and sync follows the session tempo through the same grid divisions the tempo-detune law uses
