@@ -37,7 +37,7 @@
      the page read as three quarters empty. The bar spans instead: it is a mode
      line for the whole page, not a panel competing with the panels. */
   #pg-MAIN.on, #pg-OSC.on { grid-template-columns: minmax(260px,340px) minmax(0,1fr); align-items:start; }
-  #pg-MIX.on  { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items:start; }
+  /* superseded by the ADR-098 flow rule below; kept only for the folded state */
   .oscbar { grid-column: 1 / -1; }
   .vizcol, .ctlcol { display:grid; gap:10px; align-content:start; min-width:0; }
   .vizcol canvas { width:100%; }
@@ -53,16 +53,23 @@
      left-to-right, which is the newspaper convention and the one every masonry
      layout accepts. `break-inside: avoid` keeps a cluster whole — a panel split
      across two columns would be worse than any amount of whitespace. */
-  .ctlcol { display: block; columns: 240px; column-gap: 10px; }
+  /* ADR-098 applies wherever CLUSTERS ARE TILED, not only inside .ctlcol. FX and
+     MIX lay their clusters straight into the page grid, and both carried
+     `align-items:start` — which stops a box being STRETCHED but does nothing
+     about the ROW still being as tall as its tallest member. On FX that put the
+     ~560px "About the rack" note in row 1 and dropped "FX rack" to row 2, far
+     below four short slot boxes: the human's "one box on the fx page is showing
+     up too low". Half the rule fixes half the defect. */
+  .ctlcol, #pg-FX.on, #pg-MIX.on { display: block; columns: 240px; column-gap: 10px; }
   /* EVERY direct child, not just .cluster: the OSC column also carries a bare
      .note, and a flowed text block with no break-inside rule splits across a
      column boundary and reads as orphaned prose rather than a caption. */
-  .ctlcol > * { break-inside: avoid; width: 100%; margin: 0 0 10px; }
+  .ctlcol > *, #pg-FX.on > *, #pg-MIX.on > * { break-inside: avoid; width: 100%; margin: 0 0 10px; }
   /* MAIN's viz column spanned full width while MAIN had no controls. Generation
      gave it 29, so that rule's premise expired and it comes out exactly as its
      comment promised: MAIN now takes the same left/right split as OSC. */
   @media (max-width: 720px) { #pg-MAIN.on, #pg-OSC.on { grid-template-columns: 1fr; } }
-  #pg-FX.on   { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items:start; }
+  /* superseded by the ADR-098 flow rule below */
   .cluster { background:var(--panel); border:1px solid var(--line);
     border-radius:4px; padding:8px 10px; min-width:0; }
   h2 { font-size:11px; color:var(--pull); letter-spacing:1px; margin-bottom:6px; }
