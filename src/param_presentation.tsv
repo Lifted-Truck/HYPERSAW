@@ -53,6 +53,8 @@
 # guess. page=TODO and group=(ungrouped) are the honest gaps, and are counted by
 # presentation_check rather than hidden.
 address	scope	label	page	group	widget	unit	chunk	shown_when	scale
+osc1.enable	osc1	Osc On	OSC	The swarm	toggle		the-swarm		
+osc2.enable	osc2	Osc On	OSC	The swarm	toggle		the-swarm		
 osc1.n	osc1	Voices	OSC	The swarm	knob		the-swarm		
 osc2.n	osc2	Voices	OSC	The swarm	knob		the-swarm		
 osc1.dist	osc1	Distribution	OSC	The swarm	select		the-swarm		
@@ -244,19 +246,19 @@ bendDistOver	global	Distance Curve	OSC	Bend	knob		bend	bendLaw=4
 bendReturn	global	Return x	OSC	Bend	knob		bend	bendLaw=1|2|3|4	
 bendQuant	global	Bend Quantise	OSC	Bend	select		bend		
 bendHyst	global	Quantise Hyst	OSC	Bend	knob	c	bend	bendQuant=1|2	
-scaleRoot	global	Root	MAIN	Scale	select		scale	bendQuant=2	
-scaleDeg0	global	1 (root)	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg1	global	b2	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg2	global	2	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg3	global	b3	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg4	global	3	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg5	global	4	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg6	global	b5	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg7	global	5	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg8	global	b6	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg9	global	6	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg10	global	b7	MAIN	Scale	toggle		scale	bendQuant=2	
-scaleDeg11	global	7	MAIN	Scale	toggle		scale	bendQuant=2	
+scaleRoot	global	Root	MAIN	Scale	select		scale	bendQuant=2;noteQuant=2	
+scaleDeg0	global	1 (root)	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg1	global	b2	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg2	global	2	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg3	global	b3	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg4	global	3	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg5	global	4	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg6	global	b5	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg7	global	5	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg8	global	b6	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg9	global	6	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg10	global	b7	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
+scaleDeg11	global	7	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
 osc1.sawBase	osc1	Saw Base	OSC	Saw shape	knob		saw-shape		
 osc1.sawProfile	osc1	Roundness Shape	OSC	Saw shape	knob		saw-shape		
 osc1.round	osc1	Roundness	OSC	Saw shape	knob		saw-shape		
