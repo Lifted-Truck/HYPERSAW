@@ -2137,8 +2137,26 @@ struct Plugin
         // Channel 1 (index 0) is excluded: see mpeBendSemis.
         auto *m = reinterpret_cast<const clap_event_midi_t *>(ev);
         const int ch = m->data[0] & 0x0F;
-        if ((m->data[0] & 0xF0) != 0xE0 || ch == 0) break;
+        if ((m->data[0] & 0xF0) != 0xE0) break;
         const int v14 = (int)m->data[1] | ((int)m->data[2] << 7);
+        if (ch == 0)
+        {
+          /* THE PLAIN PITCH WHEEL. Channel 0 is the MPE manager / ordinary
+             single-channel MIDI, and until 2026-08-19 it was dropped entirely —
+             the exclusion below rightly refused to read a ±2 st wheel at the
+             ±48 st MPE range, but nothing else picked it up, so a wheel on a
+             normal DAW track never reached the engine at all. Every bend-law
+             session tested against the GUI's Pitch control (param 38) and
+             passed, while the human's hand was on the wheel: "none of the bend
+             laws actually make the pitch bend." Routed through applyParam(38)
+             — the exact path the GUI control takes — so the bend law shapes
+             wheel and slider identically, and with the law off it stays the
+             same instant write it always was. ±2 st is the MIDI 1.0 default
+             and the MPE manager-channel default; a bend-range param can widen
+             it later without touching this site. */
+          applyParam(38, (v14 - 8192) * (2.0 / 8192.0));
+          break;
+        }
         const double semis = (v14 - 8192) * (48.0 / 8192.0);
         mpeBendSemis[ch] = semis;
         for (int i = 0; i < hypersaw::kPoly; i++)

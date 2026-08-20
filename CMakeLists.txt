@@ -280,6 +280,13 @@ endif()
 add_executable(endprobe tools/endprobe.cpp)
 target_link_libraries(endprobe PRIVATE ${PROJECT_NAME}-impl)
 
+# DAW-like end-to-end probe (diagnostic, not a gate): drives the real plugin
+# through the CLAP factory — params, notes, and RAW MIDI including the plain
+# channel-0 wheel — at 44.1k AND 48k, and prints the rendered pitch trajectory.
+# Born 2026-08-19: every glide oracle was core-level, so a wheel that never
+# reached the engine shipped green.
+add_executable(glidepath_probe tools/glidepath_probe.cpp)
+target_link_libraries(glidepath_probe PRIVATE ${PROJECT_NAME}-impl)
 add_executable(tailprobe tools/tailprobe.cpp)
 target_link_libraries(tailprobe PRIVATE ${PROJECT_NAME}-impl)
 

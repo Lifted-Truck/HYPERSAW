@@ -240,6 +240,55 @@ int main()
           "mono legato retarget moves every oscillator", d3);
   }
 
+  /* THE PLAIN WHEEL (2026-08-19). Channel-0 0xE0 — the pitch wheel on an
+     ordinary, non-MPE DAW track — was dropped on the floor by the MPE handler's
+     ch==0 exclusion, and NO TOOL IN THE REPO sent a raw CLAP_EVENT_MIDI, so the
+     one path a normal Live/Logic track uses had zero oracle coverage. The human
+     found it by hand: "none of the bend laws actually make the pitch bend."
+     Law OFF here on purpose — the wheel must reach the engine INSTANTLY on the
+     historical path; lawful shaping is the probe/ear layer's job. */
+  {
+    for (auto k : {69, 76}) {               // silence the legato section's holds
+      clap_event_note_t off{};
+      off.header.size = sizeof(off); off.header.type = CLAP_EVENT_NOTE_OFF;
+      off.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      off.note_id = -1; off.port_index = 0; off.channel = 0; off.key = (int16_t)k;
+      off.velocity = 0;
+      evl.ev.push_back(&off.header);
+      run(1, nullptr);
+    }
+    param(32, 0);                           // mono off, back to the default path
+    param(38, 0);                           // bend target parked at zero
+    for (auto &pv : pvs) if (pv.param_id == 32 || pv.param_id == 38) evl.ev.push_back(&pv.header);
+    run(80, nullptr);                       // ~1 s: legato tails fully die
+
+    clap_event_note_t won{};
+    won.header.size = sizeof(won); won.header.type = CLAP_EVENT_NOTE_ON;
+    won.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    won.note_id = 95; won.port_index = 0; won.channel = 0; won.key = 69; won.velocity = 1.0;
+    evl.ev.push_back(&won.header);
+    run(25, nullptr);
+    std::vector<float> flat;
+    run(20, &flat);
+    const double w440 = goertzel(flat, 440.0, SR);
+
+    clap_event_midi_t wheel{};
+    wheel.header.size = sizeof(wheel); wheel.header.type = CLAP_EVENT_MIDI;
+    wheel.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    wheel.port_index = 0;
+    wheel.data[0] = 0xE0; wheel.data[1] = 0x7F; wheel.data[2] = 0x7F;   // full up = +2 st
+    evl.ev.push_back(&wheel.header);
+    run(25, nullptr);
+    std::vector<float> bent;
+    run(20, &bent);
+    const double b440 = goertzel(bent, 440.0, SR);
+    const double b494 = goertzel(bent, 440.0 * std::pow(2.0, 2.0 / 12.0), SR);
+    char d4[160];
+    std::snprintf(d4, sizeof(d4), "440Hz %.5f -> %.5f, +2st bin %.5f", w440, b440, b494);
+    check(w440 > 1e-3 && b440 < 0.15 * w440 && b494 > 1e-3,
+          "plain channel-0 wheel reaches the engine (+2 st)", d4);
+  }
+
   p->stop_processing(p);
   p->deactivate(p);
   p->destroy(p);
