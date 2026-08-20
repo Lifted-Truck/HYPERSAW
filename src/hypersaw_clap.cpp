@@ -2374,6 +2374,27 @@ struct Plugin
     // size, and cannot silently drop a voice.
     for (uint32_t k = 1; k < kNumOsc; k++)
     {
+      /* ADR-099: a fully-silent oscillator is SKIPPED, not rendered-and-zeroed.
+         Its contribution is exact zeros in both silent cases — the core's own
+         `p.vol` multiplies inside render(), and a settled mute multiplies after
+         it — so summing was pure identity and cost a full swarm anyway.
+         Measured: osc2 at its default vol 0 cost the SAME as osc2 audible
+         (5.68% vs 5.69% of a core), i.e. half the render bill of every
+         single-oscillator patch bought nothing.
+         The traded behaviour, stated: while skipped the core's envelopes and
+         phases FREEZE, so raising the volume mid-held-note resumes the voice
+         from where it paused instead of where it would have decayed to. That is
+         the "muted layer costs nothing" contract every DAW mixer teaches.
+         Deliberately NOT gain-smoothed-out mid-ramp: the skip waits for the
+         smoother to SETTLE at 0, so a fade-out completes before the core stops.
+         The meter is forced to 0 — a skipped oscillator must not hold its last
+         peak on the mixer. */
+      if (cores[k].p.vol == 0.0 ||
+          (oscGainSm[k] == 0.0 && oscGainTarget(k) == 0.0))
+      {
+        oscPeakViz[k] = 0.0;
+        continue;
+      }
       float tL[kMixChunk], tR[kMixChunk];
       for (int off = 0; off < n; off += kMixChunk)
       {

@@ -285,6 +285,12 @@ target_link_libraries(endprobe PRIVATE ${PROJECT_NAME}-impl)
 # channel-0 wheel — at 44.1k AND 48k, and prints the rendered pitch trajectory.
 # Born 2026-08-19: every glide oracle was core-level, so a wheel that never
 # reached the engine shipped green.
+# Shell-level CPU bench (diagnostic): the real plugin through the CLAP factory
+# with suspects toggled one row at a time. cpu_bench times SwarmCore alone;
+# the ADR-099 finding (a silent oscillator billed like an audible one) was
+# invisible to it and obvious here.
+add_executable(shell_bench tools/shell_bench.cpp)
+target_link_libraries(shell_bench PRIVATE ${PROJECT_NAME}-impl)
 add_executable(glidepath_probe tools/glidepath_probe.cpp)
 target_link_libraries(glidepath_probe PRIVATE ${PROJECT_NAME}-impl)
 add_executable(tailprobe tools/tailprobe.cpp)
