@@ -813,6 +813,48 @@ int main()
       check(mid > 230 && mid < 430, "ADR-096 const-rate arms with glide 0 (travels, not snaps)", mid);
       check(std::fabs(c3cents) <= 1.0, "ADR-096 const-rate arrives", c3cents);
     }
+    /* ADR-096 REGRESSION #3 (2026-08-20). The render site overrode the law's tau
+       from `glide` UNCONDITIONALLY, so a law pushed with its own tau — which is
+       what "follow bend law" pushes, carrying bendTau — was ignored and the lane
+       read id 33 (default 0) instead. Snapped. The human read that as "lag mode
+       doesn't seem to be working", and they were describing exactly this.
+       Tested where the defect lived: push a lag law carrying tau, leave `glide`
+       at 0, and require travel. Under the old code lp.tau collapsed to 0 and the
+       lane arrived instantly. */
+    {
+      SwarmCore c5(kSR);
+      hypersaw::GlideCore::Params lw5;
+      lw5.model = hypersaw::GlideCore::kLag;
+      lw5.tau = 400;                      // ms, as bendTau would supply
+      c5.setNoteLaw(lw5);                 // `glide` deliberately left at 0
+      const int s5 = c5.noteOn(57, 220.0);
+      for (long off = 0; off < (long)(0.2 * kSR); off += kBlock) c5.render(L.data(), R.data(), kBlock);
+      c5.retargetNote(s5, 69, 440.0, /*legatoKeepPhase=*/true);
+      for (long off = 0; off < (long)(0.2 * kSR); off += kBlock) c5.render(L.data(), R.data(), kBlock);
+      const double mid5 = c5.voiceAt(s5).f0;
+      check(mid5 > 230 && mid5 < 430,
+            "ADR-096 pushed lag tau is honoured with glide 0 (follow-bend-law)", mid5);
+    }
+    /* ADR-096 REGRESSION #2 (2026-08-20). The non-legato re-strike restored the
+       departure pitch only when `glide > 0`, so a law carrying its own time was
+       re-inited AT the target and travelled zero distance. Human: "mono on and
+       legato off doesn't seem to apply glide on the retrigger."
+       Mid-flight again, and for the same reason as ADR-096 #1: a lane that does
+       not travel SNAPS, and a snapped lane arrives perfectly. */
+    {
+      SwarmCore c4(kSR);
+      hypersaw::GlideCore::Params lw;
+      lw.model = hypersaw::GlideCore::kConstRate;
+      lw.rate = 24;
+      c4.setNoteLaw(lw);                  // `glide` left at 0 on purpose
+      const int s4 = c4.noteOn(57, 220.0);
+      for (long off = 0; off < (long)(0.2 * kSR); off += kBlock) c4.render(L.data(), R.data(), kBlock);
+      c4.retargetNote(s4, 69, 440.0, /*legatoKeepPhase=*/false);   // RE-STRIKE
+      for (long off = 0; off < (long)(0.25 * kSR); off += kBlock) c4.render(L.data(), R.data(), kBlock);
+      const double mid4 = c4.voiceAt(s4).f0;
+      check(mid4 > 230 && mid4 < 430,
+            "ADR-096 legato-OFF re-strike travels (does not land on pitch)", mid4);
+    }
     // Non-legato retarget re-strikes (attack flag) but still glides from the
     // current pitch: right after retarget the pitch is near the OLD note.
     SwarmCore c2(kSR);
