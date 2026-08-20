@@ -47,3 +47,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
      sharpened by a 5th occurrence. Retired IDs are tombstoned at the foot of
      LIBRARY.md and are never reused or renumbered. Next pass due at ~35. -->
 
+- L0038 oracle coverage is per-transport; a reasoned exclusion still needs an owner (the dead pitch wheel)
