@@ -305,8 +305,8 @@
     <div class="row" data-addr="glide" data-when="noteLawLink=0,noteLaw=3"><label>Note Lag <span class="u">s</span></label><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
     <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="polyGlide"><label>Poly Glide</label><input type="checkbox" data-p="89"><output></output></div>
-    <div class="row" data-addr="glideMode"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (memory)</option></select><output></output></div>
+    <div class="row" data-addr="polyGlide" data-when="voiceMono=0"><label>Poly Glide</label><input type="checkbox" data-p="89" checked><output></output></div>
+    <div class="row" data-addr="glideMode" data-when="voiceMono=0"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (memory)</option></select><output></output></div>
     <div class="row" data-addr="bendLaw"><label>Bend Law</label><select data-p="106"><option value="0" selected>off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3">lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
     <div class="row" data-addr="bendTime" data-when="bendLaw=1"><label>Bend Time <span class="u">ms</span></label><input type="range" data-p="107" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
     <div class="row" data-addr="bendRate" data-when="bendLaw=2"><label>Bend Rate <span class="u">st/s</span></label><input type="range" data-p="108" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><output></output></div>
@@ -317,7 +317,7 @@
     <div class="row" data-addr="bendReturn" data-when="bendLaw=1|2|3|4"><label>Return x</label><input type="range" data-p="113" min="0.2" max="3" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
     <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
-    <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0" selected>own settings</option><option value="1">follow bend law</option></select><output></output></div>
+    <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0">own settings</option><option value="1" selected>follow bend law</option></select><output></output></div>
     <div class="row" data-addr="noteLaw" data-when="noteLawLink=0"><label>Note Travel</label><select data-p="138"><option value="0">off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3" selected>lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
     <div class="row" data-addr="noteTime" data-when="noteLawLink=0,noteLaw=1"><label>Note Time <span class="u">ms</span></label><input type="range" data-p="139" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
     <div class="row" data-addr="noteRate" data-when="noteLawLink=0,noteLaw=2"><label>Note Rate <span class="u">st/s</span></label><input type="range" data-p="140" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><output></output></div>
@@ -571,7 +571,23 @@ function setControl(id, v) {
   // the other's controls hidden. Guarded to gate SOURCES so the bulk repaint on
   // preset load does not re-gate once per parameter.
   if (typeof GATE_KEY === 'object' && Object.values(GATE_KEY).includes(base)) applyGates();
+  /* THE CURVE FOLLOWS THE ECHO, NOT THE GESTURE. Params reach the engine through
+     a queue drained on the audio thread, so getBendCurve() called straight from
+     the input handler renders the law as it was BEFORE the edit — the panel sat
+     one selection behind forever ("the visualizer seems to get stuck at the last
+     selected version"). The echoed value is proof the engine has the new law, so
+     redraw from that. Guarded on an actual CHANGE because syncFromEngine repaints
+     every parameter twice a second. */
+  if (BEND_VIZ_IDS.has(base) && bendVizSeen[base] !== v) {
+    bendVizSeen[base] = v;
+    if (typeof refreshBendCurve === 'function') refreshBendCurve();
+  }
 }
+// 33 note lag, 106-115 bend law, 137-145 note law: everything the curve draws.
+const BEND_VIZ_IDS = new Set([33,
+  106,107,108,109,110,111,112,113,114,115,
+  137,138,139,140,141,142,143,144,145]);
+const bendVizSeen = {};
 document.querySelectorAll('[data-p]').forEach(el => {
   const baseId = +el.dataset.p;
   const id_ = () => el.dataset.fixed ? baseId : effId(baseId);

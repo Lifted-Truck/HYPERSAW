@@ -228,7 +228,7 @@ static const ParamDef kParams[] = {
     {88, "oversample", "Oversample 2x", 0, 1, 0, true, kOffOn},
     // ADR-076: poly glide reuses the existing Glide TIME knob (id 33), which
     // therefore stops being mono-only in the GUI gating.
-    {89, "polyGlide", "Poly Glide", 0, 1, 0, true, kOffOn},
+    {89, "polyGlide", "Poly Glide", 0, 1, 1, true, kOffOn},
     {90, "glideMode", "Glide From", 0, 1, 0, true, kGlideModeLabels},
     // ADR-077 ensemble onset timing. onsetScatter is the master switch (0 = off
     // = bit-exact); alpha is the mutual-correction gain that carries the serial
@@ -344,14 +344,15 @@ static const ParamDef kParams[] = {
        lag time in SECONDS, and `serum-parity-reference.json` already stores
        0.89 in it. Minting a twin in MILLIseconds would have put a silent 1000x
        between a shipped preset and its meaning.
-       `noteLawLink` ships OWN SETTINGS, and `noteLaw` ships LAG, because that pair
-       reproduces id 33 exactly. FOLLOW cannot be the default: `bendLaw` ships off,
-       so a lane following it would travel instantly and portamento would vanish
-       from every patch that ever set glide. Sync is the option, not the base state
-       (human ruling 2026-08-19: "each has its own setting with an option to sync
-       them to global"). retMul is absent by the same rule as the bend
+       `noteLawLink` ships FOLLOW (human 2026-08-20: "it should default to follow
+       bend law because it's quite confusing otherwise" — two independent laws
+       shaping one pitch is a UI with no single answer to "what will this note
+       do", and a divergent note law would need its own visualiser to be legible
+       at all). This REVERSES the 2026-08-19 ruling, which shipped own-settings so
+       that a patch storing `glide` kept its portamento; that compatibility is now
+       carried by a state migration instead — see applyStateJson. retMul is absent by the same rule as the bend
        block above: a note has no home pitch to spring back to. */
-    {137, "noteLawLink", "Note Law", 0, 1, 0, true, kNoteLinkLabels},
+    {137, "noteLawLink", "Note Law", 0, 1, 1, true, kNoteLinkLabels},
     {138, "noteLaw", "Note Travel", 0, 4, 3, true, kBendLawLabels},
     {139, "noteTime", "Note Time (ms)", 5, 1500, 120, false, nullptr},
     {140, "noteRate", "Note Rate (st/s)", 0.5, 200, 24, false, nullptr},
@@ -976,9 +977,12 @@ struct Plugin
   hypersaw::GlideCore::Params noteLawOwn = [] {
     hypersaw::GlideCore::Params q;
     q.model = hypersaw::GlideCore::kLag;
+    // tau tracks id 33, which ships 0 — GlideCore's own 60 ms default would make
+    // the lane glide while the Note Lag slider read zero.
+    q.tau = 0;
     return q;
   }();
-  double noteLink = 0;   // 0 = own settings, 1 = follow bend law
+  double noteLink = 1;   // 0 = own settings, 1 = follow bend law (shipped)
 
   void pushNoteLaw()
   {
@@ -1593,6 +1597,20 @@ struct Plugin
       enqueueParam(d.id, std::atof(json.c_str() + pos + 1), 0);
       any = true;
     }
+    /* PRE-NOTE-LANE PATCH MIGRATION. `noteLawLink` ships FOLLOW as of 2026-08-20,
+       but a patch saved before the note lane existed carries no such key — it
+       expressed its portamento purely as `glide` seconds, and restoring it into a
+       FOLLOWing lane would hand it to `bendLaw`, which ships off, silently
+       deleting the glide it was saved with. A patch that names `glide` but not
+       `noteLawLink` predates the lane by definition, so it is restored to
+       own-settings + lag, which is exactly what `glide` meant when it was saved.
+       docs/presets/serum-parity-reference.json is one such patch ("glide":0.89). */
+    if (json.find("\"noteLawLink\"") == std::string::npos &&
+        json.find("\"glide\"") != std::string::npos)
+    {
+      enqueueParam(137, 0, 0);                                  // own settings
+      enqueueParam(138, hypersaw::GlideCore::kLag, 0);          // lag, as it always was
+    }
     return any;
   }
 
@@ -1706,6 +1724,18 @@ struct Plugin
       /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
          retMul. Note the absent tau: id 33 carries the note lag, in seconds, and
          the core converts at the use site — see the swarm_core comment. */
+      // NOTE LAG (id 33) is the own-settings tau, in SECONDS. It keeps feeding
+      // the core param (state, readback, and the lag arming check all read it)
+      // AND now mirrors into the law the shell pushes, because the core no
+      // longer converts at the use site — see the swarm_core comment.
+      if (id == 33)
+      {
+        noteLawOwn.tau = applied * 1000.0;
+        core.setParam("glide", applied);
+        for (uint32_t k = 1; k < kNumOsc; k++) cores[k].setParam("glide", applied);
+        pushNoteLaw();
+        return;
+      }
       if (id >= 137 && id <= 145)
       {
         switch (id)

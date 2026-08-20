@@ -316,6 +316,13 @@ class SwarmCore
     double *slot = paramSlot(k);
     if (!slot) return false;
     *slot = v;
+    // `glide` IS the lag law's time constant at the core level — that is what
+    // ADR-026 defined it as, and trajectory_check drives SwarmCore directly with
+    // it. The shell resolves the link and calls setNoteLaw() AFTERWARDS, so a
+    // FOLLOWing lane still ends up with bendTau; this only keeps the core usable
+    // on its own terms. (Caught by ADR-026 non-legato going red when the core
+    // stopped reading it: 220 -> 274.8 Hz, an 8x-fast glide.)
+    if (k == "glide") p.noteLaw.tau = v * 1000.0;   // seconds -> ms
     if (k == "n" || k == "dist" || k == "seed" || k == "width" || k == "topo" ||
         k == "panScatter" || k == "law" || k == "panLayout" || k == "panCurve" ||
         k == "panInvert" || k == "superMode" || k == "oversample")
@@ -364,8 +371,14 @@ class SwarmCore
     {
       const double keepF0 = s.f0, keepF0cur = s.f0cur;
       initVoice(s, midi, f);
-      if (p.glide > 0)
+      if (noteTravels())
       {
+        // initVoice has already moved f0 TO the target, so without this restore
+        // the glide has zero distance to cover and the re-strike lands dead on
+        // pitch. This asked `p.glide > 0` until 2026-08-20, which was right when
+        // lag was the only law and wrong for every law that carries its own
+        // time: "mono on and legato off doesn't seem to apply glide on the
+        // retrigger" (human). Measured: const-rate re-strike read 441 flat.
         s.f0 = keepF0;      // strike from the CURRENT pitch, glide to the new
         s.f0cur = keepF0cur;
       }
@@ -489,7 +502,7 @@ class SwarmCore
   {
     const int m = (int)p.noteLaw.model;
     if (m == hypersaw::GlideCore::kOff) return false;
-    if (m == hypersaw::GlideCore::kLag) return p.glide > 0;
+    if (m == hypersaw::GlideCore::kLag) return p.noteLaw.tau > 0;
     return true;
   }
 
@@ -1273,10 +1286,13 @@ public:
       // is the same `x += (target-x)*(1-exp(-dt/tau))`) but the DOMAIN is not, and
       // Hz-linear travel accelerates audibly at the bottom of a wide interval.
       // Semitones is the domain the bench measured and the goldens were sliced in.
-      hypersaw::GlideCore::Params lp = p.noteLaw;
-      lp.tau = p.glide * 1000.0;   // id 33 is SECONDS; GlideCore.tau is MILLIseconds
+      // `p.noteLaw` arrives COMPLETE, tau included. It used to be overridden here
+      // from `glide` unconditionally, which silently un-followed the bend lane:
+      // a lane set to "follow bend law" on the LAG law read id 33 (default 0)
+      // instead of bendTau, so lag read as broken. The shell owns which of the
+      // two taus is live, because the shell owns the link.
       const double newF0 =
-          std::exp2(s.travel.step(std::log2(s.glideTarget) * 12.0, lp) / 12.0);
+          std::exp2(s.travel.step(std::log2(s.glideTarget) * 12.0, p.noteLaw) / 12.0);
       const double ratio = newF0 / s.f0;
       s.f0 = newF0;
       s.f0cur *= ratio;
