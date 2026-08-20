@@ -97,3 +97,5 @@ BND-9	OSC	Bend	human	RULING	human	manual	the bend visualiser tracks the CURRENT 
 BND-10	OSC	Bend	human	RULING	human	manual	a patch saved before the note lane (glide set, no noteLawLink) restores to own-settings + lag and keeps the portamento it was saved with, despite the new FOLLOW default
 BND-11	OSC	Bend	agentic	ENCODING	hypersaw	glide_check	the reference time gate (qTime) is ported: three gated scenarios match bend-lab at the L0-1 bar, and each is calibrated to actually bite (ignoring the gate takes all three RED, worst rms 0.71)
 BND-12	OSC	Bend	human	RULING	human	manual	step timing: free (Hz) gives a fixed step rate and sync follows the session tempo through the same grid divisions the tempo-detune law uses
+BND-13	OSC	Bend	agentic	ENCODING	hypersaw	mpe_check	per-note MPE bend travels under the bend law rather than snapping, and still arrives (early 0.006 vs settled 0.200; instant application takes it RED at early 0.321)
+BND-14	OSC	Bend	human	RULING	human	manual	MPE Bend = instant restores the raw controller feel under the finger while the wheel keeps its character, and switching it off mid-gesture lands travelling notes rather than stranding them
