@@ -41,9 +41,23 @@
   .oscbar { grid-column: 1 / -1; }
   .vizcol, .ctlcol { display:grid; gap:10px; align-content:start; min-width:0; }
   .vizcol canvas { width:100%; }
-  /* Controls pack into balanced columns rather than one tall stack, so the right
-     column fills sideways as clusters are added instead of growing off-screen. */
-  .ctlcol { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  /* CONTROLS FLOW, THEY DO NOT TILE. This was a grid, and a grid puts every
+     cluster in a ROW — so every box in that row is stretched to the height of the
+     tallest one in it. With Bend at ~25 rows next to Pitch at 3, Pitch was drawn
+     498px tall around 136px of content. Measured across the OSC control column:
+     37.2% of it was empty, and none of that emptiness was BETWEEN the boxes
+     where it would read as breathing room; it was inside them.
+     Multi-column flow has no row concept, so a box is exactly as tall as what it
+     holds and the next one starts immediately beneath. The tradeoff, taken
+     deliberately: reading order becomes top-to-bottom per column rather than
+     left-to-right, which is the newspaper convention and the one every masonry
+     layout accepts. `break-inside: avoid` keeps a cluster whole — a panel split
+     across two columns would be worse than any amount of whitespace. */
+  .ctlcol { display: block; columns: 240px; column-gap: 10px; }
+  /* EVERY direct child, not just .cluster: the OSC column also carries a bare
+     .note, and a flowed text block with no break-inside rule splits across a
+     column boundary and reads as orphaned prose rather than a caption. */
+  .ctlcol > * { break-inside: avoid; width: 100%; margin: 0 0 10px; }
   /* MAIN's viz column spanned full width while MAIN had no controls. Generation
      gave it 29, so that rule's premise expired and it comes out exactly as its
      comment promised: MAIN now takes the same left/right split as OSC. */

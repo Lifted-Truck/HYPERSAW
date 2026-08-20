@@ -1535,3 +1535,50 @@ arrives. The late read is the must-arrive control: without it, a lane that simpl
 DROPPED the bend would pass the early check for the wrong reason. Plant (instant
 application restored) reads early 0.32062 — already at the destination — and the
 gate goes RED.
+
+## ADR-098 — Control columns FLOW; they do not tile (ACCEPTED)
+
+**Date:** 2026-08-20 · **Status:** ACCEPTED (human: "come up with a formatting
+rule that doesn't allow so much empty space").
+
+### The rule
+
+> A control column is a **flow**, not a grid. Panels are laid out with CSS
+> multi-column, so a panel's height is exactly its content's height and the next
+> panel begins immediately beneath it. No panel's size may be a function of any
+> other panel's size.
+
+`.ctlcol { display:block; columns:240px; column-gap:10px }` with
+`break-inside: avoid` on every direct child.
+
+### Why the old layout could not avoid the waste
+
+`.ctlcol` was `display:grid`, and a grid lays items out in **rows**. Every box in
+a row is stretched to the height of the tallest box in that row. With Bend at ~25
+control rows sitting beside Pitch at 3, Pitch was painted **498px tall around
+136px of content**. Measured across the whole OSC control column: **37.2% empty**,
+and none of it between panels where it would read as breathing room — all of it
+inside them, which reads as a bug.
+
+After: **1.9%**, and the column got SHORTER (952px → 764px) holding the same
+controls, so it is denser and needs less scrolling at once.
+
+### Why this is not a threshold to police
+
+The defect class is removed **by construction**, not by vigilance: multi-column
+flow has no row concept, so there is no mechanism left that can stretch a panel
+to a neighbour's height. Nothing needs to check a percentage because nothing can
+produce the percentage. (Doctrine: safety by construction, not by vigilance.)
+
+That is deliberate, because a pixel-level layout gate is **not CI-able here** —
+it needs a real layout engine, the same reason pluginval/auval live in the
+human-paced Layer-E set rather than `./verify fast`. A rule enforced by structure
+outranks one enforced by a check that cannot run.
+
+### The tradeoff, taken knowingly
+
+Reading order becomes top-to-bottom per column rather than left-to-right. That is
+the newspaper convention and what every masonry layout accepts. `break-inside:
+avoid` applies to EVERY direct child, not just `.cluster` — the OSC column also
+carries a bare `.note`, and flowed prose with no break rule splits across a
+column boundary and reads as orphaned text.

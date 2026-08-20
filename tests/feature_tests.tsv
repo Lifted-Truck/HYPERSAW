@@ -99,3 +99,4 @@ BND-11	OSC	Bend	agentic	ENCODING	hypersaw	glide_check	the reference time gate (q
 BND-12	OSC	Bend	human	RULING	human	manual	step timing: free (Hz) gives a fixed step rate and sync follows the session tempo through the same grid divisions the tempo-detune law uses
 BND-13	OSC	Bend	agentic	ENCODING	hypersaw	mpe_check	per-note MPE bend travels under the bend law rather than snapping, and still arrives (early 0.006 vs settled 0.200; instant application takes it RED at early 0.321)
 BND-14	OSC	Bend	human	RULING	human	manual	MPE Bend = instant restores the raw controller feel under the finger while the wheel keeps its character, and switching it off mid-gesture lands travelling notes rather than stranding them
+GUI-1	OSC	(layout)	human	RULING	human	manual	ADR-098: no control panel is padded to a neighbour height — a panel is exactly as tall as its content (measured 37.2% empty before, 1.9% after; not CI-able, needs a layout engine)
