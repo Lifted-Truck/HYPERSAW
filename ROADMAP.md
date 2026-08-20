@@ -44,6 +44,17 @@ moment a lab gains a parameter the port does not declare, which is precisely the
 class that bit us three times. Wiring it into `./verify` edits the gate set, so it waits
 for a ruling.
 
+## OPEN — CONTROLTICK TRIG AT K=0 (recorded 2026-08-20, needs a viz ruling)
+
+The ADR-099 profile shows ~15-20%% of the remaining render bill is controlTick's
+order-parameter loops (sincos over every oscillator, twice, plus atan2) running at
+K = 0 — where the coupling force they feed is multiplied by exactly zero. Skipping
+them is output-identical for AUDIO but leaves `s.R` / `s.psi` stale, and the VIZ
+reads those. The honest options: (a) compute them at viz rate on the GUI thread's
+snapshot instead of the audio tick, (b) gate on `K != 0 || absK != 0 || Kenv > eps`
+and accept a frozen ring display at K = 0, (c) leave it. Needs a ruling; do not
+take it as a stealth optimisation.
+
 ## OPEN — GUI2 COLUMN MARGIN LANDS ABOVE, NOT BELOW (2026-08-20, parked by the human)
 
 **Reported:** "sometimes the margins come in above instead of below columns", seen in the

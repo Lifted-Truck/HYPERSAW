@@ -172,6 +172,23 @@ int main()
                 a2, 100 * a2 / base2);
   check(a1 < 0.02 * base1 && a2 > 0.8 * base2, "mute wins over that oscillator's own solo", d);
 
+  /* ADR-099 — the silent-oscillator skip must UN-skip on the volume path, not
+     only on solo/mute. This drops oscillator 2's own vol (id 1017) to its
+     shipped default 0 — the state every fresh patch is in, where the skip is
+     active — and raises it again MID-NOTE. If un-skip fails on this path, every
+     patch that starts from the default and turns oscillator 2 up gets silence,
+     and the solo-based restore above would never see it. */
+  param(104, 0); param(105, 0); param(1105, 0);   // clear mute/solo state
+  param(1017, 0.0);                                // osc2 to its shipped default
+  measure(&a1, &a2);
+  const double gone = a2;
+  param(1017, 0.4);                                // raise it mid-note
+  measure(&a1, &a2);
+  std::snprintf(d, sizeof(d), "622Hz muted-by-vol %.4f, raised %.4f (%.1f%%)",
+                gone, a2, 100 * a2 / base2);
+  check(gone < 0.02 * base2 && a2 > 0.8 * base2,
+        "vol 0 -> 0.4 mid-note un-skips the oscillator", d);
+
   p->stop_processing(p);
   p->deactivate(p);
   p->destroy(p);

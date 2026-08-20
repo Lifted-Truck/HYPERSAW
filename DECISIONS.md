@@ -1598,3 +1598,61 @@ the newspaper convention and what every masonry layout accepts. `break-inside:
 avoid` applies to EVERY direct child, not just `.cluster` — the OSC column also
 carries a bare `.note`, and flowed prose with no break rule splits across a
 column boundary and reads as orphaned text.
+
+## ADR-099 — A silent oscillator is skipped, not rendered-and-zeroed (ACCEPTED)
+
+**Date:** 2026-08-20 · **Status:** ACCEPTED (human: "I am starting to notice a bit
+of a processor choke... is there anywhere we can work on efficiency before we make
+it even heavier?").
+
+### Measure first, and what the measurements said
+
+- `cpu_bench` (core alone): 1.81% of a core at 7 voices x 8 notes — the swarm
+  math is NOT the choke.
+- New `shell_bench` (the real plugin through the CLAP factory): heavy patch tops
+  out at 5.9%. The DAW's ~40% is this figure times sample rate, buffer size,
+  held tails and instance count — so every shell percent is a multiplier.
+- The decisive row: **oscillator 2 at its shipped default vol 0 cost exactly the
+  same as oscillator 2 audible** (5.68% vs 5.69%). Every single-oscillator patch
+  paid double.
+- `sample` profile: renderSeg 67%, libm transcendentals ~23% (sincos/atan2/exp2
+  from controlTick's order-parameter and coupling loops).
+
+### The rule
+
+An oscillator k >= 1 whose output is provably exact zeros — its own `p.vol` is 0
+(the gain multiplies INSIDE render), or its mixer gain has SETTLED at 0 — is
+skipped entirely: no render, no chunked sum, meter forced to 0. Skipping an
+exact-zero contribution is output-identical by construction.
+
+Not gain-smoothed-out mid-ramp: the skip waits for the smoother to settle, so a
+mute's fade-out completes before the core stops. Oscillator 0 is not skipped (it
+renders straight into the output buffer, and silencing the primary is not a
+pattern worth complexity).
+
+### The traded behaviour, stated
+
+While skipped, the core's envelopes and phases FREEZE. Raising the volume
+mid-held-note resumes voices from where they paused rather than where they would
+have decayed to. That is the "muted layer costs nothing" contract every DAW
+mixer teaches, and it is the entire source of the win.
+
+### Numbers
+
+default patch 8 notes: 3.51 -> 1.82% (−48%) · 16 voices: 5.64 -> 3.78% (−33%) ·
+osc2 audible: unchanged (5.67%) — the cost returns exactly when bought.
+
+### Oracles
+
+mixer_check gained the vol-path case (vol 0 -> 0.4 mid-note un-skips; the shipped
+default IS the skip state, and the pre-existing solo-restore case cannot see this
+path). Plant (sticky skip `< 0.5`) takes it and four solo/mute cases RED.
+parity 156/156 unmoved; state, routing, mpe, rtsafety, notefuzz all GREEN.
+
+### Left on the table, recorded not taken
+
+controlTick's order-parameter sincos runs even at K = 0, where the coupling force
+it feeds is multiplied by exactly zero (~15-20% of the remaining bill). Skipping
+it is output-identical for AUDIO but stales R/psi, which the VIZ reads — so it
+needs a design ruling on viz staleness, not a stealth optimisation. ROADMAP has
+the entry.
