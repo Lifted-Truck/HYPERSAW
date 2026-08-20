@@ -78,6 +78,7 @@ static const char *const kGlideModeLabels[] = {"held note (legato)", "last note 
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kNoteNames[] = {"C", "C#", "D", "D#", "E", "F",
                                         "F#", "G", "G#", "A", "A#", "B"};
+static const char *const kMpeLawLabels[] = {"instant", "follow bend law"};
 static const char *const kQTimeModeLabels[] = {"continuous", "free (Hz)", "sync"};
 static const char *const kNoteLinkLabels[] = {"own settings", "follow bend law"};
 static const char *const kBendLawLabels[] = {"off (instant)", "constant time", "constant rate",
@@ -374,6 +375,14 @@ static const ParamDef kParams[] = {
     {146, "bendQTimeMode", "Step Timing", 0, 2, 0, true, kQTimeModeLabels},
     {147, "bendQTimeHz", "Step Rate (Hz)", 0.2, 50, 8, false, nullptr},
     {148, "bendQTimeSync", "Step Grid", 0.25, 8, 4, false, nullptr},
+    /* ADR-097. Ships FOLLOW because that is what the reference does — bend-lab
+       has never had a way to give per-note bend a DIFFERENT character from the
+       wheel; it steps both with the same P. Inert at defaults all the same:
+       `bendLaw` ships off, so following it is the instant write either way. The
+       toggle exists because per-note bend is the one lane where a player may
+       want the raw controller under their finger while the wheel keeps its
+       character. */
+    {149, "bendMpeLaw", "MPE Bend", 0, 1, 1, true, kMpeLawLabels},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -458,7 +467,7 @@ constexpr clap_id kGlobalIds[] = {
     106, 107, 108, 109, 110, 111, 112, 113, 114, 115,  // bend travel law (global: the wheel bends the patch)
     133, 134, 135, 136,                          // FX slot mix (rack-owned dry/wet)
     137, 138, 139, 140, 141, 142, 143, 144, 145,  // note travel law (global: it joins id 33, already here)
-    146, 147, 148,                               // quantise step timing (bend + note both)
+    146, 147, 148, 149,                          // quantise step timing + per-note bend law
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
 };
@@ -1017,6 +1026,7 @@ struct Plugin
     return 0;   // continuous
   }
   double qTimeMode = 0, qTimeHz = 8, qTimeSync = 4;
+  double mpeBendLaw = 1;   // ADR-097: per-note bend follows the wheel by default
 
   void pushNoteLaw()
   {
@@ -1108,6 +1118,69 @@ struct Plugin
   // member channels are 2-16 (indices 1-15), and applying the ±48 st MPE
   // range to a normal ±2 st bend wheel on channel 1 would be wildly wrong.
   double mpeBendSemis[16] = {0};
+
+  /* PER-NOTE BEND INERTIA (ADR-097). bend-lab gives every sounding note its OWN
+     inertia state stepped with the SAME params as the wheel — `nt.bend.step(
+     nt.bendTgt, P, nt.midi)` — and the port applied per-note bend INSTANTLY at
+     all three of its entry points instead. So a patch with a bend law shaped the
+     wheel and left MPE snapping, which is the one case where character matters
+     most: on an MPE controller the bend IS the performance.
+     One traveller per note slot, not per channel: two notes on one channel can
+     be at different bends mid-flight, and a channel-keyed lane would drag them
+     together. `bendLane = true` because retMul — return-toward-rest — is exactly
+     as meaningful here as on the wheel. */
+  struct NoteBendLane
+  {
+    hypersaw::GlideCore g{44100.0 / 16, /*bendLane=*/true};   // the kBendGrid rate
+    double target = 0;
+    double emitted = 0;
+    bool live = false;
+  };
+  NoteBendLane noteBend[hypersaw::kPoly];
+
+  // Set a note's bend TARGET. With no law engaged this is the historical instant
+  // write, byte-for-byte — the law-off path must not acquire a traveller.
+  void setNoteBendTarget(int slot, double semis)
+  {
+    if (slot < 0 || slot >= hypersaw::kPoly) return;
+    NoteBendLane &nb = noteBend[slot];
+    nb.target = semis;
+    if (!bendActive() || !mpeBendLaw)
+    {
+      nb.g.reset(semis);
+      nb.emitted = semis;
+      nb.live = false;
+      setNoteExprAll(slot, semis);
+      return;
+    }
+    nb.live = true;
+  }
+
+  // A fresh strike ARRIVES at its latched bend rather than travelling to it: the
+  // note did not exist while the controller moved, so gliding in from zero would
+  // invent a gesture the player never made. Mirrors the reference's reset().
+  void seedNoteBend(int slot, double semis)
+  {
+    if (slot < 0 || slot >= hypersaw::kPoly) return;
+    noteBend[slot].g.reset(semis);
+    noteBend[slot].target = semis;
+    noteBend[slot].emitted = semis;
+    noteBend[slot].live = false;
+    setNoteExprAll(slot, semis);
+  }
+
+  // One grid step for every travelling note. Called from the same boundary that
+  // steps the wheel, so both lanes advance on one clock.
+  void stepNoteBends()
+  {
+    for (int i = 0; i < hypersaw::kPoly; i++)
+    {
+      NoteBendLane &nb = noteBend[i];
+      if (!nb.live || !tags[i].active) continue;
+      const double v = nb.g.step(nb.target, bendLaw);
+      if (v != nb.emitted) { nb.emitted = v; setNoteExprAll(i, v); }
+    }
+  }
 
   void emitNoteEnds(const clap_output_events_t *out, uint32_t time)
   {
@@ -1735,6 +1808,13 @@ struct Plugin
                 pitchBend = bendTarget;
                 updateTuneAll();
               }
+              // ADR-097: and the per-note lanes with it. stepNoteBends() only
+              // runs inside the bendActive() branch of process(), so a note left
+              // travelling when the law is switched off would never be stepped
+              // again and would hang at a partial bend forever.
+              if (!bendActive())
+                for (int i = 0; i < hypersaw::kPoly; i++)
+                  if (noteBend[i].live) setNoteBendTarget(i, noteBend[i].target);
             }
             break;
           case 107: bendLaw.gtime = applied; break;
@@ -1769,6 +1849,17 @@ struct Plugin
         core.setParam("glide", applied);
         for (uint32_t k = 1; k < kNumOsc; k++) cores[k].setParam("glide", applied);
         pushNoteLaw();
+        return;
+      }
+      if (id == 149)
+      {
+        mpeBendLaw = applied;
+        // Turning the law OFF must land every travelling note NOW. Leaving them
+        // mid-flight would strand each at whatever bend it happened to hold, and
+        // nothing would ever step them again.
+        if (!mpeBendLaw)
+          for (int i = 0; i < hypersaw::kPoly; i++)
+            if (noteBend[i].live) setNoteBendTarget(i, noteBend[i].target);
         return;
       }
       if (id >= 146 && id <= 148)
@@ -1937,6 +2028,7 @@ struct Plugin
          and the selector snapped to "own settings". A parameter the shell OWNS
          must be readable from where the shell keeps it — the write half alone is
          a value the host can never see. */
+      if (d->id == 149) return mpeBendLaw;
       if (d->id == 146) return qTimeMode;
       if (d->id == 147) return qTimeHz;
       if (d->id == 148) return qTimeSync;
@@ -2158,7 +2250,7 @@ struct Plugin
         // ADR-038: a fresh strike resets noteTune (ADR-036), so re-apply the
         // channel's latched MPE bend — MPE hosts sent it before this note-on.
         if (n->channel >= 1 && n->channel < 16 && mpeBendSemis[n->channel] != 0.0)
-          setNoteExprAll(struck, mpeBendSemis[n->channel]);
+          seedNoteBend(struck, mpeBendSemis[n->channel]);
         break;
       }
       case CLAP_EVENT_NOTE_OFF:
@@ -2201,7 +2293,7 @@ struct Plugin
               (x->port_index == -1 || x->port_index == t.port) &&
               (x->channel == -1 || x->channel == t.channel) &&
               (x->key == -1 || x->key == t.key))
-            setNoteExprAll(i, x->value);
+            setNoteBendTarget(i, x->value);
         }
         break;
       }
@@ -2237,7 +2329,7 @@ struct Plugin
         const double semis = (v14 - 8192) * (48.0 / 8192.0);
         mpeBendSemis[ch] = semis;
         for (int i = 0; i < hypersaw::kPoly; i++)
-          if (tags[i].active && tags[i].channel == ch) setNoteExprAll(i, semis);
+          if (tags[i].active && tags[i].channel == ch) setNoteBendTarget(i, semis);
         break;
       }
       case CLAP_EVENT_PARAM_VALUE:
@@ -2362,6 +2454,7 @@ struct Plugin
             for (int d = 0; d < 12; d++) bendLaw.scaleMask[d] = scale.mask[d];
             const double v = bendGlide.step(bendTarget, bendLaw);
             if (v != pitchBend) { pitchBend = v; updateTuneAll(); }
+            stepNoteBends();   // ADR-097: per-note bend rides the same clock
           }
         }
         continue;   // `frame` is already at `until`

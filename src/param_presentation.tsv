@@ -281,3 +281,4 @@ noteHyst	global	Note Quant Hyst	OSC	Bend	knob	c	bend	noteLawLink=0,noteQuant=1|2
 bendQTimeMode	global	Step Timing	OSC	Bend	select		bend	bendQuant=1|2	
 bendQTimeHz	global	Step Rate	OSC	Bend	knob	Hz	bend	bendQTimeMode=1	log10
 bendQTimeSync	global	Step Grid	OSC	Bend	knob	/beat	bend	bendQTimeMode=2	
+bendMpeLaw	global	MPE Bend	OSC	Bend	select		bend	bendLaw=1|2|3|4	

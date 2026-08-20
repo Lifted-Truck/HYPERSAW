@@ -289,6 +289,61 @@ int main()
           "plain channel-0 wheel reaches the engine (+2 st)", d4);
   }
 
+  /* ADR-097 — PER-NOTE BEND OBEYS THE BEND LAW (2026-08-20). bend-lab steps every
+     note's bend through its own inertia state with the SAME params as the wheel;
+     the port applied per-note bend instantly at all three entry points, so a
+     patch with a bend law shaped the wheel and left MPE snapping.
+     Measured on the DESTINATION bin shortly after the gesture: an instant lane is
+     already there, a lane travelling on a 500 ms constant-time is not. The late
+     read is the must-arrive control — without it a lane that simply DROPPED the
+     bend would pass the early check for the wrong reason. */
+  {
+    {                                     // clean slate: kill anything sounding
+      for (auto k : {69, 76}) {
+        clap_event_note_t off{};
+        off.header.size = sizeof(off); off.header.type = CLAP_EVENT_NOTE_OFF;
+        off.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+        off.note_id = -1; off.port_index = 0; off.channel = -1; off.key = (int16_t)k;
+        off.velocity = 0;
+        evl.ev.push_back(&off.header);
+        run(1, nullptr);
+      }
+      run(80, nullptr);
+    }
+    param(38, 0);                         // park the wheel
+    param(106, 1); param(107, 500);       // bend law = constant time, 500 ms
+    param(149, 1);                        // per-note bend follows it
+    for (auto &pv : pvs)
+      if (pv.param_id == 38 || pv.param_id == 106 || pv.param_id == 107 || pv.param_id == 149)
+        evl.ev.push_back(&pv.header);
+    run(10, nullptr);
+
+    clap_event_note_t mn{};                // A4 on an MPE member channel
+    mn.header.size = sizeof(mn); mn.header.type = CLAP_EVENT_NOTE_ON;
+    mn.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    mn.note_id = 120; mn.port_index = 0; mn.channel = 3; mn.key = 69; mn.velocity = 1.0;
+    evl.ev.push_back(&mn.header);
+    run(30, nullptr);
+
+    clap_event_note_expression_t nx{};      // +7 st TUNING on that note
+    nx.header.size = sizeof(nx); nx.header.type = CLAP_EVENT_NOTE_EXPRESSION;
+    nx.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    nx.expression_id = CLAP_NOTE_EXPRESSION_TUNING;
+    nx.note_id = 120; nx.port_index = 0; nx.channel = 3; nx.key = 69; nx.value = 7.0;
+    evl.ev.push_back(&nx.header);
+    std::vector<float> early;
+    run(8, &early);                        // ~93 ms into a 500 ms move
+    std::vector<float> late;
+    run(90, &late);                        // ~1 s: long arrived
+    const double dest = 440.0 * std::pow(2.0, 7.0 / 12.0);
+    const double eD = goertzel(early, dest, SR);
+    const double lD = goertzel(late, dest, SR);
+    char d6[180];
+    std::snprintf(d6, sizeof(d6), "659Hz early %.5f, settled %.5f", eD, lD);
+    check(lD > 1e-3 && eD < 0.25 * lD,
+          "per-note MPE bend travels under the bend law (and still arrives)", d6);
+  }
+
   p->stop_processing(p);
   p->deactivate(p);
   p->destroy(p);

@@ -329,6 +329,7 @@
     <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
     <div class="row" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"><output></output></div>
     <div class="row" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"><output></output></div>
+    <div class="row" data-addr="bendMpeLaw" data-when="bendLaw=1|2|3|4"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Drift</h2>
     <div class="row" data-addr="osc1.driftDepth"><label>Drift Depth (c) <span class="sc">osc1</span></label><input type="range" data-p="9" min="0" max="100" step="0.005" value="0"><output></output></div>

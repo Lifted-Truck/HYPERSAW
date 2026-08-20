@@ -1482,3 +1482,56 @@ construction: the JS reference has no glide at all (156/156 unmoved, worst
 `noteLawLink=0,noteLaw=3`: gating on the link alone showed all seven law controls
 at once, gating on the law alone showed them while the lane was following. This
 is the same missing capability the chord layer will need for OR-across-keys.
+
+## ADR-097 — Per-note (MPE) bend obeys the bend law (ACCEPTED)
+
+**Date:** 2026-08-20 · **Status:** ACCEPTED (human: "I remember the lab having a
+toggle to apply the same inertia settings to MPE pitch bend").
+
+### The gap
+
+`docs/design/bend-lab.html` gives every sounding note its own inertia state and
+steps it with the SAME params as the wheel — `nt.bend.step(nt.bendTgt, P,
+nt.midi)`, line 539. The port applied per-note bend **instantly** at all three of
+its entry points: the ADR-038 note-on latch, `CLAP_NOTE_EXPRESSION_TUNING`, and
+member-channel `0xE0`. So a patch with a bend law shaped the wheel and left MPE
+snapping — in the one context where character matters most, because on an MPE
+controller the bend IS the performance.
+
+This is the third unported reference behaviour found in two days (the wheel,
+`qTime`, this). They share a shape: the reference had it, a gate existed for the
+neighbouring case, and nothing asked whether THIS transport was covered.
+
+### The rule
+
+One traveller per note SLOT, not per channel — two notes on one channel can be at
+different bends mid-flight, and a channel-keyed lane would drag them together.
+`bendLane = true`, because return-toward-rest is as meaningful per note as on the
+wheel. Both lanes step on one clock, at the existing bend-grid boundary.
+
+A fresh strike **arrives** at its latched bend instead of travelling to it: the
+note did not exist while the controller moved, so gliding in from zero would
+invent a gesture the player never made. That mirrors the reference's `reset()`.
+
+### `bendMpeLaw` (id 149) ships FOLLOW
+
+Because the reference has no way to give per-note bend a different character from
+the wheel — it steps both with the same P. The toggle exists anyway for the one
+real case: a player wanting the raw controller under their finger while the wheel
+keeps its character. Inert at defaults regardless: `bendLaw` ships off, so
+following it is the instant write either way.
+
+### Two stranding paths, both closed
+
+`stepNoteBends()` only runs inside the `bendActive()` branch of `process()`. So a
+note left travelling when the law is switched off — or when `bendMpeLaw` is
+turned off — would never be stepped again and would hang at a partial bend
+forever. Both transitions now land every travelling note immediately.
+
+### Evidence
+
+`mpe_check`: early 659 Hz bin 0.00597 against settled 0.20031 — it travels AND
+arrives. The late read is the must-arrive control: without it, a lane that simply
+DROPPED the bend would pass the early check for the wrong reason. Plant (instant
+application restored) reads early 0.32062 — already at the destination — and the
+gate goes RED.
