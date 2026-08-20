@@ -209,8 +209,8 @@ osc2.panInvert	osc2	Fan Invert	OSC	Image & tone	toggle		image-tone
 osc1.superMode	osc1	Super-Width Mode	OSC	Image & tone	select		image-tone		
 osc2.superMode	osc2	Super-Width Mode	OSC	Image & tone	select		image-tone		
 oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception		
-polyGlide	global	Poly Glide	OSC	Bend	toggle		bend		
-glideMode	global	Glide From	OSC	Bend	select		bend		
+polyGlide	global	Poly Glide	OSC	Bend	toggle		bend	voiceMono=0	
+glideMode	global	Glide From	OSC	Bend	select		bend	voiceMono=0	
 osc1.onsetScatter	osc1	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc2.onsetScatter	osc2	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc1.onsetAlpha	osc1	Timing Correction	OSC	Onset & scatter	knob		onset-scatter		
@@ -278,3 +278,6 @@ noteDamp	global	Note Damping	OSC	Bend	knob		bend	noteLawLink=0,noteLaw=4
 noteDistOver	global	Note Distance Curve	OSC	Bend	knob		bend	noteLawLink=0,noteLaw=4	
 noteQuant	global	Note Quantise	OSC	Bend	select		bend	noteLawLink=0	
 noteHyst	global	Note Quant Hyst	OSC	Bend	knob	c	bend	noteLawLink=0,noteQuant=1|2	
+bendQTimeMode	global	Step Timing	OSC	Bend	select		bend	bendQuant=1|2	
+bendQTimeHz	global	Step Rate	OSC	Bend	knob	Hz	bend	bendQTimeMode=1	log10
+bendQTimeSync	global	Step Grid	OSC	Bend	knob	/beat	bend	bendQTimeMode=2	

@@ -56,9 +56,18 @@ int main()
   auto *factory=(const clap_plugin_factory_t*)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
   struct Sc { const char*name; std::vector<std::pair<clap_id,double>> params; };
   const Sc scenarios[] = {
-    {"mono, lag law, glide=0.5s", {{32,1},{34,1},{33,0.5},{137,0},{138,3}}},
-    {"mono, const-rate 12 st/s",  {{32,1},{34,1},{137,0},{138,2},{140,12}}},
-    {"mono, follow bend, bend=const-rate 12", {{32,1},{34,1},{137,1},{106,2},{108,12}}},
+    {"mono+legato, lag glide=0.5s",   {{32,1},{34,1},{33,0.5},{137,0},{138,3}}},
+    {"mono+legato, const-rate 12",    {{32,1},{34,1},{137,0},{138,2},{140,12}}},
+    // legato OFF: the re-strike path. It restores the pre-strike pitch only
+    // when `glide > 0`, so a law carrying its own time re-inits AT the target
+    // and travels zero distance — the human's "mono on, legato off doesn't
+    // apply glide on the retrigger".
+    {"mono, legato OFF, const-rate 12", {{32,1},{34,0},{137,0},{138,2},{140,12}}},
+    {"mono, legato OFF, lag 300ms",     {{32,1},{34,0},{33,0.3},{137,0},{138,3}}},
+    // FOLLOW must take bendTau (109), not glide (33). If the render site
+    // overrides tau from `glide` regardless, this reads as instant.
+    {"mono+legato, FOLLOW bend lag 400ms", {{32,1},{34,1},{137,1},{106,3},{109,400}}},
+    {"mono+legato, FOLLOW bend const-rate 12", {{32,1},{34,1},{137,1},{106,2},{108,12}}},
   };
   for (double sr : {44100.0, 48000.0})
   {

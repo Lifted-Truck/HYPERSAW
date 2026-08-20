@@ -58,6 +58,15 @@ export const SCENARIOS = [
   { name: 'glide-quant-chrom',  p: { model: 2, quant: 1 } },
   { name: 'glide-quant-scale',  p: { model: 3, quant: 2 } },
   { name: 'glide-quant-hyst',   p: { model: 4, quant: 1, qhyst: 25 } },
+  // TIME GATE (qTime): the reference has had it since 2026-08-07 and the C++
+  // port had not. A slow constant-rate climb under a coarse gate is the shape
+  // that exposes it — steps must land ON the grid and HOLD between, so a port
+  // that ignores qTime tracks the ungated staircase and diverges immediately.
+  { name: 'glide-qtime-chrom',  p: { model: 2, quant: 1, qTime: 400, rate: 12 } },
+  { name: 'glide-qtime-scale',  p: { model: 2, quant: 2, qTime: 200, rate: 9 } },
+  // Gated SPRING: the overshoot wobble must still land on the grid, which is the
+  // property the reference comment claims and nothing had ever checked.
+  { name: 'glide-qtime-spring', p: { model: 4, quant: 1, qTime: 90, damp: 0.25 } },
   // Ties, both modes and both signs, with hysteresis OFF so the tie-break itself
   // is what is measured rather than the stickiness that usually masks it.
   // model 0 (OFF) IS LOAD-BEARING HERE, not a lazy choice. Under any moving law
