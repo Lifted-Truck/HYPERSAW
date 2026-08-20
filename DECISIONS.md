@@ -1575,6 +1575,22 @@ it needs a real layout engine, the same reason pluginval/auval live in the
 human-paced Layer-E set rather than `./verify fast`. A rule enforced by structure
 outranks one enforced by a check that cannot run.
 
+### Amendment 1 (2026-08-20) — the rule is about TILING, not about `.ctlcol`
+
+First application only converted `.ctlcol`. FX and MIX tile their clusters
+straight into the page grid, and both carried `align-items:start` — which stops a
+box being STRETCHED but does nothing about the ROW still being as tall as its
+tallest member. On FX the ~560px "About the rack" note set row 1's height and
+dropped "FX rack" into row 2, far below four short slot boxes. **Half the rule
+fixes half the defect**, and the half it fixes is the one that is easy to see.
+
+Stated properly, the rule is: *wherever clusters are tiled*, they flow. Both
+pages now do.
+
+Known consequence, not a defect: an unbreakable tall panel sets a floor on the
+column height, so FX's four slots wrap 1-2-3 / 4 rather than sitting in a row.
+Reading order is preserved (top-to-bottom, then right).
+
 ### The tradeoff, taken knowingly
 
 Reading order becomes top-to-bottom per column rather than left-to-right. That is
