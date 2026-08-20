@@ -2,6 +2,7 @@
 // 7x8), yet the human measures ~40% in the DAW — so the cost lives between
 // process() and the cores, and this measures exactly that path with suspects
 // toggled one at a time.
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cmath>
