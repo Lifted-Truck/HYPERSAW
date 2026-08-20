@@ -175,8 +175,8 @@ osc1.sSustain	osc1	S.Sustain	OSC	Envelope	knob
 osc2.sSustain	osc2	S.Sustain	OSC	Envelope	knob				
 osc1.sRelease	osc1	S.Release (s)	OSC	Envelope	knob				
 osc2.sRelease	osc2	S.Release (s)	OSC	Envelope	knob				
-osc1.shape	osc1	Saw Shape	OSC	The swarm	knob		the-swarm		
-osc2.shape	osc2	Saw Shape	OSC	The swarm	knob		the-swarm		
+osc1.shape	osc1	Squareness	OSC	Saw shape	knob		saw-shape		
+osc2.shape	osc2	Squareness	OSC	Saw shape	knob		saw-shape		
 osc1.toneTilt	osc1	Tone Tilt	OSC	Image & tone	knob		image-tone		
 osc2.toneTilt	osc2	Tone Tilt	OSC	Image & tone	knob		image-tone		
 osc1.hiTame	osc1	Hi Tame	OSC	Image & tone	knob		image-tone		

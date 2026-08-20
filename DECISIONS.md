@@ -1702,3 +1702,58 @@ optimisation. The debug-mode hypothesis was checked and cleared: Release, -O3,
   the dynamically-built picker's disagreed, so Scale showed while Root hid.
 - COPY PATCH / PASTE in the tab bar over hzGetState/hzApplyState — the "send me
   the patch" loop the human asked for, and the seed of the preset system.
+
+## ADR-101 — The saw-shape anchors are tabled; the functions stay the truth (ACCEPTED)
+
+**Date:** 2026-08-20 · **Status:** ACCEPTED (human diagnosis, confirmed by bench:
+"I think I figured out what's eating the most CPU — saw shape").
+
+### The measurement that confirmed the human
+
+16-voice baseline 3.71% of a core. sawBase 0.5 alone: **8.07%**. Roundness +
+profile: **8.62%**. All four stages: **12.38%** — the section cost 2.3x the rest
+of the synth combined. Cause: `std::pow(|r|, 1.4)` (and sin/tanh) per sample per
+voice, two anchors per stage for the blend — ~11M pow/s at 128 oscillators.
+
+### The rule
+
+The reference anchor FUNCTIONS remain the single source of truth — the tables
+are built FROM them at load (never on the audio thread) and the render loop
+reads the tables. 16384 cells + linear interpolation; N+1 points so the last
+cell interpolates toward f(1-) instead of wrapping +1 down to -1. Anchor
+selection (index + blend fraction) hoisted to the segment head — it was
+recomputed per sample per voice, clamp, floor and all. A zero-weight blend side
+is skipped entirely.
+
+### The divergence, measured not argued
+
+Linear interpolation is an approximation, so this is an INTENTIONAL divergence
+from the reference path and is recorded as such. Budget: smooth anchors ~2e-8;
+the pow cusp at r=0 ~5e-7 for one sample-neighbourhood per cycle; the triangle's
+corner lands exactly on a grid point at this power-of-two size. Measured against
+the reference goldens: saw-base 1.007e-09, saw-glass 2.485e-09, saw-round-hi
+9.707e-10 RMS — three orders of magnitude under the 1e-6 bar, and the fleet
+worst is still the unrelated dyn-ring at 4.262e-09.
+
+### After
+
+sawBase 4.30% · roundness 4.23% · ALL FOUR **5.02%** (was 12.38) — the section
+now costs +35% instead of +234%.
+
+### Also in this change
+
+- id 69 relabelled **Squareness** and moved into the Saw shape section (human:
+  two unrelated things were both named "Saw Shape"). The key stays `shape` —
+  state compatibility; only the face moved.
+- The Saw shape section has an ENGINE-DRAWN one-cycle waveform (`hzGetShapeWave`
+  → the same anchor functions + the ADR-058 morph; the bend graphs' "drawn by
+  the engine, never a JS twin" rule). Display honesty: the ideal saw stands in
+  for the BLEPped one, and roundness shows at its knob value — roundHi's
+  per-note pitch scaling cannot appear in a static cycle.
+
+### Process note
+
+PR #365 was stacked on render-efficiency and merged into it AFTER that branch's
+own PR had merged — the PR #328 trap, second occurrence. Recovered by PR #366
+(the branch diff against main IS the lost content). Standing rule from here:
+**no more stacked PRs**; a dependent change waits for its base to land on main.
