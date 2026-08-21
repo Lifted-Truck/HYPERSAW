@@ -1955,6 +1955,20 @@ struct Plugin
       out += buf;
       first = false;
     }
+    /* Higher oscillators in the JSON path, `o<k>.`-prefixed — the SAME
+       convention state_save has used since ADR-082. The JSON path never had
+       it, so a preset saved and loaded restored oscillator 1 and silently left
+       oscillator 2 at whatever it was: "saving a patch doesn't seem to do
+       anything, or at least loading doesn't" (human 2026-08-21) — measured:
+       detune2 stayed 0.900 against a saved 0.222 while detune1 restored. */
+    for (uint32_t k = 1; k < kNumOsc; k++)
+      for (const auto &d : kParams)
+      {
+        if (isGlobalId(d.id)) continue;
+        std::snprintf(buf, sizeof(buf), ",\"o%u.%s\":%.17g", k, d.coreKey,
+                      readParam(d.id + k * 1000));
+        out += buf;
+      }
     // const_cast confined to serialisation: morphJson touches no state, but
     // morphIds is lazily built and stateJson is const. Building eagerly at
     // construction would be cleaner; deferred to keep this diff reviewable.
@@ -1978,6 +1992,20 @@ struct Plugin
       enqueueParam(d.id, std::atof(json.c_str() + pos + 1), 0);
       any = true;
     }
+    // the twins, by the state_save convention
+    for (uint32_t k = 1; k < kNumOsc; k++)
+      for (const auto &d : kParams)
+      {
+        if (isGlobalId(d.id)) continue;
+        char nb[64];
+        std::snprintf(nb, sizeof(nb), "\"o%u.%s\"", k, d.coreKey);
+        size_t pos = json.find(nb);
+        if (pos == std::string::npos) continue;
+        pos = json.find(':', pos + std::strlen(nb));
+        if (pos == std::string::npos) continue;
+        enqueueParam(d.id + k * 1000, std::atof(json.c_str() + pos + 1), 0);
+        any = true;
+      }
     /* PRE-NOTE-LANE PATCH MIGRATION. `noteLawLink` ships FOLLOW as of 2026-08-20,
        but a patch saved before the note lane existed carries no such key — it
        expressed its portamento purely as `glide` seconds, and restoring it into a
@@ -3430,6 +3458,22 @@ bool gui_get_preferred_api(const clap_plugin_t *, const char **api, bool *is_flo
   *api = HYPERSAW_WINDOW_API;
   *is_floating = false;
   return true;
+}
+
+/* Headless probe surface (2026-08-21). The JSON state path — the preset
+   system's path — was reachable ONLY through webview lambdas local to
+   gui_create, so it had no oracle and "loading doesn't seem to do anything"
+   shipped unobserved. These are the same two calls the GUI buttons make,
+   exported so a probe can make them without a webview. Not part of the CLAP
+   surface; not for hosts. */
+extern "C" void hypersaw_debug_state(const clap_plugin_t *p, char *out, uint32_t cap)
+{
+  const std::string j = self(p)->stateJson();
+  std::snprintf(out, cap, "%s", j.c_str());
+}
+extern "C" bool hypersaw_debug_apply(const clap_plugin_t *p, const char *json)
+{
+  return self(p)->applyStateJson(json ? json : "");
 }
 
 bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)

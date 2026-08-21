@@ -2002,3 +2002,25 @@ un-asserted-edit trap, again, caught by the golden staying red.
 The GUI1 gravity pitch-correction readout (ratio name + octave fold + live
 cents) is ported to gui2 — the snapshot and marshal existed end-to-end; only
 the display line was missing. Both swarm panels carry it, class-addressed.
+
+## ADR-105 Amendment 1 — The JSON state path carries the twins (2026-08-21)
+
+"Saving a patch doesn't seem to do anything, or at least loading doesn't."
+Measured: the JSON path (the preset system's path, and the dev panel's before
+it) saved and scanned BASE ids only — oscillator 2's params never round-tripped
+(detune2 stayed at 0.900 against a saved 0.222 while detune1 restored exactly).
+For the two-oscillator morph patches being built, a load restored half a patch.
+
+Fix: `o<k>.`-prefixed twins in both directions — the SAME convention
+`state_save`/`state_load` (ADR-082) have always used; the JSON path simply
+never got it. Gate: state_check gained a JSON-path case driven through new
+headless debug exports (`hypersaw_debug_state/apply` — the same two calls the
+GUI preset buttons make, previously reachable only through webview lambdas,
+which is WHY this path had no oracle and the bug shipped unobserved). Plant
+(twin write removed): base case OK, twin case RED — fires on exactly the
+missing half.
+
+Process note, third occurrence: a bare `git checkout -- <file>` to clear a
+plant destroyed the turn's uncommitted work again. New personal rule enforced
+this turn: plants are removed by REVERSE REPLACE, never by checkout, and a
+checkpoint commit lands before any plant cycle.
