@@ -41,5 +41,15 @@ int main()
   { EvList e; e.params.push_back(mkParam(150,1)); e.params.push_back(mkParam(1150,1)); once(e); }
   { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON,0,72,99)); once(e); }
   std::printf("re-enabled + new note:"); const double back=cap(1.0); std::printf("   (%s)\n", back>0.01?"SOUNDS":"SILENT — BROKEN");
-  return (base>0.01 && dead<1e-6 && back>0.01) ? 0 : 1;
+  // ADR-100 A1: enable ON while notes are HELD must re-strike them — no fresh
+  // note required ("sometimes osc 2 doesn't work"). Discriminator: osc1 muted
+  // by VOL (still rendering, ADR-099 A1), osc2 disabled — output is silence.
+  // Re-enabling osc2 MID-HOLD must bring the held chord back on osc2 alone.
+  { EvList e; e.params.push_back(mkParam(17,0.0)); e.params.push_back(mkParam(1150,0)); once(e); }
+  for(int b=0;b<40;b++){ EvList e; once(e); }
+  std::printf("osc1 vol 0, osc2 off: "); const double quiet=cap(0.5); std::printf("\n");
+  { EvList e; e.params.push_back(mkParam(1150,1)); once(e); }
+  std::printf("osc2 back ON mid-hold:"); const double held=cap(1.0);
+  std::printf("   (%s)\n", held>0.01?"HELD NOTES RE-STRIKE":"needs a fresh note — the reported bug");
+  return (base>0.01 && dead<1e-6 && back>0.01 && quiet<1e-3 && held>0.01) ? 0 : 1;
 }

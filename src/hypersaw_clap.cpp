@@ -1250,6 +1250,7 @@ struct Plugin
     int32_t noteId = -1;
     int16_t port = -1, channel = -1, key = -1;
     bool active = false;
+    float vel = 1.0f;   // ADR-100 A1: an enable-ON re-strike must not change loudness
   };
   NoteTag tags[hypersaw::kPoly];
   // RETIRED TAGS AWAITING NOTE_END (2026-07-31, the mono-poison bug). A mono
@@ -2160,6 +2161,25 @@ struct Plugin
           // ON because voices frozen since the disable would otherwise resume
           // as zombies at whatever loudness they froze at.
           cores[osc].killAll();
+          /* ADR-100 Amendment 1: enable-ON RE-STRIKES what is held. Without
+             this, switching an oscillator on mid-chord produced nothing until
+             the next fresh note -- "sometimes osc 2 doesn't work" (human,
+             2026-08-21): they enabled it, played nothing new, heard nothing,
+             and "broken" was a fair conclusion. Re-striking from the tags also
+             makes MORPH-driven enable flips musical: the oscillator pops in
+             WITH the held chord at the held velocities -- exactly the "toggle
+             on as you move between corners" design. A fresh attack rather than
+             a resumed envelope is intentional: the note is NEW on this
+             oscillator; the OFF transition killed whatever state there was. */
+          if (on)
+            for (int i = 0; i < (int)hypersaw::kPoly; i++)
+              if (tags[i].active)
+              {
+                const double f = 440.0 * std::pow(2.0, (tags[i].key - 69) / 12.0);
+                const int sk = cores[osc].noteOn(tags[i].key, f);
+                cores[osc].setNoteVelocity(sk, tags[i].vel);
+                bindSlots(i, osc, sk);
+              }
         }
         return;
       }
@@ -2510,7 +2530,7 @@ struct Plugin
           // per-note pitch is SAW-side until the kernel unification).
           const int slot = spectra.noteOn(n->key, freq);
           retireTag(slot);
-          tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
+          tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
           break;
         }
         int struck;
@@ -2577,7 +2597,7 @@ struct Plugin
             }
           }
           retireTag(monoSlot);
-          tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true};
+          tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
           struck = monoSlot;
         }
         else
@@ -2592,7 +2612,7 @@ struct Plugin
             bindSlots(slot, k, sk);   // sk may differ from slot
           }
           retireTag(slot);
-          tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true};
+          tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
           struck = slot;
         }
         // ADR-038: a fresh strike resets noteTune (ADR-036), so re-apply the

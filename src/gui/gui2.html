@@ -36,7 +36,7 @@
      the osc bar — one short paragraph — was given a full column of its own and
      the page read as three quarters empty. The bar spans instead: it is a mode
      line for the whole page, not a panel competing with the panels. */
-  #pg-MAIN.on, #pg-OSC.on { grid-template-columns: minmax(260px,340px) minmax(0,1fr); align-items:start; }
+  #pg-MAIN.on, #pg-OSC.on, #pg-MORPH.on { grid-template-columns: minmax(260px,340px) minmax(0,1fr); align-items:start; }
   /* superseded by the ADR-098 flow rule below; kept only for the folded state */
   .oscbar { grid-column: 1 / -1; }
   .vizcol, .ctlcol { display:grid; gap:10px; align-content:start; min-width:0; }
@@ -68,7 +68,7 @@
   /* MAIN's viz column spanned full width while MAIN had no controls. Generation
      gave it 29, so that rule's premise expired and it comes out exactly as its
      comment promised: MAIN now takes the same left/right split as OSC. */
-  @media (max-width: 720px) { #pg-MAIN.on, #pg-OSC.on { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { #pg-MAIN.on, #pg-OSC.on, #pg-MORPH.on { grid-template-columns: 1fr; } }
   /* superseded by the ADR-098 flow rule below */
   .cluster { background:var(--panel); border:1px solid var(--line);
     border-radius:4px; padding:8px 10px; min-width:0; }
@@ -252,7 +252,7 @@
 <div class="page" id="pg-MORPH">
   <div class="vizcol">
   <div class="cluster"><h2>Morph field</h2>
-    <canvas id="morphPad" width="330" height="330" style="width:100%;cursor:crosshair"></canvas>
+    <canvas id="morphPad" style="width:100%;aspect-ratio:1;cursor:crosshair"></canvas>
     <div class="note">Drag to morph. Each parameter follows the corner that wins its
       flip — temperature loosens the borders, coupling makes parameters move in
       blocs, the seed is the patchwork's identity.</div>
@@ -721,32 +721,73 @@ const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
   const pad = document.getElementById('morphPad');
   if (pad) {
     const px = pad.getContext('2d');
-    const drawPad = () => {
-      const w = pad.width, h = pad.height;
-      px.fillStyle = '#0b0e13'; px.fillRect(0, 0, w, h);
-      // corner tints — the lab's "weights made visible", cheap version
+    /* CRISP AT ANY SIZE (human 2026-08-21: "ugly and pixelated... scales with
+       the width"): the bitmap tracks CSS size x devicePixelRatio via a
+       ResizeObserver, so the canvas is never a stretched 330px texture. The
+       FIELD (gradients) redraws only on resize into an offscreen layer; the
+       CURSOR redraws every animation frame on top — smooth, and cheap because
+       the expensive part is a blit. */
+    const field = document.createElement('canvas');
+    let padW = 0, padH = 0;
+    const drawField = () => {
+      const fx = field.getContext('2d');
+      fx.fillStyle = '#0b0e13'; fx.fillRect(0, 0, padW, padH);
       for (let k = 0; k < 4; k++) {
-        const gx = (k % 2) ? w : 0, gy = (k > 1) ? h : 0;
-        const gr = px.createRadialGradient(gx, gy, 0, gx, gy, Math.max(w, h));
+        const gx = (k % 2) ? padW : 0, gy = (k > 1) ? padH : 0;
+        const gr = fx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(padW, padH));
         gr.addColorStop(0, MCOLORS[k] + '55'); gr.addColorStop(0.7, 'transparent');
-        px.fillStyle = gr; px.fillRect(0, 0, w, h);
+        fx.fillStyle = gr; fx.fillRect(0, 0, padW, padH);
       }
-      const x = +(rdp(152) ?? 0.5), y = +(rdp(153) ?? 0.5);
-      px.strokeStyle = '#e8ecf4'; px.lineWidth = 1.5;
-      px.beginPath(); px.arc(x * w, y * h, 7, 0, 6.2832); px.stroke();
     };
-    let dragging = false;
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(pad.clientWidth * dpr));
+      const h = Math.max(1, Math.round(pad.clientHeight * dpr));
+      if (w === padW && h === padH) return;
+      padW = pad.width = field.width = w;
+      padH = pad.height = field.height = h;
+      drawField();
+    };
+    // NOT a ResizeObserver: measured in the embedded preview browser, RO simply
+    // never delivered — not on attach, not on a real 333->326px change — and a
+    // resize path that depends on an event that may not exist is the hidden-row
+    // bug again. The check lives in the paint loop instead: one clientWidth
+    // compare per frame, self-healing in every host including WKWebView.
+    let lastX = -1, lastY = -1, dragging = false, dragX = 0.5, dragY = 0.5;
+    const paint = () => {
+      requestAnimationFrame(paint);
+      // rdp is declared later in this script; the headless gate's rAF shim
+      // fires synchronously during load, which would hit the TDZ. One typeof
+      // cannot dodge a TDZ throw, so the guard is try/catch on the frame.
+      try { void rdp; } catch (_) { return; }
+      if (!pad.offsetWidth) return;
+      resize();                       // cheap no-op when the size is unchanged
+      if (lastX >= 0 && padW !== field.width) lastX = -1;   // force repaint after resize
+      // While dragging, the local value leads (no round-trip lag); otherwise
+      // follow the engine echo so automation moves the cursor.
+      const x = dragging ? dragX : +(rdp(152) ?? 0.5);
+      const y = dragging ? dragY : +(rdp(153) ?? 0.5);
+      if (x === lastX && y === lastY) return;
+      lastX = x; lastY = y;
+      px.drawImage(field, 0, 0);
+      px.strokeStyle = '#e8ecf4'; px.lineWidth = 1.5 * (window.devicePixelRatio || 1);
+      px.beginPath(); px.arc(x * padW, y * padH, 7 * (window.devicePixelRatio || 1), 0, 6.2832);
+      px.stroke();
+    };
+    paint();
+    // Probe hook: the embedded preview browser never fires rAF (measured: 0
+    // frames in 500 ms, fronted), so lab probes step frames by hand through
+    // this. The plugin's webview runs rAF normally — the viz loop lives on it.
+    pad.__paint = paint;
     const send = (e) => {
       const r = pad.getBoundingClientRect();
-      const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-      const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
-      bridge.setParam(152, x); bridge.setParam(153, y);
-      drawPad();
+      dragX = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      dragY = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+      bridge.setParam(152, dragX); bridge.setParam(153, dragY);
     };
     pad.addEventListener('pointerdown', e => { dragging = true; pad.setPointerCapture(e.pointerId); send(e); });
     pad.addEventListener('pointermove', e => { if (dragging) send(e); });
     pad.addEventListener('pointerup', () => { dragging = false; });
-    setInterval(drawPad, 250);   // follow automation/echo at a lazy rate
   }
   const host = document.getElementById('mcorners');
   if (host) {
