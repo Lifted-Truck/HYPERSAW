@@ -2066,3 +2066,48 @@ routing remains the corner-editing phase.
 The recurring python-heredoc corruption (unclosed-paren SyntaxErrors on
 multi-line replaces) is now avoided by writing edit scripts through the Write
 tool; heredocs carry only trivial one-liners.
+
+## ADR-107 — The truth sweeps: every parameter's readback is gated (ACCEPTED)
+
+**Date:** 2026-08-21 · **Status:** ACCEPTED (human mandate: "don't use a band aid
+solution here — start from basics and build an efficient solution that will help
+us avoid similar problems as we add other modules with different default
+settings").
+
+### The defect class, named
+
+readParam(1150) indexed shell state with the BASE id — findParam(1150) returns
+the base def, so `d->id / 1000` is always 0 — and oscillator 2's enable
+readback mirrored oscillator 1 forever. The GUI, three patches deep, faithfully
+displayed the lie: "osc 2 says it's on, but it isn't, and the only way to
+toggle it on is to turn osc 1 off first" — with osc 1 off the mirror finally
+showed off, so the toggle finally sent 1. The human's reproduction steps
+encoded the aliasing exactly. Every neighbouring case (mute/solo/octave) used
+oscOfId(id); this one did not, and a probe had "verified" the readback for the
+wrong reason (after setting 1150=1, engine truth and the aliased readback
+coincide — the detector shared the assumption).
+
+### The mechanism, not the patch
+
+Two sweeps in paramscope_check (a ./verify gate), enumerating the plugin's OWN
+param_info so future modules are covered with nothing to remember:
+
+1. **Default truth** — fresh instance: get_value(id) == declared default for
+   EVERY id, bases and twins. The representation IS the engine at rest.
+2. **Round-trip truth** — set every id to a distinct in-range value; the
+   readback must return it. Any split between the apply chain and the read
+   chain fires here. Exemptions are claims with reasons (23 and 148 snap to
+   musical grids by design), never silences.
+
+First run, against the live tree: THREE lies — the reported 1150 aliasing, a
+polyGlide default mismatch (shell declared 1, core struct held 0) nobody had
+noticed, and 148's by-design snap (exempted with its reason). After the three
+one-line truths: 239 ids, zero lies.
+
+### Also (the requested GUI moves)
+
+Power rows hand-placed in BOTH mix strips (data-fixed raw ids, the strip
+convention) — which also HIDES the OSC-page swarm-section toggles, because the
+generator skips hand-placed ids. The GUI's hard-coded default fallbacks
+(`k===0?1:0`, a third copy of the defaults) are deleted: SHELL_DEFAULTS
+(defaultsJson, twins included) is the one source.

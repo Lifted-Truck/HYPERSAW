@@ -2487,7 +2487,13 @@ struct Plugin
          and the selector snapped to "own settings". A parameter the shell OWNS
          must be readable from where the shell keeps it — the write half alone is
          a value the host can never see. */
-      if (baseIdOf(d->id) == 150) return oscEnabled[d->id / 1000];
+      /* oscOfId(id), NOT d->id/1000: findParam(1150) returns the BASE def, so
+         d->id/1000 is always 0 and oscillator 2's readback mirrored oscillator
+         1 forever -- "osc 2 says it's on, but it isn't; the only way to toggle
+         it on is to turn osc 1 off first" (human 2026-08-21): with osc 1 off,
+         the mirror finally showed off, so the toggle finally sent 1. The
+         truth-sweep gate in paramscope_check now makes this class unshippable. */
+      if (baseIdOf(d->id) == 150) return oscEnabled[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 151) return morphOn;
       if (d->id == 152) return morphX;
       if (d->id == 153) return morphY;

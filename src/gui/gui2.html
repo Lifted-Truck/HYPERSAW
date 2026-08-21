@@ -240,6 +240,7 @@
 <div class="page" id="pg-MIX">
   <div class="cluster"><h2>OSC 1</h2><div class="strip"><b>OSC 1</b>
     <div class="msrow"><div class="msbtn" data-ms="m" data-p="104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="105" data-fixed="1">S</div><div class="meter" data-osc="0"><i></i></div></div>
+    <div class="row"><label>power</label><input type="checkbox" data-p="150" data-fixed="1"><output></output></div>
     <div class="row"><label>level</label><input type="range" data-p="17" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="35" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="36" data-fixed="1" min="-12" max="12" step="1" value="0"><output></output></div>
@@ -247,6 +248,7 @@
   </div></div>
   <div class="cluster"><h2>OSC 2</h2><div class="strip"><b>OSC 2</b>
     <div class="msrow"><div class="msbtn" data-ms="m" data-p="1104" data-fixed="1">M</div><div class="msbtn" data-ms="s" data-p="1105" data-fixed="1">S</div><div class="meter" data-osc="1"><i></i></div></div>
+    <div class="row"><label>power</label><input type="checkbox" data-p="1150" data-fixed="1"><output></output></div>
     <div class="row"><label>level</label><input type="range" data-p="1017" data-fixed="1" min="0" max="1" step="0.005" value="0"><output></output></div>
     <div class="row"><label>octave</label><input type="range" data-p="1035" data-fixed="1" min="-2" max="2" step="1" value="0"><output></output></div>
     <div class="row"><label>pitch</label><input type="range" data-p="1036" data-fixed="1" min="-12" max="12" step="1" value="0"><output></output></div>
@@ -488,7 +490,6 @@
     <div class="row" data-addr="osc1.stretchB"><label>Stretch B <span class="sc">osc1</span></label><input type="range" data-p="80" min="0" max="6" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.spread"><label>Octave Spread <span class="sc">osc1</span></label><input type="range" data-p="81" min="1" max="24" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="osc1.anchor"><label>Root Anchor <span class="sc">osc1</span></label><input type="range" data-p="82" min="0" max="1" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="osc1.enable"><label>Osc On <span class="sc">osc1</span></label><input type="checkbox" data-p="150" checked><output></output></div>
   </div>
   <!--/GEN:OSC-->
     <div class="note">retrigger OFF = free-run phases; random starts can null for
@@ -1013,7 +1014,10 @@ function buildOscSelectors() {
       pw.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = 150 + k * OSC_STRIDE;
-        const cur = +(lastParams[id] ?? (k === 0 ? 1 : 0));
+        // SHELL_DEFAULTS, not a hand-copied (k===0?1:0): the truth-sweep saga
+        // was three layers of duplicated defaults disagreeing; the engine's
+        // defaultsJson is the ONE source and the GUI carries no copy.
+        const cur = +(lastParams[id] ?? SHELL_DEFAULTS[id] ?? 0);
         bridge.setParam(id, cur >= 0.5 ? 0 : 1);
         lastParams[id] = cur >= 0.5 ? 0 : 1;   // optimistic; syncFromEngine confirms
         // instant feedback on EVERY copy of this osc's button; the poll confirms
@@ -1062,7 +1066,7 @@ function paintOscTabs(ps) {
     const silent = !(vol > 0.0005);
     b.classList.toggle('silent', silent);
     b.textContent = 'OSC ' + (k + 1) + (silent ? ' ○' : '');
-    const en = +(ps[150 + k * OSC_STRIDE] ?? (k === 0 ? 1 : 0));
+    const en = +(ps[150 + k * OSC_STRIDE] ?? SHELL_DEFAULTS[150 + k * OSC_STRIDE] ?? 0);
     b.classList.toggle('oscoff', en < 0.5);
     // querySelectorAll, not querySelector: there is one power button PER BAR
     // (MAIN and OSC both carry the selector), and first-match painting left
