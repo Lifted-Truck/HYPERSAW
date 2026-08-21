@@ -1724,6 +1724,21 @@ optimisation. The debug-mode hypothesis was checked and cleared: Release, -O3,
 - COPY PATCH / PASTE in the tab bar over hzGetState/hzApplyState — the "send me
   the patch" loop the human asked for, and the seed of the preset system.
 
+## ADR-100 Amendment 1 — Enable-ON re-strikes what is held (2026-08-21)
+
+"Sometimes osc 2 doesn't work": switching an oscillator ON mid-chord produced
+nothing until the next fresh note (the ON transition killed voices, correctly,
+and nothing re-created them). The human enabled it, played nothing new, heard
+nothing — "broken" was fair. Enable-ON now re-strikes every active tag on that
+core at its held velocity (velocity joined NoteTag for exactly this). A fresh
+attack rather than a resumed envelope is intentional: the note is NEW on this
+oscillator. Side effect that is really the point: MORPH-driven enable flips
+now pop the oscillator in WITH the held chord — the corner design working.
+Probe: osc1 vol 0 + osc2 off = silence 0.00000; osc2 ON mid-hold = 0.069, no
+fresh note. The second reported cause is the documented v1 seam: with morph ON,
+corners captured with osc2 off will force it off every grid tick — the
+corner-editing phase (and exempt) is the designed fix.
+
 ## ADR-101 — The saw-shape anchors are tabled; the functions stay the truth (ACCEPTED)
 
 **Date:** 2026-08-20 · **Status:** ACCEPTED (human diagnosis, confirmed by bench:
