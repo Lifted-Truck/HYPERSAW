@@ -280,7 +280,9 @@
       blocs, the seed is the patchwork's identity.</div>
   </div>
   <div class="cluster"><h2>Corners</h2>
-    <div class="row"><label>Preset name</label><input type="text" id="cornerName" placeholder="corner preset" style="min-width:0"></div>
+    <div class="row"><label>Preset name</label><input type="text" id="cornerName" placeholder="corner preset" style="min-width:0"><button id="cornerSaveLive">SAVE</button></div>
+    <div class="note">SAVE stores the CURRENT sound as a corner preset — no capture
+      needed. Load it into any corner below; the dropdown keeps the loaded name.</div>
     <div id="mcorners"></div>
     <div class="note">CAPTURE stores the current patch into a corner. Corner
       colors follow the lab: A teal, B amber, C violet, D rose. (Corner
@@ -806,6 +808,18 @@ const presetStore = {
     await refresh(); flash(e.target, 'GONE');
   });
 }
+{
+  const b = document.getElementById('cornerSaveLive');
+  if (b) b.addEventListener('click', async () => {
+    const n = (document.getElementById('cornerName')?.value || '').trim();
+    const flashB = (t) => { const o = 'SAVE'; b.textContent = t; setTimeout(() => { b.textContent = o; }, 900); };
+    if (!n) { flashB('NAME?'); return; }
+    if (!window.hzMorphLiveJson) { flashB('NO ENGINE'); return; }
+    const j = await window.hzMorphLiveJson();
+    const ok = await presetStore.save('corners', n, j);
+    flashB(ok ? 'SAVED' : 'FAIL');
+  });
+}
 /* ============ MORPH PAD + CORNERS (ADR-104) ============ */
 const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
 {
@@ -895,22 +909,6 @@ const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
         b.textContent = 'STORED'; setTimeout(() => { b.textContent = 'CAPTURE'; }, 900);
       });
       row.appendChild(b);
-      const sv = document.createElement('button');
-      sv.textContent = 'SAVE\u2026';
-      sv.title = 'save this corner as a named preset';
-      sv.addEventListener('click', async () => {
-        // NOT window.prompt: WKWebView does not implement the prompt dialog
-        // unless the host app does, so prompt() returns null and the save died
-        // silently — "the morph presets still don't work". The name comes from
-        // the inline field above the corner rows instead.
-        const n = (document.getElementById('cornerName')?.value || '').trim();
-        if (!n) { sv.textContent = 'NAME?'; setTimeout(() => { sv.textContent = 'SAVE\u2026'; }, 900); return; }
-        if (!window.hzMorphCornerJson) return;
-        const j = await window.hzMorphCornerJson(k);
-        const ok = await presetStore.save('corners', n, j);
-        sv.textContent = ok ? 'SAVED' : 'FAIL'; setTimeout(() => { sv.textContent = 'SAVE\u2026'; }, 900);
-      });
-      row.appendChild(sv);
       const ld = document.createElement('select');
       ld.title = 'load a corner preset into this corner';
       const fill = async () => { const names = await presetStore.list('corners');
@@ -922,7 +920,8 @@ const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
         const n = ld.value; if (!n) return;
         const j = await presetStore.load('corners', n);
         if (j && window.hzMorphCornerApply) await window.hzMorphCornerApply(k, j);
-        ld.value = '';
+        // The dropdown KEEPS the loaded name — resetting it to blank left the
+        // sound as the only evidence a load happened (human 2026-08-21).
       });
       row.appendChild(ld);
       host.appendChild(row);
