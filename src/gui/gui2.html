@@ -159,6 +159,7 @@
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
+    <div class="vlabel gravline" style="min-height:14px"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
     <div class="note">Waveform &middot; L over R &middot; click to freeze</div>
     <canvas id="wavC2" class="wavscope" width="330" height="80" style="width:100%"></canvas>
@@ -366,6 +367,7 @@
   <div class="vizcol">
 <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <div class="vlabel gravline" style="min-height:14px"></div>
     <div class="vlabel">Log spectrum · MASTER bus</div>
     <canvas id="specC2" class="spec" width="256" height="58"></canvas>
     <div class="vlabel">Waveform · L over R · click to freeze</div>
@@ -1207,6 +1209,18 @@ async function vizFrame() {
       }
     } else drawPhase(s);
     drawMeters(s);
+    {
+      // gravity pitch-correction readout — ported verbatim from gui.html:996
+      // (ratio name, octave fold, live cents). Class, not id: both swarm
+      // panels carry the line, same rule as .whoOsc.
+      const RATIO_NAMES = ['1/1','16/15','9/8','6/5','5/4','4/3','7/5','3/2','8/5','5/3','16/9','15/8','2/1'];
+      const txt = (s && s.grav && s.grav.length)
+        ? 'gravity: ' + s.grav.map(p => RATIO_NAMES[p[0]] + (p[1] ? '+' + p[1] + 'oct' : '')
+            + ' ' + (p[2] >= 0 ? '+' : '') + p[2].toFixed(1) + 'c').join(' \u00b7 ')
+        : '';
+      for (const el of document.querySelectorAll('.gravline'))
+        if (el.textContent !== txt) el.textContent = txt;
+    }
     drawEnvelope(s);
     drawScatter(s);
     // ADR-100 A2: carpet and voice map freeze-frame the same stale voices the

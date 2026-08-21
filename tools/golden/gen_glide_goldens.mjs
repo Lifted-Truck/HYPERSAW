@@ -67,6 +67,13 @@ export const SCENARIOS = [
   // Gated SPRING: the overshoot wobble must still land on the grid, which is the
   // property the reference comment claims and nothing had ever checked.
   { name: 'glide-qtime-spring', p: { model: 4, quant: 1, qTime: 90, damp: 0.25 } },
+  // BASE-ANCHORED QUANTISE (2026-08-21): every scenario above runs base = 0,
+  // where offset-space and pitch-space coincide — which is exactly how the port
+  // shipped without `base` and nothing noticed. F#3 (MIDI 54) is maximally
+  // off-grid for the default major mask: its class is NOT admitted, so a port
+  // that ignores base snaps to the wrong absolute pitches everywhere.
+  { name: 'glide-base-scale',  p: { model: 3, quant: 2, tau: 80 }, base: 54 },
+  { name: 'glide-base-chrom',  p: { model: 2, quant: 1, rate: 18 }, base: 54.5 },
   // Ties, both modes and both signs, with hysteresis OFF so the tie-break itself
   // is what is measured rather than the stickiness that usually masks it.
   // model 0 (OFF) IS LOAD-BEARING HERE, not a lazy choice. Under any moving law
@@ -100,7 +107,7 @@ function render(sc) {
   const out = new Float32Array(TICKS);
   // A scenario may pick the tie-landing gesture instead of the standard one.
   const gest = sc.gesture === 'tie' ? tieTargetAt : targetAt;
-  for (let i = 0; i < TICKS; i++) out[i] = inr.step(gest(i), p);
+  for (let i = 0; i < TICKS; i++) out[i] = inr.step(gest(i), p, sc.base || 0);
   return out;
 }
 

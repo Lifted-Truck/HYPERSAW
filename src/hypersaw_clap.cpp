@@ -980,6 +980,7 @@ struct Plugin
     return (!anySolo || oscSolo[k] != 0) ? 1.0 : 0.0;
   }
   double pitchBend = 0, gSemi = 0, gFine = 0, gOct = 0;   // global transpose (101/102/103)
+  int lastNoteKey = 69;   // quantise anchor for the GLOBAL wheel lane (A4 until a note arrives)
 
   /* BEND TRAVEL LAW (glide_core, folded 2026-08-19). `pitchBend` is now the
      SOUNDING bend; `bendTarget` is where the wheel asked it to go. With the law
@@ -1338,7 +1339,7 @@ struct Plugin
     {
       NoteBendLane &nb = noteBend[i];
       if (!nb.live || !tags[i].active) continue;
-      const double v = nb.g.step(nb.target, bendLaw);
+      const double v = nb.g.step(nb.target, bendLaw, (double)tags[i].key);
       if (v != nb.emitted) { nb.emitted = v; setNoteExprAll(i, v); }
     }
   }
@@ -2566,6 +2567,7 @@ struct Plugin
           // per-note pitch is SAW-side until the kernel unification).
           const int slot = spectra.noteOn(n->key, freq);
           retireTag(slot);
+          lastNoteKey = n->key;
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
           break;
         }
@@ -2633,6 +2635,7 @@ struct Plugin
             }
           }
           retireTag(monoSlot);
+          lastNoteKey = n->key;
           tags[monoSlot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
           struck = monoSlot;
         }
@@ -2648,6 +2651,7 @@ struct Plugin
             bindSlots(slot, k, sk);   // sk may differ from slot
           }
           retireTag(slot);
+          lastNoteKey = n->key;
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
           struck = slot;
         }
@@ -2894,7 +2898,7 @@ struct Plugin
             // quantiser without glide_core learning anything new.
             bendLaw.scaleRoot = scale.root;
             for (int d = 0; d < 12; d++) bendLaw.scaleMask[d] = scale.mask[d];
-            const double v = bendGlide.step(bendTarget, bendLaw);
+            const double v = bendGlide.step(bendTarget, bendLaw, (double)lastNoteKey);
             if (v != pitchBend) { pitchBend = v; updateTuneAll(); }
             stepNoteBends();   // ADR-097: per-note bend rides the same clock
           }

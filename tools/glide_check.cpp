@@ -64,7 +64,7 @@ static double tieTargetAt(long i)
   return 1;
 }
 
-struct Scenario { const char *name; GlideCore::Params p; bool noteLane; bool tieGesture; };
+struct Scenario { const char *name; GlideCore::Params p; bool noteLane; bool tieGesture; double base = 0; };
 
 // Params::scaleMask is a C array, so it cannot be brace-assigned after
 // construction; this keeps the scenario table reading like the JS one.
@@ -116,6 +116,13 @@ int main(int argc, char **argv)
     p.qTime = 200; p.rate = 9; add("glide-qtime-scale", p); }
   { auto p = base; p.model = GlideCore::kSpring; p.quant = GlideCore::kQuantChromatic;
     p.qTime = 90; p.damp = 0.25; add("glide-qtime-spring", p); }
+  /* BASE-ANCHORED QUANTISE — the mirror of the generator's two. F#3 (54) is
+     maximally off-grid for the default major mask; a port ignoring base snaps
+     to the wrong absolute pitches everywhere, so these CANNOT pass by accident. */
+  { auto p = base; p.model = GlideCore::kLag; p.quant = GlideCore::kQuantScale;
+    p.tau = 80; scen.push_back({"glide-base-scale", p, false, false, 54.0}); }
+  { auto p = base; p.model = GlideCore::kConstRate; p.quant = GlideCore::kQuantChromatic;
+    p.rate = 18; scen.push_back({"glide-base-chrom", p, false, false, 54.5}); }
   /* TIES. model = kOff is load-bearing: under any moving law the output
      approaches asymptotically and never lands exactly on a midpoint, so the tie
      path is unreachable and the scenario cannot fail. With the law off
@@ -141,7 +148,7 @@ int main(int argc, char **argv)
     double acc = 0;
     for (size_t i = 0; i < ref.size(); i++)
     {
-      const double got = g.step(s.tieGesture ? tieTargetAt((long)i) : targetAt((long)i), s.p);
+      const double got = g.step(s.tieGesture ? tieTargetAt((long)i) : targetAt((long)i), s.p, s.base);
       const double d = got - (double)ref[i];
       acc += d * d;
     }

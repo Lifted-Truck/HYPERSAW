@@ -117,3 +117,6 @@ MRF-4	MORPH	Morph engine	human	RULING	human	manual	corners persist through save/
 MRF-5	MORPH	Morph engine	human	RULING	human	manual	ADR-104 A1: the FX rack morphs — slot type/amount/tone/mix flip corner-by-corner in quantum mode; a v1 patch loads with corners intact and rack unmorphed (append-only morphIds)
 PRE-1	MAIN	Presets	human	RULING	human	manual	ADR-105: save/load/delete named presets round-trips the patch; corner SAVE.../load... round-trips one corner; both survive a plugin reload
 VIZ-2	OSC	(viz)	human	RULING	human	manual	ADR-100 A2: a switched-off oscillator shows "osc off" in phase/carpet/voice-map (no frozen dots), and the tab-bar power buttons toggle the right oscillator regardless of which is being edited
+BND-18	MAIN	Bend	agentic	ENCODING	hypersaw	glide_check	ADR-106: base-anchored quantise matches the lab bit-exactly at off-grid anchors (glide-base-scale/chrom, rms=0; a port ignoring base reads rms 0.5 — measured, the first run)
+BND-19	MAIN	Bend	human	RULING	human	manual	ADR-106: with scale quantise on, a note returns to ITS OWN pitch after a bend — no post-bend offset — on scale and off-scale roots alike
+VIZ-3	MAIN	(viz)	human	RULING	human	manual	the gravity pitch-correction readout (ratio + octave + live cents) appears under the phase view on MAIN and OSC when gravity captures pairs

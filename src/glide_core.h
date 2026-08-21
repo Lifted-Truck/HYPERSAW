@@ -70,7 +70,15 @@ class GlideCore
     q = v; qStep = 0; qArmed = false; qFlips = 0; qT = 1e9;   // gate armed open
   }
 
-  double step(double target, const Params &p)
+  /* `base` is the lane's anchor in MIDI semitones — the note the offset rides
+     on. The reference has carried it since the quantiser existed (`quantise(p,
+     base = 0)`: "ABSOLUTE pitch, not the offset") and the port DROPPED it, so
+     the bend lane quantised its offset as if the offset were a pitch: any note
+     not aligned with the offset-space grid resolved to a shifted pitch after a
+     bend ("notes resolving to a slightly different pitch", human 2026-08-21).
+     Every golden ran base = 0, where the two are indistinguishable — L0031's
+     blind spot, hit for the third time. */
+  double step(double target, const Params &p, double base = 0.0)
   {
     const double dt = 1.0 / cr;
     // Move distance, peak-held since the last arrival: constant-time needs it
@@ -131,7 +139,7 @@ class GlideCore
         x = target; vel = 0; y = target;
         break;
     }
-    return quantise(p);
+    return quantise(p, base);
   }
 
   double value() const { return q; }
@@ -151,11 +159,11 @@ class GlideCore
     return -l / std::sqrt(3.14159265358979323846 * 3.14159265358979323846 + l * l);
   }
 
-  double quantise(const Params &p)
+  double quantise(const Params &p, double base = 0.0)
   {
     const int qm = (int)p.quant;
     if (!qm) { q = x; return x; }
-    const double semis = x;
+    const double semis = base + x;   // ABSOLUTE pitch, not the offset — the reference's own comment
     /* ONE CANDIDATE SEARCH FOR BOTH MODES, mirroring the reference exactly.
        Chromatic used std::lround here while the reference used Math.round, and
        those disagree on exact ties for NEGATIVE values — lround(-1.5) = -2 (half
@@ -216,7 +224,9 @@ class GlideCore
     const bool gateOpen = !(p.qTime > 0) || qT >= p.qTime / 1000.0;
     if (qArmed && best != qStep && !gateOpen) best = qStep;
     if (!qArmed || best != qStep) { qStep = best; qArmed = true; qFlips++; qT = 0; }
-    q = (double)best;
+    // qStep and the hysteresis latch live in ABSOLUTE pitch (the reference's
+    // qStep does too); only the RETURN converts back to this lane's units.
+    q = (double)best - base;
     return q;
   }
 
