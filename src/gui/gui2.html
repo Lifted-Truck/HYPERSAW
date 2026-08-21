@@ -157,7 +157,7 @@
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
     <div class="note">Waveform &middot; L over R &middot; click to freeze</div>
-    <canvas id="wavC2" width="330" height="80" style="width:100%"></canvas>
+    <canvas id="wavC2" class="wavscope" width="330" height="80" style="width:100%"></canvas>
     <div class="note" style="margin-top:4px">Phase circle + K vector show
       <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the plugin.</div>
   </div>
@@ -320,6 +320,8 @@
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="vlabel">Log spectrum · MASTER bus</div>
     <canvas id="specC2" class="spec" width="256" height="58"></canvas>
+    <div class="vlabel">Waveform · L over R · click to freeze</div>
+    <canvas class="wavscope" width="330" height="80" style="width:100%"></canvas>
     <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
          visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
          so a draw exception can never strand the pair in the wrong state
@@ -978,14 +980,19 @@ async function vizFrame() {
 const wvC = document.getElementById('wavC2'), wvx = wvC ? wvC.getContext('2d') : null;
 let scopeF0 = 0, scopeSR = 44100;
 let scopeFrozen = false;
-if (wvC) {
-  wvC.style.cursor = 'pointer';
-  wvC.title = 'click to freeze / unfreeze — a detuned swarm never repeats exactly, so freeze to study a shape';
-  wvC.onclick = () => {
+const scopeCopies = () => [...document.querySelectorAll('canvas.wavscope')].filter(c => c !== wvC);
+function blitScope() {
+  for (const c of scopeCopies())
+    if (c.offsetWidth) c.getContext('2d').drawImage(wvC, 0, 0);
+}
+for (const c of document.querySelectorAll('canvas.wavscope')) {
+  c.style.cursor = 'pointer';
+  c.title = 'click to freeze / unfreeze — a detuned swarm never repeats exactly, so freeze to study a shape';
+  c.onclick = () => {
     scopeFrozen = !scopeFrozen;
-    if (scopeFrozen) { wvx.fillStyle = 'rgba(255,194,75,0.9)'; wvx.fillRect(wvC.width - 34, 3, 31, 11);
+    if (scopeFrozen && wvx) { wvx.fillStyle = 'rgba(255,194,75,0.9)'; wvx.fillRect(wvC.width - 34, 3, 31, 11);
       wvx.fillStyle = '#0b0e13'; wvx.font = '9px monospace';
-      wvx.fillText('HOLD', wvC.width - 31, 12); }
+      wvx.fillText('HOLD', wvC.width - 31, 12); blitScope(); }
   };
 }
 let scopeBusy = false;
@@ -1065,6 +1072,7 @@ async function drawScope() {
       }
     }
   } catch (e) {}
+  blitScope();
   scopeBusy = false;
 }
 

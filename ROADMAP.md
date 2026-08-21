@@ -44,6 +44,24 @@ moment a lab gains a parameter the port does not declare, which is precisely the
 class that bit us three times. Wiring it into `./verify` edits the gate set, so it waits
 for a ruling.
 
+## THE SHAPE LABS, PLACED (2026-08-21, human asked "where should that fit in?")
+
+Two labs, two different homes, neither ambiguous once opened:
+
+**`shape-lab.html` — sync · phase-warp formants · ripple** (Campaign-2 item 6): three
+PHASE-DOMAIN oscillator axes prototyped together because they share one aliasing budget.
+These are per-osc timbre parameters — the same species as ADR-094's saw shape — so they
+join the **Saw shape section on OSC**, where the new waveform viewer is their natural
+visual. The fold follows the detune-lab path exactly: fold into `swarmsaw.html` (PROTECTED
+— human gate on the edit), then core port, goldens, params. Nothing is ported yet
+(`port_gap` covers reference↔port pairs; this lab has no port to pair with). This is the
+next oscillator-surface fold after morph.
+
+**`shape-lab-mod.html` — LFO/envelope breakpoint builder**: not an oscillator surface at
+all — it is a MODULATOR editor, and its home is the **MOD page** (currently a disabled
+tab). It waits for the modulator/mod-matrix workstream; folding it before modulators exist
+would build the editor before the thing it edits.
+
 ## OPEN — RELEASE TAILS BURN FULL PRICE FOR ~7 TAU (2026-08-20, needs a sound ruling)
 
 Measured on the human's own patch shape (user_patch_bench): a 5 s release keeps every
