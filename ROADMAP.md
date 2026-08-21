@@ -44,6 +44,18 @@ moment a lab gains a parameter the port does not declare, which is precisely the
 class that bit us three times. Wiring it into `./verify` edits the gate set, so it waits
 for a ruling.
 
+## FX PANELS D AND E CLAIMED (2026-08-21, human)
+
+Two more slot types join the FX queue behind A (granular sibling), B (OTT), C (WARP):
+
+- **FX-D — redux**: "some kind of redux" — bit depth / sample-rate reduction. No prototype
+  yet; the slot contract (ADR-095) is its spec skeleton: declare identity_at, whether it
+  blends dry, changes image, changes level, latency 0.
+- **FX-E — glitch**: a concept the human is developing WITH ANOTHER AGENT in another
+  workspace. Deliberately unspecified here — the prototype arrives from outside, and per
+  the mailbox rules it lands as a brief/ingest when ready. Reserve the slot letter, do not
+  design ahead of the incoming work.
+
 ## THE SHAPE LABS, PLACED (2026-08-21, human asked "where should that fit in?")
 
 Two labs, two different homes, neither ambiguous once opened:

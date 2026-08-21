@@ -1855,3 +1855,52 @@ trajectory_check, four criteria, each mid-flight (arrival cannot fail — the
 arming-bug family's lesson): held/ringing snap after true silence, always
 glides from silence, ringing glides while a tail still sounds. Plant (mode 1
 forced to old always-behaviour) takes "after true silence, snaps" RED.
+
+## ADR-104 — The quantum morph engine: flips, not crossfades (ACCEPTED, v1)
+
+**Date:** 2026-08-21 · **Status:** ACCEPTED (human: "let's go ahead with the morph
+port"). Reference: `docs/design/quantum-morph-lab.html` — bilinear corner weights,
+per-parameter Gumbel-max corner assignment, temperature + coupling + (later) bias
+in ONE score, mulberry32 streams. The Gumbel-max trick makes one seeded draw per
+(param, corner) a committed, repeatable patchwork instead of a dice roll per
+visit — argmax(log w/T + gumbel) IS a softmax sample.
+
+### Division of labour
+
+`morph_core.h` owns the math (weights, draws, the single scoring law — what you
+hear and what a map paints must be one function or the map lies). The SHELL owns
+which parameters morph, what a corner snapshot is, capture, persistence — the
+glide_core/scale-table division.
+
+### v1 scope, stated
+
+- Morphable set: every PER-OSC parameter (the twin-having set), both
+  oscillators, enables included (the human's corner design needs them). Globals
+  stay patch-level; the set widens with the corner-editing phase, not by v1
+  guessing.
+- Corner snapshots are STATE, not parameters (4 x ~100 automation lanes would be
+  noise); they ride the state chunk in morphIds order (id-ascending, stable).
+- morphStep runs on the 256-sample gravity grid with the ADR-086 accumulator —
+  buffer-subdivision independent, and a parameter field does not need 2.7 kHz.
+- Stepped params take the winning corner outright; continuous params flip with a
+  one-pole slew (`morphGlide`, seconds — ADR-009) or crossfade in blend mode.
+- morphOn ships OFF: parity-safe superset, all 156 goldens untouched.
+- A fresh instance's corners all hold the DEFAULT patch, so morph-on before any
+  capture is silence-safe: every corner agrees.
+- While morphOn, live edits to morphed params are overwritten at the next grid —
+  the corner-editing model (recorded 2026-08-20) is the designed answer and the
+  explicit NEXT PHASE, along with per-param bias/pin from the lab.
+
+### RT discipline
+
+morphInit allocates → it runs at activate (main thread). The audio-thread paths
+(morphOn flip, seed reshuffle) are fill/array-writes only. Caught by reading the
+code, not by rtsafety_probe — the probe never flips morph mid-run; extending it
+to sweep stepped params is noted for the fine-tune pass.
+
+### Gates
+
+trajectory_check: same seed + position -> identical assignment on two cores
+(128/128); a different seed changes the patchwork (83/128 moved); cold +
+cornered -> the dominant corner owns everything (128/128). Shell inertness rides
+state_check/parity (morphOn off).
