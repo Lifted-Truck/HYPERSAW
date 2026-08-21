@@ -233,6 +233,9 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     std::error_code ec;
     return choc::value::createBool(fs::remove(fp, ec));
   });
+  web->bind("hzMorphLiveJson", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    return choc::value::createString(host.morphLiveJson ? host.morphLiveJson() : std::string("{}"));
+  });
   web->bind("hzMorphCornerJson", [&host](const choc::value::ValueView &args) -> choc::value::Value {
     if (host.morphCornerJson && args.isArray() && args.size() >= 1)
       return choc::value::createString(host.morphCornerJson((uint32_t)args[0].getWithDefault<int64_t>(0)));

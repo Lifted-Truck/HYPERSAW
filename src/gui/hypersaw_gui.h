@@ -99,6 +99,7 @@ struct GuiHost
   std::function<std::string()> getShapeWaveJson;   // ADR-101: engine-drawn cycle
   std::function<void(uint32_t)> morphCapture;      // ADR-104: snapshot -> corner k
   std::function<std::string(uint32_t)> morphCornerJson;      // ADR-105: corner -> preset
+  std::function<std::string()> morphLiveJson;               // ADR-105 A3: live state -> preset
   std::function<bool(uint32_t, const std::string &)> morphCornerApply;
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin

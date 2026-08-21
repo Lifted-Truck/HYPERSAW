@@ -1140,6 +1140,17 @@ struct Plugin
     for (clap_id id : {57u, 58u, 59u, 60u, 61u, 62u, 63u, 64u,
                        96u, 97u, 98u, 99u, 133u, 134u, 135u, 136u})
       morphIds.push_back(id);
+    /* ADR-104 A2 (human 2026-08-21): the BEND and NOTE-TRAVEL laws join the
+       field -- a corner can hold "spring bend, scale-quantised" while another
+       holds "instant, free". Appended AFTER the FX block: the morphIds order is
+       append-only, so every stored corner chunk keeps its meaning. morphX/Y and
+       the morph controls themselves (151-158) stay out by construction -- the
+       field must not morph its own position. Law flips are already safe
+       mid-flight: applyParam(106) resets the traveller to the sounding pitch. */
+    for (clap_id id : {33u, 106u, 107u, 108u, 109u, 110u, 111u, 112u, 113u,
+                       114u, 115u, 137u, 138u, 139u, 140u, 141u, 142u, 143u,
+                       144u, 145u, 146u, 147u, 148u, 149u})
+      morphIds.push_back(id);
     for (int k = 0; k < 4; k++) morphCorner[k].assign(morphIds.size(), 0.0);
     morphCur.assign(morphIds.size(), -1e30);
     morph.reshuffle(morphSeed, (int)morphIds.size());
@@ -1943,6 +1954,24 @@ struct Plugin
       c = nx + 1;
     }
     return true;
+  }
+
+  /* ADR-105 A3: the LIVE settings as a corner preset, no capture required.
+     "Requiring a corner to first be captured before the state can be saved is
+     a little convoluted" (human 2026-08-21) -- the save serialises what is
+     SOUNDING, and any corner can then load it. Same shape and order contract
+     as cornerJson. */
+  std::string liveCornerJson()
+  {
+    morphInit();
+    std::string out = "{\"cornerPreset\":[";
+    char buf[32];
+    for (size_t i = 0; i < morphIds.size(); i++)
+    {
+      std::snprintf(buf, sizeof(buf), i ? ",%.6g" : "%.6g", readParam(morphIds[i]));
+      out += buf;
+    }
+    return out + "]}";
   }
 
   std::string morphJson()
@@ -3539,6 +3568,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.getShapeWaveJson = [pl]() { return pl->shapeWaveJson(); };
   hostIf.morphCapture = [pl](uint32_t k) { pl->morphCapture((int)k); };
   hostIf.morphCornerJson = [pl](uint32_t k) { return pl->cornerJson((int)k); };
+  hostIf.morphLiveJson = [pl]() { return pl->liveCornerJson(); };
   hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };

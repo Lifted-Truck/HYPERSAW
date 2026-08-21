@@ -44,6 +44,42 @@ moment a lab gains a parameter the port does not declare, which is precisely the
 class that bit us three times. Wiring it into `./verify` edits the gate set, so it waits
 for a ruling.
 
+## THE FEATURE-DEPENDENCY GRAPH (2026-08-21, human) — one declaration, three consumers
+
+The human's design ask: a graph of feature dependencies from which we DERIVE the morph
+hierarchy — and which also fixes the omnipresent-field GUI problem (advanced detune
+controls that only act under certain detune laws, and their kin).
+
+**The observation that makes this a graph and not more gating:** three systems currently
+answer "does this parameter matter right now?" independently —
+
+1. `shown_when` in the presentation table (GUI visibility; grammar grown ad hoc:
+   AND `,` / OR-values `|` / OR-groups `;`),
+2. the morph field (which happily flips a parameter whose enabling law is off — a
+   no-op flip that wastes a corner's identity on nothing),
+3. the engine's own guards (`sawBase > 0.001`, `noteTravels()` …), which are the truth
+   the other two approximate.
+
+One declared dependency graph — parameter -> enabling condition(s), conditions being
+other parameters' values — becomes the single source:
+
+- **GUI**: `shown_when` is GENERATED from the graph (the hand-written grammar retires;
+  the advanced detune controls appear exactly when their law makes them live).
+- **MORPH**: a parameter whose enabling condition is false in a corner is EXCLUDED from
+  that corner's flip set — the derived "morph hierarchy". Flips spend themselves on
+  parameters that sound.
+- **AUDIT**: a gate can walk the graph against the engine guards (the `port_gap`
+  pattern): a declared dependency with no engine guard, or a guard with no declaration,
+  is a red — the graph cannot drift from the code.
+
+**Where it lives:** a `depends` column in the presentation table (the table is already
+the parameter registry; a second registry would drift). Grammar: same as shown_when,
+because it BECOMES shown_when.
+
+**Sequencing:** with corner-editing (bias/pin/exempt) — the two share the "which corner
+owns what, and does it matter" machinery. Before the third sound engine lands, per the
+human: the engines multiply the omnipresent-field problem.
+
 ## MORPH EXEMPT — "make this parameter global and override the morph" (2026-08-21, human)
 
 A toggle (right-click is the natural surface) that removes a parameter from the morph
