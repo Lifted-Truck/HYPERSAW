@@ -156,6 +156,8 @@
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
+    <div class="note">Waveform &middot; L over R &middot; click to freeze</div>
+    <canvas id="wavC2" width="330" height="80" style="width:100%"></canvas>
     <div class="note" style="margin-top:4px">Phase circle + K vector show
       <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the plugin.</div>
   </div>
@@ -484,6 +486,7 @@ const bridge = {
   getBendCurve: () => window.hzGetBendCurve ? window.hzGetBendCurve() : Promise.resolve('{}'),
   getViz: () => window.hzGetViz(),
   getSpec: () => window.hzGetSpec(),
+  getScope: () => window.hzGetScope ? window.hzGetScope() : Promise.resolve(null),
   panic: () => window.hzPanic ? window.hzPanic() : Promise.resolve(0),
   // hzGetState/hzApplyState are bound by the plugin (the dev state panel's
   // plumbing); in the browser lab they are absent and COPY reports NO ENGINE
@@ -859,6 +862,7 @@ function drawXY() {
   frameNo++;
   vizFrame();                          // every frame; busy-flag drops overlaps
   specFrame();                         // every frame; the busy flag drops overlaps
+  if (frameNo % 2 === 0) drawScope().catch(() => {});   // gui.html's own cadence
   if (!xyDirty) return;
   xyDirty = false;
   for (const cv of XYS()) {
@@ -956,6 +960,7 @@ async function vizFrame() {
     document.getElementById('carpetScope2').style.display = spectraOn ? 'none' : '';
     document.getElementById('stripScope2').style.display  = spectraOn ? '' : 'none';
     document.getElementById('vmapScope2').style.display   = spectraOn ? 'none' : '';
+    if (s && s.vmF0 > 0) { scopeF0 = s.vmF0; scopeSR = s.sr || 44100; }
     drawPhase(s);
     drawMeters(s);
     drawEnvelope(s);
@@ -964,6 +969,105 @@ async function vizFrame() {
   } catch (e) {}
   vizBusy = false;
 }
+/* ============ OSCILLOSCOPE — transplanted whole from gui.html ============
+   The trigger-filter engineering below (lowpass-to-fundamental trigger, pole
+   count adapting to pitch, the QUASI-periodicity honesty note) was measured
+   and human-tested in GUI 1 across three attempts; gui2 gets the organ, not a
+   re-derivation. Only the bindings differ: canvas id, and f0/sr fed from
+   gui2's vizFrame. */
+const wvC = document.getElementById('wavC2'), wvx = wvC ? wvC.getContext('2d') : null;
+let scopeF0 = 0, scopeSR = 44100;
+let scopeFrozen = false;
+if (wvC) {
+  wvC.style.cursor = 'pointer';
+  wvC.title = 'click to freeze / unfreeze — a detuned swarm never repeats exactly, so freeze to study a shape';
+  wvC.onclick = () => {
+    scopeFrozen = !scopeFrozen;
+    if (scopeFrozen) { wvx.fillStyle = 'rgba(255,194,75,0.9)'; wvx.fillRect(wvC.width - 34, 3, 31, 11);
+      wvx.fillStyle = '#0b0e13'; wvx.font = '9px monospace';
+      wvx.fillText('HOLD', wvC.width - 31, 12); }
+  };
+}
+let scopeBusy = false;
+async function drawScope() {
+  if (!wvC || scopeFrozen || scopeBusy || !window.hzGetScope) return;
+  scopeBusy = true;
+  try {
+    const s = await bridge.getScope();
+    const w = wvC.width, h = wvC.height;
+    // OPAQUE clear + a TRIGGER. The first version used a translucent fill
+    // (persistence) and drew from a fixed offset, so every frame started at a
+    // different phase and the trails piled up into overlapping ghosts — the
+    // human read it as "confusing", correctly: it was showing many
+    // arbitrarily-aligned copies at once. Now: clear fully, then find the last
+    // rising zero-crossing in L and draw forward from there, so a periodic
+    // waveform stands still and L/R phase differences (super-width's whole
+    // story) are readable as a fixed offset between the two traces.
+    wvx.fillStyle = '#0b0e13';
+    wvx.fillRect(0, 0, w, h);
+    wvx.strokeStyle = '#2a3040';
+    wvx.beginPath(); wvx.moveTo(0, h / 2); wvx.lineTo(w, h / 2); wvx.stroke();
+    if (s && s.l && s.l.length) {
+      const N = s.l.length;
+      let pk = 1e-4;
+      for (let i = 0; i < N; i++) pk = Math.max(pk, Math.abs(s.l[i]), Math.abs(s.r[i]));
+      // TRIGGER FILTER — the third attempt, and the first that can work.
+      // A detuned swarm is QUASI-periodic: 16 different frequencies, so at full
+      // bandwidth there is no repeating landmark at all. Measured: the "biggest
+      // wrap" edges sat at gaps of 22/187/10/261 samples, i.e. individual voice
+      // wraps, not an aggregate one — a zero-crossing OR a biggest-step trigger
+      // both latch somewhere different every frame. What IS stable is the
+      // FUNDAMENTAL: all voices sit within a few cents of f0, so a heavy lowpass
+      // leaves a clean near-sine at f0 to trigger on. This is exactly a scope's
+      // trigger-filter / HF-reject coupling. Period and cutoff come from the
+      // engine's own f0 and sample rate, so it tracks the note being played.
+      const f0 = scopeF0, sr = scopeSR;
+      let trig = 0, span = Math.floor(N * 0.6);
+      if (f0 > 0 && sr > 0) {
+        const per = sr / f0;
+        span = Math.max(24, Math.min(N - 2, Math.round(per)));
+        // 4 cascaded poles at 1.1*f0. Measured trigger drift across frames:
+        // 1-pole .33/1.85/1.19, 2-pole .21/1.91/.87, 4-pole .54/.40/.40,
+        // 6-pole 1.97/.20/.17 at D2/A3/C5 — 4 is the only order that is
+        // reasonable at every pitch (6 collapses in the bass, where its group
+        // delay swamps the buffer). HONEST LIMIT: none of these makes the
+        // display stand still, because a 16-voice detuned swarm is
+        // QUASI-periodic — 16 different frequencies never repeat, so there is
+        // no stationary waveform to lock to. The trigger stabilises the
+        // fundamental's phase; the fine detail genuinely keeps moving, and
+        // that motion IS the detune. Click the panel to FREEZE a frame when
+        // you need to study a shape (e.g. comparing wide vs pulse width modes).
+        const c = 1 - Math.exp(-2 * Math.PI * (f0 * 1.1) / sr);
+        let lp = Float64Array.from(s.l);
+        // Pole count adapts to pitch. Measured drift D2/A3/C5: 2-pole
+        // .21/1.91/.87, 4-pole .54/.40/.40 — 2 is clearly better in the bass
+        // (a 4-pole's group delay is a large fraction of a low period), 4 is
+        // better above. The human reported exactly this: "still gets jumpy on
+        // the lower octaves".
+        const poles = f0 < 150 ? 2 : 4;
+        for (let pole = 0; pole < poles; pole++) {
+          let z = 0;
+          const t = new Float64Array(N);
+          for (let i = 0; i < N; i++) { z += c * (lp[i] - z); t[i] = z; }
+          lp = t;
+        }
+        for (let i = N - span - 1; i > 1; i--)
+          if (lp[i - 1] <= 0 && lp[i] > 0) { trig = i; break; }
+      }
+      const g = (h / 2 - 3) / pk;
+      for (const [arr, col] of [[s.r, '#ffc24b'], [s.l, '#5ff2e0']]) {
+        wvx.strokeStyle = col; wvx.lineWidth = 1.2; wvx.beginPath();
+        for (let i = 0; i < span; i++) {
+          const x = i / (span - 1) * w, y = h / 2 - arr[trig + i] * g;
+          i ? wvx.lineTo(x, y) : wvx.moveTo(x, y);
+        }
+        wvx.stroke();
+      }
+    }
+  } catch (e) {}
+  scopeBusy = false;
+}
+
 async function specFrame() {
   if (specBusy) return;
   specBusy = true;

@@ -1657,6 +1657,27 @@ it is output-identical for AUDIO but stales R/psi, which the VIZ reads — so it
 needs a design ruling on viz staleness, not a stealth optimisation. ROADMAP has
 the entry.
 
+## ADR-099 Amendment 1 — Skip only when OFF; volume is just volume (2026-08-21)
+
+The vol-0/settled-mute skip bought CPU by freezing the core, and a frozen core
+freezes its VISUALS: a silent osc 2 half-rendered (viz stopped, meter zeroed)
+while a silent osc 1 — never skipped — kept moving. The human read it exactly:
+"currently it just looks like a mistake." Human ruling: the skip only kicks in
+when the oscillator is switched OFF (ADR-100's enable), never when it is merely
+silent.
+
+The CPU is kept a different way: **osc 2 now SHIPS off** (enable default 0 for
+osc > 0), so the default patch takes the cheap path through the honest switch
+instead of through a silently frozen core, and "Osc On" unchecked SAYS why the
+oscillator is dark. Pre-ADR-100 patches (no "enable" key) migrate to
+enabled-everywhere — they were saved when everything always rendered.
+
+paramscope_check's setup now switches osc 2 on before raising its volume — the
+check predates the switch; its assertions are unchanged.
+
+Fresh-default cost after: 1.97% (was 1.82% under the vol-skip) — the difference
+is the honest price of visuals that never lie.
+
 ## ADR-100 — Oscillators have an on/off switch, and OFF means gone (ACCEPTED)
 
 **Date:** 2026-08-20 · **Status:** ACCEPTED (human: "add the ability to turn
