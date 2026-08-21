@@ -1111,6 +1111,17 @@ struct Plugin
       morphIds.push_back(d.id);
       morphIds.push_back(d.id + 1000);    // the twin — each osc morphs its own
     }
+    /* ADR-104 Amendment 1: the FX rack joins the field — slot type, amount,
+       tone, mix. This is what makes "off in this corner, driven in that one"
+       a rack story and not only an oscillator story, and it is the
+       prerequisite for module-level exempt. morphIds is APPEND-ONLY (like
+       param ids): v1 corner chunks fill the per-osc prefix in their original
+       order and the FX tail takes defaults — an old patch loads with its
+       corners intact and its rack unmorphed, which is exactly what it said
+       when it was saved. */
+    for (clap_id id : {57u, 58u, 59u, 60u, 61u, 62u, 63u, 64u,
+                       96u, 97u, 98u, 99u, 133u, 134u, 135u, 136u})
+      morphIds.push_back(id);
     for (int k = 0; k < 4; k++) morphCorner[k].assign(morphIds.size(), 0.0);
     morphCur.assign(morphIds.size(), -1e30);
     morph.reshuffle(morphSeed, (int)morphIds.size());

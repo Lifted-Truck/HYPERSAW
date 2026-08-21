@@ -44,6 +44,29 @@ moment a lab gains a parameter the port does not declare, which is precisely the
 class that bit us three times. Wiring it into `./verify` edits the gate set, so it waits
 for a ruling.
 
+## MORPH EXEMPT — "make this parameter global and override the morph" (2026-08-21, human)
+
+A toggle (right-click is the natural surface) that removes a parameter from the morph
+field: it holds its live value, no corner owns it. Possibly applied to an ENTIRE FX
+module at once (slot type + amount + tone + mix as one gesture).
+
+**Design notes for the build, so it lands coherent with the lab:**
+- This is the third member of a family the lab already defines: `bias` nudges a corner's
+  share of the field, `pin` hands one corner the whole field, **exempt removes the
+  parameter from the field entirely**. All three should surface together in the
+  corner-editing phase — they are one authorship story, and the lab's rule applies:
+  they enter the SCORE (or the set), never post-hoc overrides of the result, so
+  temperature/coupling/reshuffle keep composing.
+- The exempt list is PATCH STATE (rides the chunk beside the corners), not a parameter.
+- Right-click in a webview: needs a contextmenu handler on generated rows — cheap, and
+  the presentation table already knows every row's identity.
+- Module-level exempt = a named GROUP exempt (the FX slot's four params as one unit);
+  the presentation table's `group` column already carries the grouping.
+- Interaction to decide at build time: an exempted param's value when morph is later
+  un-exempted — hold live value into all corners? snap back to the winning corner?
+  (Lean: write the live value into ALL FOUR corners on exempt, so un-exempting is
+  seamless — no jump, and the corners honestly record what was playing.)
+
 ## FX PANELS D AND E CLAIMED (2026-08-21, human)
 
 Two more slot types join the FX queue behind A (granular sibling), B (OTT), C (WARP):

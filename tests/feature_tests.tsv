@@ -114,3 +114,4 @@ MRF-1	MORPH	Morph engine	agentic	ENCODING	hypersaw	state_check	ADR-104: morphOn 
 MRF-2	MORPH	Morph engine	agentic	ENCODING	hypersaw	trajectory_check	morph determinism: same seed + same X/Y produce the identical parameter assignment on two fresh instances (mulberry32 + Gumbel-max, no wall clock)
 MRF-3	MORPH	Morph engine	human	RULING	human	manual	capture into corners, drag the pad: quantum mode flips parameters corner-by-corner (temperature loosens borders, coupling moves blocs), blend mode crossfades continuous params
 MRF-4	MORPH	Morph engine	human	RULING	human	manual	corners persist through save/load (they ride the state chunk), and a fresh instance with morph on is silence-safe because all four corners hold the default patch
+MRF-5	MORPH	Morph engine	human	RULING	human	manual	ADR-104 A1: the FX rack morphs — slot type/amount/tone/mix flip corner-by-corner in quantum mode; a v1 patch loads with corners intact and rack unmorphed (append-only morphIds)
