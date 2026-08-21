@@ -1757,3 +1757,47 @@ PR #365 was stacked on render-efficiency and merged into it AFTER that branch's
 own PR had merged — the PR #328 trap, second occurrence. Recovered by PR #366
 (the branch diff against main IS the lost content). Standing rule from here:
 **no more stacked PRs**; a dependent change waits for its base to land on main.
+
+## ADR-102 — The bend lane is active when ANYTHING processes it; poly glide is automatic; Bend lives on MAIN (ACCEPTED)
+
+**Date:** 2026-08-21 · **Status:** ACCEPTED (four human reports/requests in one).
+
+### The regression: quantise with the law off did nothing
+
+`bendActive()` asked only about the LAW, so with the law off — the shipped
+default — `applyParam(38)` instant-wrote the wheel past `GlideCore::step()`, and
+the quantiser lives inside step(). The note lane quantised (it steps its own
+GlideCore); the wheel's lane skipped its own. Fix: active = law engaged OR
+quantiser engaged; kOff + quant on the grid is the published kOff contract
+(pass-through that still quantises). Turning the quantiser off settles the lane,
+same rule as leaving a law. Gate in mpe_check: law off, chromatic, wheel to
++1.37 st → must sound +1 st; both bins measured (the step bin is the must-arrive
+control); plant reads the raw bin and goes RED.
+The human's follow-up suggestion (gate bend-quantise on a global quantise) was
+motivated by the bug reading as arbitrary; deferred — it works standalone now.
+
+### Poly glide is not a choice
+
+"On as long as mono isn't toggled and a bend law is set." The arming condition
+drops `p.polyGlide` (declared for state compat, labelled (dev), permanently
+gated off in the GUI via an impossible shown_when — voiceMono=2). Mono never
+reaches the poly path, so the law is the only question left.
+
+**The flag was load-bearing in a way nobody knew.** Removing it turned parity
+RED (153/156, worst 8.4e-02 at dyn-gravity): the CORE's default noteLaw lambda
+set kLag but kept GlideCore's own tau = 60 ms, so every bare core glided out of
+the box — invisible for two days because the flag gated the arming. The shell's
+twin lambda fixed this exact default on 2026-08-19; the core's did not. A
+default that only a removed flag was hiding is a bug with a delay fuse.
+
+### "Always glide" already existed
+
+The requested toggle is glideMode = 1 (ADR-076, human-ruled 2026-07-31:
+"remembers the last played note(s) and always begins with a bend"). It was
+undiscoverable behind "last note (memory)"; relabelled "always (from last
+note)". No new parameter.
+
+### Bend returns to MAIN
+
+The whole merged section (29 rows), per the human. The cluster is fully
+generated, so the move is a page-column edit and a regen.

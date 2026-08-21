@@ -163,6 +163,39 @@
   </div>
   <div class="ctlcol">
 <!--GEN:MAIN-->
+  <div class="cluster"><h2>Bend</h2>
+    <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
+    <canvas class="gviz" data-viz="bendvib" width="260" height="72"></canvas>
+    <div class="row" data-addr="voiceMono"><label>Mono</label><input type="checkbox" data-p="32"><output></output></div>
+    <div class="row" data-addr="glide" data-when="noteLawLink=0,noteLaw=3"><label>Note Lag <span class="u">s</span></label><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
+    <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="polyGlide" data-when="voiceMono=2"><label>Poly Glide (dev)</label><input type="checkbox" data-p="89" checked><output></output></div>
+    <div class="row" data-addr="glideMode" data-when="voiceMono=0"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">always (from last note)</option></select><output></output></div>
+    <div class="row" data-addr="bendLaw"><label>Bend Law</label><select data-p="106"><option value="0" selected>off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3">lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
+    <div class="row" data-addr="bendTime" data-when="bendLaw=1"><label>Bend Time <span class="u">ms</span></label><input type="range" data-p="107" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
+    <div class="row" data-addr="bendRate" data-when="bendLaw=2"><label>Bend Rate <span class="u">st/s</span></label><input type="range" data-p="108" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><output></output></div>
+    <div class="row" data-addr="bendTau" data-when="bendLaw=3"><label>Bend Lag <span class="u">ms</span></label><input type="range" data-p="109" data-log10="1" min="0" max="3.301" step="0.001" value="1.778"><output></output></div>
+    <div class="row" data-addr="bendSpringF" data-when="bendLaw=4"><label>Spring <span class="u">Hz</span></label><input type="range" data-p="110" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"><output></output></div>
+    <div class="row" data-addr="bendDamp" data-when="bendLaw=4"><label>Damping</label><input type="range" data-p="111" min="0" max="1" step="0.005" value="0.6"><output></output></div>
+    <div class="row" data-addr="bendDistOver" data-when="bendLaw=4"><label>Distance Curve</label><input type="range" data-p="112" min="0" max="2" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="bendReturn" data-when="bendLaw=1|2|3|4"><label>Return x</label><input type="range" data-p="113" min="0.2" max="3" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
+    <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
+    <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0">own settings</option><option value="1" selected>follow bend law</option></select><output></output></div>
+    <div class="row" data-addr="noteLaw" data-when="noteLawLink=0"><label>Note Travel</label><select data-p="138"><option value="0">off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3" selected>lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
+    <div class="row" data-addr="noteTime" data-when="noteLawLink=0,noteLaw=1"><label>Note Time <span class="u">ms</span></label><input type="range" data-p="139" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
+    <div class="row" data-addr="noteRate" data-when="noteLawLink=0,noteLaw=2"><label>Note Rate <span class="u">st/s</span></label><input type="range" data-p="140" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><output></output></div>
+    <div class="row" data-addr="noteSpringF" data-when="noteLawLink=0,noteLaw=4"><label>Note Spring <span class="u">Hz</span></label><input type="range" data-p="141" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"><output></output></div>
+    <div class="row" data-addr="noteDamp" data-when="noteLawLink=0,noteLaw=4"><label>Note Damping</label><input type="range" data-p="142" min="0" max="1" step="0.005" value="0.6"><output></output></div>
+    <div class="row" data-addr="noteDistOver" data-when="noteLawLink=0,noteLaw=4"><label>Note Distance Curve</label><input type="range" data-p="143" min="0" max="2" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="noteQuant" data-when="noteLawLink=0"><label>Note Quantise</label><select data-p="144"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
+    <div class="row" data-addr="noteHyst" data-when="noteLawLink=0,noteQuant=1|2"><label>Note Quant Hyst <span class="u">c</span></label><input type="range" data-p="145" min="0" max="50" step="0.005" value="8"><output></output></div>
+    <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
+    <div class="row" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"><output></output></div>
+    <div class="row" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"><output></output></div>
+    <div class="row" data-addr="bendMpeLaw" data-when="bendLaw=1|2|3|4"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
+  </div>
   <div class="cluster"><h2>Scale</h2>
     <div class="row" data-addr="scaleRoot" data-when="bendQuant=2;noteQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>
     <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2;noteQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
@@ -319,39 +352,6 @@
     <div class="row" data-addr="osc1.fineCents"><label>Fine (c) <span class="sc">osc1</span></label><input type="range" data-p="37" min="-100" max="100" step="1" value="0"><output></output></div>
   </div>
     <!--GEN:OSC-->
-  <div class="cluster"><h2>Bend</h2>
-    <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
-    <canvas class="gviz" data-viz="bendvib" width="260" height="72"></canvas>
-    <div class="row" data-addr="voiceMono"><label>Mono</label><input type="checkbox" data-p="32"><output></output></div>
-    <div class="row" data-addr="glide" data-when="noteLawLink=0,noteLaw=3"><label>Note Lag <span class="u">s</span></label><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
-    <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="polyGlide" data-when="voiceMono=0"><label>Poly Glide</label><input type="checkbox" data-p="89" checked><output></output></div>
-    <div class="row" data-addr="glideMode" data-when="voiceMono=0"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (memory)</option></select><output></output></div>
-    <div class="row" data-addr="bendLaw"><label>Bend Law</label><select data-p="106"><option value="0" selected>off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3">lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
-    <div class="row" data-addr="bendTime" data-when="bendLaw=1"><label>Bend Time <span class="u">ms</span></label><input type="range" data-p="107" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
-    <div class="row" data-addr="bendRate" data-when="bendLaw=2"><label>Bend Rate <span class="u">st/s</span></label><input type="range" data-p="108" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><output></output></div>
-    <div class="row" data-addr="bendTau" data-when="bendLaw=3"><label>Bend Lag <span class="u">ms</span></label><input type="range" data-p="109" data-log10="1" min="0" max="3.301" step="0.001" value="1.778"><output></output></div>
-    <div class="row" data-addr="bendSpringF" data-when="bendLaw=4"><label>Spring <span class="u">Hz</span></label><input type="range" data-p="110" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"><output></output></div>
-    <div class="row" data-addr="bendDamp" data-when="bendLaw=4"><label>Damping</label><input type="range" data-p="111" min="0" max="1" step="0.005" value="0.6"><output></output></div>
-    <div class="row" data-addr="bendDistOver" data-when="bendLaw=4"><label>Distance Curve</label><input type="range" data-p="112" min="0" max="2" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="bendReturn" data-when="bendLaw=1|2|3|4"><label>Return x</label><input type="range" data-p="113" min="0.2" max="3" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
-    <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
-    <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0">own settings</option><option value="1" selected>follow bend law</option></select><output></output></div>
-    <div class="row" data-addr="noteLaw" data-when="noteLawLink=0"><label>Note Travel</label><select data-p="138"><option value="0">off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3" selected>lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
-    <div class="row" data-addr="noteTime" data-when="noteLawLink=0,noteLaw=1"><label>Note Time <span class="u">ms</span></label><input type="range" data-p="139" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
-    <div class="row" data-addr="noteRate" data-when="noteLawLink=0,noteLaw=2"><label>Note Rate <span class="u">st/s</span></label><input type="range" data-p="140" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><output></output></div>
-    <div class="row" data-addr="noteSpringF" data-when="noteLawLink=0,noteLaw=4"><label>Note Spring <span class="u">Hz</span></label><input type="range" data-p="141" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"><output></output></div>
-    <div class="row" data-addr="noteDamp" data-when="noteLawLink=0,noteLaw=4"><label>Note Damping</label><input type="range" data-p="142" min="0" max="1" step="0.005" value="0.6"><output></output></div>
-    <div class="row" data-addr="noteDistOver" data-when="noteLawLink=0,noteLaw=4"><label>Note Distance Curve</label><input type="range" data-p="143" min="0" max="2" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="noteQuant" data-when="noteLawLink=0"><label>Note Quantise</label><select data-p="144"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
-    <div class="row" data-addr="noteHyst" data-when="noteLawLink=0,noteQuant=1|2"><label>Note Quant Hyst <span class="u">c</span></label><input type="range" data-p="145" min="0" max="50" step="0.005" value="8"><output></output></div>
-    <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
-    <div class="row" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"><output></output></div>
-    <div class="row" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"><output></output></div>
-    <div class="row" data-addr="bendMpeLaw" data-when="bendLaw=1|2|3|4"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
-  </div>
   <div class="cluster"><h2>Drift</h2>
     <div class="row" data-addr="osc1.driftDepth"><label>Drift Depth (c) <span class="sc">osc1</span></label><input type="range" data-p="9" min="0" max="100" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.driftRate"><label>Drift Rate <span class="sc">osc1</span></label><input type="range" data-p="10" min="0" max="1" step="0.005" value="0.4"><output></output></div>
