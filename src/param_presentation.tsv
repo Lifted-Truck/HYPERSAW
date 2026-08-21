@@ -115,16 +115,16 @@ osc1.basin	osc1	Basin (c)	OSC	Dynamics	knob		dynamics
 osc2.basin	osc2	Basin (c)	OSC	Dynamics	knob		dynamics		
 osc1.absK	osc1	Absolute K	OSC	Dynamics	toggle		dynamics		
 osc2.absK	osc2	Absolute K	OSC	Dynamics	toggle		dynamics		
-voiceMono	global	Mono	OSC	Bend	toggle		voice		
-glide	global	Note Lag	OSC	Bend	knob	s	bend	noteLawLink=0,noteLaw=3	log10
-voiceLegato	global	Legato	OSC	Bend	toggle		voice		
+voiceMono	global	Mono	MAIN	Bend	toggle		voice		
+glide	global	Note Lag	MAIN	Bend	knob	s	bend	noteLawLink=0,noteLaw=3	log10
+voiceLegato	global	Legato	MAIN	Bend	toggle		voice		
 osc1.octave	osc1	Octave	OSC	Pitch	knob		voice		
 osc2.octave	osc2	Octave	OSC	Pitch	knob		voice		
 osc1.semi	osc1	Semitones	OSC	Pitch	knob		voice		
 osc2.semi	osc2	Semitones	OSC	Pitch	knob		voice		
 osc1.fineCents	osc1	Fine (c)	OSC	Pitch	knob		voice		
 osc2.fineCents	osc2	Fine (c)	OSC	Pitch	knob		voice		
-pitchBend	global	Pitch	OSC	Bend	knob		voice		
+pitchBend	global	Pitch	MAIN	Bend	knob		voice		
 osc1.scatter	osc1	Phase Scatter	OSC	The coupling	knob		the-coupling		
 osc2.scatter	osc2	Phase Scatter	OSC	The coupling	knob		the-coupling		
 bassMono	global	Bass Mono	MIX	Output & perception	toggle		output-perception		
@@ -211,8 +211,8 @@ osc2.panInvert	osc2	Fan Invert	OSC	Image & tone	toggle		image-tone
 osc1.superMode	osc1	Super-Width Mode	OSC	Image & tone	select		image-tone		
 osc2.superMode	osc2	Super-Width Mode	OSC	Image & tone	select		image-tone		
 oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception		
-polyGlide	global	Poly Glide	OSC	Bend	toggle		bend	voiceMono=0	
-glideMode	global	Glide From	OSC	Bend	select		bend	voiceMono=0	
+polyGlide	global	Poly Glide (dev)	MAIN	Bend	toggle		bend	voiceMono=2	
+glideMode	global	Glide From	MAIN	Bend	select		bend	voiceMono=0	
 osc1.onsetScatter	osc1	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc2.onsetScatter	osc2	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc1.onsetAlpha	osc1	Timing Correction	OSC	Onset & scatter	knob		onset-scatter		
@@ -236,16 +236,16 @@ osc1.oscMute	osc1	Mute	MIX	(ungrouped)	select		ungrouped
 osc2.oscMute	osc2	Mute	MIX	(ungrouped)	select		ungrouped		
 osc1.oscSolo	osc1	Solo	MIX	(ungrouped)	select		ungrouped		
 osc2.oscSolo	osc2	Solo	MIX	(ungrouped)	select		ungrouped		
-bendLaw	global	Bend Law	OSC	Bend	select		bend		
-bendTime	global	Bend Time	OSC	Bend	knob	ms	bend	bendLaw=1	log10
-bendRate	global	Bend Rate	OSC	Bend	knob	st/s	bend	bendLaw=2	log10
-bendTau	global	Bend Lag	OSC	Bend	knob	ms	bend	bendLaw=3	log10
-bendSpringF	global	Spring	OSC	Bend	knob	Hz	bend	bendLaw=4	log10
-bendDamp	global	Damping	OSC	Bend	knob		bend	bendLaw=4	
-bendDistOver	global	Distance Curve	OSC	Bend	knob		bend	bendLaw=4	
-bendReturn	global	Return x	OSC	Bend	knob		bend	bendLaw=1|2|3|4	
-bendQuant	global	Bend Quantise	OSC	Bend	select		bend		
-bendHyst	global	Quantise Hyst	OSC	Bend	knob	c	bend	bendQuant=1|2	
+bendLaw	global	Bend Law	MAIN	Bend	select		bend		
+bendTime	global	Bend Time	MAIN	Bend	knob	ms	bend	bendLaw=1	log10
+bendRate	global	Bend Rate	MAIN	Bend	knob	st/s	bend	bendLaw=2	log10
+bendTau	global	Bend Lag	MAIN	Bend	knob	ms	bend	bendLaw=3	log10
+bendSpringF	global	Spring	MAIN	Bend	knob	Hz	bend	bendLaw=4	log10
+bendDamp	global	Damping	MAIN	Bend	knob		bend	bendLaw=4	
+bendDistOver	global	Distance Curve	MAIN	Bend	knob		bend	bendLaw=4	
+bendReturn	global	Return x	MAIN	Bend	knob		bend	bendLaw=1|2|3|4	
+bendQuant	global	Bend Quantise	MAIN	Bend	select		bend		
+bendHyst	global	Quantise Hyst	MAIN	Bend	knob	c	bend	bendQuant=1|2	
 scaleRoot	global	Root	MAIN	Scale	select		scale	bendQuant=2;noteQuant=2	
 scaleDeg0	global	1 (root)	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
 scaleDeg1	global	b2	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2	
@@ -271,16 +271,16 @@ fx1mix	global	FX1 Mix	FX	FX rack	knob		fx-rack
 fx2mix	global	FX2 Mix	FX	FX rack	knob		fx-rack		
 fx3mix	global	FX3 Mix	FX	FX rack	knob		fx-rack		
 fx4mix	global	FX4 Mix	FX	FX rack	knob		fx-rack		
-noteLawLink	global	Note Law	OSC	Bend	select		bend		
-noteLaw	global	Note Travel	OSC	Bend	select		bend	noteLawLink=0	
-noteTime	global	Note Time	OSC	Bend	knob	ms	bend	noteLawLink=0,noteLaw=1	log10
-noteRate	global	Note Rate	OSC	Bend	knob	st/s	bend	noteLawLink=0,noteLaw=2	log10
-noteSpringF	global	Note Spring	OSC	Bend	knob	Hz	bend	noteLawLink=0,noteLaw=4	log10
-noteDamp	global	Note Damping	OSC	Bend	knob		bend	noteLawLink=0,noteLaw=4	
-noteDistOver	global	Note Distance Curve	OSC	Bend	knob		bend	noteLawLink=0,noteLaw=4	
-noteQuant	global	Note Quantise	OSC	Bend	select		bend	noteLawLink=0	
-noteHyst	global	Note Quant Hyst	OSC	Bend	knob	c	bend	noteLawLink=0,noteQuant=1|2	
-bendQTimeMode	global	Step Timing	OSC	Bend	select		bend	bendQuant=1|2	
-bendQTimeHz	global	Step Rate	OSC	Bend	knob	Hz	bend	bendQTimeMode=1	log10
-bendQTimeSync	global	Step Grid	OSC	Bend	knob	/beat	bend	bendQTimeMode=2	
-bendMpeLaw	global	MPE Bend	OSC	Bend	select		bend	bendLaw=1|2|3|4	
+noteLawLink	global	Note Law	MAIN	Bend	select		bend		
+noteLaw	global	Note Travel	MAIN	Bend	select		bend	noteLawLink=0	
+noteTime	global	Note Time	MAIN	Bend	knob	ms	bend	noteLawLink=0,noteLaw=1	log10
+noteRate	global	Note Rate	MAIN	Bend	knob	st/s	bend	noteLawLink=0,noteLaw=2	log10
+noteSpringF	global	Note Spring	MAIN	Bend	knob	Hz	bend	noteLawLink=0,noteLaw=4	log10
+noteDamp	global	Note Damping	MAIN	Bend	knob		bend	noteLawLink=0,noteLaw=4	
+noteDistOver	global	Note Distance Curve	MAIN	Bend	knob		bend	noteLawLink=0,noteLaw=4	
+noteQuant	global	Note Quantise	MAIN	Bend	select		bend	noteLawLink=0	
+noteHyst	global	Note Quant Hyst	MAIN	Bend	knob	c	bend	noteLawLink=0,noteQuant=1|2	
+bendQTimeMode	global	Step Timing	MAIN	Bend	select		bend	bendQuant=1|2	
+bendQTimeHz	global	Step Rate	MAIN	Bend	knob	Hz	bend	bendQTimeMode=1	log10
+bendQTimeSync	global	Step Grid	MAIN	Bend	knob	/beat	bend	bendQTimeMode=2	
+bendMpeLaw	global	MPE Bend	MAIN	Bend	select		bend	bendLaw=1|2|3|4	

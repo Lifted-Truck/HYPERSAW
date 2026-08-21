@@ -289,6 +289,54 @@ int main()
           "plain channel-0 wheel reaches the engine (+2 st)", d4);
   }
 
+  /* QUANTISE WITH THE LAW OFF (2026-08-21 regression). bendActive() asked only
+     about the law, so law-off + quantise-on instant-wrote the wheel past
+     GlideCore::step() — and the quantiser lives inside step(). The wheel is
+     thrown to +1.37 st under chromatic quantise: the sounding pitch must land
+     on +1 st (the quantised step), not +1.37. Both bins are measured — the
+     +1 st bin is the must-arrive control, without which a wheel that simply
+     went dead would "pass" the not-at-1.37 half for the wrong reason. */
+  {
+    {                                     // clean slate after the wheel section
+      clap_event_note_t off{};
+      off.header.size = sizeof(off); off.header.type = CLAP_EVENT_NOTE_OFF;
+      off.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      off.note_id = -1; off.port_index = 0; off.channel = 0; off.key = 69; off.velocity = 0;
+      evl.ev.push_back(&off.header);
+      run(80, nullptr);
+    }
+    param(38, 0); param(106, 0);           // law OFF — the shipped default
+    param(114, 1); param(115, 8);          // chromatic quantise, default hyst
+    for (auto &pv : pvs)
+      if (pv.param_id == 38 || pv.param_id == 106 || pv.param_id == 114 || pv.param_id == 115)
+        evl.ev.push_back(&pv.header);
+    run(10, nullptr);
+
+    clap_event_note_t qn{};
+    qn.header.size = sizeof(qn); qn.header.type = CLAP_EVENT_NOTE_ON;
+    qn.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    qn.note_id = 130; qn.port_index = 0; qn.channel = 0; qn.key = 69; qn.velocity = 1.0;
+    evl.ev.push_back(&qn.header);
+    run(25, nullptr);
+
+    clap_event_midi_t wq{};                 // +1.37 st on the plain wheel
+    wq.header.size = sizeof(wq); wq.header.type = CLAP_EVENT_MIDI;
+    wq.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    wq.port_index = 0;
+    const int v14 = 8192 + (int)std::lround(1.37 / 2.0 * 8192.0);
+    wq.data[0] = 0xE0; wq.data[1] = (uint8_t)(v14 & 0x7F); wq.data[2] = (uint8_t)((v14 >> 7) & 0x7F);
+    evl.ev.push_back(&wq.header);
+    run(25, nullptr);
+    std::vector<float> bentq;
+    run(20, &bentq);
+    const double atStep = goertzel(bentq, 440.0 * std::pow(2.0, 1.0 / 12.0), SR);
+    const double atRaw  = goertzel(bentq, 440.0 * std::pow(2.0, 1.37 / 12.0), SR);
+    char d7[160];
+    std::snprintf(d7, sizeof(d7), "+1st bin %.5f, +1.37st bin %.5f", atStep, atRaw);
+    check(atStep > 1e-3 && atRaw < 0.15 * atStep,
+          "law-off wheel bend is QUANTISED (lands on the step, not the raw target)", d7);
+  }
+
   /* ADR-097 — PER-NOTE BEND OBEYS THE BEND LAW (2026-08-20). bend-lab steps every
      note's bend through its own inertia state with the SAME params as the wheel;
      the port applied per-note bend instantly at all three entry points, so a

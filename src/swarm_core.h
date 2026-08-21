@@ -167,6 +167,14 @@ struct Params
   hypersaw::GlideCore::Params noteLaw = [] {
     hypersaw::GlideCore::Params q;
     q.model = hypersaw::GlideCore::kLag;   // = what id 33 has always done
+    // tau tracks `glide`, which defaults 0 — GlideCore's own 60 ms default
+    // would make a BARE core glide out of the box. Invisible while ADR-076's
+    // polyGlide flag gated the arming; the moment ADR-102 removed that flag,
+    // parity went red (153/156, worst 8.4e-02 at dyn-gravity): the goldens
+    // strike sequential notes and every one of them started gliding. The
+    // shell's twin lambda fixed this same default on 2026-08-19; the core's
+    // did not, and nothing could tell until the flag stopped hiding it.
+    q.tau = 0;
     return q;
   }();
   // Live tune factor (ADR-027): one multiplicative pitch for octave/semi/
@@ -395,7 +403,13 @@ class SwarmCore
     // with a bend" (human, 2026-07-31). lastNoteF persists across silence, so
     // the first note after a rest still bends in from wherever you last were.
     const bool glideSourceOk = (p.glideMode > 0.5) ? true : anotherHeld;
-    if (p.polyGlide > 0.5 && noteTravels() && glideSourceOk && lastNoteF > 0 && lastNoteF != f)
+    // ADR-102 (human 2026-08-21): poly glide is no longer a toggle — it is ON
+    // whenever a travel law is engaged. "Hide it and set it so it's on as long
+    // as mono isn't toggled and a bend law is set"; mono never reaches this
+    // path (the shell routes mono through retargetNote), so the law is the only
+    // question left. p.polyGlide stays declared for state compat and is no
+    // longer read here.
+    if (noteTravels() && glideSourceOk && lastNoteF > 0 && lastNoteF != f)
     {
       s.f0 = lastNoteF;
       s.f0cur = lastNoteF;

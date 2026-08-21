@@ -74,7 +74,7 @@ static const char *const kPanModeLabels[] = {"drift (per-voice)", "sweep (whole 
 static const char *const kPivotLabels[] = {"mean field", "root (fundamental)"};
 static const char *const kPanLayoutLabels[] = {"pitch fan", "legacy (x-position)"};
 static const char *const kSuperModeLabels[] = {"wide (clean)", "pulse (M/S)", "smear (allpass)"};
-static const char *const kGlideModeLabels[] = {"held note (legato)", "last note (memory)"};
+static const char *const kGlideModeLabels[] = {"held note (legato)", "always (from last note)"};
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kNoteNames[] = {"C", "C#", "D", "D#", "E", "F",
                                         "F#", "G", "G#", "A", "A#", "B"};
@@ -233,7 +233,10 @@ static const ParamDef kParams[] = {
     {88, "oversample", "Oversample 2x", 0, 1, 0, true, kOffOn},
     // ADR-076: poly glide reuses the existing Glide TIME knob (id 33), which
     // therefore stops being mono-only in the GUI gating.
-    {89, "polyGlide", "Poly Glide", 0, 1, 1, true, kOffOn},
+    // ADR-102: no longer read by the DSP (poly glide is automatic — on whenever
+    // a travel law is engaged). Declared for state compatibility; "(dev)" is the
+    // established exemption label (gui_reach exempts it like inertiaCurve).
+    {89, "polyGlide", "Poly Glide (dev)", 0, 1, 1, true, kOffOn},
     {90, "glideMode", "Glide From", 0, 1, 0, true, kGlideModeLabels},
     // ADR-077 ensemble onset timing. onsetScatter is the master switch (0 = off
     // = bit-exact); alpha is the mutual-correction gain that carries the serial
@@ -1001,7 +1004,20 @@ struct Plugin
     const int g = (int)std::lround(sampleRate * kBendGridSeconds);
     return g < 1 ? 1 : g;
   }
-  bool bendActive() const { return (int)bendLaw.model != hypersaw::GlideCore::kOff; }
+  /* The lane is active when ANYTHING in it processes the value — the law OR the
+     quantiser. This asked only about the law until 2026-08-21, so with the law
+     off (the shipped default) applyParam(38) instant-wrote the wheel PAST
+     GlideCore::step(), and the quantiser lives inside step(): "bend quantize
+     just quietly stopped working (it seems to quantize the initial note but no
+     longer the bend part)" — the note lane steps its own GlideCore, the wheel
+     path skipped its own. kOff + quant is cheap on the grid: step() is a
+     pass-through that still quantises, which is exactly the published contract
+     of kOff. */
+  bool bendActive() const
+  {
+    return (int)bendLaw.model != hypersaw::GlideCore::kOff ||
+           (int)bendLaw.quant != hypersaw::GlideCore::kQuantOff;
+  }
 
   /* NOTE LANE (ADR-096). `noteLawOwn` ships LAG because that is precisely what
      id 33 has always done, so a plugin that loads an old patch travels exactly
@@ -1884,7 +1900,18 @@ struct Plugin
           case 111: bendLaw.damp = applied; break;
           case 112: bendLaw.distOver = applied; break;
           case 113: bendLaw.retMul = applied; break;
-          case 114: bendLaw.quant = applied; break;
+          case 114:
+            bendLaw.quant = applied;
+            // Same settle rule as leaving a law (case 106): if the lane just
+            // went fully inactive, the sounding bend would otherwise be stuck
+            // at the last QUANTISED step forever — nothing steps it again.
+            if (!bendActive() && pitchBend != bendTarget)
+            {
+              pitchBend = bendTarget;
+              bendGlide.reset(bendTarget);
+              updateTuneAll();
+            }
+            break;
           case 115: bendLaw.qhyst = applied; break;
           default: break;
         }
