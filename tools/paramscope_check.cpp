@@ -138,6 +138,7 @@ int main()
       param(o * S + 3, 1234);    // seed
       param(o * S + 4, 0.2);     // detune
       param(o * S + 14, 1.0);    // width, so the mono fold is observable
+      param(o * S + 150, 1);   // osc 2 ships OFF since ADR-099 A1 — switch first
       param(o * S + 17, which == o ? 0.4 : 0.0);
     }
     for (const auto &kv : ps) param(kv.first, kv.second);
@@ -177,6 +178,7 @@ int main()
       {
         param(o * S + 1, 5); param(o * S + 3, 1234);
         param(o * S + 4, 0.2); param(o * S + 14, 1.0);
+        param(o * S + 150, 1);   // osc 2 ships OFF since ADR-099 A1 — switch first
         param(o * S + 17, which == o ? 0.4 : 0.0);
       }
       param(15, monoOn);                       // GLOBAL mono fold

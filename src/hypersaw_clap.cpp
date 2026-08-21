@@ -407,6 +407,7 @@ static const ParamDef kParams[] = {
 // deliberately — it depends on nothing but the row and the oscillator index.
 static double defaultFor(const ParamDef &d, uint32_t osc)
 {
+  if (d.id == 150) return osc > 0 ? 0.0 : 1.0;   // osc 2 ships OFF (ADR-099 A1)
   return (osc > 0 && d.id == 17) ? 0.0 : d.defV;
 }
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
@@ -1053,7 +1054,7 @@ struct Plugin
     return 0;   // continuous
   }
   double qTimeMode = 0, qTimeHz = 8, qTimeSync = 4;
-  int oscEnabled[kMaxOsc] = {1, 1};   // ADR-100
+  int oscEnabled[kMaxOsc] = {1, 0};   // ADR-100; osc2 ships OFF (ADR-099 A1)
   double mpeBendLaw = 1;   // ADR-097: per-note bend follows the wheel by default
 
   void pushNoteLaw()
@@ -1795,6 +1796,14 @@ struct Plugin
       enqueueParam(137, 0, 0);                                  // own settings
       enqueueParam(138, hypersaw::GlideCore::kLag, 0);          // lag, as it always was
     }
+    /* Pre-ADR-100 patches have no "enable" key and were saved when every
+       oscillator always rendered — restore them that way, whatever the new
+       defaults ship as. */
+    if (json.find("\"enable\"") == std::string::npos)
+    {
+      enqueueParam(150, 1, 0);
+      enqueueParam(1150, 1, 0);
+    }
     return any;
   }
 
@@ -2500,8 +2509,15 @@ struct Plugin
          smoother to SETTLE at 0, so a fade-out completes before the core stops.
          The meter is forced to 0 — a skipped oscillator must not hold its last
          peak on the mixer. */
-      if (oscEnabled[k] == 0 || cores[k].p.vol == 0.0 ||
-          (oscGainSm[k] == 0.0 && oscGainTarget(k) == 0.0))
+      /* ADR-099 Amendment 1 (human ruling 2026-08-21): skip ONLY when the
+         oscillator is switched OFF. The vol-0/settled-mute skip bought CPU by
+         freezing the core, and a frozen core freezes its VISUALS — so a silent
+         osc 2 half-rendered while a silent osc 1 (never skipped) kept moving:
+         "currently it just looks like a mistake." It did. Volume is volume;
+         OFF is the no-cost state — and osc 2 now SHIPS off, so the default
+         patch keeps the cheap path through the honest switch instead of
+         through a silently frozen core. */
+      if (oscEnabled[k] == 0)
       {
         oscPeakViz[k] = 0.0;
         continue;
