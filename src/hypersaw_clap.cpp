@@ -1483,6 +1483,7 @@ struct Plugin
     hypersaw::SwarmCore &vc = cores[vo < kNumOsc ? vo : 0];
     const int writeIdx = 1 - vizPublished.load(std::memory_order_relaxed);
     hypersaw::VizSnapshot &v = vizBuf[writeIdx];
+    v.oscEnabled = oscEnabled[vo < kNumOsc ? vo : 0] != 0;
     // NOTE MONITOR — built here, BEFORE the engine branch, and from whichever
     // engine is sounding. It used to live inside the SAW-only path after the
     // SPECTRA early-return, so in SPECTRA mode there was no monitor AT ALL and
@@ -1885,6 +1886,41 @@ struct Plugin
      schema; adding params later lengthens the list, and the schema bump is the
      signal to re-derive. Absent section = no corners captured (fresh corners
      hold defaults). */
+  /* One corner as JSON, and its inverse — the corner-preset surface (ADR-105).
+     Same order contract as morphJson: morphIds order, append-only. */
+  std::string cornerJson(int k)
+  {
+    if (k < 0 || k > 3) return "{}";
+    morphInit();
+    std::string out = "{\"cornerPreset\":[";
+    char buf[32];
+    for (size_t i = 0; i < morphIds.size(); i++)
+    {
+      std::snprintf(buf, sizeof(buf), i ? ",%.6g" : "%.6g", morphCorner[k][i]);
+      out += buf;
+    }
+    return out + "]}";
+  }
+  bool cornerApply(int k, const std::string &json)
+  {
+    if (k < 0 || k > 3) return false;
+    morphInit();
+    size_t cp = json.find("\"cornerPreset\"");
+    if (cp == std::string::npos) return false;
+    const char *c = std::strchr(json.c_str() + cp, '[');
+    if (!c) return false;
+    c++;
+    for (size_t i = 0; i < morphIds.size(); i++)
+    {
+      morphCorner[k][i] = std::atof(c);
+      const char *nx = std::strchr(c, ',');
+      const char *cl = std::strchr(c, ']');
+      if (!nx || (cl && cl < nx)) break;
+      c = nx + 1;
+    }
+    return true;
+  }
+
   std::string morphJson()
   {
     if (morphIds.empty()) return "";
@@ -3413,6 +3449,8 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.getBendCurveJson = [pl]() { return pl->bendCurveJson(); };
   hostIf.getShapeWaveJson = [pl]() { return pl->shapeWaveJson(); };
   hostIf.morphCapture = [pl](uint32_t k) { pl->morphCapture((int)k); };
+  hostIf.morphCornerJson = [pl](uint32_t k) { return pl->cornerJson((int)k); };
+  hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
   // Stamp carries hash AND build time: a hash alone cannot distinguish "the

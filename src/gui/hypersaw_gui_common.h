@@ -27,6 +27,7 @@ inline choc::value::Value vizToValue(const VizSnapshot &v)
   // former string path also hid a truncation bug — 2026-07-18.)
   auto obj = choc::value::createObject("Viz");
   obj.addMember("active", v.active);
+  obj.addMember("oscEnabled", v.oscEnabled);
   obj.addMember("n", (int32_t)v.n);
   obj.addMember("centerIdx", (int32_t)v.centerIdx);
   obj.addMember("R", v.R);
@@ -156,6 +157,18 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   web->bind("hzGetBendCurve", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getBendCurveJson ? host.getBendCurveJson()
                                                            : std::string("{}"));
+  });
+  web->bind("hzMorphCornerJson", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    if (host.morphCornerJson && args.isArray() && args.size() >= 1)
+      return choc::value::createString(host.morphCornerJson((uint32_t)args[0].getWithDefault<int64_t>(0)));
+    return choc::value::createString("{}");
+  });
+  web->bind("hzMorphCornerApply", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    bool ok = false;
+    if (host.morphCornerApply && args.isArray() && args.size() >= 2)
+      ok = host.morphCornerApply((uint32_t)args[0].getWithDefault<int64_t>(0),
+                                 args[1].getWithDefault<std::string>(""));
+    return choc::value::createBool(ok);
   });
   web->bind("hzMorphCapture", [&host](const choc::value::ValueView &args) -> choc::value::Value {
     if (host.morphCapture && args.isArray() && args.size() >= 1)

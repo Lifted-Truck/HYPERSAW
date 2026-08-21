@@ -104,6 +104,10 @@
   .oscSel .oscTab.on { color:#0b0e13; background:var(--text); border-color:var(--text); font-weight:600; }
   .oscSel .oscTab.silent { opacity:.62; }
   .oscSel .oscTab.on.silent { opacity:1; }
+  .oscSel .oscTab.oscoff { text-decoration:line-through; opacity:.45; }
+  .oscPow { font:inherit; font-size:11px; padding:1px 5px; cursor:pointer; background:none;
+            border:1px solid var(--line); border-radius:3px; color:var(--pull); }
+  .oscPow.off { color:var(--dim); opacity:.55; }
   .note { color:var(--dim); font-size:10.5px; }
   canvas.xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
               width:100%; touch-action:none; }
@@ -164,6 +168,18 @@
 
   </div>
   <div class="ctlcol">
+<!--HAND-PLACED, outside the GEN markers on purpose: the first version sat
+    inside the generated region and the next regen deleted it silently. -->
+<div class="cluster"><h2>Presets</h2>
+  <div class="row"><label>Name</label><input type="text" id="presetName" placeholder="my patch" style="min-width:0"></div>
+  <div class="row"><label>Saved</label><select id="presetList" style="min-width:0"></select></div>
+  <div class="row" style="display:flex;gap:6px">
+    <button id="presetSave">SAVE</button><button id="presetLoad">LOAD</button><button id="presetDel">DELETE</button>
+  </div>
+  <div class="note">Stored in this plugin's browser storage (per machine). COPY
+    PATCH / PASTE in the tab bar remains the export path; a disk browser is the
+    roadmapped next step.</div>
+</div>
 <!--GEN:MAIN-->
   <div class="cluster"><h2>Bend</h2>
     <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
@@ -715,6 +731,46 @@ function drawShapeWave() {
     g.stroke();
   }).catch(() => {});
 }
+/* ============ PRESETS (ADR-105, the quick win) ============
+   localStorage over the existing state JSON — real disk files are the
+   roadmapped step; this gives save/load TODAY and it survives plugin reloads
+   (WKWebView storage is per-app-container). Corner presets use the same
+   pattern over hzMorphCornerJson/Apply. */
+const PRESET_KEY = 'hz.presets.v1', CORNER_KEY = 'hz.cornerPresets.v1';
+const store = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch (_) { return {}; } };
+const putStore = (key, obj) => { try { localStorage.setItem(key, JSON.stringify(obj)); } catch (_) {} };
+{
+  const list = document.getElementById('presetList');
+  const name = document.getElementById('presetName');
+  const refresh = () => {
+    if (!list) return;
+    const ps = store(PRESET_KEY);
+    list.innerHTML = Object.keys(ps).sort().map(n => `<option>${n}</option>`).join('');
+  };
+  refresh();
+  const flash = (b, t) => { const o = b.textContent; b.textContent = t; setTimeout(() => { b.textContent = o; }, 900); };
+  document.getElementById('presetSave')?.addEventListener('click', async (e) => {
+    const n = (name.value || '').trim();
+    if (!n) { flash(e.target, 'NAME?'); return; }
+    try {
+      const j = await bridge.getState();
+      const ps = store(PRESET_KEY); ps[n] = j; putStore(PRESET_KEY, ps);
+      refresh(); list.value = n; flash(e.target, 'SAVED');
+    } catch (_) { flash(e.target, 'NO ENGINE'); }
+  });
+  document.getElementById('presetLoad')?.addEventListener('click', async (e) => {
+    const n = list.value; if (!n) return;
+    const j = store(PRESET_KEY)[n];
+    if (!j) return;
+    try { await bridge.applyState(j); flash(e.target, 'LOADED'); }
+    catch (_) { flash(e.target, 'NO ENGINE'); }
+  });
+  document.getElementById('presetDel')?.addEventListener('click', (e) => {
+    const n = list.value; if (!n) return;
+    const ps = store(PRESET_KEY); delete ps[n]; putStore(PRESET_KEY, ps);
+    refresh(); flash(e.target, 'GONE');
+  });
+}
 /* ============ MORPH PAD + CORNERS (ADR-104) ============ */
 const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
 {
@@ -804,6 +860,31 @@ const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
         b.textContent = 'STORED'; setTimeout(() => { b.textContent = 'CAPTURE'; }, 900);
       });
       row.appendChild(b);
+      const sv = document.createElement('button');
+      sv.textContent = 'SAVE\u2026';
+      sv.title = 'save this corner as a named preset';
+      sv.addEventListener('click', async () => {
+        const n = window.prompt('Corner preset name:'); if (!n) return;
+        if (!window.hzMorphCornerJson) return;
+        const j = await window.hzMorphCornerJson(k);
+        const cs = store(CORNER_KEY); cs[n] = j; putStore(CORNER_KEY, cs);
+        sv.textContent = 'SAVED'; setTimeout(() => { sv.textContent = 'SAVE\u2026'; }, 900);
+      });
+      row.appendChild(sv);
+      const ld = document.createElement('select');
+      ld.title = 'load a corner preset into this corner';
+      const fill = () => { const cs = store(CORNER_KEY);
+        ld.innerHTML = '<option value="">load\u2026</option>' +
+          Object.keys(cs).sort().map(n => `<option>${n}</option>`).join(''); };
+      fill();
+      ld.addEventListener('focus', fill);
+      ld.addEventListener('change', async () => {
+        const n = ld.value; if (!n) return;
+        const j = store(CORNER_KEY)[n];
+        if (j && window.hzMorphCornerApply) await window.hzMorphCornerApply(k, j);
+        ld.value = '';
+      });
+      row.appendChild(ld);
       host.appendChild(row);
     }
   }
@@ -882,6 +963,21 @@ function buildOscSelectors() {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'oscTab' + (k === editOsc ? ' on' : '');
       b.dataset.osc = k; b.textContent = 'OSC ' + (k + 1);
+      /* ADR-100 A2: the power switch lives ON the tab bar — reachable from
+         every page that has a bar, and visibly THE switch rather than a row
+         buried in The swarm. Raw id (150 + stride), never effId: each button
+         addresses its own oscillator regardless of which one is being edited. */
+      const pw = document.createElement('button');
+      pw.type = 'button'; pw.className = 'oscPow'; pw.dataset.osc = k;
+      pw.title = 'oscillator ' + (k + 1) + ' on/off';
+      pw.textContent = '\u23FB';
+      pw.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = 150 + k * OSC_STRIDE;
+        const cur = +(lastParams[id] ?? (k === 0 ? 1 : 0));
+        bridge.setParam(id, cur >= 0.5 ? 0 : 1);
+        lastParams[id] = cur >= 0.5 ? 0 : 1;   // optimistic; syncFromEngine confirms
+      });
       b.addEventListener('click', async () => {
         editOsc = k;
         // Highlight FIRST, then the host call. The old order put
@@ -901,6 +997,7 @@ function buildOscSelectors() {
         for (const [id, v] of Object.entries(ps)) setControl(+id, v);
       });
       host.appendChild(b);
+      host.appendChild(pw);
     }
   });
 }
@@ -923,6 +1020,10 @@ function paintOscTabs(ps) {
     const silent = !(vol > 0.0005);
     b.classList.toggle('silent', silent);
     b.textContent = 'OSC ' + (k + 1) + (silent ? ' ○' : '');
+    const en = +(ps[150 + k * OSC_STRIDE] ?? (k === 0 ? 1 : 0));
+    b.classList.toggle('oscoff', en < 0.5);
+    const pw = document.querySelector('.oscPow[data-osc="' + k + '"]');
+    if (pw) pw.classList.toggle('off', en < 0.5);
   });
 }
 async function syncFromEngine() {
@@ -1088,11 +1189,30 @@ async function vizFrame() {
     document.getElementById('stripScope2').style.display  = spectraOn ? '' : 'none';
     document.getElementById('vmapScope2').style.display   = spectraOn ? 'none' : '';
     if (s && s.vmF0 > 0) { scopeF0 = s.vmF0; scopeSR = s.sr || 44100; }
-    drawPhase(s);
+    /* ADR-100 A2: a switched-OFF oscillator shows an explicit OFF state, not a
+       frozen swarm. The dots the human saw were real voices fanned into the
+       disabled core at note-on (bookkeeping for the enable-ON re-strike) whose
+       phases never advance — render is skipped — so they sat as a static
+       constellation that looked broken. The VISUAL follows the SWITCH, exactly
+       as ruled: "only have the visuals turn off when oscillators are
+       themselves off." */
+    if (s && s.active && s.oscEnabled === false) {
+      for (const cv of [document.getElementById('phaseC'), document.getElementById('phaseC2')]) {
+        if (!cv || !cv.offsetWidth) continue;
+        const g = cv.getContext('2d');
+        g.fillStyle = '#0b0e13'; g.fillRect(0, 0, cv.width, cv.height);
+        g.fillStyle = '#3a4152'; g.font = '10px monospace'; g.textAlign = 'center';
+        g.fillText('osc off', cv.width / 2, cv.height / 2);
+        g.textAlign = 'start';
+      }
+    } else drawPhase(s);
     drawMeters(s);
     drawEnvelope(s);
     drawScatter(s);
-    if (spectraOn) drawStrips(s); else { drawCarpet(s); drawVmap(s); }
+    // ADR-100 A2: carpet and voice map freeze-frame the same stale voices the
+    // phase circle did — the whole per-swarm family follows the switch.
+    if (s && s.active && s.oscEnabled === false) { /* off state drawn above */ }
+    else if (spectraOn) drawStrips(s); else { drawCarpet(s); drawVmap(s); }
   } catch (e) {}
   vizBusy = false;
 }
