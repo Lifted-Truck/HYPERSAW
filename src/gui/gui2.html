@@ -106,8 +106,11 @@
   .oscSel .oscTab.on.silent { opacity:1; }
   .oscSel .oscTab.oscoff { text-decoration:line-through; opacity:.45; }
   .oscPow { font:inherit; font-size:11px; padding:1px 5px; cursor:pointer; background:none;
-            border:1px solid var(--line); border-radius:3px; color:var(--pull); }
-  .oscPow.off { color:var(--dim); opacity:.55; }
+            border:1px solid var(--line); border-radius:3px; color:var(--dim); opacity:.55; }
+  /* ON glows white like a selected osc tab (human 2026-08-21); OFF is the dim
+     default above, so an unpainted button never LOOKS on. */
+  .oscPow.on { color:#0b0e13; background:var(--text); border-color:var(--text);
+               opacity:1; box-shadow:0 0 6px rgba(232,236,244,.55); }
   .note { color:var(--dim); font-size:10.5px; }
   canvas.xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
               width:100%; touch-action:none; }
@@ -161,7 +164,7 @@
     <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
     <div class="vlabel gravline" style="min-height:14px"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
-    <div class="note">Waveform &middot; L over R &middot; click to freeze</div>
+    <div class="note">Waveform &middot; <span class="whoOsc">OSC 1</span> &middot; L over R &middot; click to freeze</div>
     <canvas id="wavC2" class="wavscope" width="330" height="80" style="width:100%"></canvas>
     <div class="note" style="margin-top:4px">Phase circle + K vector show
       <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the plugin.</div>
@@ -275,6 +278,7 @@
       blocs, the seed is the patchwork's identity.</div>
   </div>
   <div class="cluster"><h2>Corners</h2>
+    <div class="row"><label>Preset name</label><input type="text" id="cornerName" placeholder="corner preset" style="min-width:0"></div>
     <div id="mcorners"></div>
     <div class="note">CAPTURE stores the current patch into a corner. Corner
       colors follow the lab: A teal, B amber, C violet, D rose. (Corner
@@ -370,7 +374,7 @@
     <div class="vlabel gravline" style="min-height:14px"></div>
     <div class="vlabel">Log spectrum · MASTER bus</div>
     <canvas id="specC2" class="spec" width="256" height="58"></canvas>
-    <div class="vlabel">Waveform · L over R · click to freeze</div>
+    <div class="vlabel">Waveform · <span class="whoOsc">OSC 1</span> · L over R · click to freeze</div>
     <canvas class="wavscope" width="330" height="80" style="width:100%"></canvas>
     <!-- Carpet is the SAW/dynamics scope, strips are SPECTRA: exactly one is
          visible, swapped by the engine flag in vizFrame BEFORE either is drawn,
@@ -620,8 +624,11 @@ document.addEventListener('click', hzMaybeRelease, true);
     });
     const pp = mk('PASTE', 'apply a patch JSON (paste into the box)');
     pp.addEventListener('click', async () => {
-      const j = window.prompt('Paste patch JSON:');
-      if (!j) { pp.blur(); return; }
+      // prompt() does not exist in WKWebView (see the corner-save note); read
+      // the clipboard directly, with a graceful failure label.
+      let j = '';
+      try { j = await navigator.clipboard.readText(); } catch (_) {}
+      if (!j) { pp.textContent = 'CLIPBOARD?'; setTimeout(() => { pp.textContent = 'PASTE'; }, 1200); pp.blur(); return; }
       try { await bridge.applyState(j); pp.textContent = 'APPLIED'; }
       catch (_) { pp.textContent = 'BAD JSON'; }
       setTimeout(() => { pp.textContent = 'PASTE'; }, 1200);
@@ -891,7 +898,12 @@ const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
       sv.textContent = 'SAVE\u2026';
       sv.title = 'save this corner as a named preset';
       sv.addEventListener('click', async () => {
-        const n = window.prompt('Corner preset name:'); if (!n) return;
+        // NOT window.prompt: WKWebView does not implement the prompt dialog
+        // unless the host app does, so prompt() returns null and the save died
+        // silently — "the morph presets still don't work". The name comes from
+        // the inline field above the corner rows instead.
+        const n = (document.getElementById('cornerName')?.value || '').trim();
+        if (!n) { sv.textContent = 'NAME?'; setTimeout(() => { sv.textContent = 'SAVE\u2026'; }, 900); return; }
         if (!window.hzMorphCornerJson) return;
         const j = await window.hzMorphCornerJson(k);
         const ok = await presetStore.save('corners', n, j);
@@ -1004,6 +1016,9 @@ function buildOscSelectors() {
         const cur = +(lastParams[id] ?? (k === 0 ? 1 : 0));
         bridge.setParam(id, cur >= 0.5 ? 0 : 1);
         lastParams[id] = cur >= 0.5 ? 0 : 1;   // optimistic; syncFromEngine confirms
+        // instant feedback on EVERY copy of this osc's button; the poll confirms
+        for (const el of document.querySelectorAll('.oscPow[data-osc="' + k + '"]'))
+          el.classList.toggle('on', cur < 0.5);
       });
       b.addEventListener('click', async () => {
         editOsc = k;
@@ -1049,8 +1064,11 @@ function paintOscTabs(ps) {
     b.textContent = 'OSC ' + (k + 1) + (silent ? ' ○' : '');
     const en = +(ps[150 + k * OSC_STRIDE] ?? (k === 0 ? 1 : 0));
     b.classList.toggle('oscoff', en < 0.5);
-    const pw = document.querySelector('.oscPow[data-osc="' + k + '"]');
-    if (pw) pw.classList.toggle('off', en < 0.5);
+    // querySelectorAll, not querySelector: there is one power button PER BAR
+    // (MAIN and OSC both carry the selector), and first-match painting left
+    // every other bar's buttons permanently stateless — the "funky" report.
+    for (const pw of document.querySelectorAll('.oscPow[data-osc="' + k + '"]'))
+      pw.classList.toggle('on', en >= 0.5);
   });
 }
 async function syncFromEngine() {
@@ -1216,6 +1234,7 @@ async function vizFrame() {
     document.getElementById('stripScope2').style.display  = spectraOn ? '' : 'none';
     document.getElementById('vmapScope2').style.display   = spectraOn ? 'none' : '';
     if (s && s.vmF0 > 0) { scopeF0 = s.vmF0; scopeSR = s.sr || 44100; }
+    lastVizOscEnabled = s ? s.oscEnabled : true;
     /* ADR-100 A2: a switched-OFF oscillator shows an explicit OFF state, not a
        frozen swarm. The dots the human saw were real voices fanned into the
        disabled core at note-on (bookkeeping for the enable-ON re-strike) whose
@@ -1262,7 +1281,7 @@ async function vizFrame() {
    re-derivation. Only the bindings differ: canvas id, and f0/sr fed from
    gui2's vizFrame. */
 const wvC = document.getElementById('wavC2'), wvx = wvC ? wvC.getContext('2d') : null;
-let scopeF0 = 0, scopeSR = 44100;
+let scopeF0 = 0, scopeSR = 44100, lastVizOscEnabled = true;
 let scopeFrozen = false;
 const scopeCopies = () => [...document.querySelectorAll('canvas.wavscope')].filter(c => c !== wvC);
 function blitScope() {
@@ -1282,6 +1301,16 @@ for (const c of document.querySelectorAll('canvas.wavscope')) {
 let scopeBusy = false;
 async function drawScope() {
   if (!wvC || scopeFrozen || scopeBusy || !window.hzGetScope) return;
+  // ADR-100 A4: the scope follows the viz osc; a switched-off osc taps nothing,
+  // so the ring is stale — show the OFF state instead of a frozen wave.
+  if (lastVizOscEnabled === false) {
+    const w2 = wvC.width, h2 = wvC.height;
+    wvx.fillStyle = '#0b0e13'; wvx.fillRect(0, 0, w2, h2);
+    wvx.fillStyle = '#3a4152'; wvx.font = '10px monospace';
+    wvx.fillText('osc off', 8, h2 / 2);
+    blitScope();
+    return;
+  }
   scopeBusy = true;
   try {
     const s = await bridge.getScope();

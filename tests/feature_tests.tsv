@@ -123,3 +123,6 @@ VIZ-3	MAIN	(viz)	human	RULING	human	manual	the gravity pitch-correction readout 
 PRE-2	MAIN	Presets	agentic	ENCODING	hypersaw	state_check	the JSON state path round-trips BOTH oscillators (o<k>.-prefixed twins, the state_save convention); a planted twin-write removal takes exactly the twin case RED
 PRE-3	MAIN	Presets	human	RULING	human	manual	ADR-105 A2: presets and corner presets save/load/delete through the DISK store in the plugin (app support), and the files survive a DAW restart
 MIX-7	MIX	(mixer)	human	RULING	human	manual	ADR-100 A3: clicking an oscillator power button ON is audible immediately (one gate: enable; the vol-0 twin default is retired), and the switch sticks while morph is on
+MIX-8	MIX	(mixer)	human	RULING	human	manual	ADR-100 A4: power buttons glow white when ON (dim when off) on EVERY bar, each toggles only its own oscillator, and the scope/voice-map panels say which osc they follow
+VIZ-4	OSC	(viz)	human	RULING	human	manual	the waveform scope follows the SELECTED oscillator (post-gain tap, labelled), shows "osc off" when that osc is switched off, and the voice map stays centred under oct/semi/fine transpose and bends
+PRE-4	MORPH	Presets	human	RULING	human	manual	corner presets save via the inline name field (window.prompt does not exist in WKWebView) and PASTE reads the system clipboard with a graceful failure label

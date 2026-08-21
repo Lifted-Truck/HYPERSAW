@@ -970,6 +970,15 @@ struct Plugin
     }
     oscGainSm[k] = g;
     oscPeakViz[k] = peak;
+    // ADR-100 A4: scope tap — this oscillator's own post-gain signal, when it
+    // is the one the viz follows. Ring write only; RT-safe.
+    if (k == vizOsc.load(std::memory_order_relaxed))
+    {
+      uint32_t sw = scopePos.load(std::memory_order_relaxed);
+      for (int i = 0; i < n; i++)
+      { scopeL[(sw + i) & 2047] = bL[i]; scopeR[(sw + i) & 2047] = bR[i]; }
+      scopePos.store(sw + (uint32_t)n, std::memory_order_release);
+    }
   }
 
   // Same ~8 ms one-pole the master fader uses. Shared so the two faders in the
@@ -1580,7 +1589,13 @@ struct Plugin
       for (int i = 0; i < v.n && i < 32; i++) v.phase[i] = s->phase[i];
       // voice map: focus swarm's placement vs actual, plus its pan seats
       v.sampleRate = sampleRate;
-      v.vmF0 = s->f0cur;
+      /* Voice map centre includes the oscillator's transpose (human 2026-08-21:
+         "the voice map should normalize to whatever the offset is"). vf/eff are
+         POST-tune (render multiplies f0cur * tune), so an untransposed centre
+         drew the whole cloud off-axis by exactly oct+semi+fine. p.tune carries
+         the full factor (incl. bend and global transpose), which keeps the map
+         centred during bends too. */
+      v.vmF0 = s->f0cur * vc.p.tune;
       for (int i = 0; i < v.n && i < 32; i++)
       {
         v.vmVf[i] = s->vf[i];
@@ -3055,10 +3070,10 @@ struct Plugin
         const double a = std::fabs((double)outL[i]) + std::fabs((double)outR[i]);
         if (a > outPeakViz) outPeakViz = a;
       }
-      uint32_t sw = scopePos.load(std::memory_order_relaxed);
-      for (uint32_t i = 0; i < nframes; i++)
-      { scopeL[(sw + i) & 2047] = outL[i]; scopeR[(sw + i) & 2047] = outR[i]; }
-      scopePos.store(sw + nframes, std::memory_order_release);
+      /* ADR-100 A4: the scope follows the VIZ oscillator, tapped per-osc in
+         applyOscGainAndMeter — the master fill here is retired. It sat beside
+         the per-osc viz panels and read as per-osc while showing the whole
+         bus: "the osc 2 waveform viewer seems to be hooked up to osc 1". */
     }
     emitNoteEnds(p->out_events, nframes > 0 ? nframes - 1 : 0);
 
