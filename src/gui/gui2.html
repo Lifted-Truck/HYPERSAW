@@ -249,6 +249,38 @@
   <!--/GEN:MIX-->
 </div>
 
+<div class="page" id="pg-MORPH">
+  <div class="vizcol">
+  <div class="cluster"><h2>Morph field</h2>
+    <canvas id="morphPad" width="330" height="330" style="width:100%;cursor:crosshair"></canvas>
+    <div class="note">Drag to morph. Each parameter follows the corner that wins its
+      flip — temperature loosens the borders, coupling makes parameters move in
+      blocs, the seed is the patchwork's identity.</div>
+  </div>
+  <div class="cluster"><h2>Corners</h2>
+    <div id="mcorners"></div>
+    <div class="note">CAPTURE stores the current patch into a corner. Corner
+      colors follow the lab: A teal, B amber, C violet, D rose. (Corner
+      baseline-editing — the four color boxes on every page — is the recorded
+      next phase, not this one.)</div>
+  </div>
+  </div>
+  <div class="ctlcol">
+    <!--GEN:MORPH-->
+  <div class="cluster"><h2>Morph engine</h2>
+    <div class="row" data-addr="morphOn"><label>Morph</label><input type="checkbox" data-p="151"><output></output></div>
+    <div class="row" data-addr="morphX" data-when="morphOn=1"><label>Morph X</label><input type="range" data-p="152" min="0" max="1" step="0.005" value="0.5"><output></output></div>
+    <div class="row" data-addr="morphY" data-when="morphOn=1"><label>Morph Y</label><input type="range" data-p="153" min="0" max="1" step="0.005" value="0.5"><output></output></div>
+    <div class="row" data-addr="morphTemp" data-when="morphOn=1"><label>Temperature</label><input type="range" data-p="154" data-log10="1" min="-1.699" max="0.6021" step="0.001" value="0"><output></output></div>
+    <div class="row" data-addr="morphCoup" data-when="morphOn=1"><label>Coupling</label><input type="range" data-p="155" min="0" max="1" step="0.005" value="0.3"><output></output></div>
+    <div class="row" data-addr="morphSeed" data-when="morphOn=1"><label>Morph Seed</label><input type="range" data-p="156" min="1" max="9999" step="1" value="1024"><output></output></div>
+    <div class="row" data-addr="morphMode" data-when="morphOn=1"><label>Morph Mode</label><select data-p="157"><option value="0" selected>quantum (flip)</option><option value="1">blend</option></select><output></output></div>
+    <div class="row" data-addr="morphGlide" data-when="morphOn=1,morphMode=0"><label>Flip Glide <span class="u">s</span></label><input type="range" data-p="158" min="0" max="0.5" step="0.005" value="0.008"><output></output></div>
+  </div>
+  <!--/GEN:MORPH-->
+  </div>
+</div>
+
 <div class="page" id="pg-FX">
   <div class="cluster"><h2>Slot 1</h2>
     <div class="row"><label>type</label><select data-p="57" data-fixed="1">
@@ -683,6 +715,58 @@ function drawShapeWave() {
     g.stroke();
   }).catch(() => {});
 }
+/* ============ MORPH PAD + CORNERS (ADR-104) ============ */
+const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
+{
+  const pad = document.getElementById('morphPad');
+  if (pad) {
+    const px = pad.getContext('2d');
+    const drawPad = () => {
+      const w = pad.width, h = pad.height;
+      px.fillStyle = '#0b0e13'; px.fillRect(0, 0, w, h);
+      // corner tints — the lab's "weights made visible", cheap version
+      for (let k = 0; k < 4; k++) {
+        const gx = (k % 2) ? w : 0, gy = (k > 1) ? h : 0;
+        const gr = px.createRadialGradient(gx, gy, 0, gx, gy, Math.max(w, h));
+        gr.addColorStop(0, MCOLORS[k] + '55'); gr.addColorStop(0.7, 'transparent');
+        px.fillStyle = gr; px.fillRect(0, 0, w, h);
+      }
+      const x = +(rdp(152) ?? 0.5), y = +(rdp(153) ?? 0.5);
+      px.strokeStyle = '#e8ecf4'; px.lineWidth = 1.5;
+      px.beginPath(); px.arc(x * w, y * h, 7, 0, 6.2832); px.stroke();
+    };
+    let dragging = false;
+    const send = (e) => {
+      const r = pad.getBoundingClientRect();
+      const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+      bridge.setParam(152, x); bridge.setParam(153, y);
+      drawPad();
+    };
+    pad.addEventListener('pointerdown', e => { dragging = true; pad.setPointerCapture(e.pointerId); send(e); });
+    pad.addEventListener('pointermove', e => { if (dragging) send(e); });
+    pad.addEventListener('pointerup', () => { dragging = false; });
+    setInterval(drawPad, 250);   // follow automation/echo at a lazy rate
+  }
+  const host = document.getElementById('mcorners');
+  if (host) {
+    const names = ['A', 'B', 'C', 'D'];
+    for (let k = 0; k < 4; k++) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<label><span style="color:${MCOLORS[k]}">&#9632;</span> Corner ${names[k]}</label>`;
+      const b = document.createElement('button');
+      b.textContent = 'CAPTURE';
+      b.title = 'store the current patch into this corner';
+      b.addEventListener('click', () => {
+        if (window.hzMorphCapture) window.hzMorphCapture(k);
+        b.textContent = 'STORED'; setTimeout(() => { b.textContent = 'CAPTURE'; }, 900);
+      });
+      row.appendChild(b);
+      host.appendChild(row);
+    }
+  }
+}
 // The shape stages are per-osc: the wave follows the echoed params AND the
 // oscillator selector (whose click handler already repaints the pages).
 const SHAPE_VIZ_BASES = new Set([69, 129, 130, 131, 132]);
@@ -813,7 +897,7 @@ async function syncFromEngine() {
 // finished sound is balanced — so the order follows the order of work rather
 // than the order the pages happened to be built in (human, 2026-08-19).
 const PAGES = [['MAIN', true], ['OSC', true], ['MIX', true], ['FX', true],
-               ['SPACE', false], ['MOD', false], ['MORPH', false]];
+               ['SPACE', false], ['MOD', false], ['MORPH', true]];
 const tabs = $('#tabs');
 for (const [name, live] of PAGES) {
   const t = document.createElement('div');

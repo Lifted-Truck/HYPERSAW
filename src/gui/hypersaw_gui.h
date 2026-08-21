@@ -96,6 +96,7 @@ struct GuiHost
   // to make visible in the first place.
   std::function<std::string()> getBendCurveJson;
   std::function<std::string()> getShapeWaveJson;   // ADR-101: engine-drawn cycle
+  std::function<void(uint32_t)> morphCapture;      // ADR-104: snapshot -> corner k
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin
   std::function<void(uint32_t)> setVizOsc;               // visuals follow the GUI's active osc

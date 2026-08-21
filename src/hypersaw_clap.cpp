@@ -28,6 +28,7 @@
 #include "gui/hypersaw_gui.h"
 #include "spectra_core.h"
 #include "glide_core.h"
+#include "morph_core.h"
 #include "fx_rack.h"
 #include "routing_core.h"
 #include "hypersaw_clap_entry.h"
@@ -89,6 +90,7 @@ static const char *const kGlideModeLabels[] = {"held note (legato)", "last note 
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kNoteNames[] = {"C", "C#", "D", "D#", "E", "F",
                                         "F#", "G", "G#", "A", "A#", "B"};
+static const char *const kMorphModeLabels[] = {"quantum (flip)", "blend"};
 static const char *const kMpeLawLabels[] = {"instant", "follow bend law"};
 static const char *const kQTimeModeLabels[] = {"continuous", "free (Hz)", "sync"};
 static const char *const kNoteLinkLabels[] = {"own settings", "follow bend law"};
@@ -408,6 +410,19 @@ static const ParamDef kParams[] = {
        where ADR-099's skip already applies but held notes keep their envelopes
        frozen for resume. Off = not part of the patch right now. */
     {150, "enable", "Osc On", 0, 1, 1, true, kOffOn},
+    /* QUANTUM MORPH (ids 151-158, ADR-104; global — the morph field is a patch
+       property). Ranges are the LAB's own controls. morphOn ships OFF, so every
+       existing patch and golden is untouched — the parity-safe-superset rule.
+       Seed is a stepped param: the patchwork's IDENTITY, automatable like any
+       other, reshuffled deterministically when it changes. */
+    {151, "morphOn", "Morph", 0, 1, 0, true, kOffOn},
+    {152, "morphX", "Morph X", 0, 1, 0.5, false, nullptr},
+    {153, "morphY", "Morph Y", 0, 1, 0.5, false, nullptr},
+    {154, "morphTemp", "Temperature", 0.02, 4, 1, false, nullptr},
+    {155, "morphCoup", "Coupling", 0, 1, 0.3, false, nullptr},
+    {156, "morphSeed", "Morph Seed", 1, 9999, 1024, true, nullptr},
+    {157, "morphMode", "Morph Mode", 0, 1, 0, true, kMorphModeLabels},
+    {158, "morphGlide", "Flip Glide (s)", 0, 0.5, 0.008, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -494,6 +509,7 @@ constexpr clap_id kGlobalIds[] = {
     133, 134, 135, 136,                          // FX slot mix (rack-owned dry/wet)
     137, 138, 139, 140, 141, 142, 143, 144, 145,  // note travel law (global: it joins id 33, already here)
     146, 147, 148, 149,                          // quantise step timing + per-note bend law
+    151, 152, 153, 154, 155, 156, 157, 158,     // quantum morph (the field is a patch property)
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
 };
@@ -1066,6 +1082,99 @@ struct Plugin
   }
   double qTimeMode = 0, qTimeHz = 8, qTimeSync = 4;
   int oscEnabled[kMaxOsc] = {1, 0};   // ADR-100; osc2 ships OFF (ADR-099 A1)
+
+  /* ================= QUANTUM MORPH (ADR-104) =================
+     The SHELL owns which parameters morph and what a corner is; morph_core.h
+     owns the math. The morphable set is v1-curated: every PER-OSC parameter
+     (the twin-having set — timbre) for both oscillators, enables included
+     ("they can just toggle on and gradually increase the volume as they move
+     between corners" — human, 2026-08-20). Globals (bend law, scale, master,
+     voice routing) stay patch-level; the ADR records that the set widens
+     later, with the corner-editing model, rather than v1 guessing at it.
+     Corner snapshots persist in the state chunk (a corner IS patch data);
+     they are NOT parameters — 4 x ~100 automation lanes would be noise. */
+  hypersaw::MorphCore morph;
+  std::vector<clap_id> morphIds;          // id order = persistence order (stable)
+  std::vector<double> morphCorner[4];     // snapshots, aligned to morphIds
+  std::vector<double> morphCur;           // last applied value per morphIds slot
+  double morphX = 0.5, morphY = 0.5, morphTemp = 1, morphCoup = 0.3;
+  double morphOn = 0, morphMode = 0, morphGlideS = 0.008;
+  uint32_t morphSeed = 1024;
+  int morphAccum = 0;
+
+  void morphInit()
+  {
+    if (!morphIds.empty()) return;
+    for (const auto &d : kParams)
+    {
+      if (isGlobalId(d.id)) continue;
+      morphIds.push_back(d.id);
+      morphIds.push_back(d.id + 1000);    // the twin — each osc morphs its own
+    }
+    for (int k = 0; k < 4; k++) morphCorner[k].assign(morphIds.size(), 0.0);
+    morphCur.assign(morphIds.size(), -1e30);
+    morph.reshuffle(morphSeed, (int)morphIds.size());
+    // A fresh instance's corners all hold the DEFAULT patch, so switching morph
+    // on before capturing anything is silence-safe: every corner agrees.
+    for (size_t i = 0; i < morphIds.size(); i++)
+    {
+      const ParamDef *d = findParam(morphIds[i]);
+      const double v = d ? defaultFor(*d, morphIds[i] / 1000) : 0.0;
+      for (int k = 0; k < 4; k++) morphCorner[k][i] = v;
+    }
+  }
+
+  void morphCapture(int k)
+  {
+    if (k < 0 || k > 3) return;
+    morphInit();
+    for (size_t i = 0; i < morphIds.size(); i++)
+      morphCorner[k][i] = readParam(morphIds[i]);
+  }
+
+  /* One morph step, on the 256-sample gravity grid (heavier than the bend grid
+     on purpose — a parameter field does not need 2.7 kHz updates, and the grid
+     accumulator makes the result independent of host buffer subdivision, the
+     ADR-086 rule). Stepped params take their winning corner's value outright;
+     continuous params either flip (quantum) with a one-pole slew toward the
+     winner, or blend (mode 1) across all four corners. */
+  void morphStep(int samples)
+  {
+    morphAccum += samples;
+    const int grid = (int)std::lround(sampleRate * hypersaw::kGravGridSeconds);
+    if (morphAccum < grid) return;
+    const double dt = (double)morphAccum / sampleRate;
+    morphAccum = 0;
+    double w[4], lw[4];
+    hypersaw::MorphCore::weights(morphX, morphY, w);
+    hypersaw::MorphCore::logW(w, morphTemp, lw);
+    const double coef = morphGlideS > 1e-4 ? 1 - std::exp(-dt / morphGlideS) : 1.0;
+    for (size_t i = 0; i < morphIds.size(); i++)
+    {
+      const ParamDef *d = findParam(morphIds[i]);
+      if (!d) continue;
+      double target;
+      if ((int)morphMode == 1 && !d->stepped)
+      {
+        target = 0;
+        for (int k = 0; k < 4; k++) target += w[k] * morphCorner[k][i];
+      }
+      else
+      {
+        const int k = morph.pickCorner((int)i, lw, morphCoup);
+        target = morphCorner[k][i];
+      }
+      double next = d->stepped ? target
+                               : (morphCur[i] < -1e29 ? target
+                                                      : morphCur[i] + (target - morphCur[i]) * coef);
+      if (d->stepped) next = std::round(next);
+      if (std::fabs(next - morphCur[i]) > 1e-9)
+      {
+        morphCur[i] = next;
+        applyParam(morphIds[i], next);
+      }
+    }
+  }
   double mpeBendLaw = 1;   // ADR-097: per-note bend follows the wheel by default
 
   void pushNoteLaw()
@@ -1759,6 +1868,30 @@ struct Plugin
     return out + "}";
   }
 
+  /* Corner persistence (ADR-104): a corner IS patch data. Values ride in
+     morphIds order (id-ascending by construction), which is stable for a given
+     schema; adding params later lengthens the list, and the schema bump is the
+     signal to re-derive. Absent section = no corners captured (fresh corners
+     hold defaults). */
+  std::string morphJson()
+  {
+    if (morphIds.empty()) return "";
+    std::string out = ",\"morphCorners\":[";
+    char buf[32];
+    for (int k = 0; k < 4; k++)
+    {
+      out += k ? ",[" : "[";
+      for (size_t i = 0; i < morphIds.size(); i++)
+      {
+        std::snprintf(buf, sizeof(buf), i ? ",%.6g" : "%.6g", morphCorner[k][i]);
+        out += buf;
+      }
+      out += "]";
+    }
+    out += "]";
+    return out;
+  }
+
   std::string stateJson() const
   {
     // The debug dump IS the preset format (ROADMAP Phase 2 design position):
@@ -1773,7 +1906,10 @@ struct Plugin
       out += buf;
       first = false;
     }
-    return out + "}}";
+    // const_cast confined to serialisation: morphJson touches no state, but
+    // morphIds is lazily built and stateJson is const. Building eagerly at
+    // construction would be cleaner; deferred to keep this diff reviewable.
+    return out + "}" + const_cast<Plugin *>(this)->morphJson() + "}";
   }
 
   bool applyStateJson(const std::string &json)
@@ -1806,6 +1942,31 @@ struct Plugin
     {
       enqueueParam(137, 0, 0);                                  // own settings
       enqueueParam(138, hypersaw::GlideCore::kLag, 0);          // lag, as it always was
+    }
+    /* ADR-104: corner snapshots. Simple bracketed-array scan of our own
+       writer's output — four arrays in morphIds order. */
+    {
+      size_t mp = json.find("\"morphCorners\"");
+      if (mp != std::string::npos)
+      {
+        morphInit();
+        const char *c = json.c_str() + mp;
+        for (int k = 0; k < 4; k++)
+        {
+          c = std::strchr(c, '[');
+          if (!c) break;
+          if (k == 0) { c = std::strchr(c + 1, '['); if (!c) break; }   // outer, then inner
+          c++;
+          for (size_t i = 0; i < morphIds.size(); i++)
+          {
+            morphCorner[k][i] = std::atof(c);
+            const char *nx = std::strchr(c, ',');
+            const char *cl = std::strchr(c, ']');
+            if (!nx || (cl && cl < nx)) { c = cl ? cl + 1 : c; break; }
+            c = nx + 1;
+          }
+        }
+      }
     }
     /* ADR-103: schema<2 patches saved glideMode=1 when that option behaved as
        ALWAYS (silence included) — the new mode 1 (ringing-gated) did not exist.
@@ -1991,6 +2152,33 @@ struct Plugin
         }
         return;
       }
+      if (id >= 151 && id <= 158)
+      {
+        switch (id)
+        {
+          case 151: morphOn = applied;
+                    // fill, not assign: this runs on the AUDIO thread and the
+                    // vector is pre-sized at activate — no allocation here.
+                    if (morphOn > 0.5) std::fill(morphCur.begin(), morphCur.end(), -1e30);
+                    break;
+          case 152: morphX = applied; break;
+          case 153: morphY = applied; break;
+          case 154: morphTemp = applied; break;
+          case 155: morphCoup = applied; break;
+          case 156:
+            if ((uint32_t)applied != morphSeed)
+            {
+              morphSeed = (uint32_t)applied;
+              // reshuffle is pure array writes — RT-safe; morphInit ran at activate
+              morph.reshuffle(morphSeed, (int)morphIds.size());
+            }
+            break;
+          case 157: morphMode = applied; break;
+          case 158: morphGlideS = applied; break;
+          default: break;
+        }
+        return;
+      }
       if (id == 149)
       {
         mpeBendLaw = applied;
@@ -2169,6 +2357,14 @@ struct Plugin
          must be readable from where the shell keeps it — the write half alone is
          a value the host can never see. */
       if (baseIdOf(d->id) == 150) return oscEnabled[d->id / 1000];
+      if (d->id == 151) return morphOn;
+      if (d->id == 152) return morphX;
+      if (d->id == 153) return morphY;
+      if (d->id == 154) return morphTemp;
+      if (d->id == 155) return morphCoup;
+      if (d->id == 156) return (double)morphSeed;
+      if (d->id == 157) return morphMode;
+      if (d->id == 158) return morphGlideS;
       if (d->id == 149) return mpeBendLaw;
       if (d->id == 146) return qTimeMode;
       if (d->id == 147) return qTimeHz;
@@ -2613,6 +2809,7 @@ struct Plugin
          CONSTRUCTION, not by measurement agreeing afterwards. When a law IS
          engaged the span is cut on the fixed grid and the tune factor is
          recomputed at each boundary, which is where the bench measured it. */
+      if (morphOn > 0.5) morphStep((int)(until - frame));
       if (bendActive() && !spectraMode())
       {
         const int grid = bendGridSamples();
@@ -2797,6 +2994,9 @@ bool plug_activate(const clap_plugin_t *p, double sr, uint32_t, uint32_t)
   // a note/bend/scale param -- including an empty scale mask, which the
   // quantiser would read as "no degree admitted".
   pl->pushNoteLaw();
+  // ADR-104: morph tables are built HERE, on the main thread — morphInit
+  // allocates, and applyParam(151) can arrive on the audio thread.
+  pl->morphInit();
   return true;
 }
 
@@ -3181,6 +3381,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.getDefaultsJson = [pl]() { return pl->defaultsJson(); };
   hostIf.getBendCurveJson = [pl]() { return pl->bendCurveJson(); };
   hostIf.getShapeWaveJson = [pl]() { return pl->shapeWaveJson(); };
+  hostIf.morphCapture = [pl](uint32_t k) { pl->morphCapture((int)k); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };
   // Stamp carries hash AND build time: a hash alone cannot distinguish "the

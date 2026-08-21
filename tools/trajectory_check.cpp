@@ -18,6 +18,7 @@
 #include <string>
 
 #include "../src/swarm_core.h"
+#include "../src/morph_core.h"
 
 using hypersaw::SwarmCore;
 
@@ -834,6 +835,34 @@ int main()
       const double mid5 = c5.voiceAt(s5).f0;
       check(mid5 > 230 && mid5 < 430,
             "ADR-096 pushed lag tau is honoured with glide 0 (follow-bend-law)", mid5);
+    }
+    /* ADR-104: the morph field is DETERMINISTIC — same seed, same position,
+       same assignment, on two independently constructed cores. And the seed is
+       load-bearing: a different seed must produce a different patchwork (128
+       params x 4 corners; the chance of an identical field is astronomically
+       small, so an equal result means the seed is being ignored). Temperature
+       sanity rides along: at T -> 0.02 the argmax follows the dominant corner
+       everywhere except where the Gumbel draws happen to overwhelm a near-tie,
+       so at x=0,y=0 (weight 1 on corner 0) EVERY param must pick corner 0. */
+    {
+      hypersaw::MorphCore a, b, c;
+      a.reshuffle(1024, 128); b.reshuffle(1024, 128); c.reshuffle(2048, 128);
+      double w[4], lw[4];
+      hypersaw::MorphCore::weights(0.37, 0.61, w);
+      hypersaw::MorphCore::logW(w, 1.0, lw);
+      int same = 0, diff = 0;
+      for (int i = 0; i < 128; i++)
+      {
+        if (a.pickCorner(i, lw, 0.3) == b.pickCorner(i, lw, 0.3)) same++;
+        if (a.pickCorner(i, lw, 0.3) != c.pickCorner(i, lw, 0.3)) diff++;
+      }
+      check(same == 128, "ADR-104 same seed + position -> identical assignment", same);
+      check(diff > 0, "ADR-104 a different seed produces a different patchwork", diff);
+      hypersaw::MorphCore::weights(0.0, 0.0, w);
+      hypersaw::MorphCore::logW(w, 0.02, lw);
+      int corner0 = 0;
+      for (int i = 0; i < 128; i++) if (a.pickCorner(i, lw, 0.3) == 0) corner0++;
+      check(corner0 == 128, "ADR-104 cold + cornered: the dominant corner owns everything", corner0);
     }
     /* ADR-103: the three glide sources, distinguished by the two situations
        that separate them. After SILENCE (tails fully dead): held=snap,
