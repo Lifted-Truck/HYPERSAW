@@ -26,6 +26,9 @@
 namespace
 {
 
+extern "C" void hypersaw_debug_state(const clap_plugin_t *, char *, uint32_t);
+extern "C" bool hypersaw_debug_apply(const clap_plugin_t *, const char *);
+
 int g_failures = 0;
 void check(bool ok, const char *what)
 {
@@ -274,6 +277,52 @@ int main()
   check(kv == 0.5 && det == 0.28, "missing keys keep defaults; unknown keys ignored");
 
   a->destroy(a);
+  /* THE JSON STATE PATH (2026-08-21) — the preset system's path, previously
+     covered by NOTHING: it lived behind webview lambdas and shipped a bug where
+     oscillator 2's params never round-tripped (base ids only, no twins). This
+     drives the same two calls the GUI preset buttons make, via the headless
+     debug exports. Twin restore is the load-bearing half — it is the half that
+     was missing. */
+  {
+    auto *jfac = (const clap_plugin_factory_t *)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
+    const clap_plugin_t *j = jfac->create_plugin(jfac, &kHost, "com.lifted-truck.hypersaw");
+    j->init(j); j->activate(j, 44100.0, 32, 128); j->start_processing(j);
+    auto *jp = (const clap_plugin_params_t *)j->get_extension(j, CLAP_EXT_PARAMS);
+    auto setTwo = [&](double v1, double v2) {
+      EvList e2;
+      e2.list.ctx = &e2; e2.list.size = ev_size; e2.list.get = ev_get;
+      for (auto pr : {std::pair<clap_id, double>{4, v1}, {1004, v2}})
+      {
+        clap_event_param_value_t ev{};
+        ev.header.size = sizeof(ev);
+        ev.header.type = CLAP_EVENT_PARAM_VALUE;
+        ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+        ev.param_id = pr.first; ev.note_id = -1; ev.port_index = -1;
+        ev.channel = -1; ev.key = -1; ev.value = pr.second;
+        e2.evs.push_back(ev);
+      }
+      jp->flush(j, &e2.list, &kOut);
+    };
+    auto drain = [&]() {
+      // the JSON apply is QUEUED; a flush with no events drains it, exactly as
+      // the host's request_flush would
+      EvList none;
+      none.list.ctx = &none; none.list.size = ev_size; none.list.get = ev_get;
+      for (int i = 0; i < 4; i++) jp->flush(j, &none.list, &kOut);
+    };
+    setTwo(0.111, 0.222);
+    static char snap[65536];
+    hypersaw_debug_state(j, snap, sizeof snap);
+    setTwo(0.9, 0.9);
+    const bool applied = hypersaw_debug_apply(j, snap);
+    drain();
+    double a = -1, bb = -1;
+    jp->get_value(j, 4, &a); jp->get_value(j, 1004, &bb);
+    check(applied && std::fabs(a - 0.111) < 1e-9, "JSON state: base param round-trips");
+    check(std::fabs(bb - 0.222) < 1e-9, "JSON state: oscillator 2 TWIN round-trips");
+    j->stop_processing(j); j->deactivate(j); j->destroy(j);
+  }
+
   b->destroy(b);
   c->destroy(c);
   hypersaw_entry_deinit();
