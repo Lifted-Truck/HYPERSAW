@@ -121,3 +121,5 @@ BND-18	MAIN	Bend	agentic	ENCODING	hypersaw	glide_check	ADR-106: base-anchored qu
 BND-19	MAIN	Bend	human	RULING	human	manual	ADR-106: with scale quantise on, a note returns to ITS OWN pitch after a bend — no post-bend offset — on scale and off-scale roots alike
 VIZ-3	MAIN	(viz)	human	RULING	human	manual	the gravity pitch-correction readout (ratio + octave + live cents) appears under the phase view on MAIN and OSC when gravity captures pairs
 PRE-2	MAIN	Presets	agentic	ENCODING	hypersaw	state_check	the JSON state path round-trips BOTH oscillators (o<k>.-prefixed twins, the state_save convention); a planted twin-write removal takes exactly the twin case RED
+PRE-3	MAIN	Presets	human	RULING	human	manual	ADR-105 A2: presets and corner presets save/load/delete through the DISK store in the plugin (app support), and the files survive a DAW restart
+MIX-7	MIX	(mixer)	human	RULING	human	manual	ADR-100 A3: clicking an oscillator power button ON is audible immediately (one gate: enable; the vol-0 twin default is retired), and the switch sticks while morph is on

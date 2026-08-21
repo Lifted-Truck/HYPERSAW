@@ -738,16 +738,41 @@ function drawShapeWave() {
    roadmapped step; this gives save/load TODAY and it survives plugin reloads
    (WKWebView storage is per-app-container). Corner presets use the same
    pattern over hzMorphCornerJson/Apply. */
+/* Storage: the HOST disk store when its binds exist (the plugin — the webview
+   is loaded via setHTML, an OPAQUE ORIGIN where localStorage THROWS and the
+   old catch swallowed it silently; that was "saving doesn't do anything"),
+   localStorage in the lab where the origin is real. */
 const PRESET_KEY = 'hz.presets.v1', CORNER_KEY = 'hz.cornerPresets.v1';
-const store = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch (_) { return {}; } };
-const putStore = (key, obj) => { try { localStorage.setItem(key, JSON.stringify(obj)); } catch (_) {} };
+const lsGet = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch (_) { return {}; } };
+const lsPut = (key, obj) => { try { localStorage.setItem(key, JSON.stringify(obj)); } catch (_) {} };
+const hostStore = () => !!window.hzPresetSave;
+const presetStore = {
+  async list(kind) {
+    if (hostStore()) { try { return JSON.parse(await window.hzPresetList())[kind] || []; } catch (_) { return []; } }
+    return Object.keys(lsGet(kind === 'presets' ? PRESET_KEY : CORNER_KEY)).sort();
+  },
+  async save(kind, name, json) {
+    if (hostStore()) return !!(await window.hzPresetSave(kind, name, json));
+    const k = kind === 'presets' ? PRESET_KEY : CORNER_KEY;
+    const o = lsGet(k); o[name] = json; lsPut(k, o); return true;
+  },
+  async load(kind, name) {
+    if (hostStore()) return (await window.hzPresetLoad(kind, name)) || '';
+    return lsGet(kind === 'presets' ? PRESET_KEY : CORNER_KEY)[name] || '';
+  },
+  async del(kind, name) {
+    if (hostStore()) return !!(await window.hzPresetDelete(kind, name));
+    const k = kind === 'presets' ? PRESET_KEY : CORNER_KEY;
+    const o = lsGet(k); delete o[name]; lsPut(k, o); return true;
+  },
+};
 {
   const list = document.getElementById('presetList');
   const name = document.getElementById('presetName');
-  const refresh = () => {
+  const refresh = async () => {
     if (!list) return;
-    const ps = store(PRESET_KEY);
-    list.innerHTML = Object.keys(ps).sort().map(n => `<option>${n}</option>`).join('');
+    const names = await presetStore.list('presets');
+    list.innerHTML = names.map(n => `<option>${n}</option>`).join('');
   };
   refresh();
   const flash = (b, t) => { const o = b.textContent; b.textContent = t; setTimeout(() => { b.textContent = o; }, 900); };
@@ -756,21 +781,21 @@ const putStore = (key, obj) => { try { localStorage.setItem(key, JSON.stringify(
     if (!n) { flash(e.target, 'NAME?'); return; }
     try {
       const j = await bridge.getState();
-      const ps = store(PRESET_KEY); ps[n] = j; putStore(PRESET_KEY, ps);
-      refresh(); list.value = n; flash(e.target, 'SAVED');
+      const ok = await presetStore.save('presets', n, j);
+      await refresh(); list.value = n; flash(e.target, ok ? 'SAVED' : 'STORE FAIL');
     } catch (_) { flash(e.target, 'NO ENGINE'); }
   });
   document.getElementById('presetLoad')?.addEventListener('click', async (e) => {
     const n = list.value; if (!n) return;
-    const j = store(PRESET_KEY)[n];
-    if (!j) return;
+    const j = await presetStore.load('presets', n);
+    if (!j) { flash(e.target, 'EMPTY'); return; }
     try { await bridge.applyState(j); flash(e.target, 'LOADED'); }
     catch (_) { flash(e.target, 'NO ENGINE'); }
   });
-  document.getElementById('presetDel')?.addEventListener('click', (e) => {
+  document.getElementById('presetDel')?.addEventListener('click', async (e) => {
     const n = list.value; if (!n) return;
-    const ps = store(PRESET_KEY); delete ps[n]; putStore(PRESET_KEY, ps);
-    refresh(); flash(e.target, 'GONE');
+    await presetStore.del('presets', n);
+    await refresh(); flash(e.target, 'GONE');
   });
 }
 /* ============ MORPH PAD + CORNERS (ADR-104) ============ */
@@ -869,20 +894,20 @@ const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
         const n = window.prompt('Corner preset name:'); if (!n) return;
         if (!window.hzMorphCornerJson) return;
         const j = await window.hzMorphCornerJson(k);
-        const cs = store(CORNER_KEY); cs[n] = j; putStore(CORNER_KEY, cs);
-        sv.textContent = 'SAVED'; setTimeout(() => { sv.textContent = 'SAVE\u2026'; }, 900);
+        const ok = await presetStore.save('corners', n, j);
+        sv.textContent = ok ? 'SAVED' : 'FAIL'; setTimeout(() => { sv.textContent = 'SAVE\u2026'; }, 900);
       });
       row.appendChild(sv);
       const ld = document.createElement('select');
       ld.title = 'load a corner preset into this corner';
-      const fill = () => { const cs = store(CORNER_KEY);
+      const fill = async () => { const names = await presetStore.list('corners');
         ld.innerHTML = '<option value="">load\u2026</option>' +
-          Object.keys(cs).sort().map(n => `<option>${n}</option>`).join(''); };
+          names.map(n => `<option>${n}</option>`).join(''); };
       fill();
-      ld.addEventListener('focus', fill);
+      ld.addEventListener('focus', () => { fill().catch(() => {}); });
       ld.addEventListener('change', async () => {
         const n = ld.value; if (!n) return;
-        const j = store(CORNER_KEY)[n];
+        const j = await presetStore.load('corners', n);
         if (j && window.hzMorphCornerApply) await window.hzMorphCornerApply(k, j);
         ld.value = '';
       });

@@ -2024,3 +2024,45 @@ Process note, third occurrence: a bare `git checkout -- <file>` to clear a
 plant destroyed the turn's uncommitted work again. New personal rule enforced
 this turn: plants are removed by REVERSE REPLACE, never by checkout, and a
 checkpoint commit lands before any plant cycle.
+
+## ADR-105 A2 + ADR-100 A3 — Presets on disk; one gate on osc 2's silence (ACCEPTED)
+
+**Date:** 2026-08-21 · **Status:** ACCEPTED (human: "the save/load functions
+still aren't working in either interface. Also the power buttons on the
+oscillators don't work").
+
+### Presets: localStorage was quicksand
+
+The plugin webview loads via setHTML — an OPAQUE ORIGIN, where localStorage
+THROWS SecurityError — and the store's own try/catch swallowed it: presets
+no-opped in the plugin while passing every lab test on localhost. The store is
+now DISK: `~/Library/Application Support/LiftedTruck/HYPERSAW/{presets,corners}`
+via hzPresetList/Save/Load/Delete (GUI-thread binds — filesystem there, never
+in process()), names sanitised to filename-safe characters. The GUI prefers the
+host store and falls back to localStorage only in the lab. This is also the
+roadmapped "disk browser" landing earlier than planned, because the shortcut
+proved not to exist.
+
+### The power buttons: two safeties on one door
+
+Osc 2 shipped enable=0 (ADR-099 A1) AND vol=0 (the ADR-082 era
+SilenceHigherOscillators + the id-17 twin default). Clicking power ON worked —
+and produced nothing, because the volume was still down. A switch that "works"
+inaudibly is indistinguishable from a broken switch. The vol zeroing is retired
+at BOTH sites (defaultFor and the constructor silencer); the enable switch is
+the ONE silent-by-default gate, and switching ON is audible immediately.
+enable_probe now proves the switch ALONE suffices (no explicit vol in setup);
+mixer_check and paramscope_check setups flip the switch explicitly.
+
+### Also
+
+The morph-vs-switch interplay got its rule early (the exempt-lean design):
+while morph is ON, a manual enable toggle writes itself into all four corners,
+so the switch cannot be reverted by the field. Probe-proven; the full per-edit
+routing remains the corner-editing phase.
+
+### Process
+
+The recurring python-heredoc corruption (unclosed-paren SyntaxErrors on
+multi-line replaces) is now avoided by writing edit scripts through the Write
+tool; heredocs carry only trivial one-liners.
