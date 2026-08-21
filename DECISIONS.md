@@ -1929,3 +1929,31 @@ trajectory_check: same seed + position -> identical assignment on two cores
 (128/128); a different seed changes the patchwork (83/128 moved); cold +
 cornered -> the dominant corner owns everything (128/128). Shell inertness rides
 state_check/parity (morphOn off).
+
+## ADR-105 — Presets: the quick win is storage that already exists (ACCEPTED)
+
+**Date:** 2026-08-21 · **Status:** ACCEPTED (human: "a save/load preset section
+for a quick win... maybe also for individual corner presets").
+
+Named presets over the EXISTING state JSON, stored in the webview's
+localStorage (per-app-container in WKWebView — survives reloads and sessions).
+COPY PATCH / PASTE stays the export/import path; the disk browser over
+docs/presets is the roadmapped step this deliberately does not attempt.
+Corner presets: the same pattern over one corner's snapshot
+(hzMorphCornerJson/Apply, morphIds order — the append-only contract), so a
+corner sound is a nameable, reusable thing independent of the patch it was
+born in. SAVE…/load… live on each corner row next to CAPTURE.
+
+Also in this change (ADR-100 A2): oscillator power toggles live ON the osc tab
+bar (raw id 150+stride, never effId — each button addresses its own oscillator
+regardless of which is being edited), and every per-swarm visual (phase circle,
+carpet, voice map) shows an explicit OFF state when the viewed oscillator is
+switched off — the "phase dots with the visuals off" were real voices fanned
+into the disabled core for the enable-ON re-strike, frozen because render is
+skipped. The visual follows the SWITCH, per the human's ruling.
+
+The saw-shape globality report was investigated and NOT reproduced: the engine
+routes 129/1129 independently (probe: osc1=0.25, osc2=0.75 simultaneously) and
+the GUI sends 129 vs 1129 correctly per the selector (instrumented bridge).
+Likeliest experiential cause: morph ON with corners captured when both
+oscillators shared shape values — the field forces them back in lockstep.
