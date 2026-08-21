@@ -1822,3 +1822,36 @@ note)". No new parameter.
 
 The whole merged section (29 rows), per the human. The cluster is fully
 generated, so the move is a page-column edit and a regen.
+
+## ADR-103 — Glide From has three sources, and "always" is its own thing (ACCEPTED)
+
+**Date:** 2026-08-21 · **Status:** ACCEPTED (human: "I want 'always' to be an
+option available to mono... I don't want always to replace the former option of
+'glide from last note', I want it to be its own thing").
+
+### The split
+
+0 **held note (legato)** — glide only while another key is down.
+1 **last note (ringing)** — glide while the previous note still SOUNDS: its
+  release tail counts, and true silence resets the phrase. Ringing is measured
+  as the render measures audibility (env > 1e-3), so the glide source dies at
+  the moment the ear loses the note. **This option never existed before.**
+2 **always** — glide from the last played note regardless, silence included.
+
+The selector is un-gated (visible in mono). Mono's fresh strikes flow through
+the same core noteOn arming, so all three sources work in mono without a
+separate mono path.
+
+### The history correction the split forced
+
+The pre-split option 1 ("last note (memory)") BEHAVED as always — lastNoteF
+persisted across silence, human-ruled 2026-07-31. So the new value 2 is the old
+value 1's sound, and stored patches migrate: schema<2 + glideMode=1 → 2 (state
+schema bumped to 2 for exactly this). A patch keeps its sound; the number moves.
+
+### Gate
+
+trajectory_check, four criteria, each mid-flight (arrival cannot fail — the
+arming-bug family's lesson): held/ringing snap after true silence, always
+glides from silence, ringing glides while a tail still sounds. Plant (mode 1
+forced to old always-behaviour) takes "after true silence, snaps" RED.
