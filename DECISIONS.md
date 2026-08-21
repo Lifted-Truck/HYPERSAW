@@ -1898,6 +1898,16 @@ morphInit allocates → it runs at activate (main thread). The audio-thread path
 code, not by rtsafety_probe — the probe never flips morph mid-run; extending it
 to sweep stepped params is noted for the fine-tune pass.
 
+### Amendment 1 (2026-08-21) — the FX rack joins the field
+
+Slot type, amount, tone, mix (57-64, 96-99, 133-136) are appended to the
+morphable set: "off in this corner, driven in that one" becomes a rack story,
+and module-level EXEMPT (roadmapped the same day) has something to exempt.
+**morphIds is append-only from here, like param ids** — a v1 corner chunk fills
+the per-osc prefix in its original order and the FX tail takes defaults, so an
+old patch loads with corners intact and rack unmorphed: exactly what it said
+when saved.
+
 ### Gates
 
 trajectory_check: same seed + position -> identical assignment on two cores
