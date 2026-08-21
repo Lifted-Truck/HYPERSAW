@@ -117,7 +117,8 @@ int main()
     param(o * S + 4, 0);      // detune = 0
     param(o * S + 14, 0);     // width = 0
     param(o * S + 9, 0);      // drift = 0
-    param(o * S + 17, 0.4);   // volume (oscillator 2 defaults to 0)
+    param(o * S + 150, 1);    // ADR-100 A3: enable is the silent-default gate now
+    param(o * S + 17, 0.4);   // volume (explicit, so the assertion is about MUTE)
   }
   param(S + 36, 6);           // oscillator 2 up a tritone -> 622.25 Hz (see header)
   run(2, nullptr);

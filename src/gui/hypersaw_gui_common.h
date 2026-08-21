@@ -9,7 +9,10 @@
 #include "hypersaw_gui.h"
 
 #include "../../libs/choc/choc/gui/choc_WebView.h"
-#include "gui_html.h"  // generated: kGuiHtml_data / kGuiHtml_size
+#include "gui_html.h"
+#include <filesystem>
+#include <fstream>
+#include <sstream>  // generated: kGuiHtml_data / kGuiHtml_size
 
 #include <cstdio>
 #include <memory>
@@ -157,6 +160,78 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   web->bind("hzGetBendCurve", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getBendCurveJson ? host.getBendCurveJson()
                                                            : std::string("{}"));
+  });
+  /* DISK PRESET STORE (ADR-105 A2). localStorage was the quick win and it
+     quick-lost: the webview loads via setHTML — an OPAQUE ORIGIN — where
+     localStorage throws SecurityError, and the store's own try/catch swallowed
+     it: presets no-opped in the plugin while working on localhost. Files in
+     app support instead (the global CLAUDE.md plugin-state rule: a stable
+     app-support folder, never state-chunk bloat). These binds run on the GUI
+     thread — filesystem and allocation are fine here, never in process(). */
+  web->bind("hzPresetList", [](const choc::value::ValueView &) -> choc::value::Value {
+    namespace fs = std::filesystem;
+    auto listDir = [](const fs::path &d) {
+      std::string out = "[";
+      bool first = true;
+      std::error_code ec;
+      for (auto &e : fs::directory_iterator(d, ec))
+        if (e.path().extension() == ".json")
+        {
+          out += (first ? "\"" : ",\"") + e.path().stem().string() + "\"";
+          first = false;
+        }
+      return out + "]";
+    };
+    const fs::path base = fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")
+                          / "Library/Application Support/LiftedTruck/HYPERSAW";
+    return choc::value::createString("{\"presets\":" + listDir(base / "presets") +
+                                     ",\"corners\":" + listDir(base / "corners") + "}");
+  });
+  web->bind("hzPresetSave", [](const choc::value::ValueView &args) -> choc::value::Value {
+    namespace fs = std::filesystem;
+    if (!args.isArray() || args.size() < 3) return choc::value::createBool(false);
+    std::string kind = args[0].getWithDefault<std::string>("");
+    std::string name = args[1].getWithDefault<std::string>("");
+    std::string json = args[2].getWithDefault<std::string>("");
+    // sanitise: the name becomes a filename
+    std::string safe;
+    for (char c : name)
+      if (std::isalnum((unsigned char)c) || c == ' ' || c == '-' || c == '_') safe += c;
+    if (safe.empty() || (kind != "presets" && kind != "corners") || json.empty())
+      return choc::value::createBool(false);
+    const fs::path dir = fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")
+                         / "Library/Application Support/LiftedTruck/HYPERSAW" / kind;
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    std::ofstream f(dir / (safe + ".json"), std::ios::trunc);
+    if (!f) return choc::value::createBool(false);
+    f << json;
+    return choc::value::createBool(f.good());
+  });
+  web->bind("hzPresetLoad", [](const choc::value::ValueView &args) -> choc::value::Value {
+    namespace fs = std::filesystem;
+    if (!args.isArray() || args.size() < 2) return choc::value::createString("");
+    std::string kind = args[0].getWithDefault<std::string>("");
+    std::string name = args[1].getWithDefault<std::string>("");
+    const fs::path fp = fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")
+                        / "Library/Application Support/LiftedTruck/HYPERSAW" / kind
+                        / (name + ".json");
+    std::ifstream f(fp);
+    if (!f) return choc::value::createString("");
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return choc::value::createString(ss.str());
+  });
+  web->bind("hzPresetDelete", [](const choc::value::ValueView &args) -> choc::value::Value {
+    namespace fs = std::filesystem;
+    if (!args.isArray() || args.size() < 2) return choc::value::createBool(false);
+    std::string kind = args[0].getWithDefault<std::string>("");
+    std::string name = args[1].getWithDefault<std::string>("");
+    const fs::path fp = fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")
+                        / "Library/Application Support/LiftedTruck/HYPERSAW" / kind
+                        / (name + ".json");
+    std::error_code ec;
+    return choc::value::createBool(fs::remove(fp, ec));
   });
   web->bind("hzMorphCornerJson", [&host](const choc::value::ValueView &args) -> choc::value::Value {
     if (host.morphCornerJson && args.isArray() && args.size() >= 1)

@@ -29,8 +29,11 @@ int main()
     double cpu=std::chrono::duration<double>(std::chrono::steady_clock::now()-t0).count()/secs*100;
     std::printf("  rms %.5f  cpu %5.2f%%", rms(t), cpu); return rms(t); };
   { EvList e; e.params.push_back(mkParam(1,16)); e.params.push_back(mkParam(1001,16));
-    e.params.push_back(mkParam(1017,0.4)); e.params.push_back(mkParam(22,5.0));
-    e.params.push_back(mkParam(1150,1));   // osc 2 ships OFF since ADR-099 A1 — turn it on
+    e.params.push_back(mkParam(22,5.0));
+    // ADR-100 A3: the SWITCH alone must be enough -- vol's twin default is 0.4
+    // now, not 0; shipping both at zero was the "power button doesn't work"
+    // report (it worked; the volume was still zero).
+    e.params.push_back(mkParam(1150,1));
     once(e); }
   for(int k=0;k<4;k++){ EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON,0,(int16_t)(48+k*5),k+1)); once(e); }
   std::printf("both on, 4 held:      "); const double base=cap(1.0); std::printf("\n");

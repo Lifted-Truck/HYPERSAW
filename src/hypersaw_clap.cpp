@@ -434,7 +434,12 @@ static const ParamDef kParams[] = {
 static double defaultFor(const ParamDef &d, uint32_t osc)
 {
   if (d.id == 150) return osc > 0 ? 0.0 : 1.0;   // osc 2 ships OFF (ADR-099 A1)
-  return (osc > 0 && d.id == 17) ? 0.0 : d.defV;
+  /* The vol-0 twin default RETIRED (ADR-100 A3): with the enable switch as the
+     off state, osc 2 shipping enable=0 AND vol=0 was two safeties on one door --
+     the human clicked power ON, it worked, and heard nothing because the
+     volume was still zero: "the power buttons don't work." One gate, the
+     honest one. Old patches carry explicit vol values and are untouched. */
+  return d.defV;
 }
 constexpr uint32_t kNumParams = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -651,12 +656,15 @@ struct Plugin
     for (uint32_t k = 0; k < kNumOsc; k++) cores[k].setNotePressure(slotOf[slot][k], v);
   }
   // constructed state matches the reported default above
+  /* RETIRED as a VOL zero (ADR-100 A3): silencing higher oscillators by vol
+     dated from before the enable switch existed. With BOTH defaults at zero,
+     the power button "worked" and produced nothing -- the volume was still
+     down: "the power buttons don't work" (human 2026-08-21). The switch
+     (enable=0, oscEnabled ships {1,0}) is now the ONE silent-by-default gate;
+     vol keeps its musical default so switching ON is audible immediately. */
   struct SilenceHigherOscillators
   {
-    explicit SilenceHigherOscillators(hypersaw::SwarmCore *c)
-    {
-      for (uint32_t k = 1; k < kNumOsc; k++) c[k].setParam("vol", 0.0);
-    }
+    explicit SilenceHigherOscillators(hypersaw::SwarmCore *) {}
   } silenceHigher{cores};
   hypersaw::SpectraCore spectra{44100.0};
   /* FORENSIC NOTE TRACE (FOUNDATIONS brief ask (c), 2026-08-11).
@@ -2219,6 +2227,18 @@ struct Plugin
       {
         const uint32_t osc = id / 1000;
         const bool on = applied >= 0.5;
+        /* ADR-100 A3: with morph ON, the switch writes itself into ALL FOUR
+           corners -- otherwise the next grid tick reads the corner's stored
+           enable and reverts it, and a power switch that snaps back reads as
+           broken ("the power buttons on the oscillators don't work", human
+           2026-08-21, morph engaged). This is the recorded exempt-lean design
+           (live value into every corner) applied to the one control where a
+           revert is indistinguishable from a defect. Full per-edit routing is
+           the corner-editing phase; the SWITCH cannot wait for it. */
+        if (morphOn > 0.5)
+          for (size_t i = 0; i < morphIds.size(); i++)
+            if (morphIds[i] == (clap_id)id)
+              for (int k = 0; k < 4; k++) morphCorner[k][i] = on ? 1.0 : 0.0;
         if ((oscEnabled[osc] != 0) != on)
         {
           oscEnabled[osc] = on ? 1 : 0;
