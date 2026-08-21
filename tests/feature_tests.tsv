@@ -126,3 +126,6 @@ MIX-7	MIX	(mixer)	human	RULING	human	manual	ADR-100 A3: clicking an oscillator p
 MIX-8	MIX	(mixer)	human	RULING	human	manual	ADR-100 A4: power buttons glow white when ON (dim when off) on EVERY bar, each toggles only its own oscillator, and the scope/voice-map panels say which osc they follow
 VIZ-4	OSC	(viz)	human	RULING	human	manual	the waveform scope follows the SELECTED oscillator (post-gain tap, labelled), shows "osc off" when that osc is switched off, and the voice map stays centred under oct/semi/fine transpose and bends
 PRE-4	MORPH	Presets	human	RULING	human	manual	corner presets save via the inline name field (window.prompt does not exist in WKWebView) and PASTE reads the system clipboard with a graceful failure label
+TRU-1	MIX	(mixer)	agentic	ENCODING	hypersaw	paramscope_check	ADR-107 default truth: on a fresh instance every readback equals its declared default across all 239 ids (first run caught the 1150 aliasing AND a polyGlide default lie)
+TRU-2	MIX	(mixer)	agentic	ENCODING	hypersaw	paramscope_check	ADR-107 round-trip truth: every id returns the value it was set to (grid-snapped 23/148 exempted with reasons); any apply/read chain split fires here
+MIX-9	MIX	(mixer)	human	RULING	human	manual	power checkboxes live in the mix strips (and the tab-bar buttons agree with them); the swarm-section toggles are gone from the OSC page

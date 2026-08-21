@@ -242,7 +242,7 @@ struct Params
   // from the last-played pitch. Reuses the mono retarget's glide machinery
   // (ADR-026) and the existing `glide` TIME knob; core+shell only, so the JS
   // reference — which has no glide at all — is untouched.
-  double polyGlide = 0;
+  double polyGlide = 1   /* matches the shell default; DSP no longer reads it (ADR-102) */;
   // ADR-076 glide source: 0 = VOICE-based (bend only while another key is
   // still HELD — the legato reading, and the same rule the mono path has used
   // since 2026-07-18), 1 = MEMORY-based (always bend from the last-played

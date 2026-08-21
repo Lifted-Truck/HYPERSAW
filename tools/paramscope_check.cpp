@@ -70,6 +70,96 @@ static double goertzel(const std::vector<float> &x, double freq, double sr)
   return 2.0 * std::sqrt(re * re + im * im) / (double)x.size();
 }
 
+/* ---- THE TRUTH SWEEPS (2026-08-21, human mandate: "start from basics").
+   The enable-button saga ran three GUI patches deep before the real defect
+   surfaced: readParam(1150) indexed shell state with the BASE id (d->id/1000
+   = 0), so oscillator 2's readback mirrored oscillator 1 forever. Every layer
+   above told the truth about a lie below it. These sweeps make that CLASS of
+   defect unshippable:
+
+   1. DEFAULT TRUTH -- fresh instance: get_value(id) == param_info default for
+      EVERY id, bases and twins. The representation IS the engine at rest.
+   2. ROUND-TRIP TRUTH -- set every id to a distinct in-range value; readback
+      must return it (stepped: floored). Any split between the apply chain and
+      the read chain -- the exact aliasing above -- fires here.
+
+   Future modules walk through both by construction: the sweeps enumerate the
+   plugin's own param_info, so there is nothing to remember to add. */
+static void truthSweeps(const clap_plugin_factory_t *factory)
+{
+  const clap_plugin_t *p = factory->create_plugin(factory, &kHost, "com.lifted-truck.hypersaw");
+  p->init(p);
+  p->activate(p, 44100.0, 32, 256);
+  p->start_processing(p);
+  auto *par = (const clap_plugin_params_t *)p->get_extension(p, CLAP_EXT_PARAMS);
+  clap_output_events_t outEv{nullptr, outPush};
+  const uint32_t n = par->count(p);
+  int defBad = 0;
+  for (uint32_t i = 0; i < n; i++)
+  {
+    clap_param_info_t info{};
+    if (!par->get_info(p, i, &info)) continue;
+    double v = 0;
+    par->get_value(p, info.id, &v);
+    if (std::fabs(v - info.default_value) > 1e-9)
+    {
+      if (defBad < 6)
+        std::printf("  DEFAULT LIE id %u (%s): info %.6g, readback %.6g\n",
+                    info.id, info.name, info.default_value, v);
+      defBad++;
+    }
+  }
+  char d1[64];
+  std::snprintf(d1, sizeof(d1), "%u ids, %d lie(s)", n, defBad);
+  check(defBad == 0, "fresh instance: every readback equals its declared default", d1);
+
+  EvList evs;
+  evs.in.ctx = &evs; evs.in.size = evSize; evs.in.get = evGet;
+  std::vector<clap_event_param_value_t> pool;
+  pool.reserve(n);
+  std::vector<std::pair<clap_id, double>> want;
+  for (uint32_t i = 0; i < n; i++)
+  {
+    clap_param_info_t info{};
+    if (!par->get_info(p, i, &info)) continue;
+    // Grid-snapped by design (their own gates cover the snap): 23 beatMult,
+    // 148 bendQTimeSync. An exemption here is a CLAIM with a reason, never a
+    // silence -- anything else that snaps must either be declared stepped or
+    // earn its line here.
+    if ((info.id % 1000) == 23 || (info.id % 1000) == 148) continue;
+    double v = info.min_value + (info.max_value - info.min_value) * 0.37;
+    if (info.flags & CLAP_PARAM_IS_STEPPED) v = std::floor(v);
+    want.push_back({info.id, v});
+    clap_event_param_value_t ev{};
+    ev.header.size = sizeof(ev);
+    ev.header.type = CLAP_EVENT_PARAM_VALUE;
+    ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+    ev.param_id = info.id; ev.note_id = -1; ev.port_index = -1;
+    ev.channel = -1; ev.key = -1; ev.value = v;
+    pool.push_back(ev);
+  }
+  for (auto &e : pool) evs.ev.push_back(&e.header);
+  par->flush(p, &evs.in, &outEv);
+  int rtBad = 0;
+  for (auto &w : want)
+  {
+    double v = 0;
+    par->get_value(p, w.first, &v);
+    if (std::fabs(v - w.second) > 1e-6)
+    {
+      if (rtBad < 6)
+        std::printf("  ROUND-TRIP LIE id %u: set %.6g, read %.6g\n", w.first, w.second, v);
+      rtBad++;
+    }
+  }
+  char d2[64];
+  std::snprintf(d2, sizeof(d2), "%zu ids, %d lie(s)", want.size(), rtBad);
+  check(rtBad == 0, "round trip: every id returns the value it was set to", d2);
+  p->stop_processing(p);
+  p->deactivate(p);
+  p->destroy(p);
+}
+
 int main()
 {
   const double SR = 44100.0;
@@ -79,6 +169,7 @@ int main()
   const clap_plugin_t *p = nullptr;
   auto freshPlugin = [&]() {
     if (p) { p->stop_processing(p); p->deactivate(p); p->destroy(p); }
+    truthSweeps(factory);
     p = factory->create_plugin(factory, &kHost, "com.lifted-truck.hypersaw");
     p->init(p);
     p->activate(p, SR, 32, 2048);
