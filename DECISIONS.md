@@ -1957,3 +1957,48 @@ routes 129/1129 independently (probe: osc1=0.25, osc2=0.75 simultaneously) and
 the GUI sends 129 vs 1129 correctly per the selector (instrumented bridge).
 Likeliest experiential cause: morph ON with corners captured when both
 oscillators shared shape values — the field forces them back in lockstep.
+
+## ADR-106 — The quantiser is anchored: base + offset, the reference's own words (ACCEPTED)
+
+**Date:** 2026-08-21 · **Status:** ACCEPTED (human report: "notes are resolving
+to a slightly different pitch after a bend than when they're initially played").
+
+### The dropped argument
+
+bend-lab's quantiser has carried a `base` parameter since it existed —
+`quantise(p, base = 0)`, first line `semis = base + this.x` with the comment
+"ABSOLUTE pitch, not the offset". The port dropped it. Consequences:
+- The BEND lane quantised its OFFSET as if the offset were a pitch: any note
+  whose class is off the offset-space grid resolved to a shifted pitch after a
+  bend. The report, verbatim.
+- The NOTE lane quantised in log2(f)*12 space, whose classes sit 0.376 st off
+  MIDI's — every scale-quantised note landed a constant 37.6 cents off the grid
+  (latent: noteQuant ships off).
+- Every golden ran base = 0, where offset and pitch space coincide — L0031's
+  blind spot, hit for the third time (the wheel, qTime, now base).
+
+### The fix
+
+`step(target, p, base = 0)` / `quantise(p, base)`: candidates, the qStep latch
+and hysteresis all live in ABSOLUTE pitch (as the reference's do); only the
+return converts back to lane units. Anchors: per-note MPE lanes pass their own
+key; the GLOBAL wheel lane passes the last-struck key (one lane, many notes —
+the global compromise; the per-note lanes are exact); the note lane passes
+69 − 12·log2(440) to align its log-frequency space with MIDI classes.
+
+### Proof
+
+Two new goldens sliced live from the lab, anchored at F#3 (54) and 54.5 —
+classes chosen to be maximally off the default major grid, so a port ignoring
+base CANNOT pass. First run: RED at rms 0.5 exactly (the port emitting integer
+offsets against the lab's half-offsets) — the scenarios' own must-fail control.
+After threading: **rms = 0 on both** — bit-exact. All 21 pre-existing goldens
+unmoved (base = 0 is byte-identical). A process note: the runner edit was first
+applied with an assert-free regex replace that silently missed `, s.p);` — the
+un-asserted-edit trap, again, caught by the golden staying red.
+
+### Also in this change
+
+The GUI1 gravity pitch-correction readout (ratio name + octave fold + live
+cents) is ported to gui2 — the snapshot and marshal existed end-to-end; only
+the display line was missing. Both swarm panels carry it, class-addressed.

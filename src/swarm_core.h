@@ -1384,8 +1384,14 @@ public:
       // a lane set to "follow bend law" on the LAG law read id 33 (default 0)
       // instead of bendTau, so lag read as broken. The shell owns which of the
       // two taus is live, because the shell owns the link.
+      // base aligns the lane's log2(f)*12 space with MIDI pitch classes: MIDI =
+      // 12*log2(f) + (69 - 12*log2(440)), and without this shift the scale mask
+      // was misaligned by 0.376 st — every scale-quantised note landed off the
+      // grid by a constant 37.6 cents.
+      constexpr double kLogFreqToMidi = 69.0 - 12.0 * 8.781359713524660;  // 12*log2(440)
       const double newF0 =
-          std::exp2(s.travel.step(std::log2(s.glideTarget) * 12.0, p.noteLaw) / 12.0);
+          std::exp2(s.travel.step(std::log2(s.glideTarget) * 12.0, p.noteLaw,
+                                  kLogFreqToMidi) / 12.0);
       const double ratio = newF0 / s.f0;
       s.f0 = newF0;
       s.f0cur *= ratio;
