@@ -74,7 +74,18 @@ static const char *const kPanModeLabels[] = {"drift (per-voice)", "sweep (whole 
 static const char *const kPivotLabels[] = {"mean field", "root (fundamental)"};
 static const char *const kPanLayoutLabels[] = {"pitch fan", "legacy (x-position)"};
 static const char *const kSuperModeLabels[] = {"wide (clean)", "pulse (M/S)", "smear (allpass)"};
-static const char *const kGlideModeLabels[] = {"held note (legato)", "always (from last note)"};
+/* ADR-103. Three sources, genuinely distinct (human 2026-08-21: "I don't want
+   always to replace the former option... I want it to be its own thing"):
+   0 held — glide only while another key is DOWN (classic legato).
+   1 last note (ringing) — glide while the previous note still SOUNDS (its tail
+     counts); silence resets, so separated phrases start clean.
+   2 always — glide from the last played note no matter what, silence included.
+   History note: the pre-split option 1 behaved as ALWAYS (lastNoteF persisted
+   across silence, human-ruled 2026-07-31), so stored glideMode=1 in schema<2
+   patches migrates to 2 — same sound, new number. The NEW mode 1 is the option
+   that never existed. */
+static const char *const kGlideModeLabels[] = {"held note (legato)", "last note (ringing)",
+                                               "always"};
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kNoteNames[] = {"C", "C#", "D", "D#", "E", "F",
                                         "F#", "G", "G#", "A", "A#", "B"};
@@ -237,7 +248,7 @@ static const ParamDef kParams[] = {
     // a travel law is engaged). Declared for state compatibility; "(dev)" is the
     // established exemption label (gui_reach exempts it like inertiaCurve).
     {89, "polyGlide", "Poly Glide (dev)", 0, 1, 1, true, kOffOn},
-    {90, "glideMode", "Glide From", 0, 1, 0, true, kGlideModeLabels},
+    {90, "glideMode", "Glide From", 0, 2, 0, true, kGlideModeLabels},
     // ADR-077 ensemble onset timing. onsetScatter is the master switch (0 = off
     // = bit-exact); alpha is the mutual-correction gain that carries the serial
     // structure listeners judge (LIBRARY L0019).
@@ -1752,7 +1763,7 @@ struct Plugin
   {
     // The debug dump IS the preset format (ROADMAP Phase 2 design position):
     // one schema, provenance included (SPEC §5.7).
-    std::string out = "{\"plugin\":\"HYPERSAW\",\"schema\":1,\"params\":{";
+    std::string out = "{\"plugin\":\"HYPERSAW\",\"schema\":2,\"params\":{";   // 2: ADR-103 glideMode split
     char buf[64];
     bool first = true;
     for (const auto &d : kParams)
@@ -1795,6 +1806,25 @@ struct Plugin
     {
       enqueueParam(137, 0, 0);                                  // own settings
       enqueueParam(138, hypersaw::GlideCore::kLag, 0);          // lag, as it always was
+    }
+    /* ADR-103: schema<2 patches saved glideMode=1 when that option behaved as
+       ALWAYS (silence included) — the new mode 1 (ringing-gated) did not exist.
+       Migrate the stored 1 to 2: same sound, new number. */
+    {
+      size_t sp = json.find("\"schema\"");
+      long schema = 1;
+      if (sp != std::string::npos)
+      {
+        sp = json.find(':', sp);
+        if (sp != std::string::npos) schema = std::atol(json.c_str() + sp + 1);
+      }
+      size_t gm = json.find("\"glideMode\"");
+      if (schema < 2 && gm != std::string::npos)
+      {
+        gm = json.find(':', gm);
+        if (gm != std::string::npos && std::atof(json.c_str() + gm + 1) >= 0.5)
+          enqueueParam(90, 2, 0);
+      }
     }
     /* Pre-ADR-100 patches have no "enable" key and were saved when every
        oscillator always rendered — restore them that way, whatever the new

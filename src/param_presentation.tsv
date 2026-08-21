@@ -212,7 +212,7 @@ osc1.superMode	osc1	Super-Width Mode	OSC	Image & tone	select		image-tone
 osc2.superMode	osc2	Super-Width Mode	OSC	Image & tone	select		image-tone		
 oversample	global	Oversample 2x	MIX	Output & perception	toggle		output-perception		
 polyGlide	global	Poly Glide (dev)	MAIN	Bend	toggle		bend	voiceMono=2	
-glideMode	global	Glide From	MAIN	Bend	select		bend	voiceMono=0	
+glideMode	global	Glide From	MAIN	Bend	select		bend		
 osc1.onsetScatter	osc1	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc2.onsetScatter	osc2	Onset Scatter (ms)	OSC	Onset & scatter	knob		onset-scatter		log10
 osc1.onsetAlpha	osc1	Timing Correction	OSC	Onset & scatter	knob		onset-scatter		

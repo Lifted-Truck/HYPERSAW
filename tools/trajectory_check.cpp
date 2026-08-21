@@ -835,6 +835,38 @@ int main()
       check(mid5 > 230 && mid5 < 430,
             "ADR-096 pushed lag tau is honoured with glide 0 (follow-bend-law)", mid5);
     }
+    /* ADR-103: the three glide sources, distinguished by the two situations
+       that separate them. After SILENCE (tails fully dead): held=snap,
+       ringing=snap, always=glide. While a released tail still RINGS:
+       ringing=glide. Each case is a mid-flight read — the arming bug family
+       taught that arrival cannot fail. */
+    {
+      auto play=[&](double mode, double gapSec, double &midOut){
+        SwarmCore cg(kSR);
+        hypersaw::GlideCore::Params lw;
+        lw.model = hypersaw::GlideCore::kConstRate; lw.rate = 24;
+        cg.setNoteLaw(lw);
+        cg.setParam("glideMode", mode);
+        cg.setParam("release", 0.05);            // fast tails: silence is reachable
+        const int a = cg.noteOn(57, 220.0);
+        for (long off = 0; off < (long)(0.2 * kSR); off += kBlock) cg.render(L.data(), R.data(), kBlock);
+        cg.noteOff(57);
+        for (long off = 0; off < (long)(gapSec * kSR); off += kBlock) cg.render(L.data(), R.data(), kBlock);
+        (void)a;
+        const int b = cg.noteOn(69, 440.0);
+        for (long off = 0; off < (long)(0.25 * kSR); off += kBlock) cg.render(L.data(), R.data(), kBlock);
+        midOut = cg.voiceAt(b).f0;
+      };
+      double mid;
+      play(0, 1.0, mid);
+      check(mid > 435, "ADR-103 held: after silence, a fresh note snaps", mid);
+      play(1, 1.0, mid);
+      check(mid > 435, "ADR-103 ringing: after true silence, snaps (phrase reset)", mid);
+      play(2, 1.0, mid);
+      check(mid > 230 && mid < 430, "ADR-103 always: glides even from silence", mid);
+      play(1, 0.01, mid);
+      check(mid > 230 && mid < 430, "ADR-103 ringing: glides while the tail still sounds", mid);
+    }
     /* ADR-096 REGRESSION #2 (2026-08-20). The non-legato re-strike restored the
        departure pitch only when `glide > 0`, so a law carrying its own time was
        re-inited AT the target and travelled zero distance. Human: "mono on and

@@ -402,7 +402,17 @@ class SwarmCore
     // "remembers the position of the last played note(s) and always begins
     // with a bend" (human, 2026-07-31). lastNoteF persists across silence, so
     // the first note after a rest still bends in from wherever you last were.
-    const bool glideSourceOk = (p.glideMode > 0.5) ? true : anotherHeld;
+    // ADR-103, three sources: 0 = another key held; 1 = held OR the previous
+    // note still ringing (a release tail is "the last note" while you can hear
+    // it; silence resets the phrase); 2 = always, silence included. Ringing is
+    // measured the same way the render decides audibility (env > 1e-3), so the
+    // glide source dies at exactly the moment the ear loses the note.
+    bool anyRinging = anotherHeld;
+    if (!anyRinging && p.glideMode > 0.5 && p.glideMode < 1.5)
+      for (const auto &v : voices)
+        if (v.env > 1e-3) { anyRinging = true; break; }
+    const bool glideSourceOk =
+        p.glideMode >= 1.5 ? true : (p.glideMode > 0.5 ? anyRinging : anotherHeld);
     // ADR-102 (human 2026-08-21): poly glide is no longer a toggle — it is ON
     // whenever a travel law is engaged. "Hide it and set it so it's on as long
     // as mono isn't toggled and a bend law is set"; mono never reaches this
