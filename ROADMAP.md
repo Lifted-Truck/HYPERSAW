@@ -145,12 +145,40 @@ README. To workshop as an animated device logo.
    leaves the webview (a live possibility — the human raised it when we discussed storing
    defaults outside the webview).
 
-2. **The zip does not contain the reference.** `Text Distortion.dc.html` — the browser
-   tool the port was made FROM, and the thing our fold discipline treats as the truth —
-   is absent; only a `text-distortion.gif` sits in Downloads. Ask the human for the
-   `.dc.html` before any fold: without it there is no reference to port from, no seed to
-   art-direct against, and the C++ port's "same math, same constants, same hash" claim
-   has nothing to be checked against on this machine.
+2. **The reference arrived** (2026-08-22, same session) and is filed beside the port as
+   `docs/design/logo/text-distortion-reference.dc.html`. Audited:
+
+   - **The render path is DETERMINISTIC.** A seeded LCG (`rng(s)`, 9301/49297/233280)
+     drives field placement from `this.seed`. `Math.random()` appears 22 times but ONLY
+     in authoring actions — the "Rewarp" seed roll and the scatter buttons that generate
+     an arrangement you then keep. **This is NOT the CANTO/WARP blocker**, where the
+     randomness sat inside the render itself; here the random draws produce authored
+     artifacts that get frozen, which is precisely the workflow the README describes.
+     The C++ port correspondingly has no LCG — it takes strokes/fields as given — so the
+     authoring RNG never needed porting, and the two are consistent by design rather
+     than by luck.
+   - **The load-bearing constants match**, checked pairwise rather than trusted:
+     `127.1`, `311.7`, `43758.5453` (the hash2 spelling), and the envelope cutoffs
+     `0.0111` / `0.0022` all appear in both files. The port's "same math, same
+     constants, same hash" claim survives its first inspection.
+
+   - **It does not run here as delivered**: line 6 loads `./support.js`, Claude Design's
+     runtime, and the component is `class Component extends DCLogic` — `DCLogic` lives in
+     that file. Verified rather than assumed: served locally, the 900x1150 canvas paints
+     ZERO lit pixels and the network log shows `support.js 404`. So the reference is
+     filed and readable but not yet EXECUTABLE on this machine.
+
+   Two ways forward, in preference order: (a) the human sends `support.js`, which keeps
+   the reference runnable exactly as authored — cheapest, and it preserves the
+   art-direction workflow the README assumes; (b) failing that, slice the warp out the
+   way `extract_glide.mjs` slices bend-lab's Inertia class — live, never forked — and
+   drive it from our own harness. (b) is our established pattern and would work, but it
+   trades the tool's UI away, and the UI is exactly what an art-direction session needs.
+
+   What is needed before a fold is then the human's ART DIRECTION, not more code: a
+   chosen seed, the Tweaks values, the canvas size, and the frozen stroke/blob/swirl
+   arrangement — the README's step 1. That is a workshop session, not an engineering
+   task.
 
 **The idea worth keeping from the README, sharpened.** It suggests driving `t` speed,
 `waveAmp` or swirl strength from envelope followers/LFOs "so the logo reacts to the
