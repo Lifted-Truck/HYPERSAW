@@ -114,6 +114,66 @@ module at once (slot type + amount + tone + mix as one gesture).
   (Lean: write the live value into ALL FOUR corners on exempt, so un-exempting is
   seamless — no jump, and the corners honestly record what was playing.)
 
+## ANIMATED LOGO — the text-warp module, and the port we probably do not need (2026-08-22)
+
+The human delivered `Text warping and distortion module.zip` from Claude Design: a
+header-only C++11 port (`td::Warp`) of a browser tool's warp, plus a smoke test and a
+README. To workshop as an animated device logo.
+
+**Audited before planning, because it decides the integration:**
+- Deterministic and clock-free — `(seed, strokes, t)` reproduces the tool's image
+  exactly, and `t` is PASSED IN (`t = fmod(seconds*speed, 8.0)`), so the module never
+  reads a clock. That satisfies SPEC §5.7 without argument.
+- No dependencies (`cstdint`/`cmath`/`vector`), no RNG, no audio-thread hazards.
+  `render()` allocates three small vectors per frame — fine on a UI thread, forbidden on
+  audio, and it will never be on the audio thread.
+- Fully periodic: `t` loops every 8.0, so the animation is a seamless endless loop with
+  no state to drift.
+- The README's parity notes name their load-bearing constants (envelope cutoffs that make
+  each field reach exactly zero at its bounding box; the exact `hash2` spelling). That is
+  a reference author writing down the traps — the same discipline as our own ports.
+
+**Two findings that redirect the work:**
+
+1. **Our GUI is a WEBVIEW, not JUCE.** The C++ port exists so a JUCE-style UI can freeze
+   what you art-directed in the browser; the README's integration sketch is
+   `juce::Image`. We render HTML/JS in choc — so the NATURAL path is the tool's own JS
+   warp running directly in `gui2.html` on a canvas, and the C++ port is the wrong half
+   of the delivery for us. Rendering in C++ and marshalling pixels into the webview would
+   pay a per-frame copy to avoid a language we already run. Keep the port: it is the
+   spec-grade description of the math, and it is what we would need if the GUI ever
+   leaves the webview (a live possibility — the human raised it when we discussed storing
+   defaults outside the webview).
+
+2. **The zip does not contain the reference.** `Text Distortion.dc.html` — the browser
+   tool the port was made FROM, and the thing our fold discipline treats as the truth —
+   is absent; only a `text-distortion.gif` sits in Downloads. Ask the human for the
+   `.dc.html` before any fold: without it there is no reference to port from, no seed to
+   art-direct against, and the C++ port's "same math, same constants, same hash" claim
+   has nothing to be checked against on this machine.
+
+**The idea worth keeping from the README, sharpened.** It suggests driving `t` speed,
+`waveAmp` or swirl strength from envelope followers/LFOs "so the logo reacts to the
+audio". We can do better than amplitude: the viz feed already publishes **R**, the swarm's
+order parameter. A logo whose warp COHERES as the swarm locks and SMEARS as it splays is
+not decoration — it is the instrument's own state rendered as its wordmark, and it costs
+nothing extra because `publishViz` already carries R at control rate. DECOHERE and STALE
+FIELD (the glitch modules ingested the same day) would visibly tear the logo apart, which
+is the kind of coincidence worth building for.
+
+**Verified on arrival, not assumed:** the module compiles and runs — 8 PPM frames, and
+they genuinely differ (202 of 1558 sampled bytes change between frames 0 and 1). One
+correction to its README: it says **C++11**, but `Params`/`Stroke` carry default member
+initializers, which makes them non-aggregates before C++14 — the example's brace-init
+`push_back` fails at `-std=c++11` and builds clean at C++17/20. Harmless for us (we are
+C++20) and worth telling the author.
+
+**Sequencing.** A lab first (`docs/design/logo-lab.html`), auditioning the warp against
+the real viz feed at plugin sizes and measuring the frame cost against the existing
+rAF budget — the spectrum, scope, carpet and XY already share it. Not before the
+dependency graph; this is polish, and polish that competes with the viz loop for frames
+needs the viz loop settled first.
+
 ## SWARM GLITCH MODULES INGESTED — they live INSIDE the oscillator (2026-08-22)
 
 The human, working with another agent, delivered `SPEC_swarm_glitch_modules.md` (v0.1)
