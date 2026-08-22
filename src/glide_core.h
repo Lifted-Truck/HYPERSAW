@@ -37,7 +37,14 @@ class GlideCore
 {
  public:
   enum Law { kOff = 0, kConstTime = 1, kConstRate = 2, kLag = 3, kSpring = 4 };
-  enum Quant { kQuantOff = 0, kQuantChromatic = 1, kQuantScale = 2 };
+  /* kQuantScaleAnchor (ADR-111): scale quantise, but the base's own pitch
+     class is ALWAYS admissible. kQuantScale mirrors the reference exactly and
+     stays strict forever (goldens cover it with out-of-scale bases —
+     glide-quant-root3); the anchored variant is a parity-safe superset the
+     mono reference cannot even express, because the phenomenon it exists for
+     — a global lane's rest-position correction transposing every held voice —
+     needs polyphony the lab does not have (L0031 again). */
+  enum Quant { kQuantOff = 0, kQuantChromatic = 1, kQuantScale = 2, kQuantScaleAnchor = 3 };
 
   struct Params
   {
@@ -181,13 +188,20 @@ class GlideCore
     bool haveTie = false;
     long tied = 0;
     {
-      const long root = (qm == kQuantScale) ? (long)p.scaleRoot : 0;
+      const bool sc = (qm == kQuantScale || qm == kQuantScaleAnchor);
+      const long root = sc ? (long)p.scaleRoot : 0;
+      /* The anchor class comes from `base`, which each lane defines: the wheel
+         lane passes lastNoteKey, a per-note MPE lane its own key. At rest
+         (x = 0) semis == base, the anchor is admitted at distance zero, and q
+         is exactly 0 — an out-of-scale anchor produces NO correction, which is
+         the whole point of the mode. */
+      const int anchorCls = (int)((((long)std::lround(base) - root) % 12 + 12) % 12);
       for (long c = (long)std::floor(semis) - 12; c <= (long)std::ceil(semis) + 12; c++)
       {
-        if (qm == kQuantScale)
+        if (sc)
         {
           const int idx = (int)(((c - root) % 12 + 12) % 12);
-          if (!p.scaleMask[idx]) continue;
+          if (!p.scaleMask[idx] && !(qm == kQuantScaleAnchor && idx == anchorCls)) continue;
         }
         const double d = std::fabs((double)c - semis);
         if (d < bestD) { bestD = d; best = c; haveTie = false; }

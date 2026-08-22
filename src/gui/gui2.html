@@ -112,6 +112,10 @@
   /* the owning corner, as a stripe down the row's leading edge — readable at a
      glance across a dense panel without recolouring anything load-bearing */
   .row.owned { box-shadow:inset 3px 0 0 var(--own); padding-left:5px; }
+  /* armed view: this corner's value, not currently voiced — provisional */
+  .row.ghost { box-shadow:none; border-left:3px dotted var(--armc, var(--line));
+               padding-left:2px; }
+  .row.ghost > label { color:var(--armc, var(--text)); opacity:.65; }
   .row.owned > label { color:var(--own); }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
            background:var(--panel,#15171c); border:1px solid var(--line);
@@ -227,8 +231,8 @@
     <div class="row" data-addr="bendDamp" data-when="bendLaw=4"><label>Damping</label><input type="range" data-p="111" min="0" max="1" step="0.005" value="0.6"><output></output></div>
     <div class="row" data-addr="bendDistOver" data-when="bendLaw=4"><label>Distance Curve</label><input type="range" data-p="112" min="0" max="2" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="bendReturn" data-when="bendLaw=1|2|3|4"><label>Return x</label><input type="range" data-p="113" min="0.2" max="3" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
-    <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
+    <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale (drag)</option><option value="3">scale</option></select><output></output></div>
+    <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2|3"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
     <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0">own settings</option><option value="1" selected>follow bend law</option></select><output></output></div>
     <div class="row" data-addr="noteLaw" data-when="noteLawLink=0"><label>Note Travel</label><select data-p="138"><option value="0">off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3" selected>lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
     <div class="row" data-addr="noteTime" data-when="noteLawLink=0,noteLaw=1"><label>Note Time <span class="u">ms</span></label><input type="range" data-p="139" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
@@ -238,25 +242,25 @@
     <div class="row" data-addr="noteDistOver" data-when="noteLawLink=0,noteLaw=4"><label>Note Distance Curve</label><input type="range" data-p="143" min="0" max="2" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="noteQuant" data-when="noteLawLink=0"><label>Note Quantise</label><select data-p="144"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
     <div class="row" data-addr="noteHyst" data-when="noteLawLink=0,noteQuant=1|2"><label>Note Quant Hyst <span class="u">c</span></label><input type="range" data-p="145" min="0" max="50" step="0.005" value="8"><output></output></div>
-    <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
+    <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2|3"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
     <div class="row" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"><output></output></div>
     <div class="row" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"><output></output></div>
     <div class="row" data-addr="bendMpeLaw"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Scale</h2>
-    <div class="row" data-addr="scaleRoot" data-when="bendQuant=2;noteQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>
-    <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2;noteQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg1" data-when="bendQuant=2;noteQuant=2"><label>b2</label><input type="checkbox" data-p="118"><output></output></div>
-    <div class="row" data-addr="scaleDeg2" data-when="bendQuant=2;noteQuant=2"><label>2</label><input type="checkbox" data-p="119" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg3" data-when="bendQuant=2;noteQuant=2"><label>b3</label><input type="checkbox" data-p="120"><output></output></div>
-    <div class="row" data-addr="scaleDeg4" data-when="bendQuant=2;noteQuant=2"><label>3</label><input type="checkbox" data-p="121" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg5" data-when="bendQuant=2;noteQuant=2"><label>4</label><input type="checkbox" data-p="122" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg6" data-when="bendQuant=2;noteQuant=2"><label>b5</label><input type="checkbox" data-p="123"><output></output></div>
-    <div class="row" data-addr="scaleDeg7" data-when="bendQuant=2;noteQuant=2"><label>5</label><input type="checkbox" data-p="124" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg8" data-when="bendQuant=2;noteQuant=2"><label>b6</label><input type="checkbox" data-p="125"><output></output></div>
-    <div class="row" data-addr="scaleDeg9" data-when="bendQuant=2;noteQuant=2"><label>6</label><input type="checkbox" data-p="126" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg10" data-when="bendQuant=2;noteQuant=2"><label>b7</label><input type="checkbox" data-p="127"><output></output></div>
-    <div class="row" data-addr="scaleDeg11" data-when="bendQuant=2;noteQuant=2"><label>7</label><input type="checkbox" data-p="128" checked><output></output></div>
+    <div class="row" data-addr="scaleRoot" data-when="bendQuant=2|3;noteQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>
+    <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2|3;noteQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg1" data-when="bendQuant=2|3;noteQuant=2"><label>b2</label><input type="checkbox" data-p="118"><output></output></div>
+    <div class="row" data-addr="scaleDeg2" data-when="bendQuant=2|3;noteQuant=2"><label>2</label><input type="checkbox" data-p="119" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg3" data-when="bendQuant=2|3;noteQuant=2"><label>b3</label><input type="checkbox" data-p="120"><output></output></div>
+    <div class="row" data-addr="scaleDeg4" data-when="bendQuant=2|3;noteQuant=2"><label>3</label><input type="checkbox" data-p="121" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg5" data-when="bendQuant=2|3;noteQuant=2"><label>4</label><input type="checkbox" data-p="122" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg6" data-when="bendQuant=2|3;noteQuant=2"><label>b5</label><input type="checkbox" data-p="123"><output></output></div>
+    <div class="row" data-addr="scaleDeg7" data-when="bendQuant=2|3;noteQuant=2"><label>5</label><input type="checkbox" data-p="124" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg8" data-when="bendQuant=2|3;noteQuant=2"><label>b6</label><input type="checkbox" data-p="125"><output></output></div>
+    <div class="row" data-addr="scaleDeg9" data-when="bendQuant=2|3;noteQuant=2"><label>6</label><input type="checkbox" data-p="126" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg10" data-when="bendQuant=2|3;noteQuant=2"><label>b7</label><input type="checkbox" data-p="127"><output></output></div>
+    <div class="row" data-addr="scaleDeg11" data-when="bendQuant=2|3;noteQuant=2"><label>7</label><input type="checkbox" data-p="128" checked><output></output></div>
   </div>
   <!--/GEN:MAIN-->
   </div>
@@ -645,6 +649,7 @@ document.addEventListener('click', hzMaybeRelease, true);
         bridge.setParam(159, want);
         lastParams[159] = want;
         paintArm(want);
+        paintCornerView().catch(() => {});
       });
       wrap.appendChild(b);
     }
@@ -655,6 +660,7 @@ function paintArm(v) {
   for (const b of document.querySelectorAll('.armBox'))
     b.classList.toggle('armed', +b.dataset.corner === v - 1);
   document.body.classList.toggle('arming', v > 0);
+  if (v > 0) document.body.style.setProperty('--armc', MCOLORS[v - 1]);
 }
 { const pb = document.getElementById('panicBtn');
   if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); }); }
@@ -1081,6 +1087,40 @@ document.addEventListener('contextmenu', async (ev) => {
    pad's geography and the panel agree at a glance. The colour comes from the
    ENGINE's own pickCorner, never from a GUI-side re-derivation: a second
    implementation would be a map that can lie about the sound. */
+/* ============ ARMED CORNER VIEW (ADR-111) ============
+   Arming a corner shows THAT CORNER's stored settings, not the live morph
+   output — you are looking at what you are editing. Rows the armed corner is
+   currently voicing keep their solid stripe; rows it owns on paper but is NOT
+   voicing right now go ghost (dotted, in the armed colour): provisional, per
+   the human's ask. Releasing the arm repaints live values immediately. */
+let CORNER_VALS = null;   // {id: value} of the armed corner, else null
+let armedCorner = -1;
+async function paintCornerView() {
+  const k = +(lastParams[159] ?? 0) - 1;
+  if (k < 0) {
+    if (armedCorner >= 0) {   // just released: one immediate live repaint
+      armedCorner = -1; CORNER_VALS = null;
+      document.querySelectorAll('.row.ghost').forEach(r => r.classList.remove('ghost'));
+      syncFromEngine().catch(() => {});
+    }
+    return;
+  }
+  armedCorner = k;
+  if (!window.hzMorphCornerVals) return;
+  try { CORNER_VALS = JSON.parse(await window.hzMorphCornerVals(k)); } catch (_) { return; }
+  if (OWNERS === null) await paintOwners().catch(() => {});
+  for (const row of document.querySelectorAll('.row')) {
+    const el = row.querySelector('[data-p]');
+    if (!el) continue;
+    const id = el.dataset.fixed ? +el.dataset.p : effId(+el.dataset.p);
+    const v = CORNER_VALS[id];
+    // exempt rows stay live: no corner owns them, so the armed view has
+    // nothing truthful to show there but the sounding value.
+    if (v === undefined || row.classList.contains('exempt')) { row.classList.remove('ghost'); continue; }
+    paintControl(el, v);
+    row.classList.toggle('ghost', !(OWNERS && OWNERS[id] === k));
+  }
+}
 let OWNERS = null;
 async function paintOwners() {
   if (!window.hzMorphOwners) { OWNERS = {}; return; }
@@ -1215,7 +1255,7 @@ function buildOscSelectors() {
         document.querySelectorAll('.sc').forEach(t => { t.textContent = 'osc' + (k + 1); });
         try { bridge.setVizOsc(k); } catch (e) {}
         const ps = JSON.parse(await bridge.getParams());
-        for (const [id, v] of Object.entries(ps)) setControl(+id, v);
+        paintLive(ps);
       });
       host.appendChild(b);
       host.appendChild(pw);
@@ -1250,11 +1290,20 @@ function paintOscTabs(ps) {
       pw.classList.toggle('on', en >= 0.5);
   });
 }
+/* ADR-111: while a corner is armed, in-field controls display that corner's
+   baseline; painting live values over them would flicker between what you are
+   editing and what is sounding. Every live repaint goes through here. */
+function paintLive(ps) {
+  for (const [id, v] of Object.entries(ps)) {
+    if (armedCorner >= 0 && CORNER_VALS && CORNER_VALS[id] !== undefined) continue;
+    setControl(+id, v);
+  }
+}
 async function syncFromEngine() {
   const ps = JSON.parse(await bridge.getParams());
   if (!globalIds) { learnOscLayout(ps); buildOscSelectors(); }
   Object.assign(lastParams, ps);
-  for (const [id, v] of Object.entries(ps)) setControl(+id, v);
+  paintLive(ps);
   paintOscTabs(ps);
   if (!xyDown) { const xv = ps[effId(4)]; if (xv !== undefined) { curX = xv; xyDirty = true; } }
 }
@@ -1641,7 +1690,7 @@ window.addEventListener('load', async () => {
   setInterval(() => syncFromEngine().catch(() => {}), 500);
   // arm + exempt are engine state; repaint them on the same cadence as params
   setInterval(() => { paintArm(+(lastParams[159] ?? 0)); paintExempt().catch(() => {});
-                      paintOwners().catch(() => {}); }, 700);
+                      paintOwners().catch(() => {}); paintCornerView().catch(() => {}); }, 700);
 });
 /* ---- PORTED FROM src/gui/gui.html (GUI1), VERBATIM ------------------------
    drawCarpet / drawStrips / drawVmap and the voice-map zoom state, copied

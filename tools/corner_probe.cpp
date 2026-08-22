@@ -10,6 +10,7 @@ extern "C" void hypersaw_debug_state(const clap_plugin_t*, char*, uint32_t);
 extern "C" bool hypersaw_debug_exempt(const clap_plugin_t*, uint32_t);
 extern "C" const char *hypersaw_debug_exemptjson(const clap_plugin_t*);
 extern "C" const char *hypersaw_debug_ownersjson(const clap_plugin_t*);
+extern "C" const char *hypersaw_debug_cornervals(const clap_plugin_t*, int);
 #include <string>
 namespace { 
 #include "notefuzz_scaffold.inc"
@@ -163,6 +164,23 @@ int main()
     }
     std::printf("colour matches the sound: %d/2 %s\n", 2 - lying, lying ? "FAIL" : "OK");
     if (lying) bad++;
+  }
+
+  // 8. ADR-111: the corner-vals surface the armed view paints from must
+  //    report what case 7 just authored — 0.11 into A, 0.88 into D. Binds the
+  //    GUI's data source to the authored values, not merely to "some JSON".
+  {
+    auto valOf = [&](int corner) -> double {
+      const std::string j = hypersaw_debug_cornervals(p, corner);
+      const std::string key = "\"" + std::to_string(DET) + "\":";
+      const size_t at = j.find(key);
+      return at == std::string::npos ? -99.0 : std::atof(j.c_str() + at + key.size());
+    };
+    const double a = valOf(0), d = valOf(3);
+    const bool ok = std::fabs(a-0.11) < 0.03 && std::fabs(d-0.88) < 0.03;
+    std::printf("corner vals report edits: A %.3f D %.3f (want 0.110 / 0.880)  %s\n",
+                a, d, ok?"OK":"FAIL");
+    if(!ok) bad++;
   }
 
   p->stop_processing(p); p->deactivate(p); p->destroy(p);

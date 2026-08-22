@@ -133,6 +133,53 @@ int main()
       std::printf("  (want 220 ramping to ~247)\n");
       p->stop_processing(p); p->deactivate(p); p->destroy(p);
     }
+    /* ADR-111 — drag vs anchored, asserted on RENDERED pitch. The claim is a
+       polyphonic one no core-level oracle can see (L0031): with Bend Quantise
+       = scale, striking an OUT-OF-SCALE note emits that note's correction into
+       the GLOBAL pitchBend, transposing every held voice. Value 2 (drag) keeps
+       that; value 3 (anchored) admits the anchor's own class so the rest
+       correction is exactly zero.
+       Gesture: hold C4 · strike F#4 (F# ties F/G at distance 1; the tie breaks
+       toward the previous emitted step 60, so F wins and the correction is -1)
+       · release F#4 (5 ms release) · measure the held C4 alone.
+       The drag case doubles as the must-discriminate control: if the gesture or
+       the measurement cannot show the shift, drag fails FIRST, and the anchored
+       "stays put" result is known to be meaningless. */
+    int bad111 = 0;
+    for (int mode = 2; mode <= 3; mode++)
+    {
+      const clap_plugin_t *p=factory->create_plugin(factory,&kHost,"com.lifted-truck.hypersaw");
+      p->init(p); p->activate(p,sr,32,kBlock); p->start_processing(p);
+      std::vector<float> L(kBlock),R(kBlock);
+      float*chans[2]={L.data(),R.data()};
+      clap_audio_buffer_t out{}; out.data32=chans; out.channel_count=2;
+      clap_process_t proc{}; proc.frames_count=kBlock; proc.audio_outputs=&out;
+      proc.audio_outputs_count=1; proc.out_events=&kOut;
+      auto blocks=[&](double sec){ return (int)(sec*sr)/kBlock; };
+      auto run=[&](EvList&e){ e.finalize(); proc.in_events=&e.list; p->process(p,&proc); };
+      { EvList e; e.params.push_back(mkParam(1,1)); e.params.push_back(mkParam(9,0));
+        e.params.push_back(mkParam(114,(double)mode));
+        e.params.push_back(mkParam(22,0.005));           // release: kill the F# tail
+        run(e); }
+      { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON,0,60,1)); run(e); }
+      for(int b=1;b<blocks(0.3);b++){ EvList e; run(e); }
+      { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_ON,0,66,2)); run(e); }
+      for(int b=1;b<blocks(0.4);b++){ EvList e; run(e); }
+      { EvList e; e.notes.push_back(mkNote(CLAP_EVENT_NOTE_OFF,0,66,2)); run(e); }
+      std::vector<float> tape;
+      for(int b=0;b<blocks(0.4);b++){ EvList e; run(e);
+        tape.insert(tape.end(),L.begin(),L.end()); }
+      std::vector<float> w(tape.end()-(size_t)(0.2*sr), tape.end());
+      const double hz = pitchOf(w,sr);
+      const double want = mode==2 ? 246.94 : 261.63;    // held C4: dragged to B3 / held at C4
+      const bool ok = std::fabs(hz-want) < 5.0;
+      std::printf("ADR-111 %-22s held C4 -> %6.1f Hz (want %6.1f)  %s\n",
+                  mode==2?"scale (drag), F#4 hit:":"scale (anchor), F#4 hit:",
+                  hz, want, ok?"OK":"FAIL");
+      if(!ok) bad111++;
+      p->stop_processing(p); p->deactivate(p); p->destroy(p);
+    }
+    if (bad111) return 1;
   }
   return 0;
 }
