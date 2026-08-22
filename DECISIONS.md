@@ -2172,3 +2172,62 @@ Plant (a dependency naming a key no parameter declares): RED, both on the typo
 and on the resulting stale header. Restored: GREEN, 55 declared dependencies,
 2 advisories (laws 0 and 1 take no extra parameters — correctly a note, not a
 failure).
+
+## ADR-109 — Corner editing: four boxes, and the authorship family (ACCEPTED)
+
+**Date:** 2026-08-22 · **Status:** ACCEPTED (the human's model, recorded
+2026-08-19 before the morph page existed, built now that the dependency graph
+underpins it).
+
+### The routing, as the human specified it
+
+`morphArm` (id 159, global, deliberately NOT morphable — an edit-routing mode
+that morphed would change where your edits land as you move the pad):
+
+- **None armed** — an edit lands on the corner that OWNS that parameter right
+  now, so it STICKS. This closes the v1 seam where live edits were overwritten
+  at the next grid tick.
+- **Armed A..D** — the edit writes that corner's baseline and is NOT applied
+  live: you are authoring a corner that may not be the one sounding, and forcing
+  it live would lie about which corner you just changed.
+
+### The human's open question, answered
+
+> *"how it behaves when it's in continuous mode, the parameter is continuous,
+> and the current morph position is somewhere in the middle. Maybe it edits both
+> in such a way that their average arrives at that point?"*
+
+Yes, and **weighted**: the delta is distributed across corners in proportion to
+their bilinear weight, so `sum(w[k] * corner[k])` lands exactly on the edited
+value while the corners keep their relative identities. Distributing EVENLY
+would move a corner you are barely touching as much as the one under your
+cursor; proportional is the reading that respects where you are standing.
+
+### EXEMPT — the third family member
+
+Right-click any control to remove it from the field entirely (bias nudges a
+corner's share, pin hands one corner the field, exempt removes the parameter).
+On exempt the live value is written into ALL FOUR corners — the recorded design
+lean — so un-exempting never jumps and the corners honestly record what was
+playing. Exempt is patch STATE riding the chunk in morphIds order, not 150-odd
+automation lanes.
+
+### One choke point, one guard
+
+Every edit — GUI, host automation, preset load — passes `applyParam`, so routing
+needed exactly ONE hook rather than a rule per call site. `morphFromField`
+guards re-entry: morphStep applies the field's own output through applyParam,
+and routing that would have the field endlessly rewriting its own corners.
+
+### Visible state, because the mode is invisible otherwise
+
+The four boxes live on the tab bar (every page shares it — the human asked for
+them on every page). The armed box glows; while any corner is armed every panel
+border goes dashed, because "edits are not going where a performer would expect"
+is exactly the state a UI must not let you forget. Exempt rows carry a ⊘ mark.
+
+### Probe
+
+`corner_probe`, through the CLAP factory: unarmed edit STICKS (0.610 survives
+200 grid ticks), armed edit LANDS IN D (0.230 appears when the pad reaches D),
+exempt HOLDS (0.420 survives the pad slamming to the opposite corner).

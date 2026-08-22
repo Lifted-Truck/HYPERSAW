@@ -109,6 +109,16 @@
             border:1px solid var(--line); border-radius:3px; color:var(--dim); opacity:.55; }
   /* ON glows white like a selected osc tab (human 2026-08-21); OFF is the dim
      default above, so an unpainted button never LOOKS on. */
+  .row.exempt > label::after { content:' \\2298'; color:var(--pull); opacity:.8; }
+  .row.exempt { opacity:.92; }
+  .armSel { display:inline-flex; gap:3px; margin-left:10px; vertical-align:middle; }
+  .armBox { width:14px; height:14px; border:1px solid var(--line); border-radius:3px;
+            cursor:pointer; padding:0; opacity:.45; }
+  .armBox.armed { opacity:1; box-shadow:0 0 7px currentColor; border-color:var(--text);
+                  outline:1px solid var(--text); }
+  /* An unmissable reminder: while a corner is armed, edits are NOT going where
+     a performer would expect. Cheap tint rather than a modal. */
+  body.arming .ctlcol .cluster, body.arming .page .cluster { border-style:dashed; }
   .oscPow.on { color:#0b0e13; background:var(--text); border-color:var(--text);
                opacity:1; box-shadow:0 0 6px rgba(232,236,244,.55); }
   .note { color:var(--dim); font-size:10.5px; }
@@ -301,6 +311,7 @@
     <div class="row" data-addr="morphSeed" data-when="morphOn=1"><label>Morph Seed</label><input type="range" data-p="156" min="1" max="9999" step="1" value="1024"><output></output></div>
     <div class="row" data-addr="morphMode" data-when="morphOn=1"><label>Morph Mode</label><select data-p="157"><option value="0" selected>quantum (flip)</option><option value="1">blend</option></select><output></output></div>
     <div class="row" data-addr="morphGlide" data-when="morphOn=1,morphMode=0"><label>Flip Glide <span class="u">s</span></label><input type="range" data-p="158" min="0" max="0.5" step="0.005" value="0.008"><output></output></div>
+    <div class="row" data-addr="morphArm" data-when="never"><label>Edit Corner</label><select data-p="159"><option value="0" selected>live (owning corner)</option><option value="1">A</option><option value="2">B</option><option value="3">C</option><option value="4">D</option></select><output></output></div>
   </div>
   <!--/GEN:MORPH-->
   </div>
@@ -595,6 +606,41 @@ document.addEventListener('click', hzMaybeRelease, true);
   lab.appendChild(cb); lab.appendChild(document.createTextNode(' pass keys to host'));
   if (tabs) tabs.appendChild(lab); }
 
+/* ============ CORNER EDITING (ADR-109) ============
+   Four colour boxes, one armable or none. NONE = edits land on whichever corner
+   owns the parameter right now (so they stick instead of being overwritten at
+   the next grid tick). ARMED = edits write that corner's baseline, whether or
+   not it is the one currently sounding — which is the point: you are authoring
+   a corner, not performing it.
+   They live on the TAB BAR because the human asked for them on every page and
+   the bar is the one widget every page already shares. */
+{ const tabs = document.getElementById('tabs');
+  if (tabs) {
+    const wrap = document.createElement('span');
+    wrap.className = 'armSel';
+    wrap.title = 'edit corner: none = the corner that owns each setting';
+    for (let k = 0; k < 4; k++) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'armBox'; b.dataset.corner = k;
+      b.style.background = ['#5ff2e0','#ffc24b','#b18cff','#ff7d9c'][k];
+      b.title = 'author corner ' + 'ABCD'[k] + ' — click again to release';
+      b.addEventListener('click', () => {
+        const cur = +(lastParams[159] ?? 0);
+        const want = (cur === k + 1) ? 0 : k + 1;   // click the armed one to release
+        bridge.setParam(159, want);
+        lastParams[159] = want;
+        paintArm(want);
+      });
+      wrap.appendChild(b);
+    }
+    tabs.appendChild(wrap);
+  }
+}
+function paintArm(v) {
+  for (const b of document.querySelectorAll('.armBox'))
+    b.classList.toggle('armed', +b.dataset.corner === v - 1);
+  document.body.classList.toggle('arming', v > 0);
+}
 { const pb = document.getElementById('panicBtn');
   if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); }); }
 /* COPY / PASTE PATCH (human 2026-08-20: "add to gui2 an ability to copy the
@@ -937,6 +983,30 @@ const BEND_VIZ_IDS = new Set([33,
   106,107,108,109,110,111,112,113,114,115,
   137,138,139,140,141,142,143,144,145]);
 const bendVizSeen = {};
+/* ADR-109 EXEMPT — right-click a control to take it out of the morph field
+   entirely (the human's "make a parameter setting global and override the
+   morph"). The engine writes the live value into all four corners on exempt, so
+   un-exempting never jumps. */
+document.addEventListener('contextmenu', async (ev) => {
+  const row = ev.target.closest && ev.target.closest('.row');
+  const ctl = row && row.querySelector('[data-p]');
+  if (!ctl || !window.hzMorphToggleExempt) return;
+  ev.preventDefault();
+  const id = ctl.dataset.fixed ? +ctl.dataset.p : effId(+ctl.dataset.p);
+  const on = await window.hzMorphToggleExempt(id);
+  row.classList.toggle('exempt', !!on);
+});
+async function paintExempt() {
+  if (!window.hzMorphExemptJson) return;
+  let set = {};
+  try { set = JSON.parse(await window.hzMorphExemptJson()); } catch (_) { return; }
+  for (const row of document.querySelectorAll('.row')) {
+    const ctl = row.querySelector('[data-p]');
+    if (!ctl) continue;
+    const id = ctl.dataset.fixed ? +ctl.dataset.p : effId(+ctl.dataset.p);
+    row.classList.toggle('exempt', !!set[id]);
+  }
+}
 document.querySelectorAll('[data-p]').forEach(el => {
   const baseId = +el.dataset.p;
   const id_ = () => el.dataset.fixed ? baseId : effId(baseId);
@@ -1463,6 +1533,8 @@ window.addEventListener('load', async () => {
   syncFromEngine().catch(() => {});
   drawXY();
   setInterval(() => syncFromEngine().catch(() => {}), 500);
+  // arm + exempt are engine state; repaint them on the same cadence as params
+  setInterval(() => { paintArm(+(lastParams[159] ?? 0)); paintExempt().catch(() => {}); }, 700);
 });
 /* ---- PORTED FROM src/gui/gui.html (GUI1), VERBATIM ------------------------
    drawCarpet / drawStrips / drawVmap and the voice-map zoom state, copied

@@ -91,6 +91,7 @@ static const char *const kGlideModeLabels[] = {"held note (legato)", "last note 
 static const char *const kOffOn[] = {"off", "on"};
 static const char *const kNoteNames[] = {"C", "C#", "D", "D#", "E", "F",
                                         "F#", "G", "G#", "A", "A#", "B"};
+static const char *const kMorphArmLabels[] = {"live (owning corner)", "A", "B", "C", "D"};
 static const char *const kMorphModeLabels[] = {"quantum (flip)", "blend"};
 static const char *const kMpeLawLabels[] = {"instant", "follow bend law"};
 static const char *const kQTimeModeLabels[] = {"continuous", "free (Hz)", "sync"};
@@ -424,6 +425,11 @@ static const ParamDef kParams[] = {
     {156, "morphSeed", "Morph Seed", 1, 9999, 1024, true, nullptr},
     {157, "morphMode", "Morph Mode", 0, 1, 0, true, kMorphModeLabels},
     {158, "morphGlide", "Flip Glide (s)", 0, 0.5, 0.008, false, nullptr},
+    /* CORNER EDITING (ADR-109, the human's 2026-08-19 model). `morphArm` is the
+       four colour boxes: 0 = none armed, 1..4 = corner A..D. Global, and
+       deliberately NOT morphable — an edit-routing mode that morphed would
+       change where your edits land as you move the pad. */
+    {159, "morphArm", "Edit Corner", 0, 4, 0, true, kMorphArmLabels},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -515,7 +521,7 @@ constexpr clap_id kGlobalIds[] = {
     133, 134, 135, 136,                          // FX slot mix (rack-owned dry/wet)
     137, 138, 139, 140, 141, 142, 143, 144, 145,  // note travel law (global: it joins id 33, already here)
     146, 147, 148, 149,                          // quantise step timing + per-note bend law
-    151, 152, 153, 154, 155, 156, 157, 158,     // quantum morph (the field is a patch property)
+    151, 152, 153, 154, 155, 156, 157, 158, 159,  // quantum morph + corner-edit arming
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
 };
@@ -1101,6 +1107,14 @@ struct Plugin
   }
   double qTimeMode = 0, qTimeHz = 8, qTimeSync = 4;
   int oscEnabled[kMaxOsc] = {1, 0};   // ADR-100; osc2 ships OFF (ADR-099 A1)
+  /* ADR-109 EXEMPT — the third member of the lab's authorship family (bias
+     nudges a corner's share, pin hands one corner the field, exempt removes the
+     parameter from the field entirely). Patch state, not parameters: 150-odd
+     booleans as automation lanes would be noise. Indexed by morphIds position,
+     so it rides the same append-only order the corners do. */
+  std::vector<uint8_t> morphExempt;
+  double morphArm = 0;
+  bool morphFromField = false;   // ADR-109 re-entry guard, see the hook
 
   /* ================= QUANTUM MORPH (ADR-104) =================
      The SHELL owns which parameters morph and what a corner is; morph_core.h
@@ -1154,6 +1168,7 @@ struct Plugin
       morphIds.push_back(id);
     for (int k = 0; k < 4; k++) morphCorner[k].assign(morphIds.size(), 0.0);
     morphCur.assign(morphIds.size(), -1e30);
+    morphExempt.assign(morphIds.size(), 0);
     morph.reshuffle(morphSeed, (int)morphIds.size());
     // A fresh instance's corners all hold the DEFAULT patch, so switching morph
     // on before capturing anything is silence-safe: every corner agrees.
@@ -1163,6 +1178,43 @@ struct Plugin
       const double v = d ? defaultFor(*d, morphIds[i] / 1000) : 0.0;
       for (int k = 0; k < 4; k++) morphCorner[k][i] = v;
     }
+  }
+
+  /* ADR-109: exempt toggle + query, addressed by parameter id so the GUI needs
+     no knowledge of morphIds ordering. Writing the live value into ALL FOUR
+     corners on exempt is the recorded design lean: un-exempting is then
+     seamless (no jump), and the corners honestly record what was playing. */
+  bool morphToggleExempt(clap_id id)
+  {
+    morphInit();
+    for (size_t i = 0; i < morphIds.size(); i++)
+      if (morphIds[i] == id)
+      {
+        const bool on = !morphExempt[i];
+        morphExempt[i] = on ? 1 : 0;
+        if (on)
+        {
+          const double live = readParam(id);
+          for (int k = 0; k < 4; k++) morphCorner[k][i] = live;
+        }
+        return on;
+      }
+    return false;
+  }
+  std::string morphExemptJson()
+  {
+    morphInit();
+    std::string out = "{";
+    char buf[32];
+    bool first = true;
+    for (size_t i = 0; i < morphIds.size(); i++)
+      if (morphExempt[i])
+      {
+        std::snprintf(buf, sizeof(buf), "%s\"%u\":1", first ? "" : ",", (unsigned)morphIds[i]);
+        out += buf;
+        first = false;
+      }
+    return out + "}";
   }
 
   void morphCapture(int k)
@@ -1204,6 +1256,58 @@ struct Plugin
     return true;      // no rule -> always live
   }
 
+  /* ADR-109 — where does an edit LAND? The human's model, implemented:
+       armed (1..4)  -> that corner's baseline, and only that corner's.
+       none armed    -> the corner that OWNS this parameter right now, so the
+                        edit sticks instead of being overwritten at the next
+                        grid tick (the v1 seam this closes).
+     Returns true when the caller should ALSO apply the value live. Armed edits
+     do not: you are editing a baseline that may not be the one sounding, and
+     forcing it live would lie about which corner you just changed. */
+  bool morphRouteEdit(clap_id id, double v)
+  {
+    if (morphOn <= 0.5) return true;
+    size_t idx = morphIds.size();
+    for (size_t i = 0; i < morphIds.size(); i++)
+      if (morphIds[i] == id) { idx = i; break; }
+    if (idx == morphIds.size()) return true;          // not morphed: normal edit
+    if (idx < morphExempt.size() && morphExempt[idx]) return true;   // exempt: live only
+
+    const int armed = (int)morphArm;
+    if (armed >= 1 && armed <= 4)
+    {
+      morphCorner[armed - 1][idx] = v;
+      return false;
+    }
+    double w[4], lw[4];
+    hypersaw::MorphCore::weights(morphX, morphY, w);
+    hypersaw::MorphCore::logW(w, morphTemp, lw);
+    const ParamDef *d = findParam(id);
+    if ((int)morphMode == 1 && d && !d->stepped)
+    {
+      /* BLEND MODE, continuous parameter, position mid-path — the human's own
+         open question: "maybe it edits both in such a way that their average
+         arrives at that point along the morph path?" Yes, and weighted: the
+         delta is distributed across corners in proportion to their weight, so
+         sum(w[k] * corner[k]) lands exactly on the edited value while the
+         corners keep their relative identities. Distributing EVENLY would move
+         a corner you are barely touching as much as the one under your cursor;
+         proportional is the reading that respects where you are standing. */
+      double cur = 0, sumsq = 0;
+      for (int k = 0; k < 4; k++) { cur += w[k] * morphCorner[k][idx]; sumsq += w[k] * w[k]; }
+      if (sumsq > 1e-12)
+      {
+        const double scale = (v - cur) / sumsq;
+        for (int k = 0; k < 4; k++) morphCorner[k][idx] += w[k] * scale;
+      }
+      return true;
+    }
+    // quantum: the corner that won this parameter owns the edit
+    const int k = morph.pickCorner((int)idx, lw, morphCoup);
+    morphCorner[k][idx] = v;
+    return true;
+  }
+
   void morphStep(int samples)
   {
     morphAccum += samples;
@@ -1219,6 +1323,9 @@ struct Plugin
     {
       const ParamDef *d = findParam(morphIds[i]);
       if (!d) continue;
+      // ADR-109: an exempt parameter is not in the field at all — it holds
+      // whatever it is set to, and no corner owns it.
+      if (i < morphExempt.size() && morphExempt[i]) continue;
       double target;
       if ((int)morphMode == 1 && !d->stepped)
       {
@@ -1252,7 +1359,9 @@ struct Plugin
       if (std::fabs(next - morphCur[i]) > 1e-9)
       {
         morphCur[i] = next;
+        morphFromField = true;
         applyParam(morphIds[i], next);
+        morphFromField = false;
       }
     }
   }
@@ -2031,6 +2140,14 @@ struct Plugin
       out += "]";
     }
     out += "]";
+    // ADR-109: the exempt set rides with the corners, same order contract.
+    out += ",\"morphExempt\":[";
+    for (size_t i = 0; i < morphExempt.size(); i++)
+    {
+      std::snprintf(buf, sizeof(buf), i ? ",%d" : "%d", (int)morphExempt[i]);
+      out += buf;
+    }
+    out += "]";
     return out;
   }
 
@@ -2113,6 +2230,26 @@ struct Plugin
       enqueueParam(137, 0, 0);                                  // own settings
       enqueueParam(138, hypersaw::GlideCore::kLag, 0);          // lag, as it always was
     }
+    {
+      size_t ep = json.find("\"morphExempt\"");
+      if (ep != std::string::npos)
+      {
+        morphInit();
+        const char *c = std::strchr(json.c_str() + ep, '[');
+        if (c)
+        {
+          c++;
+          for (size_t i = 0; i < morphExempt.size(); i++)
+          {
+            morphExempt[i] = (uint8_t)(std::atoi(c) != 0);
+            const char *nx = std::strchr(c, ',');
+            const char *cl = std::strchr(c, ']');
+            if (!nx || (cl && cl < nx)) break;
+            c = nx + 1;
+          }
+        }
+      }
+    }
     /* ADR-104: corner snapshots. Simple bracketed-array scan of our own
        writer's output — four arrays in morphIds order. */
     {
@@ -2193,6 +2330,12 @@ struct Plugin
         return;
       }
       const double applied = d->stepped ? std::round(v) : v;
+      /* ADR-109: one choke point. Every parameter edit — GUI, host automation,
+         preset load — passes here, so corner routing needs exactly one hook
+         rather than a rule per call site. `morphFromField` guards re-entry:
+         morphStep applies the field's own output through applyParam, and
+         routing THAT would have the field endlessly rewriting its own corners. */
+      if (!morphFromField && morphOn > 0.5 && !morphRouteEdit(id, applied)) return;
       if (id == 32)
       {
         if (applied != voiceMono)
@@ -2353,6 +2496,7 @@ struct Plugin
         }
         return;
       }
+      if (id == 159) { morphArm = applied; return; }
       if (id >= 151 && id <= 158)
       {
         switch (id)
@@ -2564,6 +2708,7 @@ struct Plugin
          the mirror finally showed off, so the toggle finally sent 1. The
          truth-sweep gate in paramscope_check now makes this class unshippable. */
       if (baseIdOf(d->id) == 150) return oscEnabled[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
+      if (d->id == 159) return morphArm;
       if (d->id == 151) return morphOn;
       if (d->id == 152) return morphX;
       if (d->id == 153) return morphY;
@@ -3583,6 +3728,7 @@ extern "C" void hypersaw_debug_state(const clap_plugin_t *p, char *out, uint32_t
   std::snprintf(out, cap, "%s", j.c_str());
 }
 extern "C" void hypersaw_debug_panic(const clap_plugin_t *p) { self(p)->panicWithDump(); }
+extern "C" bool hypersaw_debug_exempt(const clap_plugin_t *p, uint32_t id) { return self(p)->morphToggleExempt((clap_id)id); }
 extern "C" bool hypersaw_debug_apply(const clap_plugin_t *p, const char *json)
 {
   return self(p)->applyStateJson(json ? json : "");
@@ -3611,6 +3757,8 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.morphCapture = [pl](uint32_t k) { pl->morphCapture((int)k); };
   hostIf.morphCornerJson = [pl](uint32_t k) { return pl->cornerJson((int)k); };
   hostIf.morphLiveJson = [pl]() { return pl->liveCornerJson(); };
+  hostIf.morphToggleExempt = [pl](uint32_t id) { return pl->morphToggleExempt((clap_id)id); };
+  hostIf.morphExemptJson = [pl]() { return pl->morphExemptJson(); };
   hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };

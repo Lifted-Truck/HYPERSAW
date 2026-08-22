@@ -292,3 +292,4 @@ morphSeed	global	Morph Seed	MORPH	Morph engine	knob		morph	morphOn=1		morphOn=1
 morphGlide	global	Flip Glide	MORPH	Morph engine	knob	s	morph	morphOn=1,morphMode=0	log10	morphOn=1,morphMode=0
 morphX	global	Morph X	MORPH	Morph engine	knob		morph	morphOn=1		morphOn=1
 morphY	global	Morph Y	MORPH	Morph engine	knob		morph	morphOn=1		morphOn=1
+morphArm	global	Edit Corner	MORPH	Morph engine	select		morph	never		never
