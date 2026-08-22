@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body { margin: 0; background: #cfc9bc; }
+a { color: #141210; } a:hover { color: #6b3f2a; }
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: #141210;">
+  <div style="width: 100%; max-width: 960px; display: flex; align-items: center; gap: 16px; padding: 18px 24px; box-sizing: border-box;">
+    <div style="font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;">Text distortion</div>
+    <div style="flex: 1;"></div>
+    <button onClick="{{ randomize }}" style="font-family: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: 1px solid #141210; padding: 7px 14px; cursor: pointer; color: #141210;" style-hover="background: #141210; color: #f4f1ea;">Rewarp</button>
+    <button onClick="{{ randomSmears }}" style="font-family: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: 1px solid #141210; padding: 7px 14px; cursor: pointer; color: #141210;" style-hover="background: #141210; color: #f4f1ea;">Smear</button>
+    <button onClick="{{ randomFields }}" style="font-family: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: 1px solid #141210; padding: 7px 14px; cursor: pointer; color: #141210;" style-hover="background: #141210; color: #f4f1ea;">Swirl</button>
+    <button onClick="{{ randomBlobs }}" style="font-family: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: 1px solid #141210; padding: 7px 14px; cursor: pointer; color: #141210;" style-hover="background: #141210; color: #f4f1ea;">Blobs</button>
+    <button onClick="{{ clearSmears }}" style="font-family: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: 1px solid #141210; padding: 7px 14px; cursor: pointer; color: #141210;" style-hover="background: #141210; color: #f4f1ea;">Clear smears</button>
+    <button onClick="{{ captureGif }}" style="font-family: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: 1px solid #141210; padding: 7px 14px; cursor: pointer; color: #141210;" style-hover="background: #141210; color: #f4f1ea;">{{ gifLabel }}</button>
+    <button onClick="{{ download }}" style="font-family: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: 1px solid #141210; padding: 7px 14px; cursor: pointer; color: #141210;" style-hover="background: #141210; color: #f4f1ea;">PNG ↓</button>
+  </div>
+  <div style="width: 100%; max-width: 960px; display: flex; align-items: center; gap: 10px; padding: 0 24px 14px; box-sizing: border-box;">
+    <input value="{{ textValue }}" onChange="{{ onText }}" placeholder="text · separate lines with /" style="flex: 1; min-width: 120px; font-family: inherit; font-size: 12px; padding: 7px 10px; border: 1px solid #141210; background: #f4f1ea; color: #141210; outline: none;"></input>
+    <select value="{{ fontVal }}" onChange="{{ onFont }}" style="font-family: inherit; font-size: 11px; padding: 7px 6px; border: 1px solid #141210; background: none; color: #141210; cursor: pointer;">
+      <option value="Helvetica">Helvetica</option>
+      <option value="Georgia">Georgia</option>
+      <option value="'Times New Roman'">Times</option>
+      <option value="'Courier New'">Courier</option>
+      <option value="'Arial Black'">Arial Black</option>
+    </select>
+    <select value="{{ shapeVal }}" onChange="{{ onShape }}" style="font-family: inherit; font-size: 11px; padding: 7px 6px; border: 1px solid #141210; background: none; color: #141210; cursor: pointer;">
+      <option value="Portrait">Portrait</option>
+      <option value="Square">Square</option>
+      <option value="Wide">Wide</option>
+      <option value="Banner">Banner</option>
+    </select>
+    <label style="display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;">ink <input type="color" value="{{ inkVal }}" onChange="{{ onInk }}" style="width: 28px; height: 28px; padding: 0; border: 1px solid #141210; background: none; cursor: pointer;"></input></label>
+    <label style="display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;">paper <input type="color" value="{{ paperVal }}" onChange="{{ onPaper }}" style="width: 28px; height: 28px; padding: 0; border: 1px solid #141210; background: none; cursor: pointer;"></input></label>
+  </div>
+  <div style="font-size: 11px; letter-spacing: 0.08em; opacity: 0.55; padding-bottom: 14px;">drag vertically over the text to smear the ink · warp &amp; smear character in Tweaks</div>
+  <canvas width="900" height="1150" ref="{{ canvasRef }}" onPointerDown="{{ onDown }}" onPointerMove="{{ onMove }}" onPointerUp="{{ onUp }}" style="width: min(92vw, 620px); height: auto; box-shadow: 0 18px 50px rgba(20,18,16,0.35); cursor: crosshair; touch-action: none; margin-bottom: 40px;"></canvas>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;text&quot;: { &quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;horde&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Content&quot; },
+  &quot;fontSize&quot;: { &quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 118, &quot;min&quot;: 40, &quot;max&quot;: 220, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Content&quot; },
+  &quot;animate&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Motion&quot; },
+  &quot;speed&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 1, &quot;min&quot;: 0.1, &quot;max&quot;: 3, &quot;step&quot;: 0.1, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Motion&quot; },
+  &quot;waveAmp&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 26, &quot;min&quot;: 0, &quot;max&quot;: 90, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Warp&quot; },
+  &quot;waveFreq&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 1.4, &quot;min&quot;: 0.3, &quot;max&quot;: 5, &quot;step&quot;: 0.1, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Warp&quot; },
+  &quot;tremor&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 3.5, &quot;min&quot;: 0, &quot;max&quot;: 14, &quot;step&quot;: 0.5, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Warp&quot; },
+  &quot;smearAngle&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 0, &quot;min&quot;: -45, &quot;max&quot;: 45, &quot;unit&quot;: &quot;°&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Smears&quot; },
+  &quot;angleJitter&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 12, &quot;min&quot;: 0, &quot;max&quot;: 45, &quot;unit&quot;: &quot;°&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Smears&quot; },
+  &quot;waveJitter&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 0.5, &quot;min&quot;: 0, &quot;max&quot;: 1, &quot;step&quot;: 0.05, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Smears&quot; }
+}">
+class Component extends DCLogic {
+  canvasRef = React.createRef();
+  state = { rec: false, textVal: null, font: 'Helvetica', shape: 'Portrait', ink: '#17140f', paper: '#f4f1ea' };
+  dims() {
+    return { Portrait: { W: 900, H: 1150 }, Square: { W: 1000, H: 1000 }, Wide: { W: 1600, H: 640 }, Banner: { W: 1800, H: 440 } }[this.state.shape];
+  }
+  hex(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+  seed = 7; strokes = []; fields = []; drag = null; _raf = 0;
+  componentDidMount() { this.src = document.createElement('canvas'); this.renderAll(); this.t = 0; this.loop(); }
+  componentDidUpdate() { this.renderAll(); }
+  componentWillUnmount() { cancelAnimationFrame(this._anim); }
+  loop() {
+    this._anim = requestAnimationFrame(() => {
+      const { animate, speed } = this.cfg();
+      if (animate && !this.drag && !this.capturing) { this.t += 0.016 * speed; this.warp(); }
+      this.loop();
+    });
+  }
+  rng(s) { let a = (s * 9301 + 49297) % 233280; return () => { a = (a * 9301 + 49297) % 233280; return a / 233280; }; }
+  cfg() {
+    const p = this.props;
+    return {
+      text: this.state.textVal ?? p.text ?? 'horde',
+      animate: p.animate ?? true,
+      speed: p.speed ?? 1,
+      fontSize: p.fontSize ?? 118,
+      waveAmp: p.waveAmp ?? 26,
+      waveFreq: p.waveFreq ?? 1.4,
+      tremor: p.tremor ?? 3.5,
+      smearAngle: p.smearAngle ?? 0,
+      angleJitter: p.angleJitter ?? 12,
+      waveJitter: p.waveJitter ?? 0.5
+    };
+  }
+  renderSource() {
+    const { W, H } = this.dims(), c = this.src;
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    const { text, fontSize } = this.cfg();
+    const r = this.rng(this.seed);
+    this.ph1 = r() * 6.283; this.ph2 = r() * 6.283; this.ph3 = r() * 6.283;
+    ctx.fillStyle = this.state.paper; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = this.state.ink;
+    ctx.font = '700 ' + fontSize + 'px ' + this.state.font + ', sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    const lines = text.split('/').map(s => s.trim()).filter(Boolean);
+    const lh = fontSize * 1.14;
+    let y = H / 2 - (lines.length - 1) * lh / 2 + fontSize * 0.32;
+    for (const line of lines) {
+      const rot = (r() - 0.5) * 0.17 - 0.02;
+      const xo = W / 2 + (r() - 0.5) * 80;
+      ctx.save(); ctx.translate(xo, y); ctx.rotate(rot); ctx.fillText(line, 0, 0); ctx.restore();
+      y += lh;
+    }
+    this.srcData = ctx.getImageData(0, 0, W, H);
+  }
+  warp() {
+    const cv = this.canvasRef.current;
+    if (!cv || !this.srcData) return;
+    const { W, H } = this.dims();
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const { waveAmp, waveFreq, tremor, smearAngle, angleJitter, waveJitter } = this.cfg();
+    const src = this.srcData.data;
+    if (!this.outData || this.outData.width !== W || this.outData.height !== H) this.outData = new ImageData(W, H);
+    const o = this.outData.data;
+    const t = this.t || 0, w1 = 0.7853981634; // harmonics of 2*PI/8 so the wander loops every 8 t-units
+    const d1 = this.ph1 + t * w1 + 1.7 * Math.sin(t * w1 * 2 + 0.5), d2 = this.ph2 - t * w1 + 1.3 * Math.sin(t * w1 * 3 + 2);
+    const aMod = 1 + 0.35 * Math.sin(t * w1 * 2 + 1) * Math.sin(t * w1);
+    const wave = new Float32Array(W);
+    for (let x = 0; x < W; x++) {
+      wave[x] = waveAmp * aMod * Math.sin((x / W) * waveFreq * 6.283 + d1)
+              + waveAmp * 0.35 * Math.sin((x / W) * waveFreq * 5.1 + d2);
+    }
+    const { W: cW, H: cH } = this.dims();
+    const hash = (a, b) => {
+      let x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    const sts = this.strokes.map(s => {
+      let amp = s.amp, x0 = s.x0, y0 = s.y0;
+      if (s.blob) {
+        const ph = t * w1 * 4 * s.cyc + s.bph;
+        amp = s.amp * Math.pow(0.5 * (1 - Math.cos(ph)), 1.6);
+        // new position each cycle: derive from the cycle index
+        const k = Math.floor(ph / 6.28318);
+        x0 = cW * (0.15 + hash(s.bph, k) * 0.7);
+        y0 = cH * (0.25 + hash(s.bph + 9.7, k) * 0.5);
+      }
+      const th = (smearAngle + ((s.r1 ?? 0.5) * 2 - 1) * angleJitter) * Math.PI / 180;
+      return {
+        s, amp, x0, y0, tanT: Math.tan(th), cosT: Math.cos(th), sinT: Math.sin(th),
+        rad: s.rad + Math.abs(amp) * 0.25,
+        wf: 0.11 * Math.pow(2.5, ((s.r2 ?? 0.5) * 2 - 1) * waveJitter)
+      };
+    }).filter(q => Math.abs(q.amp) > 2);
+    const flds = this.fields.map(f => {
+      const ph = t * w1 * 4 * f.cyc + f.bph;
+      const e = Math.pow(0.5 * (1 - Math.cos(ph)), 1.6);
+      const k = Math.floor(ph / 6.28318);
+      return {
+        x0: cW * (0.15 + hash(f.bph + 3.1, k) * 0.7),
+        y0: cH * (0.25 + hash(f.bph + 13.9, k) * 0.5),
+        rad: f.rad, sc: f.sc * e, rot: f.rot * e
+      };
+    }).filter(f => Math.abs(f.sc) > 0.005 || Math.abs(f.rot) > 0.005);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        let sy = y + wave[x] + tremor * Math.sin(y * 0.055 + x * 0.01 + this.ph3 + t * w1 * 2 + Math.sin(t * w1) * 2);
+        let sx = x;
+        for (let k = 0; k < flds.length; k++) {
+          const f = flds[k], dx = x - f.x0, dy = y - f.y0;
+          if (dx > f.rad * 3 || dx < -f.rad * 3 || dy > f.rad * 3 || dy < -f.rad * 3) continue;
+          // subtract the boundary value so the envelope reaches exactly 0 at the cutoff (no slice)
+          let env = Math.exp(-(dx * dx + dy * dy) / (2 * f.rad * f.rad)) - 0.0111;
+          if (env <= 0) continue;
+          // smooth local scale (grow/shrink) + rotation (swirl)
+          sx -= env * (f.sc * dx - f.rot * dy);
+          sy -= env * (f.sc * dy + f.rot * dx);
+        }
+        for (let k = 0; k < sts.length; k++) {
+          const q = sts[k], s = q.s;
+          const dxr = x - (q.x0 + (y - q.y0) * q.tanT);
+          if (dxr > q.rad * 3.5 || dxr < -q.rad * 3.5) continue;
+          const env = Math.exp(-(dxr * dxr) / (2 * q.rad * q.rad)) - 0.0022;
+          if (env <= 0) continue;
+          const ad = Math.abs(q.amp), sg = q.amp > 0 ? 1 : -1;
+          const dl = (y - q.y0) * sg;
+          if (dl > -40) {
+            const rise = 1 - Math.exp(-Math.max(0, dl) / (ad * 0.5 + 10));
+            const over = Math.max(0, dl - ad * 1.6);
+            const fall = Math.exp(-(over * over) / (2 * (ad + 60) * (ad + 60)));
+            let shift = q.amp * env * rise * fall;
+            shift += sg * env * Math.min(ad * 0.45, 70) * Math.sin(dl * q.wf) * rise * fall;
+            sy -= shift * q.cosT;
+            sx -= shift * q.sinT;
+          }
+        }
+        if (sy < 0) sy = 0; if (sy > H - 1.01) sy = H - 1.01;
+        if (sx < 0) sx = 0; if (sx > W - 1.01) sx = W - 1.01;
+        const x0i = sx | 0, fx = sx - x0i;
+        const y0i = sy | 0, fy = sy - y0i;
+        const i00 = (y0i * W + x0i) * 4, i10 = i00 + 4, i01 = i00 + W * 4, i11 = i01 + 4;
+        const di = (y * W + x) * 4;
+        for (let ch = 0; ch < 3; ch++) {
+          const top = src[i00 + ch] + (src[i10 + ch] - src[i00 + ch]) * fx;
+          const bot = src[i01 + ch] + (src[i11 + ch] - src[i01 + ch]) * fx;
+          o[di + ch] = top + (bot - top) * fy;
+        }
+        o[di + 3] = 255;
+      }
+    }
+    cv.getContext('2d').putImageData(this.outData, 0, 0);
+  }
+  renderAll() { if (!this.src) return; this.renderSource(); this.warp(); }
+  async captureGif() {
+    if (this.capturing) return;
+    this.capturing = true; this.setState({ rec: true });
+    const d0 = this.dims(), W = Math.round(d0.W / 2), H = Math.round(d0.H / 2), CYCLE = 8, fps = 20;
+    const speed = Math.max(0.1, this.cfg().speed);
+    const n = Math.max(16, Math.min(200, Math.round(fps * CYCLE / speed)));
+    const sc = document.createElement('canvas'); sc.width = W; sc.height = H;
+    const sctx = sc.getContext('2d');
+    const t0 = this.t || 0, frames = [];
+    for (let f = 0; f < n; f++) {
+      this.t = t0 + (f / n) * CYCLE;
+      this.warp();
+      sctx.drawImage(this.canvasRef.current, 0, 0, W, H);
+      const d = sctx.getImageData(0, 0, W, H).data;
+      const ink = this.hex(this.state.ink), pap = this.hex(this.state.paper);
+      const li = 0.3 * ink[0] + 0.59 * ink[1] + 0.11 * ink[2];
+      const lp = 0.3 * pap[0] + 0.59 * pap[1] + 0.11 * pap[2];
+      const den = Math.abs(lp - li) < 8 ? 8 : lp - li;
+      const idx = new Uint8Array(W * H);
+      for (let i = 0; i < W * H; i++) {
+        const lum = 0.3 * d[i * 4] + 0.59 * d[i * 4 + 1] + 0.11 * d[i * 4 + 2];
+        let v = Math.round((lum - li) / den * 63);
+        idx[i] = v < 0 ? 0 : v > 63 ? 63 : v;
+      }
+      frames.push(idx);
+      if (f % 6 === 5) await new Promise(r => setTimeout(r, 0));
+    }
+    this.t = t0; this.warp();
+    const inkC = this.hex(this.state.ink), papC = this.hex(this.state.paper);
+    const pal = new Uint8Array(64 * 3);
+    for (let i = 0; i < 64; i++) {
+      const f = i / 63;
+      for (let ch = 0; ch < 3; ch++) pal[i * 3 + ch] = Math.round(inkC[ch] + (papC[ch] - inkC[ch]) * f);
+    }
+    const bytes = this.encodeGif(W, H, frames, pal, 5);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+    a.download = 'text-distortion.gif'; a.click();
+    this.capturing = false; this.setState({ rec: false });
+  }
+  encodeGif(w, h, frames, pal, delayCs) {
+    const out = [];
+    const u16 = v => { out.push(v & 255, (v >> 8) & 255); };
+    const str = s => { for (const ch of s) out.push(ch.charCodeAt(0)); };
+    str('GIF89a'); u16(w); u16(h); out.push(0xF5, 0, 0);
+    for (const b of pal) out.push(b);
+    out.push(0x21, 0xFF, 0x0B); str('NETSCAPE2.0'); out.push(3, 1, 0, 0, 0);
+    for (const idx of frames) {
+      out.push(0x21, 0xF9, 4, 4); u16(delayCs); out.push(0, 0);
+      out.push(0x2C); u16(0); u16(0); u16(w); u16(h); out.push(0);
+      const mcs = 6;
+      out.push(mcs);
+      const lzw = this.lzw(idx, mcs);
+      for (let i = 0; i < lzw.length; i += 255) {
+        const len = Math.min(255, lzw.length - i);
+        out.push(len);
+        for (let j = 0; j < len; j++) out.push(lzw[i + j]);
+      }
+      out.push(0);
+    }
+    out.push(0x3B);
+    return new Uint8Array(out);
+  }
+  lzw(pixels, mcs) {
+    const CLEAR = 1 << mcs, EOI = CLEAR + 1;
+    let codeSize = mcs + 1, nextCode = EOI + 1, table = new Map();
+    const bytes = []; let cur = 0, nbits = 0;
+    const emit = c => {
+      cur |= c << nbits; nbits += codeSize;
+      while (nbits >= 8) { bytes.push(cur & 255); cur >>= 8; nbits -= 8; }
+    };
+    emit(CLEAR);
+    let ib = pixels[0];
+    for (let i = 1; i < pixels.length; i++) {
+      const k = pixels[i], key = (ib << 8) | k, code = table.get(key);
+      if (code === undefined) {
+        emit(ib);
+        if (nextCode === 4096) {
+          emit(CLEAR); nextCode = EOI + 1; codeSize = mcs + 1; table = new Map();
+        } else {
+          if (nextCode >= (1 << codeSize)) codeSize++;
+          table.set(key, nextCode++);
+        }
+        ib = k;
+      } else ib = code;
+    }
+    emit(ib); emit(EOI);
+    if (nbits > 0) bytes.push(cur & 255);
+    return bytes;
+  }
+  pt(e) {
+    const r = e.target.getBoundingClientRect(), { W, H } = this.dims();
+    return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+  }
+  renderVals() {
+    return {
+      canvasRef: this.canvasRef,
+      gifLabel: this.state.rec ? 'Recording…' : 'GIF ↓',
+      textValue: this.cfg().text,
+      fontVal: this.state.font,
+      shapeVal: this.state.shape,
+      inkVal: this.state.ink,
+      paperVal: this.state.paper,
+      onText: (e) => this.setState({ textVal: e.target.value }),
+      onFont: (e) => this.setState({ font: e.target.value }),
+      onShape: (e) => this.setState({ shape: e.target.value }),
+      onInk: (e) => this.setState({ ink: e.target.value }),
+      onPaper: (e) => this.setState({ paper: e.target.value }),
+      captureGif: () => this.captureGif(),
+      randomize: () => { this.seed = Math.floor(Math.random() * 1e6); this.renderAll(); },
+      clearSmears: () => { this.strokes = []; this.fields = []; this.warp(); },
+      randomFields: () => {
+        const { W, H } = this.dims();
+        const n = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) {
+          const sgn = () => Math.random() < 0.5 ? -1 : 1;
+          this.fields.push({
+            rad: 90 + Math.random() * 170,
+            sc: sgn() * (0.15 + Math.random() * 0.4),
+            rot: sgn() * (0.2 + Math.random() * 0.5),
+            cyc: 1 + Math.floor(Math.random() * 2),
+            bph: Math.random() * 6.283
+          });
+        }
+        this.warp();
+      },
+      randomBlobs: () => {
+        const { W, H } = this.dims();
+        const n = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) {
+          this.strokes.push({
+            x0: W * (0.15 + Math.random() * 0.7),
+            y0: H * (0.25 + Math.random() * 0.5),
+            amp: (Math.random() < 0.5 ? -1 : 1) * (50 + Math.random() * 120),
+            rad: 30 + Math.random() * 60,
+            r1: Math.random(), r2: Math.random(),
+            blob: true, cyc: 1 + Math.floor(Math.random() * 2), bph: Math.random() * 6.283
+          });
+        }
+        this.warp();
+      },
+      randomSmears: () => {
+        const { W, H } = this.dims();
+        const n = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) {
+          this.strokes.push({
+            x0: W * (0.15 + Math.random() * 0.7),
+            y0: H * (0.25 + Math.random() * 0.5),
+            amp: (Math.random() < 0.5 ? -1 : 1) * (40 + Math.random() * 110),
+            rad: 30 + Math.random() * 60,
+            r1: Math.random(), r2: Math.random()
+          });
+        }
+        this.warp();
+      },
+      download: () => {
+        this.canvasRef.current.toBlob(b => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(b); a.download = 'distorted-text.png'; a.click();
+        });
+      },
+      onDown: (e) => {
+        const { x, y } = this.pt(e);
+        const stroke = { x0: x, y0: y, amp: 0, rad: 46, r1: Math.random(), r2: Math.random() };
+        this.strokes.push(stroke);
+        this.drag = stroke;
+        e.target.setPointerCapture(e.pointerId);
+      },
+      onMove: (e) => {
+        if (!this.drag) return;
+        const { x, y } = this.pt(e);
+        this.drag.amp = y - this.drag.y0;
+        this.drag.rad = 46 + Math.abs(x - this.drag.x0) * 0.6;
+        if (!this._raf) this._raf = requestAnimationFrame(() => { this._raf = 0; this.warp(); });
+      },
+      onUp: () => {
+        if (!this.drag) return;
+        if (Math.abs(this.drag.amp) < 6) this.strokes.pop();
+        this.drag = null; this.warp();
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
