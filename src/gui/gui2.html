@@ -2057,11 +2057,16 @@ function buildScalePicker() {
   if (!host || document.getElementById('scalePick')) return;
   const row = document.createElement('div');
   row.className = 'row';
-  // The picker inherits its host's gate. Without this it showed unconditionally
-  // while Root hid behind bendQuant=2 — "the scale section has a scale selector
-  // but not a tonic selector" (human, 2026-08-20). The tonic was there all
-  // along; only its gate and the picker's disagreed.
-  if (host.dataset.when) row.dataset.when = host.dataset.when;
+  // The picker follows the DEGREE rows' gate, not Root's (ADR-112 A1). It
+  // autofills the degrees, so it lives wherever they live — and in offset
+  // mode (bendQuant=4) the two gates DIFFER: Root is dead (the played note is
+  // the tonic) but the shape is live and the picker is the easy autofill
+  // (human, 2026-08-22: "keep the scale selector... just drop the root").
+  // The 2026-08-20 lesson still holds in the other direction: a picker gated
+  // differently from what it EDITS is a control that lies about its reach.
+  const degHost = document.querySelector('.row[data-addr="scaleDeg0"]');
+  const gate = (degHost && degHost.dataset.when) || host.dataset.when;
+  if (gate) row.dataset.when = gate;
   row.innerHTML = '<label>Scale</label><select id="scalePick"></select><output></output>';
   host.after(row);
   const sel = row.querySelector('select');

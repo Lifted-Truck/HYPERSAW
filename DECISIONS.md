@@ -2512,3 +2512,13 @@ and save/load re-select the real name explicitly.
 `./verify full` EXIT=0 · parity 156/156 untouched · glide_check GREEN (offset
 invariant discriminating) · mpe_check GREEN (drag/anchored/offset sweep, 40:1
 bins) · rows BND-23/24/25, PRE-5.
+
+
+### ADR-112 A1 — the scale picker follows the degrees, not the root (2026-08-22)
+
+Human: "keep the scale selector for easy autofill and just drop the root
+selector" in offset mode. The picker had inherited Root's gate (the 2026-08-20
+fix that stopped it showing unconditionally); offset mode is the first place
+the two gates DIVERGE — Root dead, degrees live — and the picker autofills the
+degrees, so it follows their gate. The general rule both fixes share: a
+control is gated with what it EDITS.
