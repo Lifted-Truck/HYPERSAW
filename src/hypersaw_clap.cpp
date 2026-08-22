@@ -3541,6 +3541,7 @@ extern "C" void hypersaw_debug_state(const clap_plugin_t *p, char *out, uint32_t
   const std::string j = self(p)->stateJson();
   std::snprintf(out, cap, "%s", j.c_str());
 }
+extern "C" void hypersaw_debug_panic(const clap_plugin_t *p) { self(p)->panicWithDump(); }
 extern "C" bool hypersaw_debug_apply(const clap_plugin_t *p, const char *json)
 {
   return self(p)->applyStateJson(json ? json : "");

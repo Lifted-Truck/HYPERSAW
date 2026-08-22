@@ -216,7 +216,7 @@
     <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
     <div class="row" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"><output></output></div>
     <div class="row" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"><output></output></div>
-    <div class="row" data-addr="bendMpeLaw" data-when="bendLaw=1|2|3|4"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
+    <div class="row" data-addr="bendMpeLaw"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Scale</h2>
     <div class="row" data-addr="scaleRoot" data-when="bendQuant=2;noteQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>

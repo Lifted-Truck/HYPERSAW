@@ -131,3 +131,4 @@ TRU-2	MIX	(mixer)	agentic	ENCODING	hypersaw	paramscope_check	ADR-107 round-trip 
 MIX-9	MIX	(mixer)	human	RULING	human	manual	power checkboxes live in the mix strips (and the tab-bar buttons agree with them); the swarm-section toggles are gone from the OSC page
 MRF-6	MORPH	Morph engine	human	RULING	human	manual	ADR-105 A3: one SAVE stores the CURRENT sound as a corner preset (no capture step); loading into a corner keeps the preset name showing in that dropdown
 MRF-7	MORPH	Morph engine	human	RULING	human	manual	ADR-104 A2: the bend and note-travel laws morph — a corner can hold spring+scale-quantise while another holds instant+free, and law flips mid-gesture stay click-free (the traveller resets to the sounding pitch)
+BND-20	MAIN	Bend	human	RULING	human	manual	MPE Bend is visible whether or not a bend law is set — a mode SELECTOR is always visible; only a PARAMETER OF a mode is gated on that mode (the rule the dependency graph will encode)
