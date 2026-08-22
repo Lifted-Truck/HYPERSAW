@@ -27,7 +27,8 @@ int main()
   auto once=[&](EvList&e){e.finalize();proc.in_events=&e.list;p->process(p,&proc);};
   { EvList e;
     for (auto pv : std::vector<std::pair<clap_id,double>>{
-      {1,16},{1001,16},{1017,0.4},          // both oscs, 16 voices, osc2 audible
+      {1,16},{1001,16},{1150,1},{1017,0.4}, // 16 voices each; osc2 needs enable
+                                            // (1150, OFF per ADR-100) + volume
       {22,5.0},{1022,5.0},                  // long releases
       {106,4},                              // bend law: spring
       {57,5},{59,1},                        // comb + drive
