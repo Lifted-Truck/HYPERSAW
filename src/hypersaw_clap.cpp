@@ -1243,6 +1243,35 @@ struct Plugin
       }
     return false;
   }
+  /* ADR-110: which corner owns each parameter RIGHT NOW, for the GUI's colour
+     coding. The same pickCorner the audio path uses and the same group lead, so
+     the colours cannot disagree with what you hear — the lab's rule ("when they
+     were two copies, any edit to one was a map that lied about the sound"),
+     applied to a third consumer. Exempt parameters report -1: no corner owns
+     them, and the GUI must not tint them as if one did. */
+  std::string morphOwnersJson()
+  {
+    morphInit();
+    if (morphOn <= 0.5) return "{}";
+    double w[4], lw[4];
+    hypersaw::MorphCore::weights(morphX, morphY, w);
+    hypersaw::MorphCore::logW(w, morphTemp, lw);
+    std::string out = "{";
+    char buf[40];
+    bool first = true;
+    for (size_t i = 0; i < morphIds.size(); i++)
+    {
+      const int k = (i < morphExempt.size() && morphExempt[i])
+                        ? -1
+                        : morph.pickCorner((int)morphGroupLead(i), lw, morphCoup);
+      std::snprintf(buf, sizeof(buf), "%s\"%u\":%d", first ? "" : ",",
+                    (unsigned)morphIds[i], k);
+      out += buf;
+      first = false;
+    }
+    return out + "}";
+  }
+
   std::string morphExemptJson()
   {
     morphInit();
@@ -3803,6 +3832,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.morphLiveJson = [pl]() { return pl->liveCornerJson(); };
   hostIf.morphToggleExempt = [pl](uint32_t id) { return pl->morphToggleExempt((clap_id)id); };
   hostIf.morphExemptJson = [pl]() { return pl->morphExemptJson(); };
+  hostIf.morphOwnersJson = [pl]() { return pl->morphOwnersJson(); };
   hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };

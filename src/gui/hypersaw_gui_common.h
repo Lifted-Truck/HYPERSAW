@@ -239,6 +239,9 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
       on = host.morphToggleExempt((uint32_t)args[0].getWithDefault<int64_t>(0));
     return choc::value::createBool(on);
   });
+  web->bind("hzMorphOwners", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    return choc::value::createString(host.morphOwnersJson ? host.morphOwnersJson() : std::string("{}"));
+  });
   web->bind("hzMorphExemptJson", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.morphExemptJson ? host.morphExemptJson() : std::string("{}"));
   });
