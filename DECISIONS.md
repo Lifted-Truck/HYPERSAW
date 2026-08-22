@@ -2231,3 +2231,59 @@ is exactly the state a UI must not let you forget. Exempt rows carry a ⊘ mark.
 `corner_probe`, through the CLAP factory: unarmed edit STICKS (0.610 survives
 200 grid ticks), armed edit LANDS IN D (0.230 appears when the pad reaches D),
 exempt HOLDS (0.420 survives the pad slamming to the opposite corner).
+
+## ADR-109 A1 + ADR-024 A1 — The globals join the field; the inertia taper turns around (2026-08-22)
+
+**Source:** a human scan of which controls right-click actually reached, plus
+two design questions.
+
+### Why those controls "didn't work"
+
+Every parameter the scan named — freq glide, inertia, inertia curve, mono,
+legato, pitch, glide from, scale + root — is in `kGlobalIds`, and `morphInit`
+skips globals. They were never in the morph field, so `morphToggleExempt` had
+nothing to toggle and returned false silently. "Doesn't work" was the honest
+reading of a feature correctly doing nothing.
+
+They are now appended to the field (APPENDED, never inserted: morphIds order is
+the corner chunk's order, so every stored patch keeps its values).
+
+### The scale is ONE thing
+
+Root + twelve degrees flip as a UNIT. A per-degree flip would assemble a chimera
+from two corners — C major and F# minor interleaved is not a scale, it is a bug
+with a musical name. The human said it exactly: *"all the individual scale
+degrees would need to be included collectively, of course."* Implemented as a
+general ATOMIC GROUP (one corner decision taken on the group's lead index,
+exempt toggling the whole span), because the next group — a chord voicing, an FX
+slot's four params — will want the same mechanism.
+
+### ADR-024 Amendment 1 — inertiaCurve 0.5 -> 2.5
+
+The human asked to lock it "around 2.5" by ear. The arithmetic agrees, and shows
+the original went the wrong way: with `w = knob^curve` and the musically useful
+`w` range ~0.02..0.3, curve **0.5** squeezes that range into knob 0.0004..0.09 —
+the bottom 9% of the sweep — while **2.5** spreads it across knob 0.21..0.62.
+ADR-024's stated INTENT was to spread the useful range; the exponent was
+inverted relative to its own goal. Now hidden (settled value), but still a
+parameter so a patch can carry a different taper. Existing patches store their
+own value and are untouched.
+
+### freq glide is NOT gated to sample-and-hold — checked, not assumed
+
+The human asked whether it should nest under S&H. It should not: `glideOn` is
+`p.freqGlide > 0` at both sites (`swarm_core.h:791` and `:1373`) with NO
+drift-mode condition, and the render substitutes the smoothed `fRun` for `eff`
+whenever it is on — for every drift mode, and for any other jump in effective
+frequency (a detune move, a law change, gravity). It is a general de-zipper that
+is MOST AUDIBLE under S&H because that is where `eff` steps discontinuously,
+which is why the `freq-glide` golden uses driftMode 2. Gating it would hide a
+control that still does something, and would make the dependency graph assert
+something the engine does not do — the one error `depends_check` structurally
+cannot catch.
+
+### The ⊘ that printed as text
+
+`content: ' \2298'` had been written through a Python string that doubled the
+backslash, so CSS saw an escaped backslash followed by literal `2298`. One
+character.
