@@ -168,12 +168,18 @@ README. To workshop as an animated device logo.
      ZERO lit pixels and the network log shows `support.js 404`. So the reference is
      filed and readable but not yet EXECUTABLE on this machine.
 
-   Two ways forward, in preference order: (a) the human sends `support.js`, which keeps
-   the reference runnable exactly as authored — cheapest, and it preserves the
-   art-direction workflow the README assumes; (b) failing that, slice the warp out the
-   way `extract_glide.mjs` slices bend-lab's Inertia class — live, never forked — and
-   drive it from our own harness. (b) is our established pattern and would work, but it
-   trades the tool's UI away, and the UI is exactly what an art-direction session needs.
+   **`support.js` arrived (same session) and the tool now RUNS**: the 900x1150 canvas
+   paints 1,035,000 lit pixels where it painted zero, the wordmark already reads
+   **horde**, and the controls work — SWIRL and REWARP each visibly change the render
+   (canvas hashes differ across both). It is the art-direction bench, live.
+
+   **One caveat that matters for shipping, not for authoring:** `support.js` is a
+   1911-line React runtime that pulls React and ReactDOM from **unpkg.com**. That is
+   fine for a browser bench with a network, and a non-starter inside the plugin — the
+   webview has no network and shipping a CDN dependency would make the GUI's appearance
+   depend on someone else's uptime. It changes nothing about the plan: we were always
+   going to run the WARP MATH in gui2's canvas, never this tool's React chrome. Worth
+   stating so nobody later mistakes "the reference runs" for "the reference ships".
 
    What is needed before a fold is then the human's ART DIRECTION, not more code: a
    chosen seed, the Tweaks values, the canvas size, and the frozen stroke/blob/swirl
