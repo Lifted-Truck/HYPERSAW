@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>horde glitch lab — DECOHERE · STALE FIELD · NECROSIS</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171b24; --line:#2a3040; --text:#e8ecf2; --dim:#8b94a6;
+          --cyan:#5ff2e0; --amber:#ffc24b; --rose:#ff6b8a; --violet:#a78bdb; --green:#5fd08a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:13px/1.5 "IBM Plex Mono",ui-monospace,Menlo,monospace; padding:14px 16px 40px; }
+  h1 { font-size:17px; margin-bottom:2px; } h1 .star { color:var(--rose); }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:10px; max-width:1050px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:var(--dim);
+         background:#0b0e13; border:1px solid #2a3040; border-radius:3px; padding:2px 6px; opacity:.75; }
+  .top { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .grid { display:grid; grid-template-columns:minmax(320px,470px) 1fr; gap:10px; align-items:start; }
+  @media (max-width:940px) { .grid { grid-template-columns:1fr; } }
+  .cols { columns:250px 2; column-gap:10px; }
+  .cluster { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+             break-inside:avoid; -webkit-column-break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
+  .cluster h2 { font-size:10px; text-transform:uppercase; letter-spacing:.14em; color:var(--cyan); margin-bottom:2px; }
+  .cluster .why { color:var(--dim); font-size:10px; margin-bottom:8px; }
+  .cluster.dec h2 { color:var(--rose); } .cluster.stale h2 { color:var(--cyan); }
+  .cluster.necro h2 { color:var(--violet); } .cluster.swarm h2 { color:var(--amber); }
+  .row { display:flex; align-items:center; gap:6px; margin:4px 0; }
+  .row label { width:96px; color:var(--dim); font-size:11px; flex:none; }
+  .row input[type=range] { flex:1; }
+  .row output { width:64px; text-align:right; font-size:11px; flex:none; }
+  .row select, .row input[type=number] { flex:1; background:#0d1016; color:var(--text);
+    border:1px solid var(--line); border-radius:3px; font:inherit; font-size:11px; padding:3px 5px; }
+  .btnrow { display:flex; gap:6px; margin-top:8px; }
+  .btnrow button { flex:1; }
+  canvas { background:#0b0e13; border:1px solid var(--line); border-radius:4px; display:block; width:100%; }
+  button { background:#0d1016; color:var(--text); border:1px solid var(--line); border-radius:4px;
+           font:inherit; font-size:11px; padding:4px 10px; cursor:pointer; letter-spacing:.06em; }
+  button:hover { border-color:var(--cyan); }
+  button.on { border-color:var(--cyan); color:var(--cyan); }
+  button.dec.on, button.dec.flash { border-color:var(--rose); color:var(--rose); }
+  #power.on { background:var(--cyan); color:var(--bg); border-color:var(--cyan); }
+  .keys { display:flex; gap:5px; flex-wrap:wrap; }
+  .keys button { min-width:56px; }
+  .keys button.playing { border-color:var(--amber); color:var(--amber); }
+  .meter { color:var(--dim); font-size:10.5px; margin-top:6px; min-height:30px; }
+  .meter b { color:var(--text); font-weight:500; }
+  pre#stlog { background:#0b0e13; border:1px solid var(--line); border-radius:4px; padding:8px;
+              font-size:10.5px; line-height:1.45; white-space:pre-wrap; margin-top:8px; color:var(--dim); max-height:290px; overflow:auto; }
+  pre#stlog .p { color:var(--green); } pre#stlog .f { color:var(--rose); }
+  .hint { color:var(--dim); font-size:10.5px; margin-top:8px; max-width:1050px; }
+  .hint b { color:var(--text); font-weight:500; }
+  kbd { background:#0d1016; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+</style>
+</head>
+<body>
+<div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
+
+<h1>horde <span class="star">·</span> glitch lab</h1>
+<div class="tagline">The three <b>state-tier</b> glitch modules of <code>SPEC_swarm_glitch_modules.md</code> — DECOHERE, STALE FIELD, NECROSIS — auditioned together on a swarm source. They are not an FX rack: they have no buffer to insert into, they rewrite the Kuramoto coupling law and the per-oscillator state it runs over, so they live INSIDE the oscillator. Seeded from the first line (mulberry32, visible seed) — unlike the ingested reference <code>horde_decoherence_lab.html</code>, so "same seed → identical output" is a claim this lab can actually run: the SELF-TEST panel checks bypass-null, determinism and the spec's decohere/LIFO trajectories offline. Audition lab, spec-in-code — NOT a parity reference.</div>
+
+<div class="top">
+  <button id="power">POWER ON</button>
+  <div class="keys" id="keys"><button id="drone">DRONE</button></div>
+  <span id="status" style="color:var(--amber);font-size:11px"></span>
+</div>
+
+<div class="grid">
+  <div>
+    <div class="cluster">
+      <h2>Phase circle &amp; order parameter</h2>
+      <div class="why">amber dot = healthy voice · grey = dropout · violet = drift · rose = rot · green = recovering. Amber arrow = live mean field; cyan arrow = the ghost the swarm is coupling to while STALE FIELD is engaged.</div>
+      <canvas id="circle" width="440" height="230"></canvas>
+      <div class="meter" id="meter"></div>
+    </div>
+    <div class="cluster">
+      <h2>Self-test (offline, no audio needed)</h2>
+      <div class="why">Runs the spec's §5 acceptance shapes against this core at 48 kHz. Test 3 is a deliberate must-NOT-read-zero control: a determinism check that cannot fail is not a check.</div>
+      <div class="btnrow"><button id="stbtn">RUN SELF-TEST</button></div>
+      <pre id="stlog">not run</pre>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="cluster swarm">
+      <h2>Swarm (the source)</h2>
+      <div class="why">Detuned saws pulled toward their own mean field. K is HORDE-normalized: 0 free, ~0.3 herds, 0.5+ locks hard.</div>
+      <div class="row"><label>voices</label><input type="range" id="voices" min="4" max="32" step="1" value="16"><output id="voices_o">16</output></div>
+      <div class="row"><label>detune</label><input type="range" id="spread" min="0" max="0.04" step="0.0005" value="0.012"><output id="spread_o">0.0120</output></div>
+      <div class="row"><label>coupling K</label><input type="range" id="k" min="0" max="1" step="0.005" value="0.3"><output id="k_o">0.300</output></div>
+      <div class="row"><label>splay law</label><select id="disorder">
+        <option value="0" selected>ordered (spec §0 — splay targets)</option>
+        <option value="1">chaotic (prototype — raw repulsion)</option></select></div>
+      <div class="row"><label>level</label><input type="range" id="level" min="0" max="1" step="0.01" value="0.7"><output id="level_o">0.70</output></div>
+      <div class="btnrow"><button id="bypass">BYPASS ALL MODULES</button></div>
+    </div>
+
+    <div class="cluster dec">
+      <h2>Decohere</h2>
+      <div class="why">K_eff = clamp(−K·strength, −1, +1) for a burst: lock collapses toward splay, then re-condenses. The heal is emergent — its length depends on the margin K has over the detune spread.</div>
+      <div class="row"><label>strength</label><input type="range" id="decStrength" min="0.5" max="4" step="0.1" value="1.5"><output id="decStrength_o">1.5</output></div>
+      <div class="row"><label>burst</label><input type="range" id="decBurst" min="10" max="1000" step="10" value="150"><output id="decBurst_o">150 ms</output></div>
+      <div class="row"><label>rhythm rate</label><input type="range" id="decRate" min="0.5" max="16" step="0.1" value="2"><output id="decRate_o">2.0 /s</output></div>
+      <div class="row"><label>rhythm p</label><input type="range" id="decProb" min="0" max="1" step="0.01" value="0"><output id="decProb_o">off</output></div>
+      <div class="row"><label>on note-on</label><select id="decOnNote"><option value="0" selected>no</option><option value="1">yes</option></select></div>
+      <div class="row"><label>heal boost</label><select id="decHealBoost"><option value="0" selected>off (default)</option><option value="1">on — 1.5×, 80 ms</option></select></div>
+      <div class="btnrow"><button class="dec" id="burstBtn">BURST (D)</button><button class="dec" id="holdBtn">HOLD</button></div>
+    </div>
+
+    <div class="cluster stale">
+      <h2>Stale field</h2>
+      <div class="why">The mean field is replaced by a ghost captured at engage — magnitude, angle, rotation rate — advanced at the captured rate forever after. Change note while engaged: that conflict IS the module.</div>
+      <div class="row"><label>haunt</label><input type="range" id="staleHaunt" min="0" max="1" step="0.01" value="1"><output id="staleHaunt_o">1.00</output></div>
+      <div class="row"><label>capture τ</label><input type="range" id="staleTau" min="2" max="20" step="0.5" value="5"><output id="staleTau_o">5.0 ms</output></div>
+      <div class="btnrow"><button id="staleBtn">ENGAGE (F)</button></div>
+    </div>
+
+    <div class="cluster necro">
+      <h2>Necrosis</h2>
+      <div class="why">One bipolar axis: down damages voices in a seeded order, up heals them LIFO. Damaged voices stay in the coupling sum — the survivors get dragged around the corpses.</div>
+      <div class="row"><label>vitality</label><input type="range" id="vitality" min="0" max="1" step="0.005" value="1"><output id="vitality_o">1.00</output></div>
+      <div class="row"><label>failure</label><select id="failure">
+        <option value="0" selected>dropout — flicker and die</option>
+        <option value="1">drift — wander off pitch</option>
+        <option value="2">rot — phase corruption</option>
+        <option value="3">random per voice (seeded)</option></select></div>
+      <div class="row"><label>virulence</label><input type="range" id="virulence" min="0.25" max="4" step="0.05" value="1"><output id="virulence_o">1.00×</output></div>
+      <div class="row"><label>seed</label><input type="number" id="seed" value="1234" min="0" max="999999"><button id="dice" style="margin-left:6px">⚄</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">Sequence to try: DRONE, K at 0.3, watch the dots condense and r climb — then <b>BURST</b> (<kbd>D</kbd>) and hear the note shatter and re-form. Then <b>ENGAGE</b> (<kbd>F</kbd>) and play a different note: natural frequencies pull to the new pitch while the ghost pulls at the old note's rotation rate. Then pull <b>vitality</b> down slowly with drift mode at K just above lock — the note falls apart on its own and does not recover until vitality returns. Keys <kbd>1</kbd>–<kbd>8</kbd> notes, <kbd>D</kbd> burst, <kbd>F</kbd> stale field, <kbd>[</kbd>/<kbd>]</kbd> vitality.</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   DETERMINISTIC CORE — GlitchSwarm
+   =====================================================================
+   THE SEAM THIS LAB EXISTS TO SHOW. These three modules are not a
+   post-FX chain and cannot be one: DECOHERE rewrites the coupling
+   constant, STALE FIELD substitutes the field the coupling term reads,
+   NECROSIS mutates per-oscillator ω/amp/θ. None of them has an input
+   buffer. So they are written here where the human said they must live —
+   INSIDE the oscillator, between the mean-field computation and the
+   phase integrator — and the source below is a swarm, not a signal
+   generator with an insert point. Everything module-owned is marked
+   [M1]/[M2]/[M3]; delete those three blocks and what is left is the
+   plain swarm the bypass path renders (self-test 1 proves the two are
+   bit-identical, which is spec §5 test 1).
+
+   Interaction ordering is fixed by SPEC_swarm_glitch_modules.md §0:
+     (1) NECROSIS mutates per-voice state
+     (2) STALE FIELD selects the field the coupling term sees
+     (3) DECOHERE overrides the effective K
+     (4) integrate
+   ===================================================================== */
+
+const NMAX = 32, TAU = 6.283185307, TICK = 16;
+
+/* The house stream — mulberry32, the ONLY randomness in this file's core
+   (CLAUDE.md §Domain: mulberry32 streams only, no wall-clock in cores).
+   The reference prototype calls Math.random() seven times, which is why it
+   cannot generate a golden; this lab is that prototype with the RNG made
+   answerable to a seed. */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function princarg(p) { p = p % TAU; if (p > Math.PI) p -= TAU; if (p < -Math.PI) p += TAU; return p; }
+/* Detune shape and pan law carried over from the reference prototype so the
+   swarm underneath the modules sounds like the one they were designed on. */
+function detuneShape(i, n) { if (n < 2) return 0; const lin = 2 * i / (n - 1) - 1; return lin * 0.6 + lin * lin * lin * 0.4; }
+
+/* Voice states. 4 (recovering) is ours, not the prototype's: spec §3 says
+   healing is a recovery, not an undo, so a healed voice is neither damaged
+   nor healthy for 150–300 ms. */
+const ALIVE = 0, DROPOUT = 1, DRIFTF = 2, ROT = 3, RECOVER = 4;
+
+class GlitchSwarm {
+  constructor(sr) {
+    this.sr = sr;
+    this.p = {
+      voices: 16, spread: 0.012, k: 0.3, disorder: 0, level: 0.7, bypass: 0, drone: 0,
+      // [M1] DECOHERE
+      decStrength: 1.5, decBurst: 150, decHold: 0, decOnNote: 0, decRate: 2, decProb: 0, decHealBoost: 0,
+      // [M2] STALE FIELD
+      staleEngage: 0, staleHaunt: 1, staleTau: 5,
+      // [M3] NECROSIS
+      vitality: 1, failure: 0, virulence: 1, seed: 1234
+    };
+    // per-voice state (spec §4: state u8, age f32, amp f32, drift f32, flicker i32)
+    this.theta = new Float64Array(NMAX);
+    this.drift = new Float64Array(NMAX);
+    this.amp = new Float64Array(NMAX);
+    this.age = new Float64Array(NMAX);
+    this.state = new Uint8Array(NMAX);
+    this.flicker = new Int32Array(NMAX);
+    this.healRem = new Float64Array(NMAX);
+    this.healDur = new Float64Array(NMAX);
+    this.ampAtHeal = new Float64Array(NMAX);
+    this.driftAtHeal = new Float64Array(NMAX);
+    this.lp = new Float64Array(NMAX);
+    this.perm = new Int32Array(NMAX);   // seeded damage order
+    this.stack = new Int32Array(NMAX);  // damaged voices, LIFO
+    this.nDam = 0;
+    // voice/transport
+    this.f0 = 110; this.targetF = 110; this.env = 0; this.gate = 0; this.n = 0;
+    // observers (spec §0)
+    this.rSm = 0; this.psiSm = 0; this.psiPrev = 0; this.dpsiSm = 0;
+    // module runtime
+    this.decRem = 0; this.decTrig = 0; this.boostRem = 0; this.boostLen = 1; this.rhyPhase = 0;
+    this.staleOn = 0; this.psiF = 0; this.dpsiF = 0; this.rF = 0; this.hauntSm = 0;
+    this.vitSm = 1;
+    // telemetry for the UI (control rate; never read by the DSP)
+    this.vis = { n: 16, theta: new Float64Array(NMAX), state: new Uint8Array(NMAX), amp: new Float64Array(NMAX),
+                 r: 0, psi: 0, rBar: 0, rF: 0, psiF: 0, stale: 0, dec: 0, nDam: 0,
+                 hist: new Float64Array(600), flag: new Uint8Array(600), pos: 0 };
+    this.reseed();
+  }
+
+  /* Per-purpose streams, each derived from the one patch seed. Separate
+     streams so the permutation cannot shift because a different number of
+     heals happened first — a single shared stream makes the damage ORDER a
+     function of play history, which spec §3 forbids ("same slider gesture →
+     same sonic result, every time"). */
+  reseed() {
+    const s = this.p.seed | 0;
+    this.rndInit = mulberry32(s ^ 0x1B873593);
+    this.rndStruct = mulberry32(s ^ 0x9E3779B9);   // heal durations, random failure assignment
+    this.rndRun = mulberry32((s + 1) | 0);          // audio-rate: flicker, drift walk, rot, rhythm
+    for (let i = 0; i < NMAX; i++) {
+      this.theta[i] = this.rndInit() * TAU;
+      this.drift[i] = 0; this.amp[i] = 1; this.age[i] = 0; this.state[i] = ALIVE;
+      this.flicker[i] = 0; this.healRem[i] = 0; this.lp[i] = 0;
+    }
+    this.nDam = 0;
+    this.buildPerm();
+  }
+
+  /* Seeded damage order, spec §3: the first ⌈N/4⌉ entries are constrained to
+     INTERIOR voices, because the extreme-detune voices carry the width and
+     killing them first just narrows the sound instead of sickening it. */
+  buildPerm() {
+    const N = this.p.voices | 0;
+    const r = mulberry32(((this.p.seed | 0) ^ 0x85EBCA6B ^ Math.imul(N, 2654435761)) | 0);
+    const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+    const inner = [], outer = [];
+    for (let i = 0; i < N; i++) (Math.abs(N < 2 ? 0 : 2 * i / (N - 1) - 1) <= 0.5 ? inner : outer).push(i);
+    shuffle(inner); shuffle(outer);
+    const q = Math.min(inner.length, Math.ceil(N / 4));
+    const head = inner.slice(0, q);
+    const tail = shuffle(inner.slice(q).concat(outer));
+    const order = head.concat(tail);
+    for (let i = 0; i < N; i++) this.perm[i] = order[i];
+    for (let i = N; i < NMAX; i++) this.perm[i] = i;
+  }
+
+  setParam(k, v) {
+    const prev = this.p[k];
+    this.p[k] = v;
+    if (k === 'seed' && v !== prev) this.reseed();
+    else if (k === 'voices' && v !== prev) this.onVoiceCount();
+  }
+
+  /* Spec §4: voice-count changes while damaged — clamp M to the new N and heal
+     any voice index ≥ N instantly. The permutation is N-dependent so it is
+     rebuilt; the LIFO stack is then re-derived in permutation order, which
+     loses the original damage ORDER of surviving casualties. Deliberate: the
+     alternative is carrying a history that no longer indexes anything. */
+  onVoiceCount() {
+    const N = this.p.voices | 0;
+    for (let i = N; i < NMAX; i++) {
+      this.state[i] = ALIVE; this.amp[i] = 1; this.drift[i] = 0; this.age[i] = 0; this.flicker[i] = 0; this.healRem[i] = 0;
+    }
+    this.buildPerm();
+    this.nDam = 0;
+    for (let j = 0; j < N; j++) {
+      const i = this.perm[j];
+      const st = this.state[i];
+      if (st === DROPOUT || st === DRIFTF || st === ROT) this.stack[this.nDam++] = i;
+    }
+  }
+
+  noteOn(f) {
+    this.targetF = f; this.gate = 1;
+    if (this.p.decOnNote && !this.p.bypass) this.decTrig = 1;   // [M1] trigger source: note-on
+  }
+  noteOff() { this.gate = 0; }
+  burst() { if (!this.p.bypass) this.decTrig = 1; }             // [M1] manual trigger; latency = next sample
+
+  /* ---- [M3] NECROSIS membership, run at control rate ---------------- */
+  damageNext(N) {
+    for (let j = 0; j < N; j++) {
+      const i = this.perm[j], st = this.state[i];
+      if (st === ALIVE || st === RECOVER) {
+        let m = this.p.failure | 0;
+        if (m === 3) m = (this.rndStruct() * 3) | 0;            // random-per-voice, seeded at damage time
+        this.state[i] = m + 1; this.age[i] = 0; this.flicker[i] = 0; this.healRem[i] = 0;
+        this.stack[this.nDam++] = i;
+        return;
+      }
+    }
+  }
+  healOne(i) {
+    // Recovery, not undo (spec §3): amp → 1 and drift → 0 over 150–300 ms,
+    // randomized per voice from the structural stream; rot jumps freeze now.
+    this.ampAtHeal[i] = this.amp[i]; this.driftAtHeal[i] = this.drift[i];
+    this.healDur[i] = 0.15 + this.rndStruct() * 0.15;
+    this.healRem[i] = this.healDur[i];
+    this.state[i] = RECOVER;
+  }
+  necrosisUpdate(N) {
+    const M = Math.round((1 - this.vitSm) * N);
+    let guard = NMAX;
+    while (this.nDam < M && guard-- > 0) this.damageNext(N);
+    while (this.nDam > M) this.healOne(this.stack[--this.nDam]);
+  }
+
+  /* Coupling torque on voice i toward a field (fr, fpsi).
+     Positive K: the ordinary Kuramoto pull to the mean.
+     Negative K, ORDERED (spec §0): pull toward equidistant SPLAY slots —
+       an ordered shatter, the production semantics.
+     Negative K, CHAOTIC: raw repulsion, what the prototype did — kept as a
+       mode because §0 asks for exactly this A/B and this lab is where it is
+       settled by ear. */
+  torque(i, kRate, fr, fpsi, N) {
+    if (kRate >= 0 || this.p.disorder === 1) return kRate * fr * Math.sin(fpsi - this.theta[i]);
+    return -kRate * fr * Math.sin(fpsi + TAU * i / N - this.theta[i]);
+  }
+
+  render(L, R) {
+    const p = this.p, sr = this.sr, dt = 1 / sr, N = p.voices | 0, len = L.length;
+    // Every coefficient below is a TIME CONSTANT IN SECONDS converted here —
+    // per-tick constants are banned (ADR-009), and these must hold at any sr.
+    const glide = 1 - Math.exp(-1 / (0.035 * sr));
+    const envUp = 1 - Math.exp(-1 / (0.004 * sr));
+    const envDn = 1 - Math.exp(-1 / (0.100 * sr));
+    const cObs = 1 - Math.exp(-1 / (Math.max(0.5, p.staleTau) * 0.001 * sr));
+    const cHaunt = 1 - Math.exp(-1 / (0.020 * sr));
+    const cVit = 1 - Math.exp(-1 / (0.010 * sr));
+    const cLp = 1 - Math.exp(-TAU * 4000 / sr);
+    // The failure models' rates are quoted per-sample at 44.1 kHz in spec §3;
+    // rescale so events/second (and random-walk variance/second) are invariant.
+    const pScale = 44100 / sr, wScale = Math.sqrt(44100 / sr);
+    const vir = p.virulence;
+
+    for (let s = 0; s < len; s++) {
+      this.f0 += (this.targetF - this.f0) * glide;
+      const on = this.gate || p.drone;
+      this.env += ((on ? 1 : 0) - this.env) * (on ? envUp : envDn);
+
+      // live mean field  r·e^{iψ} = (1/N)·Σ e^{iθ_i}
+      let cx = 0, cy = 0;
+      for (let i = 0; i < N; i++) { cx += Math.cos(this.theta[i]); cy += Math.sin(this.theta[i]); }
+      cx /= N; cy /= N;
+      const r = Math.hypot(cx, cy), psi = Math.atan2(cy, cx);
+
+      let kNorm = p.k, fieldR = r, fieldPsi = psi, haunt = 0;
+
+      if (!p.bypass) {
+        /* ---- observers (spec §0) --------------------------------------
+           The angle observer is a rotating-frame tracker, not a low-pass, and
+           it has to be: the mean-field vector SPINS at f0, so one-poling its
+           components collapses its magnitude (measured: r̄ = 0.28 on a swarm
+           whose true r was ~1 — the self-test's decohere case caught it), and
+           one-poling ψ directly averages the ±π wrap into a spurious
+           half-turn. So: scalar one-pole on r, one-pole on the per-sample
+           rotation dψ, and ψ̄ advanced by dψ̄ and pulled toward the live ψ
+           through the WRAPPED error. */
+        this.rSm += (r - this.rSm) * cObs;
+        const dpsi = princarg(psi - this.psiPrev); this.psiPrev = psi;
+        this.dpsiSm += (dpsi - this.dpsiSm) * cObs;
+        this.psiSm += this.dpsiSm + princarg(psi - this.psiSm) * cObs;
+        if (this.psiSm > Math.PI) this.psiSm -= TAU; else if (this.psiSm < -Math.PI) this.psiSm += TAU;
+
+        /* ---- (1) [M3] NECROSIS: membership at control rate ------------ */
+        this.vitSm += (p.vitality - this.vitSm) * cVit;
+        if ((this.n % TICK) === 0) this.necrosisUpdate(N);
+
+        /* ---- (2) [M2] STALE FIELD: which field the coupling sees ------ */
+        const want = p.staleEngage ? 1 : 0;
+        if (want && !this.staleOn) {                 // rising edge → capture
+          this.psiF = this.psiSm; this.dpsiF = this.dpsiSm; this.rF = Math.max(0.15, this.rSm);
+        }
+        this.staleOn = want;
+        if (want) {
+          this.psiF += this.dpsiF;                   // ghost advances at the captured rate
+          if (this.psiF > Math.PI) this.psiF -= TAU; else if (this.psiF < -Math.PI) this.psiF += TAU;
+          this.hauntSm += (p.staleHaunt - this.hauntSm) * cHaunt;   // 20 ms smoothing on the blend
+        } else {
+          this.hauntSm = 0;                          // disengage is instant (spec §2)
+        }
+        haunt = this.hauntSm;
+        fieldR = this.rF; fieldPsi = this.psiF;
+
+        /* ---- (3) [M1] DECOHERE: override the effective K -------------- */
+        if (p.decProb > 0) {                         // seeded stochastic rhythm trigger
+          this.rhyPhase += p.decRate * dt;
+          if (this.rhyPhase >= 1) { this.rhyPhase -= 1; if (this.rndRun() < p.decProb) this.decTrig = 1; }
+        }
+        if (this.decTrig) { this.decRem = Math.round(sr * p.decBurst * 0.001); this.decTrig = 0; }  // retrigger restarts, never stacks
+        if (this.decRem > 0 || p.decHold) {
+          kNorm = Math.max(-1, Math.min(1, -p.k * p.decStrength));
+          if (this.decRem > 0) {
+            this.decRem--;
+            if (this.decRem === 0 && p.decHealBoost) { this.boostLen = Math.round(sr * 0.08); this.boostRem = this.boostLen; }
+          }
+        } else if (this.boostRem > 0) {              // dec.healboost, default off
+          kNorm = Math.min(1, p.k * (1 + 0.5 * (this.boostRem / this.boostLen)));
+          this.boostRem--;
+        }
+      }
+
+      // normalized K → rad/s. 0.5·2π·f0 is the reference lab's scaling with
+      // its raw slider halved, so K=0.3 here is its k=0.15 "locks hard" point,
+      // and coupling behaves the same across pitches.
+      const kRate = kNorm * 0.5 * TAU * this.f0;
+
+      /* ---- (4) integrate + render ---------------------------------- */
+      let yl = 0, yr = 0;
+      for (let i = 0; i < N; i++) {
+        const d = detuneShape(i, N);
+        const st = this.state[i];
+
+        if (!p.bypass && st !== ALIVE) {
+          /* [M3] failure models — per spec §3, severity grows with age */
+          if (st === RECOVER) {
+            this.healRem[i] -= dt;
+            const u = this.healRem[i] > 0 ? this.healRem[i] / this.healDur[i] : 0;
+            this.amp[i] = 1 - u * (1 - this.ampAtHeal[i]);
+            this.drift[i] = this.driftAtHeal[i] * u;
+            if (this.healRem[i] <= 0) { this.state[i] = ALIVE; this.age[i] = 0; this.amp[i] = 1; this.drift[i] = 0; this.flicker[i] = 0; }
+          } else {
+            this.age[i] += dt;
+            if (st === DROPOUT) {
+              this.amp[i] *= Math.exp(-dt * 2.2 * vir);
+              if (this.flicker[i] > 0) this.flicker[i]--;
+              else if (this.rndRun() < 0.0012 * vir * pScale) this.flicker[i] = (0.05 * sr) | 0;
+            } else if (st === DRIFTF) {
+              this.drift[i] += (this.rndRun() - 0.5) * this.age[i] * this.f0 * 1.2e-4 * vir * wScale;
+            } else if (st === ROT) {
+              if (this.rndRun() < 0.0008 * (1 + this.age[i] * 3) * vir * pScale)
+                this.theta[i] += (this.rndRun() - 0.5) * Math.min(3, this.age[i]) * 2;
+            }
+          }
+        }
+
+        const w = TAU * this.f0 * (1 + p.spread * d) + this.drift[i];
+        // Haunt (spec §2 extension): blend the two TORQUES, not the two field
+        // vectors — blending angles through a zero-crossing of r is undefined.
+        let tq = this.torque(i, kRate, r, psi, N);
+        if (haunt > 0) tq = haunt * this.torque(i, kRate, fieldR, fieldPsi, N) + (1 - haunt) * tq;
+
+        this.theta[i] += (w + tq) * dt;
+        if (this.theta[i] > TAU) this.theta[i] -= TAU; else if (this.theta[i] < 0) this.theta[i] += TAU;
+
+        // Damaged voices keep integrating and keep contributing to the field
+        // above; only their AUDIO leaves (spec §3).
+        const a = st === DROPOUT ? (this.flicker[i] > 0 ? 0 : this.amp[i]) : (st === RECOVER ? this.amp[i] : 1);
+        const v = (this.theta[i] / Math.PI - 1) * a;
+        this.lp[i] += (v - this.lp[i]) * cLp;
+        const pan = (d + 1) / 2;
+        yl += this.lp[i] * Math.cos(pan * Math.PI / 2);
+        yr += this.lp[i] * Math.sin(pan * Math.PI / 2);
+      }
+
+      const g = this.env * p.level * 2.2 / N;
+      L[s] = Math.tanh(yl * g);
+      R[s] = Math.tanh(yr * g);
+
+      if ((this.n & 63) === 0) {   // decimated telemetry ring
+        const V = this.vis;
+        V.hist[V.pos] = r;
+        V.flag[V.pos] = (!p.bypass && (this.decRem > 0 || p.decHold)) ? 1 : (this.staleOn ? 2 : (this.nDam > 0 ? 3 : 0));
+        V.pos = (V.pos + 1) % V.hist.length;
+      }
+      this.n++;
+    }
+
+    // control-rate snapshot for the UI
+    const V = this.vis;
+    V.n = N; V.theta.set(this.theta); V.state.set(this.state); V.amp.set(this.amp);
+    let cx = 0, cy = 0;
+    for (let i = 0; i < N; i++) { cx += Math.cos(this.theta[i]); cy += Math.sin(this.theta[i]); }
+    V.r = Math.hypot(cx / N, cy / N); V.psi = Math.atan2(cy / N, cx / N);
+    V.rBar = this.rSm; V.rF = this.rF; V.psiF = this.psiF;
+    V.stale = this.staleOn; V.nDam = this.nDam;
+    V.dec = (!p.bypass && (this.decRem > 0 || p.decHold)) ? 1 : V.dec * 0.8;
+  }
+}
+
+/* =====================================================================
+   OFFLINE HARNESS — the reason the seed exists
+   ===================================================================== */
+function makeCore(sr, over) {
+  const c = new GlitchSwarm(sr);
+  Object.assign(c.p, over || {});
+  c.reseed();          // seed/voices may have moved under setParam's back
+  c.buildPerm();
+  return c;
+}
+/* Renders `secs` of audio applying a script of {t, do} events at block
+   boundaries. No wall clock anywhere: event time is a sample index. */
+function renderOffline(core, secs, script) {
+  const B = 128, total = Math.round(core.sr * secs);
+  const out = new Float64Array(total);
+  const L = new Float64Array(B), Rb = new Float64Array(B);
+  const ev = (script || []).slice().sort((a, b) => a.t - b.t);
+  let k = 0;
+  for (let off = 0; off < total; off += B) {
+    while (k < ev.length && ev[k].t * core.sr <= off) { ev[k].do(core); k++; }
+    core.render(L, Rb);
+    const n = Math.min(B, total - off);
+    for (let i = 0; i < n; i++) out[off + i] = L[i];
+  }
+  return out;
+}
+function maxDiff(a, b) { let m = 0; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > m) m = d; } return m; }
+
+function selfTest() {
+  const SR = 48000, lines = [];
+  // The messages quote thresholds as "(<0.30)"; the log is written with
+  // innerHTML for the pass/fail colour, so an unescaped "<" would be parsed
+  // as a tag and silently eat the rest of the line.
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const say = (ok, s) => lines.push('<span class="' + (ok ? 'p">PASS' : 'f">FAIL') + '</span>  ' + esc(s));
+  const BASE = { voices: 16, spread: 0.012, k: 0.3, drone: 1, level: 0.7, seed: 1234 };
+
+  // 1 — BYPASS NULL (spec §5.1): modules disengaged ≡ engine without modules.
+  {
+    const a = makeCore(SR, Object.assign({}, BASE, { bypass: 1 }));
+    const b = makeCore(SR, Object.assign({}, BASE));   // modules present, all idle
+    const d = maxDiff(renderOffline(a, 0.5, []), renderOffline(b, 0.5, []));
+    say(d === 0, 'bypass null — idle modules vs module-free path: max|Δ| = ' + d.toExponential(2));
+  }
+
+  // A gesture that exercises all three modules and a note change while stale.
+  const gesture = () => ([
+    { t: 0.10, do: c => c.setParam('staleEngage', 1) },
+    { t: 0.20, do: c => c.noteOn(146.83) },
+    { t: 0.25, do: c => c.burst() },
+    { t: 0.30, do: c => c.setParam('vitality', 0.5) },
+    { t: 0.50, do: c => c.setParam('vitality', 1) },
+    { t: 0.60, do: c => c.setParam('staleEngage', 0) }
+  ]);
+
+  // 2 — DETERMINISM (spec §5.3/§5.5): same seed + same gesture → identical.
+  let same;
+  {
+    const a = renderOffline(makeCore(SR, Object.assign({}, BASE, { failure: 3 })), 0.8, gesture());
+    const b = renderOffline(makeCore(SR, Object.assign({}, BASE, { failure: 3 })), 0.8, gesture());
+    same = maxDiff(a, b);
+    say(same === 0, 'determinism — seed 1234 twice, identical gesture: max|Δ| = ' + same.toExponential(2));
+  }
+
+  // 3 — CONTROL that must NOT read zero. A determinism test whose detector
+  // cannot tell two runs apart passes for free; this proves it can.
+  {
+    const a = renderOffline(makeCore(SR, Object.assign({}, BASE, { failure: 3 })), 0.8, gesture());
+    const b = renderOffline(makeCore(SR, Object.assign({}, BASE, { failure: 3, seed: 1235 })), 0.8, gesture());
+    const d = maxDiff(a, b);
+    say(d > 1e-6, 'control — seed 1235 must DIFFER (detector is live): max|Δ| = ' + d.toExponential(2));
+  }
+
+  // 4 — DECOHERE trajectory (spec §5.2): locked → burst → r̄ collapses → heals.
+  {
+    const c = makeCore(SR, Object.assign({}, BASE, { k: 0.6, decStrength: 1.5, decBurst: 150 }));
+    renderOffline(c, 1.5, []);
+    const rLock = c.rSm;
+    const B = 128, L = new Float64Array(B), Rb = new Float64Array(B);
+    c.burst();
+    let rMin60 = 1, rMax = 0;
+    const blocks60 = Math.round(SR * 0.06 / B);
+    for (let i = 0; i < Math.round(SR * 2.5 / B); i++) {
+      c.render(L, Rb);
+      if (i < blocks60) rMin60 = Math.min(rMin60, c.rSm);
+      if (i > Math.round(SR * 0.5 / B)) rMax = Math.max(rMax, c.rSm);
+    }
+    say(rLock > 0.95 && rMin60 < 0.3 && rMax > 0.9,
+        'decohere trajectory — lock r̄=' + rLock.toFixed(3) + ' (>0.95), r̄ min within 60 ms = '
+        + rMin60.toFixed(3) + ' (<0.30), recovery r̄ = ' + rMax.toFixed(3) + ' (>0.90)');
+  }
+
+  // 5 — NECROSIS LIFO (spec §5.5): damage 4, heal 2 → 3 and 4 recover, 1 and 2 stay.
+  {
+    const c = makeCore(SR, Object.assign({}, BASE, { failure: 1 }));
+    renderOffline(c, 0.3, [{ t: 0.05, do: x => x.setParam('vitality', 0.75) }]);   // M = 4
+    const four = Array.from(c.stack.slice(0, 4));
+    renderOffline(c, 0.3, [{ t: 0.05, do: x => x.setParam('vitality', 0.875) }]);  // M = 2
+    const dmg = i => c.state[i] === DROPOUT || c.state[i] === DRIFTF || c.state[i] === ROT;
+    const ok = c.nDam === 2 && dmg(four[0]) && dmg(four[1]) && !dmg(four[2]) && !dmg(four[3]);
+    say(ok, 'necrosis LIFO — damage order ' + JSON.stringify(four) + ', healed the last two: still damaged ['
+        + four.filter(dmg).join(',') + '], released [' + four.filter(i => !dmg(i)).join(',') + ']');
+  }
+
+  // 6 — THRESHOLD COLLAPSE (spec §5.6): drift necrosis pushes the swarm below
+  // lock and it does not recover until vitality returns. Measured, not clamped —
+  // and PATCH-DEPENDENT: the effect needs a K near threshold (0.07 here, not
+  // the 0.3 default) and enough time for the age-driven walk to grow. Spot-
+  // checked over seeds 1234/7/99/4242: r̄ 0.943 → 0.52..0.88 → 0.943.
+  {
+    const c = makeCore(SR, Object.assign({}, BASE, { k: 0.07, spread: 0.02, failure: 1, virulence: 4 }));
+    renderOffline(c, 1.0, []);
+    const rBefore = c.rSm;
+    renderOffline(c, 5.0, [{ t: 0.02, do: x => x.setParam('vitality', 0.3) }]);
+    const rSick = c.rSm;
+    renderOffline(c, 3.0, [{ t: 0.02, do: x => x.setParam('vitality', 1) }]);
+    const rBack = c.rSm;
+    say(rSick < rBefore - 0.03 && rBack > rBefore - 0.02,
+        'threshold collapse — r̄ ' + rBefore.toFixed(3) + ' → ' + rSick.toFixed(3)
+        + ' at vitality 0.3 (drift, virulence 4), back to ' + rBack.toFixed(3) + ' on return');
+  }
+
+  return lines.join('\n');
+}
+
+/* =====================================================================
+   UI — everything below is adapter, never read by the core
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+let ctx = null, spn = null, core = null;
+
+function powerOn() {
+  if (ctx) { ctx.close(); ctx = null; spn = null; core = null; $('power').textContent = 'POWER ON'; $('power').classList.remove('on'); return; }
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    core = new GlitchSwarm(ctx.sampleRate);
+    pushAll();
+    spn = ctx.createScriptProcessor(1024, 0, 2);
+    spn.onaudioprocess = e => core.render(e.outputBuffer.getChannelData(0), e.outputBuffer.getChannelData(1));
+    spn.connect(ctx.destination);
+    if (ctx.state === 'suspended') ctx.resume();
+    $('power').textContent = 'POWER OFF'; $('power').classList.add('on');
+    $('status').textContent = '';
+  } catch (err) { $('status').textContent = 'audio failed: ' + err.message; ctx = null; }
+}
+function send(k, v) { if (core) core.setParam(k, v); }
+
+const fmt = {
+  voices: v => v, spread: v => (+v).toFixed(4), k: v => (+v).toFixed(3), level: v => (+v).toFixed(2),
+  decStrength: v => (+v).toFixed(1) + '×', decBurst: v => v + ' ms', decRate: v => (+v).toFixed(1) + ' /s',
+  decProb: v => (+v) < 0.005 ? 'off' : (+v).toFixed(2),
+  staleHaunt: v => (+v).toFixed(2), staleTau: v => (+v).toFixed(1) + ' ms',
+  vitality: v => (+v).toFixed(2), virulence: v => (+v).toFixed(2) + '×'
+};
+const RANGES = ['voices', 'spread', 'k', 'level', 'decStrength', 'decBurst', 'decRate', 'decProb', 'staleHaunt', 'staleTau', 'vitality', 'virulence'];
+const SELECTS = ['disorder', 'decOnNote', 'decHealBoost', 'failure'];
+RANGES.forEach(k => {
+  const el = $(k), out = $(k + '_o');
+  const up = () => { const v = +el.value; if (out && fmt[k]) out.textContent = fmt[k](v); send(k, v); };
+  el.addEventListener('input', up); up();
+});
+SELECTS.forEach(k => $(k).addEventListener('change', () => send(k, +$(k).value)));
+$('seed').addEventListener('change', () => send('seed', +$('seed').value | 0));
+$('dice').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); send('seed', +$('seed').value | 0); });
+function pushAll() {
+  RANGES.forEach(k => send(k, +$(k).value));
+  SELECTS.forEach(k => send(k, +$(k).value));
+  send('seed', +$('seed').value | 0);
+  send('drone', droneOn ? 1 : 0);
+  send('bypass', bypassOn ? 1 : 0);
+  send('staleEngage', staleOn ? 1 : 0);
+}
+$('power').addEventListener('click', powerOn);
+
+let droneOn = false, bypassOn = false, staleOn = false;
+$('drone').addEventListener('click', function () {
+  droneOn = !droneOn; this.classList.toggle('on', droneOn);
+  if (droneOn && !ctx) powerOn(); send('drone', droneOn ? 1 : 0);
+});
+$('bypass').addEventListener('click', function () { bypassOn = !bypassOn; this.classList.toggle('on', bypassOn); send('bypass', bypassOn ? 1 : 0); });
+function toggleStale() { staleOn = !staleOn; $('staleBtn').classList.toggle('on', staleOn); send('staleEngage', staleOn ? 1 : 0); }
+$('staleBtn').addEventListener('click', toggleStale);
+function fireBurst() {
+  if (!ctx) powerOn();
+  if (core) core.burst();
+  const b = $('burstBtn'); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 140);
+}
+$('burstBtn').addEventListener('click', fireBurst);
+$('holdBtn').addEventListener('pointerdown', e => { e.preventDefault(); send('decHold', 1); $('holdBtn').classList.add('on'); });
+addEventListener('pointerup', () => { if (core && core.p.decHold) { send('decHold', 0); $('holdBtn').classList.remove('on'); } });
+
+/* notes */
+const NOTES = [['A2', 110], ['C3', 130.81], ['D3', 146.83], ['E3', 164.81], ['G3', 196], ['A3', 220], ['C4', 261.63], ['E4', 329.63]];
+const noteBtns = [];
+NOTES.forEach(([nm, f], i) => {
+  const b = document.createElement('button');
+  b.textContent = nm + ' ' + (i + 1);
+  b.addEventListener('pointerdown', e => { e.preventDefault(); noteOn(i); });
+  b.addEventListener('pointerup', () => noteOff(i));
+  b.addEventListener('pointerleave', () => noteOff(i));
+  $('keys').insertBefore(b, $('drone'));
+  noteBtns.push(b);
+});
+let held = -1;
+function noteOn(i) { if (!ctx) powerOn(); held = i; if (core) core.noteOn(NOTES[i][1]); noteBtns.forEach((b, j) => b.classList.toggle('playing', j === i)); }
+function noteOff(i) { if (held === i) { held = -1; if (core) core.noteOff(); if (!droneOn) noteBtns.forEach(b => b.classList.remove('playing')); } }
+addEventListener('keydown', e => {
+  if (e.repeat || e.target.tagName === 'INPUT') return;
+  const k = e.key;
+  if (k >= '1' && k <= '8') noteOn(+k - 1);
+  else if (k === 'd' || k === 'D') fireBurst();
+  else if (k === 'f' || k === 'F') toggleStale();
+  else if (k === '[' || k === ']') {
+    const el = $('vitality');
+    el.value = Math.max(0, Math.min(1, +el.value + (k === ']' ? 0.05 : -0.05)));
+    el.dispatchEvent(new Event('input'));
+  }
+});
+addEventListener('keyup', e => { const k = e.key; if (k >= '1' && k <= '8') noteOff(+k - 1); });
+
+/* self-test */
+$('stbtn').addEventListener('click', () => {
+  $('stlog').textContent = 'running…';
+  setTimeout(() => { $('stlog').innerHTML = selfTest(); }, 20);
+});
+
+/* ---- drawing (telemetry only; the core never reads any of this) ---- */
+const cc = $('circle'), cg = cc.getContext('2d');
+const STATE_COL = ['#ffc24b', '#5a6070', '#a78bdb', '#ff6b8a', '#5fd08a'];
+function draw() {
+  requestAnimationFrame(draw);
+  const W = cc.width, H = cc.height, cx0 = H / 2 + 4, cy0 = H / 2, R = H * 0.40;
+  cg.fillStyle = '#0b0e13'; cg.fillRect(0, 0, W, H);
+  const V = core ? core.vis : null;
+  if (!V) { cg.fillStyle = '#8b94a6'; cg.font = '11px monospace'; cg.fillText('power on', 12, 20); return; }
+  if (V.dec > 0.05) { cg.fillStyle = 'rgba(255,107,138,' + (0.12 * V.dec).toFixed(3) + ')'; cg.fillRect(0, 0, W, H); }
+  cg.strokeStyle = '#2a3040'; cg.beginPath(); cg.arc(cx0, cy0, R, 0, TAU); cg.stroke();
+  // live field, then the ghost on top when engaged
+  cg.strokeStyle = '#ffc24b'; cg.lineWidth = 2; cg.beginPath(); cg.moveTo(cx0, cy0);
+  cg.lineTo(cx0 + Math.cos(V.psi) * V.r * R, cy0 + Math.sin(V.psi) * V.r * R); cg.stroke();
+  if (V.stale) {
+    cg.strokeStyle = '#5ff2e0'; cg.beginPath(); cg.moveTo(cx0, cy0);
+    cg.lineTo(cx0 + Math.cos(V.psiF) * V.rF * R, cy0 + Math.sin(V.psiF) * V.rF * R); cg.stroke();
+  }
+  cg.lineWidth = 1;
+  for (let i = 0; i < V.n; i++) {
+    const st = V.state[i];
+    cg.globalAlpha = st === 1 ? Math.max(0.15, V.amp[i]) : 1;
+    cg.fillStyle = STATE_COL[st];
+    cg.beginPath(); cg.arc(cx0 + Math.cos(V.theta[i]) * R, cy0 + Math.sin(V.theta[i]) * R, 4, 0, TAU); cg.fill();
+    cg.globalAlpha = 1;
+  }
+  // r history strip
+  const x0 = H + 12, SW = W - x0 - 4, NH = V.hist.length;
+  cg.strokeStyle = '#2a3040'; cg.strokeRect(x0, 6, SW, H - 12);
+  for (let x = 0; x < SW; x++) {
+    const i = (V.pos + Math.floor(x / SW * NH)) % NH, fl = V.flag[i];
+    if (fl) {
+      cg.fillStyle = fl === 1 ? 'rgba(255,107,138,0.20)' : fl === 2 ? 'rgba(95,242,224,0.18)' : 'rgba(167,139,219,0.14)';
+      cg.fillRect(x0 + x, 7, 1, H - 14);
+    }
+  }
+  cg.strokeStyle = '#ffc24b'; cg.beginPath();
+  for (let x = 0; x < SW; x++) {
+    const i = (V.pos + Math.floor(x / SW * NH)) % NH;
+    const y = (H - 8) - (H - 20) * V.hist[i];
+    x ? cg.lineTo(x0 + x, y) : cg.moveTo(x0 + x, y);
+  }
+  cg.stroke();
+  cg.fillStyle = '#8b94a6'; cg.font = '10px monospace'; cg.fillText('order parameter r — 1 lock, 0 splay', x0 + 6, 20);
+  $('meter').innerHTML = 'r <b>' + V.r.toFixed(3) + '</b> · r̄ <b>' + V.rBar.toFixed(3) + '</b> · damaged <b>'
+    + V.nDam + '/' + V.n + '</b> · stale <b>' + (V.stale ? 'ENGAGED (ghost r=' + V.rF.toFixed(2) + ')' : 'off')
+    + '</b> · decohere <b>' + (V.dec > 0.5 ? 'ACTIVE' : 'idle') + '</b>' + (core.p.bypass ? ' · <b>BYPASSED</b>' : '');
+}
+draw();
+
+/* rev badge — hashes script TEXT, not the DOM (the DOM mutates at runtime) */
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  $('revfp').textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+  const m = new Date(document.lastModified), p = n => String(n).padStart(2, '0');
+  $('revdate').textContent = isNaN(m.getTime()) ? '?' :
+    m.getFullYear() + '-' + p(m.getMonth() + 1) + '-' + p(m.getDate()) + ' ' + p(m.getHours()) + ':' + p(m.getMinutes());
+})();
+</script>
+</body>
+</html>
