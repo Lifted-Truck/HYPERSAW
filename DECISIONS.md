@@ -2522,3 +2522,14 @@ fix that stopped it showing unconditionally); offset mode is the first place
 the two gates DIVERGE — Root dead, degrees live — and the picker autofills the
 degrees, so it follows their gate. The general rule both fixes share: a
 control is gated with what it EDITS.
+
+
+### ADR-112 A2 — the morph rate slider that already existed (2026-08-22)
+
+Human: "there isn't a morph rate slider." There was — id 158, mislabeled
+"Flip Glide" and GUI-gated to flip mode only, while `morphStep` runs EVERY
+target through its coefficient in both modes. A control that affects blend
+mode but hides in blend mode is the gating rule inverted: gate with what it
+EDITS (A1's rule), and it edits the whole field. Relabeled "Morph Glide (s)",
+gate widened to `morphOn=1`, max 0.5 → 5 s (a performance morph time, not a
+de-clicker; stored patches keep their values, CLAP params are plain-valued).
