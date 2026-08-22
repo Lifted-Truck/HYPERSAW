@@ -114,6 +114,43 @@ module at once (slot type + amount + tone + mix as one gesture).
   (Lean: write the live value into ALL FOUR corners on exempt, so un-exempting is
   seamless — no jump, and the corners honestly record what was playing.)
 
+## SWARM GLITCH MODULES INGESTED — they live INSIDE the oscillator (2026-08-22)
+
+The human, working with another agent, delivered `SPEC_swarm_glitch_modules.md` (v0.1)
+and `horde_decoherence_lab.html`. Three modules — **DECOHERE**, **STALE FIELD**,
+**NECROSIS** — and the human's structural point is the whole story: *"these would have to
+live inside the hypersaw oscillators themselves instead of in an FX rack because of their
+nature."* Correct, and the spec shows why: they do not process a buffer, they manipulate
+the KURAMOTO COUPLING — `K_eff` driven negative for a burst; the mean field replaced by a
+captured ghost the voices keep coupling to; per-voice `ω_i`/`amp_i`/`θ_i` mutated by a
+bipolar vitality axis. There is no signal to insert into. This is FX-E's other half:
+`SPEC` §6 explicitly scopes buffer-tier glitch (codec sabotage, skip cascade, misread,
+spectral datamosh) OUT, to a separate spec on the shared FX rack — so the glitch concept
+splits cleanly in two, and the FX-E slot reservation still stands for the buffer tier.
+
+**Why this spec is unusually cheap to fold.** It already speaks our language:
+- **Acceptance test 1 is BYPASS NULL** — "all modules disengaged → bit-identical to
+  engine without modules". That is the parity-safe-superset rule (ADR-060..063, 094)
+  stated by the spec's own author, so the fold cannot move a golden by construction.
+- Tests 3 and 5 are DETERMINISM tests (identical gesture + seed → identical output),
+  which is SPEC §5.7 and what our goldens already prove for every other core.
+- §4 states audio-thread-only, no allocation after init — our rtsafety_probe's contract.
+- It names the prototype as the BEHAVIORAL REFERENCE for DECOHERE, which is the
+  reference-is-the-truth discipline the whole port runs on.
+
+**The one blocker, same as CANTO and WARP:** `horde_decoherence_lab.html` calls
+`Math.random()` seven times and has no mulberry32. Until its RNG is seeded it cannot be a
+golden-generating reference — determinism tests 3 and 5 are unrunnable against it, and
+"identical seed → identical output" has no seed to hold. Seeding it is one sanctioned
+edit to a (would-be) protected file, exactly the outstanding edit CANTO carries.
+
+**Sequencing.** After the dependency graph + corner editing, and NOT before the swarm
+core is otherwise stable: these modules reach into the same per-voice state that drift,
+gravity and the travel laws already write, and the interaction ordering the spec fixes in
+§0 (NECROSIS → K path → observers) has to be reconciled with our existing controlTick
+order. The lab run the human asked for comes first: audition the three modules together
+against a HYPERSAW patch, before any C++ exists.
+
 ## FX PANELS D AND E CLAIMED (2026-08-21, human)
 
 Two more slot types join the FX queue behind A (granular sibling), B (OTT), C (WARP):

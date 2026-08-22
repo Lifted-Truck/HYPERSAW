@@ -48,3 +48,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
      LIBRARY.md and are never reused or renumbered. Next pass due at ~35. -->
 
 - L0038 oracle coverage is per-transport; a reasoned exclusion still needs an owner (the dead pitch wheel)
+- L0039 a check built against one sample inherits that sample's coincidences (FOUNDATIONS' row grammar + our readback aliasing, same week)
