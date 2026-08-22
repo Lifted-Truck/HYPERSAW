@@ -44,7 +44,15 @@ class GlideCore
      mono reference cannot even express, because the phenomenon it exists for
      — a global lane's rest-position correction transposing every held voice —
      needs polyphony the lab does not have (L0031 again). */
-  enum Quant { kQuantOff = 0, kQuantChromatic = 1, kQuantScale = 2, kQuantScaleAnchor = 3 };
+  /* kQuantScaleOffset (ADR-112): movable-do. The mask is applied RELATIVE TO
+     THE ANCHOR — whatever note you play is the tonic, and a bend walks the
+     scale SHAPE from there. scaleRoot is deliberately ignored: a root and a
+     movable tonic cannot both be in charge. The anchor's class (idx 0) is
+     admitted even if the player switched degree 1 off, because without that
+     every strike would carry a rest correction into the global lane and the
+     mode would drag by accident — the exact surprise ADR-111 just named. */
+  enum Quant { kQuantOff = 0, kQuantChromatic = 1, kQuantScale = 2, kQuantScaleAnchor = 3,
+               kQuantScaleOffset = 4 };
 
   struct Params
   {
@@ -188,8 +196,9 @@ class GlideCore
     bool haveTie = false;
     long tied = 0;
     {
-      const bool sc = (qm == kQuantScale || qm == kQuantScaleAnchor);
-      const long root = sc ? (long)p.scaleRoot : 0;
+      const bool sc = (qm == kQuantScale || qm == kQuantScaleAnchor || qm == kQuantScaleOffset);
+      const long root = (qm == kQuantScaleOffset) ? (long)std::lround(base)
+                                                  : sc ? (long)p.scaleRoot : 0;
       /* The anchor class comes from `base`, which each lane defines: the wheel
          lane passes lastNoteKey, a per-note MPE lane its own key. At rest
          (x = 0) semis == base, the anchor is admitted at distance zero, and q
@@ -201,7 +210,9 @@ class GlideCore
         if (sc)
         {
           const int idx = (int)(((c - root) % 12 + 12) % 12);
-          if (!p.scaleMask[idx] && !(qm == kQuantScaleAnchor && idx == anchorCls)) continue;
+          if (!p.scaleMask[idx] &&
+              !((qm == kQuantScaleAnchor || qm == kQuantScaleOffset) && idx == anchorCls))
+            continue;
         }
         const double d = std::fabs((double)c - semis);
         if (d < bestD) { bestD = d; best = c; haveTie = false; }

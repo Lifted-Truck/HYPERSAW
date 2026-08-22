@@ -405,7 +405,9 @@ int main()
        move the bin, drag fails first. */
     param(106, 0); param(149, 0);          // bend law off: quant alone arms the lane
     param(22, 0.005);                      // release: kill the F# tail fast
-    for (int mode = 2; mode <= 3; mode++)
+    // mode 4 (offset, ADR-112) joins the sweep: the played note IS the tonic,
+    // so its rest correction is zero by construction and it must never drag.
+    for (int mode = 2; mode <= 4; mode++)
     {
       param(114, (double)mode);
       for (auto &pv : pvs)
@@ -437,7 +439,8 @@ int main()
       if (mode == 2)
         check(b3 > 4.0 * c4b, "scale (drag): an out-of-scale strike transposes the held C4 to B3", d);
       else
-        check(c4b > 4.0 * b3, "scale (anchored): the held C4 does not move", d);
+        check(c4b > 4.0 * b3, mode == 3 ? "scale (anchored): the held C4 does not move"
+                                        : "scale (offset): the held C4 does not move", d);
       clap_event_note_t co = c4;
       co.header.type = CLAP_EVENT_NOTE_OFF; co.velocity = 0;
       evl.ev.push_back(&co.header);
