@@ -2111,3 +2111,64 @@ convention) — which also HIDES the OSC-page swarm-section toggles, because the
 generator skips hand-placed ids. The GUI's hard-coded default fallbacks
 (`k===0?1:0`, a third copy of the defaults) are deleted: SHELL_DEFAULTS
 (defaultsJson, twins included) is the one source.
+
+## ADR-108 — The feature-dependency graph: one declaration, three consumers (ACCEPTED)
+
+**Date:** 2026-08-22 · **Status:** ACCEPTED (human: "create a graph of feature
+dependencies so we can automatically derive a morph hierarchy — this will also
+clear up some GUI issues where there are omnipresent fields which should only
+show up on certain settings, like the advanced detune controls").
+
+### The problem, stated precisely
+
+THREE systems answered "does this parameter matter right now?" independently:
+`shown_when` (GUI, a grammar grown ad hoc), the morph field (which happily
+flipped a parameter whose enabling law was off — a no-op flip spending a
+corner's identity on something that cannot sound), and the ENGINE's own guards,
+which are the truth the other two approximated.
+
+### The rule
+
+A `depends` column in the presentation table — already the parameter registry,
+so a second registry cannot drift from it — is the SINGLE declaration:
+
+1. **GUI**: `gen_gui_controls` reads `depends` and derives `shown_when`. The two
+   columns coexisted for exactly one commit, long enough to seed `depends`
+   losslessly from the hand-written gates, so today's GUI regenerates
+   byte-identically before a single dependency was corrected.
+2. **MORPH (the derived hierarchy)**: `tools/gen_depends_header.py` emits
+   `src/depends_graph.h`; `morphStep` holds a parameter whose enabling condition
+   is false IN THE WINNING CORNER, so flips land on parameters that sound.
+   Evaluated against the corner's STORED values — "would this matter if that
+   corner were playing" is the corner's own state to answer. Conservative: no
+   rule means always-live, so anything the graph does not describe morphs
+   exactly as before.
+3. **AUDIT**: `depends_check` (in `./verify fast`) keeps the declaration
+   well-formed and the header current, and prints advisory drift where the
+   engine mode-guards something the table does not describe. It deliberately
+   does NOT claim a declared dependency is CORRECT — nothing can know
+   `harmReach` belongs to law 4 except by reading the branch that uses it, and
+   turning that judgement into a hard gate is how exemption lists start.
+
+### The human's example, fixed at the root
+
+`beatMult` (law 3), `harmReach` (law 4), `stretchB` (law 5) — read straight out
+of the branches that guard them in `swarm_core.h` — now appear only under their
+own law. They were omnipresent because nobody had written the gate; the graph
+made the omission visible rather than requiring someone to notice it.
+
+### `never`, and the gate's first catch
+
+`depends_check` went RED on its first run against a hack of mine: retired
+`polyGlide` was hidden with `voiceMono=2`, an impossible value. That is a gate
+spelled as an out-of-range number — one range change away from becoming ALWAYS
+TRUE with nobody touching it. The grammar now has an explicit `never`, honoured
+by all four consumers. **A gate that catches its author's own shortcut on the
+first run is worth more than one that passes.**
+
+### Control
+
+Plant (a dependency naming a key no parameter declares): RED, both on the typo
+and on the resulting stale header. Restored: GREEN, 55 declared dependencies,
+2 advisories (laws 0 and 1 take no extra parameters — correctly a note, not a
+failure).
