@@ -87,6 +87,10 @@ fast() {
   # control that silently never appears — the 29-dead-controls failure with the
   # arrow reversed, invisible to every audio oracle either way.
   python3 tools/presentation_check.py || ok=1
+  # ADR-108: the dependency graph must stay well-formed and its generated
+  # header current. Structure and staleness only — whether a declared
+  # dependency is CORRECT is a human act (see the tool's own docstring).
+  python3 tools/depends_check.py || ok=1
 
   # GENERATED CONTROLS ARE CURRENT. gui2's controls are generated FROM the
   # presentation table, so an edited table with stale markup shows yesterday's

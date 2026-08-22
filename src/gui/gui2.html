@@ -192,7 +192,7 @@
     <div class="row" data-addr="glide" data-when="noteLawLink=0,noteLaw=3"><label>Note Lag <span class="u">s</span></label><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
     <div class="row" data-addr="pitchBend"><label>Pitch</label><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><output></output></div>
-    <div class="row" data-addr="polyGlide" data-when="voiceMono=2"><label>Poly Glide (dev)</label><input type="checkbox" data-p="89" checked><output></output></div>
+    <div class="row" data-addr="polyGlide" data-when="never"><label>Poly Glide (dev)</label><input type="checkbox" data-p="89" checked><output></output></div>
     <div class="row" data-addr="glideMode"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (ringing)</option><option value="2">always</option></select><output></output></div>
     <div class="row" data-addr="bendLaw"><label>Bend Law</label><select data-p="106"><option value="0" selected>off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3">lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
     <div class="row" data-addr="bendTime" data-when="bendLaw=1"><label>Bend Time <span class="u">ms</span></label><input type="range" data-p="107" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
@@ -487,9 +487,9 @@
     <div class="row" data-addr="osc1.seed"><label>Seed <span class="sc">osc1</span></label><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"><output></output></div>
     <div class="row" data-addr="osc1.detune"><label>Detune <span class="sc">osc1</span></label><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"><output></output></div>
     <div class="row" data-addr="osc1.law"><label>Detune Law <span class="sc">osc1</span></label><select data-p="5"><option value="0" selected>cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option><option value="3">tempo-grid</option><option value="4">harmonic (series)</option><option value="5">stretch (inharmonic)</option></select><output></output></div>
-    <div class="row" data-addr="osc1.beatMult"><label>Grid Cycles/Beat <span class="sc">osc1</span></label><input type="range" data-p="23" min="0.25" max="8" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="osc1.harmReach"><label>Harmonic Reach <span class="sc">osc1</span></label><input type="range" data-p="79" min="0.25" max="4" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="osc1.stretchB"><label>Stretch B <span class="sc">osc1</span></label><input type="range" data-p="80" min="0" max="6" step="0.005" value="0"><output></output></div>
+    <div class="row" data-addr="osc1.beatMult" data-when="law=3"><label>Grid Cycles/Beat <span class="sc">osc1</span></label><input type="range" data-p="23" min="0.25" max="8" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="osc1.harmReach" data-when="law=4"><label>Harmonic Reach <span class="sc">osc1</span></label><input type="range" data-p="79" min="0.25" max="4" step="0.005" value="1"><output></output></div>
+    <div class="row" data-addr="osc1.stretchB" data-when="law=5"><label>Stretch B <span class="sc">osc1</span></label><input type="range" data-p="80" min="0" max="6" step="0.005" value="0"><output></output></div>
     <div class="row" data-addr="osc1.spread"><label>Octave Spread <span class="sc">osc1</span></label><input type="range" data-p="81" min="1" max="24" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="osc1.anchor"><label>Root Anchor <span class="sc">osc1</span></label><input type="range" data-p="82" min="0" max="1" step="0.005" value="0"><output></output></div>
   </div>
@@ -1599,7 +1599,14 @@ function applyGates() {
       }
       return true;
     };
-    r.hidden = !r.dataset.when.split(';').some(groupShows);
+    // `never` is the explicit retirement marker (ADR-108). It replaced an
+    // impossible numeric value (voiceMono=2) that meant the same thing by
+    // accident — depends_check refused it on its first run, correctly: a gate
+    // spelled as an out-of-range number is one range change away from becoming
+    // ALWAYS TRUE without anyone touching it.
+    r.hidden = r.dataset.when === 'never'
+             ? true
+             : !r.dataset.when.split(';').some(groupShows);
   });
   // A box whose every row is hidden is an empty box; hide the box too. Targets
   // `.cluster`, which is what generated groups use since they were folded into

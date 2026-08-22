@@ -145,7 +145,14 @@ def main():
         # duplicated panel, and a SPECTRA surface nobody asked for.
         if len(r) < 8 or not r[7].strip():
             continue
-        when = r[8].strip() if len(r) > 8 else ""
+        # ADR-108: `depends` is the SOURCE and shown_when is DERIVED from it.
+        # The two columns coexist for exactly one release -- long enough that
+        # depends was seeded losslessly from the hand-written gates -- and the
+        # generator reading depends first makes a divergence impossible rather
+        # than merely discouraged. gen_gui_controls is the only writer of the
+        # gate the GUI reads, so the graph and the visibility cannot drift.
+        depends = r[10].strip() if len(r) > 10 else ""
+        when = depends or (r[8].strip() if len(r) > 8 else "")
         scale = r[9].strip() if len(r) > 9 else ""
         per_page.setdefault(page, {}).setdefault(group, []).append((addr, scope, label, widget, unit, p, when, scale))
 

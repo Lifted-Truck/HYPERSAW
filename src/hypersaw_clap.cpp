@@ -29,6 +29,7 @@
 #include "spectra_core.h"
 #include "glide_core.h"
 #include "morph_core.h"
+#include "depends_graph.h"
 #include "fx_rack.h"
 #include "routing_core.h"
 #include "hypersaw_clap_entry.h"
@@ -1178,6 +1179,31 @@ struct Plugin
      ADR-086 rule). Stepped params take their winning corner's value outright;
      continuous params either flip (quantum) with a one-pole slew toward the
      winner, or blend (mode 1) across all four corners. */
+  /* Is `id` live under corner k's stored settings? Linear scan over a table of
+     ~55 rules, once per morphed parameter per 256-sample grid tick -- cheap
+     enough to not need an index, and an index would be a second structure to
+     keep in step with the generated one. */
+  bool depLiveInCorner(clap_id id, int k) const
+  {
+    for (int r = 0; r < hypersaw::kNumDepRules; r++)
+    {
+      const hypersaw::DepRule &rule = hypersaw::kDepRules[r];
+      if (rule.id != id) continue;
+      for (int c = 0; c < rule.nConds; c++)
+      {
+        // find the condition parameter's value in THIS corner
+        for (size_t j = 0; j < morphIds.size(); j++)
+          if (morphIds[j] == rule.conds[c].id)
+          {
+            if (std::fabs(morphCorner[k][j] - rule.conds[c].value) < 0.5) return true;
+            break;
+          }
+      }
+      return false;   // rule exists and no condition matched
+    }
+    return true;      // no rule -> always live
+  }
+
   void morphStep(int samples)
   {
     morphAccum += samples;
@@ -1203,6 +1229,21 @@ struct Plugin
       {
         const int k = morph.pickCorner((int)i, lw, morphCoup);
         target = morphCorner[k][i];
+        /* ADR-108 -- THE DERIVED MORPH HIERARCHY (the human's ask: "a graph of
+           feature dependencies so we can automatically derive a morph
+           hierarchy"). If this parameter's enabling condition is false IN THE
+           CORNER THAT WON IT, the flip would be a no-op: the engine's own guard
+           ignores the value, so the corner spent its identity on a parameter
+           that cannot sound. Hold instead, and the flip lands on something
+           audible. The condition is evaluated against the WINNING CORNER'S
+           stored values, not the live ones -- the question is "would this
+           matter if that corner were playing", which is the corner's own state
+           to answer.
+           Conservative by construction: no rule means always-live, so a
+           parameter the graph does not describe morphs exactly as before. */
+        if (!depLiveInCorner(morphIds[i], k)) target = morphCur[i] < -1e29
+                                                           ? target
+                                                           : morphCur[i];
       }
       double next = d->stepped ? target
                                : (morphCur[i] < -1e29 ? target
