@@ -1,0 +1,1227 @@
+<!doctype html>
+<!-- modulator-lab — the LFO + envelope editor bench (ROADMAP B16).
+     HYPERSAW, 2026-08-22. Spec-in-code per ADR-003.
+
+     WHY THIS LAB EXISTS. Every other subsystem here has had a lab and a
+     measurement campaign; the modulators have had neither, which is why
+     feature requests keep arriving against them one at a time. B16 collects
+     five of them (reverse-saw shape, two S&H kinds, double-click reset,
+     ownership tier, per-route polarity) so they are answered as one surface
+     rather than five patches.
+
+     THREE DESIGN CLAIMS THIS LAB MAKES (each is a proposal, not a ruling):
+
+       1. Reverse-saw is NOT a sixth shape — it is skew = 0 on the ramp axis.
+          Adding one enum entry would leave the shape set exactly as undesigned
+          as it was. Here shape is (family morph, skew): the ramp family gives
+          saw-down at skew 0, triangle at 0.5, saw-up at 1, and the SAME warp
+          gives the pulse family its width. Continuous, so shape is reachable
+          as a modulation DESTINATION, which a dropdown can never be.
+
+       2. S&H is a SAMPLER, not a shape. The old set had it as the fifth entry
+          alongside sine/tri/saw/square, which conflates a waveform with a
+          clocked operator — and it is precisely the clock that the two S&H
+          kinds differ in. So S&H is a mode on every modulator, with its clock
+          named:
+            global  — ONE shared clock and ONE shared value, broadcast to every
+                      attached mod (they are perfectly correlated by design);
+            kuro    — each mod samples on its bound rotor voice's phase wrap,
+                      from its OWN stream: the swarm's coupling sets how
+                      correlated the TIMING is, and the values never correlate.
+          The corr(A,B) meter is the measurement that separates them.
+
+       3. Polarity belongs to the ROUTE, not the source. A unipolar source into
+          a rectified destination silently loses half its knob (the reachability
+          probe's R->Kboost finding, ROADMAP 2026-08-05). Every route here
+          carries its own polarity and the lab MEASURES the discarded fraction,
+          so "half-inert" is a number on screen rather than a surprise.
+
+     Carried in from the codebase so the lab cannot drift from what the core
+     could accept:
+       - all rates/times in SECONDS or Hz, converted to per-tick at the 16-sample
+         control tick (ADR-009: hand-tuned per-tick constants are banned);
+       - every stream is mulberry32 off ONE visible seed; no wall-clock reads;
+       - the segment-curve evaluator is shape-lab-mod.html's, unchanged, so the
+         two labs cannot fork the curve grammar.
+
+     L0026: all state above all wiring. No devicePixelRatio. -->
+<html lang="en"><head><meta charset="utf-8">
+<title>horde modulator lab — LFO + envelope editor bench</title>
+<style>
+  :root { --bg:#0b0e13; --panel:#11151d; --panel2:#171c26; --line:#2a3040; --dim:#7f8899;
+          --fg:#cdd6e4; --teal:#5ff2e0; --amber:#ffc24b; --red:#ff5a5a; --rust:#e0654a;
+          --violet:#b18cff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace;
+         padding:14px 18px 60px; }
+  .rev { position:fixed; top:6px; right:8px; z-index:99; font-size:10px; color:var(--dim);
+         background:#0b0e13; border:1px solid var(--line); border-radius:3px; padding:2px 6px; opacity:.75; }
+  h1 { font-size:15px; margin-bottom:2px; }
+  .tagline { color:var(--dim); font-size:11px; margin-bottom:12px; max-width:1080px; }
+  .tagline b { color:var(--fg); }
+  .wrap { max-width:1080px; }
+  .cols { column-width:340px; column-gap:12px; max-width:1080px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+          break-inside:avoid; margin:0 0 10px; display:inline-block; width:100%; }
+  .card h2 { font-size:12px; color:var(--teal); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .card h2 span { text-transform:none; letter-spacing:0; color:var(--dim); font-weight:normal; font-size:10px; }
+  .row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .row label { width:104px; color:var(--dim); font-size:11px; }
+  .row input[type=range] { flex:1; }
+  .row output { width:76px; text-align:right; font-size:11px; color:var(--fg); }
+  .row select, .row input[type=number] { background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+          font:inherit; font-size:11px; flex:1; min-width:0; }
+  .hint { color:var(--dim); font-size:11px; margin:6px 0 2px; }
+  .hint b { color:var(--fg); } .hint i { color:var(--amber); font-style:normal; }
+  .meter { font-size:11px; margin:3px 0; color:var(--dim); }
+  .meter b { color:var(--amber); } .meter .good { color:var(--teal); } .meter .bad { color:var(--red); }
+  canvas { border:1px solid var(--line); border-radius:4px; background:#0b0e13; display:block; margin-top:6px; }
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:4px;
+           font:inherit; font-size:11px; padding:3px 9px; cursor:pointer; margin:2px 2px 0 0; }
+  button:hover { border-color:var(--teal); }
+  .flash { box-shadow:0 0 0 2px var(--teal); }
+  kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:10px; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { color:var(--dim); font-weight:normal; text-align:left; padding:2px 4px; border-bottom:1px solid var(--line); }
+  td { padding:2px 4px; border-bottom:1px solid #1a1f2a; }
+  td select, td input[type=range] { width:100%; background:var(--panel2); color:var(--fg);
+           border:1px solid var(--line); font:inherit; font-size:11px; }
+  .tier { font-size:9px; border:1px solid; border-radius:2px; padding:0 4px; cursor:pointer; }
+  .t-baked { color:var(--rust); border-color:var(--rust); }
+  .t-derived { color:var(--violet); border-color:var(--violet); }
+  .t-mod { color:var(--teal); border-color:var(--teal); }
+  pre { background:#0d1017; border:1px solid var(--line); border-radius:6px; padding:8px; font-size:10px;
+        overflow:auto; max-height:150px; color:var(--dim); margin-top:6px; }
+  .warnline { color:var(--amber); font-size:11px; min-height:16px; margin-top:4px; }
+</style></head><body>
+
+<div class="rev" title="the file's modification time and a fingerprint of its code, both read at load — neither is hand-maintained, so neither can drift. If the fingerprint does not change after a reload you are still on a cached copy (hard-reload: Cmd+Shift+R, Safari Cmd+Opt+R).">rev <span id="revdate">…</span> &middot; fp <span id="revfp">…</span></div>
+
+<h1>horde modulator lab</h1>
+<div class="tagline">Bench for the <b>modulator editor</b> (ROADMAP B16) — the weakest surface in the instrument, because the LFOs have three parameters and the envelope is a plain ADSR while everything else here has had a lab. Three claims, each measurable on this page. <b>Reverse-saw is not a sixth shape</b>: it is <b>skew = 0</b> on the ramp axis, and the same warp that turns triangle into saw-up and saw-down turns square into a pulse — so shape is a continuous axis and can itself be a modulation destination, which a dropdown can never be. <b>S&amp;H is a sampler, not a shape</b>, and the thing the two kinds differ in is the CLOCK: <i>global</i> is one clock and one value broadcast to every attached mod (measured: value correlation <b>1.000</b>, timing lock <b>1.00</b>), <i>kuro</i> samples on each mod's bound rotor voice wrapping — measured value correlation <b>−0.23</b> with timing lock riding |K| from <b>0.04</b> to <b>0.83</b>, because coupling locks <i>when</i> they sample and never <i>what</i>. <b>Polarity belongs to the route</b>, not the source: every route carries its own, and the lab measures the fraction a rectified destination throws away, so "half-inert" is a number instead of a surprise. Envelopes show the <b>distribution across voices</b> that scatter produces, not one curve. Double-click any control to reset it. Keys <kbd>A</kbd>..<kbd>;</kbd>, <kbd>Z</kbd>/<kbd>X</kbd> octave, <kbd>space</kbd> drone.</div>
+
+<div class="wrap">
+  <div class="card">
+    <h2>Modulator scope <span>· 3 s window · ticks below each trace are S&amp;H sample instants</span></h2>
+    <canvas id="scope" width="1054" height="186"></canvas>
+    <div class="meter">value corr(A,B) over 3 s: <b id="m_corr">—</b>
+      &nbsp;·&nbsp; timing lock(A,B): <b id="m_lockm">—</b>
+      &nbsp;·&nbsp; rotor R: <b id="m_R">—</b> <span id="m_lock"></span>
+      &nbsp;·&nbsp; A rate: <b id="m_ra">—</b> &nbsp;·&nbsp; B rate: <b id="m_rb">—</b></div>
+    <div class="hint">Two meters, because the two S&amp;H kinds differ on two axes and one number cannot show it.
+      <b>value corr</b> is Pearson over the mods' outputs; <b>timing lock</b> is the order parameter of the A→B
+      sampling offset measured in units of A's own period — 1 = a constant offset, 0 = an offset that walks.
+      <b>Measured offline on this core</b> (seed 1234, rotor 6 Hz, 60 000 control ticks, A bound to K1, B to K2):
+      <table style="margin:6px 0">
+        <tr><th>both mods</th><th>value corr</th><th>timing lock</th></tr>
+        <tr><td>off (free continuous)</td><td>−0.011</td><td>— (no sample instants)</td></tr>
+        <tr><td>global</td><td><b>1.000</b></td><td><b>1.00</b></td></tr>
+        <tr><td>kuro, K = +1</td><td>−0.226</td><td>0.83</td></tr>
+        <tr><td>kuro, K = 0</td><td>−0.185</td><td>0.04</td></tr>
+        <tr><td>kuro, K = −1</td><td>−0.225</td><td>0.75</td></tr>
+      </table>
+      Read it as: <i>global</i> hands every attached mod the same number, so both axes pin to 1 and nothing
+      independent is left. <i>kuro</i> leaves the values uncorrelated at every setting and puts the whole effect
+      of the coupling on the <b>timing</b>. <b>Splay locks too</b> — K = −1 reads 0.75, because a repelled
+      configuration holds a constant offset just as a synchronised one does; what separates them is the rotor's
+      R, not this meter. And with both mods <i>off</i> there are no sample instants and the meter reads nothing
+      at all: a lock number with the samplers switched off would be the meter measuring itself.</div>
+  </div>
+</div>
+
+<div class="cols">
+
+  <div class="card">
+    <h2>Rotor <span>· the LFOs' clock source</span></h2>
+    <canvas id="rotorC" width="316" height="130"></canvas>
+    <div class="row"><label>voices n</label><input type="range" id="rn" min="2" max="8" step="1"><output id="rn_o"></output></div>
+    <div class="row"><label>K coupling</label><input type="range" id="rk" min="-1" max="1" step="0.01"><output id="rk_o"></output></div>
+    <div class="row"><label>rate</label><input type="range" id="rr" min="0.05" max="8" step="0.01"><output id="rr_o"></output></div>
+    <div class="row"><label>detune</label><input type="range" id="rd" min="0" max="1" step="0.01"><output id="rd_o"></output></div>
+    <div class="hint">K1..K4 are rotor voices, not independent LFOs — that is the HYPERSAW-specific thing a
+      conventional editor has no way to say. Positive K pulls them together (lock), 0 lets detune drift them
+      apart, negative K pushes them apart (splay). Watch the S&amp;H tick raster on the scope, not the dots:
+      coupling is legible there as the ticks aligning or fanning.
+      <br><br><b>Compact rotor, deliberately.</b> Mean-field only — no ring/two-cluster topology, no
+      <b>link</b>, and negative K is plain repulsion rather than the rank-lattice splay law. The reference
+      rotor is <b>mod-lab.html</b>'s <b>KuroSwarm</b>; this one exists to give the S&amp;H clocks real coupled
+      timing, and any fold takes the reference, not this.</div>
+  </div>
+
+  <div class="card" id="cardA">
+    <h2>LFO A <span id="tierA_h"></span></h2>
+    <canvas id="prevA" width="316" height="86"></canvas>
+    <div class="row"><label>rate mode</label><select id="a_sync"><option value="0">free (Hz)</option><option value="1">tempo sync</option></select></div>
+    <div class="row"><label>rate</label><input type="range" id="a_hz" min="0.02" max="20" step="0.01"><output id="a_hz_o"></output></div>
+    <div class="row"><label>division</label><select id="a_div"></select><select id="a_mod"></select></div>
+    <div class="row"><label>shape</label><input type="range" id="a_shape" min="0" max="2" step="0.01"><output id="a_shape_o"></output></div>
+    <div class="row"><label>skew</label><input type="range" id="a_skew" min="0" max="1" step="0.005"><output id="a_skew_o"></output></div>
+    <div class="row"><label>S&amp;H</label><select id="a_sh"><option value="0">off (continuous)</option><option value="1">global (shared clock + value)</option><option value="2">kuro (bound voice wrap)</option></select></div>
+    <div class="row"><label>bind to</label><select id="a_bind"></select></div>
+    <div class="row"><label>retrig</label><select id="a_retrig"><option value="0">free-running</option><option value="1">on note-on</option></select></div>
+    <div class="hint"><b>skew 0 = reverse saw</b> (down-ramp), 0.5 = triangle, 1 = saw-up; on the pulse family the
+      same knob is pulse width. That is the whole reverse-saw request, and it arrives as an axis rather than a
+      sixth enum entry — which is what makes it modulatable (route something to <i>LFO B shape</i> and hear it).</div>
+  </div>
+
+  <div class="card" id="cardB">
+    <h2>LFO B <span id="tierB_h"></span></h2>
+    <canvas id="prevB" width="316" height="86"></canvas>
+    <div class="row"><label>rate mode</label><select id="b_sync"><option value="0">free (Hz)</option><option value="1">tempo sync</option></select></div>
+    <div class="row"><label>rate</label><input type="range" id="b_hz" min="0.02" max="20" step="0.01"><output id="b_hz_o"></output></div>
+    <div class="row"><label>division</label><select id="b_div"></select><select id="b_mod"></select></div>
+    <div class="row"><label>shape</label><input type="range" id="b_shape" min="0" max="2" step="0.01"><output id="b_shape_o"></output></div>
+    <div class="row"><label>skew</label><input type="range" id="b_skew" min="0" max="1" step="0.005"><output id="b_skew_o"></output></div>
+    <div class="row"><label>S&amp;H</label><select id="b_sh"><option value="0">off (continuous)</option><option value="1">global (shared clock + value)</option><option value="2">kuro (bound voice wrap)</option></select></div>
+    <div class="row"><label>bind to</label><select id="b_bind"></select></div>
+    <div class="row"><label>retrig</label><select id="b_retrig"><option value="0">free-running</option><option value="1">on note-on</option></select></div>
+    <div class="hint">LFO B's <b>shape</b> is a routable destination, so a slow modulator can walk it from sine
+      through triangle into pulse. Only a continuous shape axis makes that expressible.</div>
+  </div>
+
+  <div class="card">
+    <h2>Global S&amp;H clock <span>· the shared one</span></h2>
+    <div class="row"><label>tempo</label><input type="range" id="bpm" min="40" max="220" step="1"><output id="bpm_o"></output></div>
+    <div class="row"><label>clock mode</label><select id="g_sync"><option value="0">free (Hz)</option><option value="1">tempo sync</option></select></div>
+    <div class="row"><label>rate</label><input type="range" id="g_hz" min="0.1" max="40" step="0.1"><output id="g_hz_o"></output></div>
+    <div class="row"><label>division</label><select id="g_div"></select><select id="g_mod"></select></div>
+    <div class="meter">last sampled value: <b id="m_gsh">—</b> &nbsp;·&nbsp; attached mods: <b id="m_gatt">0</b></div>
+    <div class="hint">One clock, one draw, broadcast. Every mod in <i>global</i> mode outputs the identical value —
+      that is the request as stated ("one sampled value across every attached mod"), and the cost is that N mods
+      in this kind carry exactly <b>one</b> independent stream between them however many are attached.
+      <i>kuro</i> is the opposite trade: N independent streams, timing coupled by the swarm. Neither subsumes the
+      other — that is the argument for shipping both rather than one with a "spread" knob, and the two meters
+      above are the evidence, since a single correlation number cannot tell them apart.</div>
+  </div>
+
+  <div class="card">
+    <h2>Envelope <span>· DAHDSR with per-segment curve</span></h2>
+    <canvas id="envC" width="316" height="150"></canvas>
+    <div class="row"><label>delay</label><input type="range" id="e_delay" min="0" max="1" step="0.005"><output id="e_delay_o"></output></div>
+    <div class="row"><label>attack</label><input type="range" id="e_attack" min="0.001" max="2" step="0.001"><output id="e_attack_o"></output></div>
+    <div class="row"><label>hold</label><input type="range" id="e_hold" min="0" max="1" step="0.005"><output id="e_hold_o"></output></div>
+    <div class="row"><label>decay</label><input type="range" id="e_decay" min="0.005" max="4" step="0.005"><output id="e_decay_o"></output></div>
+    <div class="row"><label>sustain</label><input type="range" id="e_sustain" min="0" max="1" step="0.01"><output id="e_sustain_o"></output></div>
+    <div class="row"><label>release</label><input type="range" id="e_release" min="0.005" max="4" step="0.005"><output id="e_release_o"></output></div>
+    <div class="row"><label>curve A</label><input type="range" id="e_cA" min="-1" max="1" step="0.01"><output id="e_cA_o"></output></div>
+    <div class="row"><label>curve D</label><input type="range" id="e_cD" min="-1" max="1" step="0.01"><output id="e_cD_o"></output></div>
+    <div class="row"><label>curve R</label><input type="range" id="e_cR" min="-1" max="1" step="0.01"><output id="e_cR_o"></output></div>
+    <div class="row"><label>voice scatter</label><input type="range" id="e_scatter" min="0" max="1" step="0.01"><output id="e_scatter_o"></output></div>
+    <div class="row"><label>loop</label><select id="e_loop"><option value="0">off (envelope)</option><option value="1">on (envelope as LFO)</option></select></div>
+    <div class="hint">The fan is the point: the VST already scatters envelopes per voice, so the honest display of
+      an envelope here is the <b>distribution</b> it produces across voices, not one curve. Seven seeded draws from
+      the same scatter law, redrawn when the seed changes — the picture and the sound come from the same law, but
+      not from the same draw (the notes currently sounding drew earlier).
+      <br><br><b>Two time grammars, unreconciled — a question for the fold.</b> This envelope is
+      <b>staged seconds</b> (a gate has no total duration). <b>shape-lab-mod.html</b>'s editor is
+      <b>normalised t with a separate duration</b>. Both are right for their own object and this lab does not
+      pretend they unify; it reuses that lab's <b>segCurve</b> exponent unchanged so at least the curve grammar
+      cannot fork. Which one a preset stores is unruled.</div>
+  </div>
+
+  <div class="card">
+    <h2>Target <span>· something to hear it on</span></h2>
+    <div class="row"><label>cutoff</label><input type="range" id="s_cutoff" min="0" max="1" step="0.005"><output id="s_cutoff_o"></output></div>
+    <div class="row"><label>level</label><input type="range" id="s_level" min="0" max="1" step="0.005"><output id="s_level_o"></output></div>
+    <div class="row"><label>drive</label><input type="range" id="s_drive" min="0" max="1" step="0.005"><output id="s_drive_o"></output></div>
+    <div class="row"><label>detune</label><input type="range" id="s_detune" min="0" max="1" step="0.005"><output id="s_detune_o"></output></div>
+    <div>
+      <button id="drone">drone (space)</button><button id="panic">panic</button>
+    </div>
+    <div>
+      <button id="p_b26">preset: B26 patch</button><button id="p_glob">preset: S&amp;H global</button><button id="p_kuro">preset: S&amp;H kuro</button>
+    </div>
+    <div class="hint">Three polyBLEP saws per voice into two one-poles and a tanh drive — deliberately the dullest
+      target that can still show every destination. <b>drive is RECTIFIED</b> (it takes the positive half only,
+      the way <b>Kboost</b> does), which is what makes the per-route polarity claim measurable rather than
+      rhetorical.
+      <br><br><b>preset: B26 patch</b> builds the two pieces B16 owes the depth-of-depth item — a tempo-synced
+      <b>down-ramp saw</b> on the cutoff. The second-order half of that request (a high R fading the routing's
+      grip in and out) is B26's own scope and is <b>not</b> built here.</div>
+  </div>
+
+  <div class="card">
+    <h2>Determinism</h2>
+    <div class="row"><label>seed</label><input type="number" id="seed" min="1" max="999999" step="1" style="width:90px"><button id="reseed">apply</button></div>
+    <div class="row"><button id="detcheck">run determinism check</button></div>
+    <pre id="detout">not run</pre>
+    <div class="hint">Two runs at the same seed must hash identically, and a run at seed+1 must NOT — the second
+      half is the control, without which a hash checker that always returned a constant would pass. Changing the
+      seed rebuilds every stream from scratch (the S&amp;H streams, the envelope's per-voice scatter draws), which
+      is what makes the claim testable at all; a stream that survived a reseed would make the seed decorative.</div>
+  </div>
+
+  <div class="card">
+    <h2>Ownership tier <span>· the question, made concrete</span></h2>
+    <table id="tierT"></table>
+    <div class="warnline" id="tierMsg"></div>
+    <div class="hint">The request was "which mods have a baked-in tier vs a modifiable one", and the human flagged
+      uncertainty about the framing itself — so this panel makes the question concrete rather than answering it.
+      Click a chip and watch what actually changes. <b>Three readings, and the phrase does not pick one:</b>
+      <br><b>(i) tier = editability.</b> A baked mod's identity is fixed: K1's rate is the rotor's detune spread,
+      so "make K1 modifiable" is not a permission to grant — there is no knob to unlock. Try it; the lab refuses
+      and says why. That refusal is the finding: editability is not a per-mod flag, it is a property of where
+      the mod's identity comes from.
+      <br><b>(ii) tier = preset ownership.</b> Does the mod's state serialize? Toggle LFO A to <i>baked</i> and
+      watch it leave the JSON below. This reading is implementable today and costs one field.
+      <br><b>(iii) tier = precedence.</b> "Tier" also reads as priority when two things write one destination —
+      a system-wide route outranking a corner-owned one. That is the morph scope vocabulary, already ruled and
+      already built elsewhere; if this is what was meant, B16 owes nothing and the request is already served.
+      <b>NOT implemented here</b>, deliberately: building it would answer a question nobody has asked yet.</div>
+  </div>
+
+  <div class="card">
+    <h2>Serialization <span>· what a preset would store</span></h2>
+    <pre id="ser"></pre>
+    <div class="hint">Rates in Hz or in beats, times in seconds, curves as exponents, routes sparse — nothing
+      sample-rate-dependent and nothing per-tick, per ADR-009. Mods at tier <b>baked</b> or <b>derived</b> drop
+      their parameters (reading (ii) above), which is exactly the consequence the tier question needs to be
+      argued against.</div>
+  </div>
+
+</div>
+
+<div class="wrap">
+  <div class="card">
+    <h2>Routes <span>· sparse: a routing exists or it does not — no phantom rows · double-click a depth to zero it</span></h2>
+    <table>
+      <thead><tr><th style="width:13%">source</th><th style="width:15%">destination</th><th style="width:26%">depth</th>
+        <th style="width:8%">value</th><th style="width:14%">polarity</th><th style="width:10%">source range</th>
+        <th style="width:10%">discarded</th><th style="width:4%"></th></tr></thead>
+      <tbody id="routeB"></tbody>
+    </table>
+    <div><button id="addRoute">+ add route</button><button id="clrStats">reset measurements</button></div>
+    <div class="hint"><b>Polarity per route.</b> <i>as-source</i> is today's behaviour — the source's own range,
+      whatever that happens to be. The other three re-map the source's <b>nominal</b> range: <i>bipolar</i> to
+      −1..+1, <i>uni +</i> to 0..+1, <i>uni −</i> to −1..0. So ENV (nominally 0..1) can bend pitch DOWN, and an
+      LFO can drive a rectified destination without throwing half its swing away.
+      <br><b>The measurement, not the argument.</b> <b>discarded</b> is the fraction of control ticks whose
+      contribution the destination's rectifier threw on the floor. Route LFO A → drive at <i>as-source</i> and it
+      settles near <b>50%</b>; switch that route to <i>uni +</i> and it goes to <b>0%</b> with the swing intact.
+      That is the reachability finding turned into a live number.
+      <br><b>source range</b> shows nominal vs the excursion actually observed. They disagree for R, and that
+      disagreement is the honest version of the polarity problem: a hard-coded "R is unipolar" is a lie the
+      moment K rises, so the map uses the declared range and the lab shows you the drift instead of hiding it.</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ======================================================================
+   CORE — pure, framework-free, deterministic. No DOM below this line until
+   the UI section. Everything the audio path reads lives in the plain object
+   P, so an offline twin is one structuredClone away (that is how the
+   determinism check runs a second universe without disturbing this one).
+   ====================================================================== */
+const TAU = Math.PI * 2;
+const TICK = 16;                       // control tick, samples (the core's)
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0;
+  let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+  return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+
+/* Segment curve — shape-lab-mod.html's evaluator, unchanged on purpose. One
+   pow() per segment; c in [-1,1], 0 linear. Copied rather than re-derived so
+   an envelope drawn there and an envelope shaped here cannot mean different
+   things by the same number. */
+function segCurve(x, c) {
+  if (Math.abs(c) < 1e-6) return x;
+  return Math.pow(clamp(x, 0, 1), Math.exp(c * 3));
+}
+
+/* Tempo divisions in BEATS per cycle (1 beat = one quarter note). Kept as
+   numbers, not names: the core stores beats, the UI owns the label. */
+const DIVS = [['1/1', 4], ['1/2', 2], ['1/4', 1], ['1/8', 0.5], ['1/16', 0.25], ['1/32', 0.125]];
+const MODS = [['straight', 1], ['dotted', 1.5], ['triplet', 2 / 3]];
+function syncHz(bpm, div, mod) {
+  const beats = DIVS[clamp(div | 0, 0, DIVS.length - 1)][1] * MODS[clamp(mod | 0, 0, MODS.length - 1)][1];
+  return 1 / ((60 / Math.max(1, bpm)) * beats);
+}
+
+/* ---- shape: one warp, two families, and reverse-saw falls out of skew ----
+   warp() is a piecewise-linear time warp of the phase: it moves the halfway
+   point of the cycle to `skew`. Feed it to a triangle and skew sweeps
+   saw-down -> triangle -> saw-up; feed the SAME warp to a square and skew is
+   pulse width. One mechanism, both requests, and no enum entry called
+   "reverse saw" that a future shape would have to be added beside. */
+function warp(ph, skew) {
+  const s = clamp(skew, 0.001, 0.999);
+  return ph < s ? 0.5 * ph / s : 0.5 + 0.5 * (ph - s) / (1 - s);
+}
+const ANCH = [w => Math.sin(TAU * w),                       // 0 sine
+              w => w < 0.5 ? 4 * w - 1 : 3 - 4 * w,          // 1 ramp family
+              w => w < 0.5 ? 1 : -1];                        // 2 pulse family
+function waveAt(ph, shape, skew) {
+  const w = warp(ph - Math.floor(ph), skew);
+  const s = clamp(shape, 0, ANCH.length - 1), i = Math.floor(s), f = s - i;
+  return i >= ANCH.length - 1 ? ANCH[ANCH.length - 1](w) : ANCH[i](w) * (1 - f) + ANCH[i + 1](w) * f;
+}
+
+/* ---- rotor: compact mean-field Kuramoto (see the panel note — the reference
+   is mod-lab's KuroSwarm). Its job here is to give the per-mod S&H clocks real
+   COUPLED timing, and to publish which voices wrapped this tick. ---- */
+const MAXK = 8;
+class Rotor {
+  constructor(sr, p) {
+    this.sr = sr; this.p = p;
+    this.phase = new Float64Array(MAXK); this.rate = new Float64Array(MAXK);
+    this.val = new Float64Array(MAXK); this.wrapped = new Uint8Array(MAXK);
+    this.R = 0; this.psi = 0;
+    this.reset(); this.rates(); this.control();
+  }
+  reset() { const n = Math.max(1, this.p.n | 0); for (let i = 0; i < MAXK; i++) this.phase[i] = (i % n) / n; }
+  // Geometric spread normalised on the geometric MEAN, so `rate` stays the
+  // centre of the fan however wide detune goes. Ratios, not cents: LFO rates
+  // are heard as tempo relationships.
+  rates() {
+    const p = this.p, n = Math.max(1, p.n | 0), r = new Float64Array(n);
+    let lg = 0;
+    for (let i = 0; i < n; i++) {
+      const x = n === 1 ? 0 : (2 * i / (n - 1) - 1);
+      r[i] = Math.pow(2, x * p.detune * 2); lg += Math.log(r[i]);
+    }
+    const norm = Math.exp(lg / n);
+    for (let i = 0; i < n; i++) this.rate[i] = p.rate * r[i] / norm;
+    for (let i = n; i < MAXK; i++) this.rate[i] = 0;
+  }
+  control() {
+    const n = Math.max(1, this.p.n | 0);
+    let cx = 0, cy = 0;
+    for (let i = 0; i < n; i++) { const a = TAU * this.phase[i]; cx += Math.cos(a); cy += Math.sin(a); }
+    this.R = Math.sqrt(cx * cx + cy * cy) / n; this.psi = Math.atan2(cy, cx);
+    for (let i = 0; i < MAXK; i++) this.val[i] = i < n ? Math.sin(TAU * this.phase[i]) : 0;
+  }
+  // One control tick's worth of advance. wrapped[] is the S&H clock for every
+  // mod bound to a voice — the coupling is therefore audible as WHEN they fire.
+  advance(nSmp) {
+    const p = this.p, n = Math.max(1, p.n | 0);
+    const k = (p.K > 0 ? p.K * p.K : -p.K * p.K) * 3.0;   // signed: <0 repels (splay)
+    this.wrapped.fill(0);
+    for (let s = 0; s < nSmp; s++) {
+      for (let i = 0; i < n; i++) {
+        const th = TAU * this.phase[i];
+        this.phase[i] += (this.rate[i] + k * this.R * Math.sin(this.psi - th)) / this.sr;
+        if (this.phase[i] >= 1 || this.phase[i] < 0) {
+          this.phase[i] -= Math.floor(this.phase[i]); this.wrapped[i] = 1;
+        }
+      }
+    }
+    this.control();
+  }
+}
+
+/* ---- the global S&H clock: ONE clock, ONE draw, broadcast ---- */
+class GlobalSH {
+  constructor(p, rng) { this.p = p; this.rng = rng; this.ph = 0; this.value = this.rng() * 2 - 1; this.fired = false; }
+  tick(dt, bpm) {
+    const f = this.p.sync ? syncHz(bpm, this.p.div, this.p.mod) : this.p.hz;
+    this.fired = false; this.ph += f * dt;
+    if (this.ph >= 1) { this.ph -= Math.floor(this.ph); this.value = this.rng() * 2 - 1; this.fired = true; }
+  }
+}
+
+/* ---- a modulator: continuous shape, or one of the two S&H kinds ---- */
+class Modulator {
+  constructor(p, rng, glob, rotor) {
+    this.p = p; this.rng = rng; this.glob = glob; this.rotor = rotor;
+    this.ph = 0; this.hold = this.rng() * 2 - 1; this.out = 0; this.fired = false;
+  }
+  hz(bpm) { return this.p.sync ? syncHz(bpm, this.p.div, this.p.mod) : this.p.hz; }
+  noteOn() { if (this.p.retrig) { this.ph = 0; } }
+  tick(dt, bpm, shapeMod) {
+    const p = this.p;
+    this.ph += this.hz(bpm) * dt; this.ph -= Math.floor(this.ph);
+    this.fired = false;
+    if (p.sh === 1) {
+      // GLOBAL: take the shared value on the shared clock. Every mod in this
+      // mode holds the identical number — that is the request, and it is also
+      // the whole cost of the kind.
+      if (this.glob.fired) { this.hold = this.glob.value; this.fired = true; }
+    } else if (p.sh === 2) {
+      // KURO: this mod's own stream, clocked by its bound rotor voice wrapping.
+      // Coupling therefore lands on the TIMING and never on the values.
+      if (this.rotor.wrapped[clamp(p.bind | 0, 0, MAXK - 1)]) { this.hold = this.rng() * 2 - 1; this.fired = true; }
+    }
+    this.out = p.sh ? this.hold : waveAt(this.ph, p.shape + shapeMod, p.skew);
+    return this.out;
+  }
+}
+
+/* ---- envelope: DAHDSR in SECONDS with a per-segment curve exponent, and a
+   per-voice scatter multiplier so the display can show a distribution rather
+   than a curve. Evaluated as an explicit function of elapsed time (not a
+   one-pole) so the drawn shape and the heard shape are the same code. ---- */
+function envGate(p, t, dm) {
+  const d = p.delay * dm, a = Math.max(1e-4, p.attack * dm), h = p.hold * dm, dc = Math.max(1e-4, p.decay * dm);
+  if (t < d) return 0;
+  t -= d; if (t < a) return segCurve(t / a, p.cA);
+  t -= a; if (t < h) return 1;
+  t -= h; if (t < dc) return 1 + (p.sustain - 1) * segCurve(t / dc, p.cD);
+  return p.sustain;
+}
+function gateLen(p, dm) { return (p.delay + p.attack + p.hold + p.decay) * dm; }
+class StagedEnv {
+  constructor(p) { this.p = p; this.t = 0; this.gate = 0; this.v = 0; this.rv = 0; this.dm = 1; this.lm = 1; }
+  noteOn(dm, lm) { this.t = 0; this.gate = 1; this.dm = dm || 1; this.lm = lm === undefined ? 1 : lm; }
+  noteOff() { if (this.gate) { this.gate = 0; this.rv = this.v; this.t = 0; } }
+  tick(dt) {
+    const p = this.p;
+    this.t += dt;
+    if (this.gate) {
+      // loop = envelope-as-LFO (the survey's "loopable"): restart at the
+      // attack, never at the delay — a delay that re-fired every cycle would
+      // be a second rate control wearing the delay's name.
+      if (p.loop) { const l = gateLen(p, this.dm); if (l > 1e-4 && this.t > l) this.t = p.delay * this.dm; }
+      this.v = envGate(p, this.t, this.dm) * this.lm;
+    } else {
+      const r = Math.max(1e-4, p.release * this.dm);
+      this.v = this.t >= r ? 0 : this.rv * (1 - segCurve(this.t / r, p.cR));
+    }
+    return this.v;
+  }
+}
+
+/* ---- sources and destinations -------------------------------------------
+   NOMINAL range is what the polarity map divides by; it is declared, not
+   observed, because an observed range drifts with every knob (R's range moves
+   with K — that is the whole reason the lab shows both). ---- */
+const SRC = [
+  { id: 'K1', lo: -1, hi: 1, tier: 'baked' }, { id: 'K2', lo: -1, hi: 1, tier: 'baked' },
+  { id: 'K3', lo: -1, hi: 1, tier: 'baked' }, { id: 'K4', lo: -1, hi: 1, tier: 'baked' },
+  { id: 'R', lo: 0, hi: 1, tier: 'derived' },
+  { id: 'LFO A', lo: -1, hi: 1, tier: 'mod' }, { id: 'LFO B', lo: -1, hi: 1, tier: 'mod' },
+  { id: 'ENV', lo: 0, hi: 1, tier: 'mod' },
+];
+const S_LFOA = 5, S_LFOB = 6, S_ENV = 7;
+// rect = the destination accepts only this sign; the rest is thrown away
+// before it is heard. `drive` stands in for Kboost, the one real instance.
+const DST = [
+  { id: 'cutoff', key: 'cutoff', rect: 0, scale: 1.0 },
+  { id: 'level', key: 'level', rect: 0, scale: 0.6 },
+  { id: 'pitch', key: 'pitch', rect: 0, scale: 1.0 },
+  { id: 'drive', key: 'drive', rect: 1, scale: 1.0 },
+  { id: 'LFO B shape', key: 'shapeB', rect: 0, scale: 1.0 },
+];
+const POL = ['as-source', 'bipolar', 'uni +', 'uni −'];
+function polMap(v, s, pol) {
+  if (!pol) return v;
+  const u = clamp((v - s.lo) / Math.max(1e-9, s.hi - s.lo), 0, 1);
+  return pol === 1 ? 2 * u - 1 : pol === 2 ? u : u - 1;
+}
+
+/* ---- the target: dullest synth that can still show every destination ---- */
+function blepSaw(ph, inc) {
+  let v = 2 * ph - 1;
+  if (ph < inc) { const t = ph / inc; v -= t + t - t * t - 1; }
+  else if (ph > 1 - inc) { const t = (ph - 1) / inc; v -= t * t + t + t + 1; }
+  return v;
+}
+const NVOICE = 6;
+
+class ModulatorLab {
+  constructor(sr, P) {
+    this.sr = sr; this.P = P;
+    const s = P.seed >>> 0;
+    // Stream per consumer, each offset from the one seed: two mods drawing
+    // from a SHARED stream would correlate by accident, which is exactly the
+    // thing the corr meter is supposed to be able to read as zero.
+    this.rotor = new Rotor(sr, P.rotor);
+    this.glob = new GlobalSH(P.shg, mulberry32(s + 0x9e37));
+    this.mods = [new Modulator(P.lfo[0], mulberry32(s + 0x1111), this.glob, this.rotor),
+                 new Modulator(P.lfo[1], mulberry32(s + 0x2222), this.glob, this.rotor)];
+    this.env = new StagedEnv(P.env);              // the matrix's ENV source (global instance)
+    this.noteRng = mulberry32(s + 0x5a5a);        // per-note scatter draws
+    this.voices = [];
+    for (let i = 0; i < NVOICE; i++) this.voices.push({
+      midi: -1, gate: 0, ph: [0, 0, 0], env: new StagedEnv(P.env), age: 0, f0: 220,
+    });
+    this.ageCounter = 0;
+    this.srcVal = new Float64Array(SRC.length);
+    this.srcLo = new Float64Array(SRC.length).fill(Infinity);
+    this.srcHi = new Float64Array(SRC.length).fill(-Infinity);
+    this.mod = { cutoff: 0, level: 0, pitch: 0, drive: 0, shapeB: 0 };
+    this.lp1 = 0; this.lp2 = 0;
+    this.held = 0;
+    // scope history (decimated: every 16th control tick ~= 172/s, 512 pts ~= 3 s)
+    this.hist = { a: new Float64Array(512), b: new Float64Array(512), e: new Float64Array(512),
+                  fa: new Uint8Array(512), fb: new Uint8Array(512), w: 0, dec: 0, sa: 0, sb: 0 };
+    // Correlation runs on the SAME decimated stream, and that is not a detail:
+    // at full control rate 256 samples is 93 ms, over which a 0.8 Hz sine is a
+    // straight line and a 4 Hz S&H is a constant — so the meter read ~1 for two
+    // unrelated free LFOs and 0 for two mods holding the identical value, i.e.
+    // exactly backwards. 1024 decimated points is ~6 s: long enough that a few
+    // Hz of S&H puts a couple of dozen INDEPENDENT values in the window, which
+    // is what the estimate is actually limited by — not the sample count.
+    this.cbuf = { a: new Float64Array(1024), b: new Float64Array(1024), w: 0, n: 0 };
+    this.corr = 0;
+    // Timing LOCK, the other half of the S&H measurement — and it is not
+    // coincidence. Mean-field coupling locks the rotor voices at CONSTANT
+    // PHASE OFFSETS set by their frequency detuning, not at the same instant:
+    // a "do they fire in the same 12 ms window" meter read 0.01 at K = 1 with
+    // R = 0.86, which is a true number answering the wrong question. So this is
+    // the order parameter of the A→B fire offset, measured in units of A's own
+    // period: constant offset → 1, walking offset → 0.
+    this.tc = 0; this.lastA = -1; this.aPer = 0;
+    this.lockX = 0; this.lockY = 0; this.lockN = 0; this.lock = -1;
+  }
+  noteOn(midi) {
+    const f = 440 * Math.pow(2, (midi - 69) / 12);
+    let v = this.voices.find(x => !x.gate) || this.voices.reduce((a, b) => a.age < b.age ? a : b);
+    v.midi = midi; v.f0 = f; v.gate = 1; v.age = ++this.ageCounter;
+    // Per-voice scatter: drawn ONCE per note from the seeded note stream, so a
+    // given seed + note order reproduces the same distribution exactly.
+    const sc = this.P.env.scatter;
+    const dm = 1 + (this.noteRng() * 2 - 1) * sc * 0.8;
+    const lm = 1 - this.noteRng() * sc * 0.5;
+    v.env.noteOn(dm, lm);
+    if (!this.held) this.env.noteOn(1, 1);
+    this.held++;
+    for (const m of this.mods) m.noteOn();
+  }
+  noteOff(midi) {
+    for (const v of this.voices) if (v.midi === midi && v.gate) { v.gate = 0; v.env.noteOff(); this.held--; }
+    if (this.held <= 0) { this.held = 0; this.env.noteOff(); }
+  }
+  allOff() { for (const v of this.voices) if (v.gate) { v.gate = 0; v.env.noteOff(); } this.held = 0; this.env.noteOff(); }
+
+  controlTick() {
+    const P = this.P, dt = TICK / this.sr;
+    this.rotor.advance(TICK);
+    this.glob.tick(dt, P.bpm);
+    const a = this.mods[0].tick(dt, P.bpm, 0);
+    // One tick of latency on the shape destination: LFO B reads the modulation
+    // accumulated last tick. Cheap and honest — resolving it in-tick would need
+    // a dependency order between modulators, which is the mod-on-mod problem
+    // (B26), not this lab's.
+    const b = this.mods[1].tick(dt, P.bpm, this.mod.shapeB);
+    const e = this.env.tick(dt);
+    const s = this.srcVal;
+    for (let i = 0; i < 4; i++) s[i] = this.rotor.val[i];
+    s[4] = this.rotor.R; s[S_LFOA] = a; s[S_LFOB] = b; s[S_ENV] = e;
+    for (let i = 0; i < SRC.length; i++) {
+      if (s[i] < this.srcLo[i]) this.srcLo[i] = s[i];
+      if (s[i] > this.srcHi[i]) this.srcHi[i] = s[i];
+    }
+    const out = { cutoff: 0, level: 0, pitch: 0, drive: 0, shapeB: 0 };
+    for (const r of P.routes) {
+      r.ticks = (r.ticks || 0) + 1;
+      if (!r.on) continue;
+      const src = SRC[r.src], dst = DST[r.dst];
+      const c = r.depth * polMap(s[r.src], src, r.pol) * dst.scale;
+      r.live = c;
+      // The measurement the polarity claim rests on: how much of this routing's
+      // contribution the destination's rectifier discards.
+      if (dst.rect && c * dst.rect < 0) { r.dead = (r.dead || 0) + 1; continue; }
+      out[dst.key] += c;
+    }
+    this.mod = out;
+    // timing lock — this is the quantity the coupling actually moves
+    this.tc++;
+    if (this.mods[0].fired) {
+      if (this.lastA >= 0) this.aPer += ((this.tc - this.lastA) - this.aPer) * 0.2;
+      this.lastA = this.tc;
+    }
+    if (this.mods[1].fired && this.lastA >= 0 && this.aPer > 1) {
+      const x = ((this.tc - this.lastA) / this.aPer) % 1;
+      // exponential forgetting (~20 fires) so the meter tracks the K knob
+      this.lockX += (Math.cos(TAU * x) - this.lockX) * 0.05;
+      this.lockY += (Math.sin(TAU * x) - this.lockY) * 0.05;
+      if (++this.lockN > 8) this.lock = Math.sqrt(this.lockX * this.lockX + this.lockY * this.lockY);
+    }
+    const h = this.hist;
+    h.sa |= this.mods[0].fired ? 1 : 0; h.sb |= this.mods[1].fired ? 1 : 0;
+    if (++h.dec >= 16) {
+      h.dec = 0; h.a[h.w] = a; h.b[h.w] = b; h.e[h.w] = e;
+      h.fa[h.w] = h.sa; h.fb[h.w] = h.sb; h.sa = 0; h.sb = 0;
+      h.w = (h.w + 1) % h.a.length;
+      // value correlation, on the decimated stream (see the cbuf note)
+      const cb = this.cbuf;
+      cb.a[cb.w] = a; cb.b[cb.w] = b; cb.w = (cb.w + 1) % cb.a.length; cb.n = Math.min(cb.n + 1, cb.a.length);
+      if (cb.n > 16) {
+        let ma = 0, mb = 0;
+        for (let i = 0; i < cb.n; i++) { ma += cb.a[i]; mb += cb.b[i]; }
+        ma /= cb.n; mb /= cb.n;
+        let saa = 0, sbb = 0, sab = 0;
+        for (let i = 0; i < cb.n; i++) { const da = cb.a[i] - ma, db = cb.b[i] - mb; saa += da * da; sbb += db * db; sab += da * db; }
+        this.corr = (saa > 1e-12 && sbb > 1e-12) ? sab / Math.sqrt(saa * sbb) : 0;
+      }
+    }
+  }
+
+  render(L, R) {
+    const P = this.P, sr = this.sr, n = L.length;
+    let t = 0;
+    for (let i = 0; i < n; i++) {
+      if ((t & (TICK - 1)) === 0) this.controlTick();
+      t++;
+      const fc = 40 * Math.pow(300, clamp(P.synth.cutoff + this.mod.cutoff, 0, 1));
+      const g = 1 - Math.exp(-TAU * Math.min(fc, sr * 0.45) / sr);
+      const amp = clamp(P.synth.level + this.mod.level, 0, 1.4);
+      const drv = clamp(P.synth.drive + this.mod.drive, 0, 1);
+      const bend = Math.pow(2, this.mod.pitch);
+      let x = 0;
+      for (const v of this.voices) {
+        const ev = v.env.tick(1 / sr);   // per-sample step of the same staged law
+        if (ev <= 1e-5 && !v.gate) continue;
+        const f = v.f0 * bend;
+        for (let o = 0; o < 3; o++) {
+          const det = 1 + (o - 1) * P.synth.detune * 0.012;
+          const inc = Math.min(0.45, f * det / sr);
+          v.ph[o] += inc; if (v.ph[o] >= 1) v.ph[o] -= 1;
+          x += blepSaw(v.ph[o], inc) * ev * 0.19;
+        }
+      }
+      this.lp1 += (x - this.lp1) * g; this.lp2 += (this.lp1 - this.lp2) * g;
+      let y = this.lp2;
+      y = Math.tanh(y * (1 + drv * 8)) * (1 - drv * 0.45);
+      y *= amp;
+      L[i] = y; R[i] = y;
+    }
+  }
+}
+
+/* ---- offline twin: the determinism oracle -------------------------------
+   It hashes RENDERED AUDIO, not just the modulator outputs. The first version
+   hashed only mods/env/rotor and the seed+1 control came back IDENTICAL —
+   correctly, because with S&H off and scatter 0 nothing in that set touches a
+   stream at all. A checker that agrees with itself for the wrong reason is the
+   failure this control exists to catch, so the hash now covers the path where
+   the seed actually lands (per-voice envelope scatter is drawn at note-on) and
+   `seedIsLive` below says out loud when a patch legitimately has no randomness
+   in it. ---- */
+function fnv(h, x) { h ^= x | 0; return Math.imul(h, 0x01000193) >>> 0; }
+function seedIsLive(P) { return P.env.scatter > 0 || P.lfo.some(l => l.sh !== 0); }
+function runHash(sr, P, blocks) {
+  const lab = new ModulatorLab(sr, P);
+  const L = new Float64Array(1024), R = new Float64Array(1024);
+  let h = 0x811c9dc5;
+  lab.noteOn(60); lab.noteOn(67);
+  for (let b = 0; b < blocks; b++) {
+    if (b === Math.floor(blocks * 0.6)) { lab.noteOff(60); lab.noteOff(67); }
+    lab.render(L, R);
+    for (let i = 0; i < L.length; i++) h = fnv(h, Math.round(L[i] * 1e6));
+    h = fnv(h, Math.round(lab.mods[0].out * 1e6));
+    h = fnv(h, Math.round(lab.mods[1].out * 1e6));
+  }
+  return h >>> 0;
+}
+
+/* ======================================================================
+   STATE — one plain object, the whole patch. Declared before any wiring
+   (L0026) and before the core instance that reads it.
+   ====================================================================== */
+const P = {
+  seed: 1234,
+  bpm: 120,
+  rotor: { n: 4, K: 0.35, rate: 1.0, detune: 0.3 },
+  shg: { sync: 1, div: 3, mod: 0, hz: 4 },
+  lfo: [
+    { sync: 0, hz: 0.8, div: 2, mod: 0, shape: 0, skew: 0.5, sh: 0, bind: 0, retrig: 0, tier: 'mod' },
+    { sync: 0, hz: 2.6, div: 3, mod: 0, shape: 1, skew: 1, sh: 0, bind: 1, retrig: 0, tier: 'mod' },
+  ],
+  env: { delay: 0, attack: 0.012, hold: 0, decay: 0.35, sustain: 0.55, release: 0.5,
+         cA: 0, cD: -0.5, cR: -0.5, loop: 0, scatter: 0.25 },
+  synth: { cutoff: 0.5, level: 0.55, drive: 0.15, detune: 0.3 },
+  // The demo routing: audible the moment you press a key, and it already
+  // contains one rectified pairing so the `discarded` column has something to
+  // say without the human having to build it.
+  routes: [
+    { src: S_LFOA, dst: 0, depth: 0.55, pol: 0, on: 1 },
+    { src: 0, dst: 2, depth: 0.05, pol: 0, on: 1 },
+    { src: S_ENV, dst: 3, depth: 0.5, pol: 2, on: 1 },
+    { src: S_LFOB, dst: 3, depth: 0.35, pol: 0, on: 1 },
+  ],
+};
+const TIER_LABEL = { baked: 'baked', derived: 'derived', mod: 'modifiable' };
+
+/* ======================================================================
+   UI — thin adapters. Everything below reads or writes P and repaints.
+   ====================================================================== */
+const $ = id => document.getElementById(id);
+const actx = new (window.AudioContext || window.webkitAudioContext)();
+const SR = +actx.sampleRate || 44100;
+let lab = new ModulatorLab(SR, P);
+let spn = null, droning = false, octave = 0;
+
+const sc = $('scope').getContext('2d');
+const rc = $('rotorC').getContext('2d');
+const ec = $('envC').getContext('2d');
+const pa = $('prevA').getContext('2d');
+const pb = $('prevB').getContext('2d');
+
+/* ---- path get/set: one addressing scheme for every control, which is what
+   makes ONE double-click handler enough for the whole page ---- */
+function getP(path) { return path.split('.').reduce((a, k) => a[k], P); }
+function setP(path, v) { const ks = path.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], P)[last] = v; }
+const DEFAULTS = {};
+
+function flash(el) { el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 180); }
+
+/* DOUBLE-CLICK RESET (the human's ask, generalised). Reset is a property of the
+   CONTROL LAYER, not of each control: every control registered here gets it for
+   free, so the feature cannot be half-implemented the way a per-widget version
+   always ends up being. Defaults are captured from P at load — the patch IS the
+   default table, so there is no second copy to drift. */
+function armReset(el, path, apply) {
+  el.addEventListener('dblclick', () => {
+    setP(path, DEFAULTS[path]);
+    el.value = DEFAULTS[path];
+    apply(); flash(el);
+  });
+}
+function slider(id, path, fmt, after) {
+  const el = $(id), out = $(id + '_o');
+  DEFAULTS[path] = getP(path);
+  const paint = () => { el.value = getP(path); if (out) out.textContent = fmt ? fmt(getP(path)) : getP(path); };
+  const apply = () => { paint(); if (after) after(); repaintDerived(); };
+  el.addEventListener('input', () => { setP(path, +el.value); apply(); });
+  armReset(el, path, apply);
+  paint();
+  return paint;
+}
+function picker(id, path, opts, after) {
+  const el = $(id);
+  DEFAULTS[path] = getP(path);
+  if (opts) el.innerHTML = opts.map((o, i) => '<option value="' + i + '">' + o + '</option>').join('');
+  const apply = () => { el.value = getP(path); if (after) after(); repaintDerived(); };
+  el.addEventListener('change', () => { setP(path, +el.value); apply(); });
+  armReset(el, path, apply);
+  apply();
+}
+
+const f2 = v => (+v).toFixed(2);
+const fHz = v => (+v).toFixed(2) + ' Hz';
+const fs = v => (+v).toFixed(3) + ' s';
+const fpc = v => Math.round(v * 100) + '%';
+const divNames = DIVS.map(d => d[0]), modNames = MODS.map(m => m[0]);
+function shapeName(v) {
+  const n = ['sine', 'ramp', 'pulse'];
+  const i = clamp(Math.round(v), 0, 2);
+  return Math.abs(v - i) < 0.02 ? n[i] : n[Math.floor(v)] + '→' + n[Math.min(2, Math.floor(v) + 1)] + ' ' + f2(v);
+}
+function skewName(v) {
+  return v < 0.02 ? '0.00 rev-saw' : v > 0.98 ? '1.00 saw-up' : Math.abs(v - 0.5) < 0.02 ? '0.50 tri/square' : f2(v);
+}
+
+/* ---- rate readouts have to say what the mod is ACTUALLY running at, because
+   a synced mod's Hz is a function of three other controls and a wrong guess
+   there is invisible ---- */
+function modHz(i) { const p = P.lfo[i]; return p.sync ? syncHz(P.bpm, p.div, p.mod) : p.hz; }
+
+/* ---- routes table ---- */
+let routeCells = [];
+function routeRow(r, i) {
+  const opt = (arr, sel) => arr.map((o, k) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + o + '</option>').join('');
+  return '<tr data-r="' + i + '">' +
+    '<td><select data-i="' + i + '" data-k="src">' + opt(SRC.map(s => s.id), r.src) + '</select></td>' +
+    '<td><select data-i="' + i + '" data-k="dst">' + opt(DST.map(d => d.id + (d.rect ? ' (+)' : '')), r.dst) + '</select></td>' +
+    '<td><input type="range" data-i="' + i + '" data-k="depth" min="-1" max="1" step="0.01" value="' + r.depth + '"></td>' +
+    '<td class="dv">' + f2(r.depth) + '</td>' +
+    '<td><select data-i="' + i + '" data-k="pol">' + opt(POL, r.pol) + '</select></td>' +
+    '<td class="rng">—</td><td class="dead">—</td>' +
+    '<td><button data-i="' + i + '" data-k="del">×</button></td></tr>';
+}
+function buildRoutes() {
+  $('routeB').innerHTML = P.routes.map(routeRow).join('');
+  routeCells = Array.from($('routeB').querySelectorAll('tr[data-r]')).map(tr => ({
+    dv: tr.querySelector('.dv'), rng: tr.querySelector('.rng'), dead: tr.querySelector('.dead'),
+  }));
+  serialize();
+}
+$('routeB').addEventListener('input', e => {
+  const k = e.target.dataset.k; if (k !== 'depth') return;
+  const r = P.routes[+e.target.dataset.i]; if (!r) return;
+  r.depth = +e.target.value; r.ticks = 0; r.dead = 0; serialize();
+});
+$('routeB').addEventListener('change', e => {
+  const k = e.target.dataset.k; if (k !== 'src' && k !== 'dst' && k !== 'pol') return;
+  const r = P.routes[+e.target.dataset.i]; if (!r) return;
+  r[k] = +e.target.value; r.ticks = 0; r.dead = 0; serialize();
+});
+/* Same double-click law as every other control — a depth's default is 0. */
+$('routeB').addEventListener('dblclick', e => {
+  if (e.target.dataset.k !== 'depth') return;
+  const r = P.routes[+e.target.dataset.i]; if (!r) return;
+  r.depth = 0; e.target.value = 0; r.ticks = 0; r.dead = 0; flash(e.target); serialize();
+});
+$('routeB').addEventListener('click', e => {
+  if (e.target.dataset.k !== 'del') return;
+  P.routes.splice(+e.target.dataset.i, 1); buildRoutes();
+});
+$('addRoute').addEventListener('click', () => { P.routes.push({ src: S_LFOA, dst: 0, depth: 0, pol: 0, on: 1 }); buildRoutes(); });
+$('clrStats').addEventListener('click', () => {
+  for (const r of P.routes) { r.ticks = 0; r.dead = 0; }
+  lab.srcLo.fill(Infinity); lab.srcHi.fill(-Infinity);
+  lab.lockX = lab.lockY = 0; lab.lockN = 0; lab.lock = -1;
+});
+
+/* ---- ownership tier: the panel exists to make the QUESTION concrete ---- */
+function buildTier() {
+  $('tierT').innerHTML = '<tr><th>modulator</th><th>tier</th><th>identity comes from</th><th>in preset?</th></tr>' +
+    SRC.map((s, i) => '<tr><td>' + s.id + '</td>' +
+      '<td><span class="tier t-' + s.tier + '" data-t="' + i + '">' + TIER_LABEL[s.tier] + '</span></td>' +
+      '<td style="color:#7f8899">' + (s.tier === 'baked' ? 'the rotor (rate = detune spread)'
+        : s.tier === 'derived' ? 'a function of the rotor (order parameter)'
+        : 'its own parameters') + '</td>' +
+      '<td class="pz">' + (s.tier === 'mod' ? 'yes' : 'no') + '</td></tr>').join('');
+}
+$('tierT').addEventListener('click', e => {
+  const i = e.target.dataset.t; if (i === undefined) return;
+  const s = SRC[+i];
+  if (s.tier === 'baked' || s.tier === 'derived') {
+    // The refusal IS the finding — see the panel note, reading (i).
+    $('tierMsg').textContent = s.id + ': refused. Its rate is not a knob that exists — it is the rotor\'s ' +
+      'detune spread. "Modifiable" is not a permission you can grant a mod whose identity is derived.';
+    return;
+  }
+  s.tier = s.tier === 'mod' ? 'baked' : 'mod';
+  $('tierMsg').textContent = s.id + ' → ' + TIER_LABEL[s.tier] + '. Reading (ii) in action: watch the JSON.';
+  buildTier(); serialize();
+});
+
+function serialize() {
+  const keep = i => SRC[i].tier === 'mod';
+  const o = {
+    version: 1, seed: P.seed, bpm: P.bpm,
+    rotor: P.rotor,
+    globalSH: P.shg.sync ? { sync: true, div: DIVS[P.shg.div][0], mod: MODS[P.shg.mod][0] } : { sync: false, hz: P.shg.hz },
+    modulators: [0, 1].map(i => keep(S_LFOA + i) ? {
+      name: 'LFO ' + 'AB'[i], tier: TIER_LABEL[SRC[S_LFOA + i].tier],
+      rate: P.lfo[i].sync ? { sync: true, div: DIVS[P.lfo[i].div][0], mod: MODS[P.lfo[i].mod][0] } : { sync: false, hz: P.lfo[i].hz },
+      shape: +P.lfo[i].shape.toFixed(3), skew: +P.lfo[i].skew.toFixed(3),
+      sampleHold: ['off', 'global', 'kuro'][P.lfo[i].sh], bind: P.lfo[i].sh === 2 ? 'K' + (P.lfo[i].bind + 1) : null,
+      retrig: !!P.lfo[i].retrig,
+    } : { name: 'LFO ' + 'AB'[i], tier: TIER_LABEL[SRC[S_LFOA + i].tier], parameters: 'not stored (tier)' }),
+    envelope: keep(S_ENV) ? P.env : { tier: TIER_LABEL[SRC[S_ENV].tier], parameters: 'not stored (tier)' },
+    routes: P.routes.map(r => ({ from: SRC[r.src].id, to: DST[r.dst].id, depth: +r.depth.toFixed(3), polarity: POL[r.pol] })),
+  };
+  $('ser').textContent = JSON.stringify(o, null, 1);
+}
+
+/* ---- drawing ---- */
+function drawPreview(cx, cv, i) {
+  const W = cv.width, H = cv.height, p = P.lfo[i];
+  cx.clearRect(0, 0, W, H);
+  cx.strokeStyle = '#1c2230'; cx.beginPath(); cx.moveTo(0, H / 2); cx.lineTo(W, H / 2); cx.stroke();
+  if (p.sh) {
+    cx.fillStyle = '#7f8899'; cx.font = '10px ui-monospace,monospace';
+    cx.fillText(p.sh === 1 ? 'S&H global — shape bypassed (a sampler is not a shape)'
+                           : 'S&H kuro (K' + (p.bind + 1) + ') — shape bypassed', 8, H / 2 - 6);
+    cx.fillText('one held value per clock', 8, H / 2 + 12);
+    return;
+  }
+  cx.strokeStyle = i ? '#ffc24b' : '#5ff2e0'; cx.lineWidth = 1.8; cx.beginPath();
+  for (let k = 0; k <= 300; k++) {
+    const ph = k / 300 * 2, v = waveAt(ph, p.shape, p.skew);
+    const x = k / 300 * W, y = H / 2 - v * (H / 2 - 6);
+    k ? cx.lineTo(x, y) : cx.moveTo(x, y);
+  }
+  cx.stroke();
+  cx.fillStyle = '#7f8899'; cx.font = '9px ui-monospace,monospace';
+  cx.fillText('2 cycles · ' + shapeName(p.shape) + ' · skew ' + skewName(p.skew), 4, 10);
+}
+
+function drawEnv() {
+  const cv = $('envC'), W = cv.width, H = cv.height, p = P.env;
+  ec.clearRect(0, 0, W, H);
+  ec.strokeStyle = '#1c2230';
+  for (let i = 0; i <= 4; i++) { const y = 6 + (1 - i / 4) * (H - 22); ec.beginPath(); ec.moveTo(0, y); ec.lineTo(W, y); ec.stroke(); }
+  const sus = 0.35;
+  const span = Math.max(0.2, (p.delay + p.attack + p.hold + p.decay) * 1.4 + sus + p.release * 1.4);
+  const curve = (dm, lm, col, lw) => {
+    ec.strokeStyle = col; ec.lineWidth = lw; ec.beginPath();
+    const gl = gateLen(p, dm) + sus;
+    // The loop wraps to the ATTACK, not to the delay — mirroring StagedEnv, so
+    // the drawn envelope and the heard one cannot disagree about the one stage
+    // that only fires once.
+    const lp0 = p.delay * dm, lpLen = Math.max(1e-4, gateLen(p, dm) - lp0);
+    for (let k = 0; k <= 320; k++) {
+      const t = k / 320 * span;
+      let v;
+      if (t < gl) {
+        const tt = (p.loop && t > gateLen(p, dm)) ? lp0 + (t - lp0) % lpLen : t;
+        v = envGate(p, tt, dm) * lm;
+      } else { const rt = t - gl, r = Math.max(1e-4, p.release * dm); v = rt >= r ? 0 : p.sustain * lm * (1 - segCurve(rt / r, p.cR)); }
+      const x = t / span * W, y = 6 + (1 - clamp(v, 0, 1)) * (H - 22);
+      k ? ec.lineTo(x, y) : ec.moveTo(x, y);
+    }
+    ec.stroke();
+  };
+  // The distribution, from a display stream seeded off the patch seed — same
+  // law as the notes, different draws (see the panel note).
+  if (p.scatter > 0) {
+    const r = mulberry32((P.seed >>> 0) + 0x5a5a);
+    for (let i = 0; i < 7; i++) {
+      const dm = 1 + (r() * 2 - 1) * p.scatter * 0.8, lm = 1 - r() * p.scatter * 0.5;
+      curve(dm, lm, 'rgba(95,242,224,0.28)', 1);
+    }
+  }
+  curve(1, 1, '#5ff2e0', 1.8);
+  ec.fillStyle = '#7f8899'; ec.font = '9px ui-monospace,monospace';
+  ec.fillText(span.toFixed(2) + ' s window · gate released at the dashed line' + (p.loop ? ' · LOOPING' : ''), 4, H - 5);
+  const gx = (gateLen(p, 1) + sus) / span * W;
+  ec.strokeStyle = '#ffc24b'; ec.setLineDash([3, 3]); ec.beginPath(); ec.moveTo(gx, 4); ec.lineTo(gx, H - 14); ec.stroke(); ec.setLineDash([]);
+}
+
+function drawRotor() {
+  const cv = $('rotorC'), W = cv.width, H = cv.height;
+  rc.clearRect(0, 0, W, H);
+  const cxp = W / 2, cyp = H / 2, rad = Math.min(W, H) / 2 - 14;
+  rc.strokeStyle = '#2a3040'; rc.beginPath(); rc.arc(cxp, cyp, rad, 0, TAU); rc.stroke();
+  const n = P.rotor.n | 0;
+  for (let i = 0; i < n; i++) {
+    const a = TAU * lab.rotor.phase[i];
+    const x = cxp + Math.cos(a) * rad, y = cyp + Math.sin(a) * rad;
+    rc.fillStyle = i < 4 ? ['#5ff2e0', '#ffc24b', '#b18cff', '#e0654a'][i] : '#7f8899';
+    rc.beginPath(); rc.arc(x, y, i < 4 ? 5 : 3, 0, TAU); rc.fill();
+    if (i < 4) { rc.fillStyle = '#0b0e13'; rc.font = '8px ui-monospace,monospace'; rc.fillText(String(i + 1), x - 2, y + 3); }
+  }
+  rc.strokeStyle = '#cdd6e4'; rc.lineWidth = 1.5; rc.beginPath(); rc.moveTo(cxp, cyp);
+  rc.lineTo(cxp + Math.cos(lab.rotor.psi) * rad * lab.rotor.R, cyp + Math.sin(lab.rotor.psi) * rad * lab.rotor.R); rc.stroke();
+}
+
+function drawScope() {
+  const cv = $('scope'), W = cv.width, H = cv.height, h = lab.hist, N = h.a.length;
+  sc.clearRect(0, 0, W, H);
+  const lanes = [{ d: h.a, f: h.fa, c: '#5ff2e0', n: 'LFO A' },
+                 { d: h.b, f: h.fb, c: '#ffc24b', n: 'LFO B' },
+                 { d: h.e, f: null, c: '#b18cff', n: 'ENV' }];
+  const lh = H / 3;
+  lanes.forEach((ln, li) => {
+    const y0 = li * lh, mid = y0 + lh / 2;
+    sc.strokeStyle = '#1c2230'; sc.beginPath(); sc.moveTo(0, mid); sc.lineTo(W, mid); sc.stroke();
+    sc.strokeStyle = ln.c; sc.lineWidth = 1.4; sc.beginPath();
+    for (let k = 0; k < N; k++) {
+      const idx = (h.w + k) % N, x = k / (N - 1) * W;
+      const v = ln.d[idx], y = mid - v * (lh / 2 - 12);
+      k ? sc.lineTo(x, y) : sc.moveTo(x, y);
+    }
+    sc.stroke();
+    if (ln.f) {
+      // Sample instants. This raster is where the coupling is legible: in
+      // `kuro` mode the ticks align as K rises and fan out as K goes negative.
+      sc.strokeStyle = ln.c; sc.lineWidth = 1;
+      for (let k = 0; k < N; k++) {
+        if (!ln.f[(h.w + k) % N]) continue;
+        const x = k / (N - 1) * W;
+        sc.beginPath(); sc.moveTo(x, y0 + lh - 10); sc.lineTo(x, y0 + lh - 2); sc.stroke();
+      }
+    }
+    sc.fillStyle = '#7f8899'; sc.font = '9px ui-monospace,monospace'; sc.fillText(ln.n, 4, y0 + 11);
+  });
+}
+
+/* ---- derived readouts that several controls affect ---- */
+function repaintDerived() {
+  drawPreview(pa, $('prevA'), 0); drawPreview(pb, $('prevB'), 1); drawEnv();
+  $('m_ra').textContent = modHz(0).toFixed(3) + ' Hz'; $('m_rb').textContent = modHz(1).toFixed(3) + ' Hz';
+  $('tierA_h').textContent = '· ' + TIER_LABEL[SRC[S_LFOA].tier];
+  $('tierB_h').textContent = '· ' + TIER_LABEL[SRC[S_LFOB].tier];
+  // Reading (i) made visible: a baked mod's panel dims. It is only a dim — the
+  // controls still work — because the lab is posing the question, not enforcing
+  // an answer nobody has chosen yet.
+  $('cardA').style.opacity = SRC[S_LFOA].tier === 'mod' ? '1' : '0.55';
+  $('cardB').style.opacity = SRC[S_LFOB].tier === 'mod' ? '1' : '0.55';
+  serialize();
+}
+
+/* ---- wiring (all state above is declared) ---- */
+slider('rn', 'rotor.n', v => v + ' voices', () => { lab.rotor.reset(); lab.rotor.rates(); });
+slider('rk', 'rotor.K', f2);
+slider('rr', 'rotor.rate', fHz, () => lab.rotor.rates());
+slider('rd', 'rotor.detune', f2, () => lab.rotor.rates());
+slider('bpm', 'bpm', v => v + ' BPM');
+const bindNames = Array.from({ length: MAXK }, (_, i) => 'K' + (i + 1));
+[['a', 0], ['b', 1]].forEach(([pre, i]) => {
+  picker(pre + '_sync', 'lfo.' + i + '.sync');
+  slider(pre + '_hz', 'lfo.' + i + '.hz', fHz);
+  picker(pre + '_div', 'lfo.' + i + '.div', divNames);
+  picker(pre + '_mod', 'lfo.' + i + '.mod', modNames);
+  slider(pre + '_shape', 'lfo.' + i + '.shape', shapeName);
+  slider(pre + '_skew', 'lfo.' + i + '.skew', skewName);
+  picker(pre + '_sh', 'lfo.' + i + '.sh');
+  picker(pre + '_bind', 'lfo.' + i + '.bind', bindNames);
+  picker(pre + '_retrig', 'lfo.' + i + '.retrig');
+});
+picker('g_sync', 'shg.sync');
+slider('g_hz', 'shg.hz', fHz);
+picker('g_div', 'shg.div', divNames);
+picker('g_mod', 'shg.mod', modNames);
+['delay', 'attack', 'hold', 'decay', 'release'].forEach(k => slider('e_' + k, 'env.' + k, fs));
+slider('e_sustain', 'env.sustain', f2);
+['cA', 'cD', 'cR'].forEach(k => slider('e_' + k, 'env.' + k, f2));
+slider('e_scatter', 'env.scatter', fpc);
+picker('e_loop', 'env.loop');
+['cutoff', 'level', 'drive', 'detune'].forEach(k => slider('s_' + k, 'synth.' + k, f2));
+
+/* ---- seed: changing it REBUILDS every stream, which is what makes the
+   determinism claim testable (a stream that survived a reseed would make the
+   seed decorative) ---- */
+function rebuild() { lab.allOff(); lab = new ModulatorLab(SR, P); repaintDerived(); }
+$('seed').value = P.seed;
+$('reseed').addEventListener('click', () => { P.seed = Math.max(1, Math.round(+$('seed').value) || 1); rebuild(); });
+$('detcheck').addEventListener('click', () => {
+  const clone = () => JSON.parse(JSON.stringify(P));
+  const BLK = 40;                                  // 40 x 1024 samples ~ 0.93 s
+  const A = runHash(SR, clone(), BLK);
+  const B = runHash(SR, clone(), BLK);
+  const c = clone(); c.seed = (P.seed >>> 0) + 1;
+  const C = runHash(SR, c, BLK);
+  const hex = h => '0x' + h.toString(16).padStart(8, '0');
+  const live = seedIsLive(P);
+  $('detout').textContent =
+    'seed ' + P.seed + '  run A  ' + hex(A) + '\n' +
+    'seed ' + P.seed + '  run B  ' + hex(B) + '   ' + (A === B ? 'IDENTICAL — pass' : 'DIFFERS — FAIL') + '\n' +
+    'seed ' + ((P.seed >>> 0) + 1) + '  run C  ' + hex(C) + '   ' +
+      (live ? (C !== A ? 'differs — control passes'
+                       : 'IDENTICAL — control FAILS (the hash is not reading the streams)')
+            : 'IDENTICAL is CORRECT here: this patch has no live stream (S&H off, scatter 0),\n' +
+              '                              so the seed is inert. Raise scatter or switch a mod to S&H to arm the control.') + '\n' +
+    BLK + ' blocks of 1024 rendered per run, two notes gated and released · audio + both mod\n' +
+    'outputs hashed at 1e-6 · the seed reaches this through per-voice envelope scatter and\n' +
+    'the S&H streams — the two places randomness exists at all.';
+});
+
+/* ---- presets ---- */
+function applyAll() { buildRoutes(); buildTier(); repaintDerived(); }
+$('p_b26').addEventListener('click', () => {
+  // The two pieces B16 owes B26's motivating patch: a tempo-synced DOWN-RAMP
+  // saw on the cutoff. The second-order half (R fading the depth) is B26.
+  const a = P.lfo[0];
+  a.sync = 1; a.div = 2; a.mod = 0; a.shape = 1; a.skew = 0; a.sh = 0;
+  P.routes = [{ src: S_LFOA, dst: 0, depth: 0.7, pol: 0, on: 1 },
+              { src: S_ENV, dst: 3, depth: 0.4, pol: 2, on: 1 }];
+  P.synth.cutoff = 0.35;
+  syncAllControls(); applyAll();
+});
+$('p_glob').addEventListener('click', () => {
+  P.lfo[0].sh = 1; P.lfo[1].sh = 1; P.shg.sync = 1; P.shg.div = 3;
+  P.routes = [{ src: S_LFOA, dst: 0, depth: 0.6, pol: 0, on: 1 },
+              { src: S_LFOB, dst: 2, depth: 0.06, pol: 0, on: 1 }];
+  syncAllControls(); applyAll();
+});
+$('p_kuro').addEventListener('click', () => {
+  P.lfo[0].sh = 2; P.lfo[0].bind = 0; P.lfo[1].sh = 2; P.lfo[1].bind = 1;
+  P.rotor.K = 0.35;
+  P.routes = [{ src: S_LFOA, dst: 0, depth: 0.6, pol: 0, on: 1 },
+              { src: S_LFOB, dst: 2, depth: 0.06, pol: 0, on: 1 }];
+  syncAllControls(); applyAll();
+});
+/* Presets write P directly, so every control has to be re-read FROM P — the
+   trap L0011/A10 both recorded is patching the programmatic path while the UI
+   path keeps its own stale copy. One function, called by every preset. */
+function syncAllControls() {
+  const ids = ['rn:rotor.n', 'rk:rotor.K', 'rr:rotor.rate', 'rd:rotor.detune', 'bpm:bpm',
+    'g_hz:shg.hz', 'g_sync:shg.sync', 'g_div:shg.div', 'g_mod:shg.mod',
+    's_cutoff:synth.cutoff', 's_level:synth.level', 's_drive:synth.drive', 's_detune:synth.detune',
+    'e_delay:env.delay', 'e_attack:env.attack', 'e_hold:env.hold', 'e_decay:env.decay',
+    'e_sustain:env.sustain', 'e_release:env.release', 'e_cA:env.cA', 'e_cD:env.cD', 'e_cR:env.cR',
+    'e_scatter:env.scatter', 'e_loop:env.loop'];
+  for (let i = 0; i < 2; i++) for (const k of ['sync', 'hz', 'div', 'mod', 'shape', 'skew', 'sh', 'bind', 'retrig'])
+    ids.push('ab'[i] + '_' + k + ':lfo.' + i + '.' + k);
+  for (const s of ids) {
+    const c = s.indexOf(':'), el = $(s.slice(0, c));
+    if (!el) continue;
+    el.value = getP(s.slice(c + 1));
+    // Re-firing the control's own event is deliberate: it re-runs the SAME
+    // handler the human's mouse would, so the readout, the preview redraw and
+    // the rotor rate table cannot go stale on a preset the way they do when a
+    // preset writes state and repaints by hand (the L0011 / A10 trap).
+    if (el.dispatchEvent) el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input'));
+  }
+}
+
+/* ---- audio + keyboard ---- */
+function ensureAudio() {
+  if (actx.state === 'suspended') actx.resume();
+  if (spn) return;
+  spn = actx.createScriptProcessor(1024, 0, 2);
+  const L = new Float32Array(1024), R = new Float32Array(1024);
+  spn.onaudioprocess = e => {
+    const oL = e.outputBuffer.getChannelData(0), oR = e.outputBuffer.getChannelData(1);
+    lab.render(L, R);
+    for (let i = 0; i < 1024; i++) { oL[i] = L[i]; oR[i] = R[i]; }
+  };
+  spn.connect(actx.destination);
+}
+const KEYS = 'asdfghjkl;';
+const SEMI = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16];
+const down = {};
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z') { octave--; return; }
+  if (k === 'x') { octave++; return; }
+  if (k === ' ') { e.preventDefault(); toggleDrone(); return; }
+  const i = KEYS.indexOf(k); if (i < 0) return;
+  ensureAudio();
+  const midi = 60 + SEMI[i] + octave * 12;
+  if (down[k]) return; down[k] = midi; lab.noteOn(midi);
+});
+document.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (down[k] !== undefined) { lab.noteOff(down[k]); delete down[k]; }
+});
+function toggleDrone() {
+  ensureAudio();
+  droning = !droning;
+  if (droning) { lab.noteOn(48); lab.noteOn(55); } else { lab.noteOff(48); lab.noteOff(55); }
+  $('drone').textContent = droning ? 'drone ON (space)' : 'drone (space)';
+}
+$('drone').addEventListener('click', toggleDrone);
+$('panic').addEventListener('click', () => { lab.allOff(); droning = false; $('drone').textContent = 'drone (space)'; });
+
+/* ---- the animation loop: reads the core, never writes it ---- */
+function frame() {
+  drawScope(); drawRotor();
+  $('m_corr').textContent = lab.corr.toFixed(3);
+  $('m_lockm').textContent = lab.lock < 0 ? '—' : lab.lock.toFixed(2);
+  $('m_R').textContent = lab.rotor.R.toFixed(3);
+  const R = lab.rotor.R, K = P.rotor.K;
+  $('m_lock').textContent = K < -0.05 ? '(splay)' : R > 0.9 ? '(locked)' : R > 0.5 ? '(partly locked)' : '(drifting)';
+  $('m_gsh').textContent = lab.glob.value.toFixed(3);
+  $('m_gatt').textContent = String(P.lfo.filter(l => l.sh === 1).length);
+  for (let i = 0; i < P.routes.length && i < routeCells.length; i++) {
+    const r = P.routes[i], c = routeCells[i], s = SRC[r.src];
+    if (c.dv) c.dv.textContent = (r.live === undefined ? f2(r.depth) : (r.live >= 0 ? '+' : '') + f2(r.live));
+    if (c.rng) {
+      const lo = lab.srcLo[r.src], hi = lab.srcHi[r.src];
+      c.rng.textContent = isFinite(lo) ? f2(lo) + '..' + f2(hi) + ' /' + f2(s.lo) + '..' + f2(s.hi) : '—';
+    }
+    if (c.dead) {
+      const t = r.ticks || 0, d = r.dead || 0;
+      const pct = t ? d / t : 0;
+      c.dead.innerHTML = !DST[r.dst].rect ? '<span style="color:#7f8899">n/a</span>'
+        : '<span style="color:' + (pct > 0.05 ? '#ff5a5a' : '#5ff2e0') + '">' + Math.round(pct * 100) + '%</span>';
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---- init (last: everything it touches is declared above) ---- */
+buildRoutes(); buildTier(); repaintDerived(); frame();
+</script>
+
+<script>
+(() => {
+  let h = 0x811c9dc5;
+  for (const s of document.querySelectorAll('script')) {
+    const t = s.textContent;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  }
+  const el = document.getElementById('revfp');
+  if (el) el.textContent = (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+  // Rev date DERIVED, not typed — document.lastModified is the file's mtime and
+  // works over file://, so a hand-written stamp cannot drift out of date here.
+  const dt = document.getElementById('revdate');
+  if (dt) {
+    const m = new Date(document.lastModified), p = n => String(n).padStart(2, '0');
+    dt.textContent = isNaN(m.getTime()) ? '?'
+      : m.getFullYear() + '-' + p(m.getMonth() + 1) + '-' + p(m.getDate()) +
+        ' ' + p(m.getHours()) + ':' + p(m.getMinutes());
+  }
+})();
+</script>
+</body></html>
