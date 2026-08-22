@@ -2287,3 +2287,81 @@ cannot catch.
 `content: ' \2298'` had been written through a Python string that doubled the
 backslash, so CSS saw an escaped backslash followed by literal `2298`. One
 character.
+
+
+## ADR-110 — the right-click becomes a MENU, and the morph gets colour (2026-08-22)
+
+**Status:** accepted, shipped.
+
+### The menu
+
+ADR-109 shipped exempt as a BARE right-click. That made the *gesture* the
+feature: there was exactly one thing right-click could ever mean, and the human
+asked for a menu precisely because more items are coming ("I intend to grow the
+right-click menu in the future").
+
+`PARAM_MENU` in `src/gui/gui2.html` is an item registry. An entry declares
+`show` / `label` / `hint` / `run`. Two consequences worth stating because they
+are the reason for the shape:
+
+- `show` decides whether an item **appears at all**, not whether it is greyed.
+  An item that cannot apply here is absent. A disabled row that you can click
+  and get nothing from is the same failure as ADR-109's silent exempt — a
+  control that lies about being a control.
+- `label` takes the context, so a toggle is ONE entry with two faces
+  ("Exempt from morph" / "Return to morph field") rather than two entries
+  racing to hide each other.
+
+The header carries the parameter name **and its id** (`#75`), because the human
+reports bugs by naming parameters and the id is what the code answers to.
+
+**Reset-to-default was lifted out of the `dblclick` closure** into
+`resetToDefault(el)` and both callers share it. Copying that body into the menu
+would have been a second implementation of a default lookup — the exact drift
+the comment inside it already warns about.
+
+### Colour coding
+
+Each row now carries a 3px stripe in the colour of the corner whose value it is
+currently showing — the same four colours as the morph pad and the arm boxes, so
+the pad's geography and the panel agree at a glance.
+
+`morphOwnersJson()` answers it from **the engine's own `pickCorner`, with the
+same `morphGroupLead`** the audio path uses. A GUI-side re-derivation would have
+been a second implementation, i.e. a map that can lie about the sound.
+
+Two contract details:
+
+- **-1 means nobody owns this** (field off, or exempt). The GUI must not tint
+  those; an unowned row is a row showing a value no corner is responsible for.
+- **Every id is emitted, always — even with the field off.** The key's PRESENCE
+  is the membership answer, and the menu needs membership to decide whether
+  "Exempt" applies at all. An early `return "{}"` when morph was off (the first
+  draft did exactly this) would have silently hidden the item whenever the field
+  was off — a bug indistinguishable from the ADR-109 one it replaced.
+
+### The oracle, and the check that was blind
+
+`corner_probe` cases 6 and 7. Case 6 asserts the map is populated (>40 entries)
+BEFORE reading anything out of it: every later assertion in that case is
+satisfied by an empty map, so without the population control the whole case is a
+check that cannot fail (L0024/L0032).
+
+Case 6's remaining assertion — "a live parameter names a corner in 0..3" —
+is still too weak, and this was demonstrated rather than argued. Planting a
+defect that made `morphOwnersJson` always report corner A left case 6 **fully
+green**; only case 7 went red. Case 7 asserts the claim the stripe actually
+makes to the eye: author corner A = 0.11 and corner D = 0.88, then at each pad
+corner require the reported owner AND the sounding value to agree. That binds
+the colour to the sound, which is the only property worth having.
+
+The lesson is L0039's: a range check inherits the coincidences of whatever
+sample it was written against. `k == 0` is indistinguishable from a stale read,
+a constant, and an uninitialised zero.
+
+### Evidence
+
+`corner_probe` 12/12 · plant → RED on case 7, green on case 6 · plant removed by
+reverse-replace, `grep -c PLANT` = 0 · `./verify full` EXIT=0 · parity 156/156
+(worst 4.262e-09 @ dyn-ring.seed42) · depends_check GREEN (57) · state_check
+GREEN · paramscope_check GREEN.

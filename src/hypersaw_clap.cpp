@@ -1252,7 +1252,7 @@ struct Plugin
   std::string morphOwnersJson()
   {
     morphInit();
-    if (morphOn <= 0.5) return "{}";
+    const bool live = morphOn > 0.5;
     double w[4], lw[4];
     hypersaw::MorphCore::weights(morphX, morphY, w);
     hypersaw::MorphCore::logW(w, morphTemp, lw);
@@ -1261,7 +1261,10 @@ struct Plugin
     bool first = true;
     for (size_t i = 0; i < morphIds.size(); i++)
     {
-      const int k = (i < morphExempt.size() && morphExempt[i])
+      /* -1 = no corner owns this right now (field off, or exempt). The key's
+         PRESENCE is the membership answer, which the menu needs whether or not
+         the field is running — so every id is emitted, always. */
+      const int k = (!live || (i < morphExempt.size() && morphExempt[i]))
                         ? -1
                         : morph.pickCorner((int)morphGroupLead(i), lw, morphCoup);
       std::snprintf(buf, sizeof(buf), "%s\"%u\":%d", first ? "" : ",",
@@ -3800,6 +3803,8 @@ extern "C" void hypersaw_debug_state(const clap_plugin_t *p, char *out, uint32_t
 }
 extern "C" void hypersaw_debug_panic(const clap_plugin_t *p) { self(p)->panicWithDump(); }
 extern "C" bool hypersaw_debug_exempt(const clap_plugin_t *p, uint32_t id) { return self(p)->morphToggleExempt((clap_id)id); }
+extern "C" const char *hypersaw_debug_ownersjson(const clap_plugin_t *p)
+{ static std::string j; j = self(p)->morphOwnersJson(); return j.c_str(); }
 extern "C" const char *hypersaw_debug_exemptjson(const clap_plugin_t *p)
 { static std::string j; j = self(p)->morphExemptJson(); return j.c_str(); }
 extern "C" bool hypersaw_debug_apply(const clap_plugin_t *p, const char *json)
