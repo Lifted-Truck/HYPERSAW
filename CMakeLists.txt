@@ -291,6 +291,9 @@ target_link_libraries(endprobe PRIVATE ${PROJECT_NAME}-impl)
 # invisible to it and obvious here.
 # ADR-100 lifecycle probe + the tail-cost reproduction of the human's patch
 # (diagnostics, not gates — same rule as glidepath_probe).
+# ADR-109 corner-edit routing probe (diagnostic, not a gate)
+add_executable(corner_probe tools/corner_probe.cpp)
+target_link_libraries(corner_probe PRIVATE ${PROJECT_NAME}-impl)
 add_executable(enable_probe tools/enable_probe.cpp)
 target_link_libraries(enable_probe PRIVATE ${PROJECT_NAME}-impl)
 add_executable(user_patch_bench tools/user_patch_bench.cpp)

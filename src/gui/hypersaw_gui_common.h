@@ -233,6 +233,15 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     std::error_code ec;
     return choc::value::createBool(fs::remove(fp, ec));
   });
+  web->bind("hzMorphToggleExempt", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    bool on = false;
+    if (host.morphToggleExempt && args.isArray() && args.size() >= 1)
+      on = host.morphToggleExempt((uint32_t)args[0].getWithDefault<int64_t>(0));
+    return choc::value::createBool(on);
+  });
+  web->bind("hzMorphExemptJson", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    return choc::value::createString(host.morphExemptJson ? host.morphExemptJson() : std::string("{}"));
+  });
   web->bind("hzMorphLiveJson", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.morphLiveJson ? host.morphLiveJson() : std::string("{}"));
   });
