@@ -392,6 +392,60 @@ int main()
           "per-note MPE bend travels under the bend law (and still arrives)", d6);
   }
 
+  {
+    /* ADR-111 — drag vs anchored scale quantise, on rendered audio. The claim
+       is polyphonic, so no core-level oracle can see it (L0031): an
+       out-of-scale note-on's correction lands in the GLOBAL pitchBend and
+       transposes every held voice. 'scale (drag)' (2) keeps that; 'scale' (3)
+       admits the anchor's own class, so the rest correction is exactly zero.
+       Gesture: hold C4 · strike F#4 (ties F/G at distance 1, broken toward the
+       previous step 60, so F wins: correction −1) · release F#4 · read the
+       held voice at the B3 and C4 bins. The drag case is the
+       must-discriminate control for the anchored one: if the gesture cannot
+       move the bin, drag fails first. */
+    param(106, 0); param(149, 0);          // bend law off: quant alone arms the lane
+    param(22, 0.005);                      // release: kill the F# tail fast
+    for (int mode = 2; mode <= 3; mode++)
+    {
+      param(114, (double)mode);
+      for (auto &pv : pvs)
+        if (pv.param_id == 106 || pv.param_id == 149 || pv.param_id == 22 || pv.param_id == 114)
+          evl.ev.push_back(&pv.header);
+      run(5, nullptr);
+      clap_event_note_t c4{};
+      c4.header.size = sizeof(c4); c4.header.type = CLAP_EVENT_NOTE_ON;
+      c4.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      c4.note_id = 200 + mode; c4.port_index = 0; c4.channel = 1; c4.key = 60; c4.velocity = 1.0;
+      evl.ev.push_back(&c4.header);
+      run(30, nullptr);
+      clap_event_note_t fs{};
+      fs.header.size = sizeof(fs); fs.header.type = CLAP_EVENT_NOTE_ON;
+      fs.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      fs.note_id = 210 + mode; fs.port_index = 0; fs.channel = 2; fs.key = 66; fs.velocity = 1.0;
+      evl.ev.push_back(&fs.header);
+      run(30, nullptr);
+      clap_event_note_t fo = fs;
+      fo.header.type = CLAP_EVENT_NOTE_OFF; fo.velocity = 0;
+      evl.ev.push_back(&fo.header);
+      run(20, nullptr);
+      std::vector<float> held;
+      run(40, &held);
+      const double b3 = goertzel(held, 246.94, SR);
+      const double c4b = goertzel(held, 261.63, SR);
+      char d[180];
+      std::snprintf(d, sizeof(d), "B3 %.5f, C4 %.5f", b3, c4b);
+      if (mode == 2)
+        check(b3 > 4.0 * c4b, "scale (drag): an out-of-scale strike transposes the held C4 to B3", d);
+      else
+        check(c4b > 4.0 * b3, "scale (anchored): the held C4 does not move", d);
+      clap_event_note_t co = c4;
+      co.header.type = CLAP_EVENT_NOTE_OFF; co.velocity = 0;
+      evl.ev.push_back(&co.header);
+      run(20, nullptr);
+    }
+    param(114, 0); param(22, 0.16);        // restore for anyone extending below
+  }
+
   p->stop_processing(p);
   p->deactivate(p);
   p->destroy(p);

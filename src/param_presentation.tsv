@@ -245,20 +245,20 @@ bendDamp	global	Damping	MAIN	Bend	knob		bend	bendLaw=4		bendLaw=4
 bendDistOver	global	Distance Curve	MAIN	Bend	knob		bend	bendLaw=4		bendLaw=4
 bendReturn	global	Return x	MAIN	Bend	knob		bend	bendLaw=1|2|3|4		bendLaw=1|2|3|4
 bendQuant	global	Bend Quantise	MAIN	Bend	select		bend			
-bendHyst	global	Quantise Hyst	MAIN	Bend	knob	c	bend	bendQuant=1|2		bendQuant=1|2
-scaleRoot	global	Root	MAIN	Scale	select		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg0	global	1 (root)	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg1	global	b2	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg2	global	2	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg3	global	b3	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg4	global	3	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg5	global	4	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg6	global	b5	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg7	global	5	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg8	global	b6	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg9	global	6	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg10	global	b7	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
-scaleDeg11	global	7	MAIN	Scale	toggle		scale	bendQuant=2;noteQuant=2		bendQuant=2;noteQuant=2
+bendHyst	global	Quantise Hyst	MAIN	Bend	knob	c	bend	bendQuant=1|2|3		bendQuant=1|2|3
+scaleRoot	global	Root	MAIN	Scale	select		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg0	global	1 (root)	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg1	global	b2	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg2	global	2	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg3	global	b3	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg4	global	3	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg5	global	4	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg6	global	b5	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg7	global	5	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg8	global	b6	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg9	global	6	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg10	global	b7	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
+scaleDeg11	global	7	MAIN	Scale	toggle		scale	bendQuant=2|3;noteQuant=2		bendQuant=2|3;noteQuant=2
 osc1.sawBase	osc1	Saw Base	OSC	Saw shape	knob		saw-shape			
 osc1.sawProfile	osc1	Roundness Shape	OSC	Saw shape	knob		saw-shape			
 osc1.round	osc1	Roundness	OSC	Saw shape	knob		saw-shape			
@@ -280,7 +280,7 @@ noteDamp	global	Note Damping	MAIN	Bend	knob		bend	noteLawLink=0,noteLaw=4		noteL
 noteDistOver	global	Note Distance Curve	MAIN	Bend	knob		bend	noteLawLink=0,noteLaw=4		noteLawLink=0,noteLaw=4
 noteQuant	global	Note Quantise	MAIN	Bend	select		bend	noteLawLink=0		noteLawLink=0
 noteHyst	global	Note Quant Hyst	MAIN	Bend	knob	c	bend	noteLawLink=0,noteQuant=1|2		noteLawLink=0,noteQuant=1|2
-bendQTimeMode	global	Step Timing	MAIN	Bend	select		bend	bendQuant=1|2		bendQuant=1|2
+bendQTimeMode	global	Step Timing	MAIN	Bend	select		bend	bendQuant=1|2|3		bendQuant=1|2|3
 bendQTimeHz	global	Step Rate	MAIN	Bend	knob	Hz	bend	bendQTimeMode=1	log10	bendQTimeMode=1
 bendQTimeSync	global	Step Grid	MAIN	Bend	knob	/beat	bend	bendQTimeMode=2		bendQTimeMode=2
 bendMpeLaw	global	MPE Bend	MAIN	Bend	select		bend			

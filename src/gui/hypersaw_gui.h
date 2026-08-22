@@ -103,6 +103,7 @@ struct GuiHost
   std::function<bool(uint32_t)> morphToggleExempt;          // ADR-109
   std::function<std::string()> morphExemptJson;
   std::function<std::string()> morphOwnersJson;             // ADR-110 colour coding
+  std::function<std::string(int)> morphCornerValsJson;     // ADR-111 armed corner view
   std::function<bool(uint32_t, const std::string &)> morphCornerApply;
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin

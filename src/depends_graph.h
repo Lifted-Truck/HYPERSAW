@@ -13,9 +13,9 @@ struct DepRule { uint32_t id; const DepCond *conds; int nConds; };
 // resolve is simply absent, and an absent rule means always-live.
 static const DepCond kDep111[] = {{106, 4}};
 static const DepCond kDep112[] = {{106, 4}};
-static const DepCond kDep115[] = {{114, 1}, {114, 2}};
+static const DepCond kDep115[] = {{114, 1}, {114, 2}, {114, 3}};
 static const DepCond kDep147[] = {{146, 1}};
-static const DepCond kDep146[] = {{114, 1}, {114, 2}};
+static const DepCond kDep146[] = {{114, 1}, {114, 2}, {114, 3}};
 static const DepCond kDep148[] = {{146, 2}};
 static const DepCond kDep108[] = {{106, 2}};
 static const DepCond kDep113[] = {{106, 1}, {106, 2}, {106, 3}, {106, 4}};
@@ -52,25 +52,25 @@ static const DepCond kDep1026[] = {{1024, 2}};
 static const DepCond kDep1028[] = {{1024, 0}};
 static const DepCond kDep1025[] = {{1024, 1}};
 static const DepCond kDep1080[] = {{1005, 5}};
-static const DepCond kDep117[] = {{114, 2}, {144, 2}};
-static const DepCond kDep118[] = {{114, 2}, {144, 2}};
-static const DepCond kDep127[] = {{114, 2}, {144, 2}};
-static const DepCond kDep128[] = {{114, 2}, {144, 2}};
-static const DepCond kDep119[] = {{114, 2}, {144, 2}};
-static const DepCond kDep120[] = {{114, 2}, {144, 2}};
-static const DepCond kDep121[] = {{114, 2}, {144, 2}};
-static const DepCond kDep122[] = {{114, 2}, {144, 2}};
-static const DepCond kDep123[] = {{114, 2}, {144, 2}};
-static const DepCond kDep124[] = {{114, 2}, {144, 2}};
-static const DepCond kDep125[] = {{114, 2}, {144, 2}};
-static const DepCond kDep126[] = {{114, 2}, {144, 2}};
-static const DepCond kDep116[] = {{114, 2}, {144, 2}};
+static const DepCond kDep117[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep118[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep127[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep128[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep119[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep120[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep121[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep122[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep123[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep124[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep125[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep126[] = {{114, 2}, {114, 3}, {144, 2}};
+static const DepCond kDep116[] = {{114, 2}, {114, 3}, {144, 2}};
 static const DepRule kDepRules[] = {
   {111, kDep111, 1},
   {112, kDep112, 1},
-  {115, kDep115, 2},
+  {115, kDep115, 3},
   {147, kDep147, 1},
-  {146, kDep146, 2},
+  {146, kDep146, 3},
   {148, kDep148, 1},
   {108, kDep108, 1},
   {113, kDep113, 4},
@@ -107,19 +107,19 @@ static const DepRule kDepRules[] = {
   {1028, kDep1028, 1},
   {1025, kDep1025, 1},
   {1080, kDep1080, 1},
-  {117, kDep117, 2},
-  {118, kDep118, 2},
-  {127, kDep127, 2},
-  {128, kDep128, 2},
-  {119, kDep119, 2},
-  {120, kDep120, 2},
-  {121, kDep121, 2},
-  {122, kDep122, 2},
-  {123, kDep123, 2},
-  {124, kDep124, 2},
-  {125, kDep125, 2},
-  {126, kDep126, 2},
-  {116, kDep116, 2},
+  {117, kDep117, 3},
+  {118, kDep118, 3},
+  {127, kDep127, 3},
+  {128, kDep128, 3},
+  {119, kDep119, 3},
+  {120, kDep120, 3},
+  {121, kDep121, 3},
+  {122, kDep122, 3},
+  {123, kDep123, 3},
+  {124, kDep124, 3},
+  {125, kDep125, 3},
+  {126, kDep126, 3},
+  {116, kDep116, 3},
 };
 static const int kNumDepRules = 54;
 }  // namespace hypersaw

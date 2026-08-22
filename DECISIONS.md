@@ -2365,3 +2365,89 @@ a constant, and an uninitialised zero.
 reverse-replace, `grep -c PLANT` = 0 · `./verify full` EXIT=0 · parity 156/156
 (worst 4.262e-09 @ dyn-ring.seed42) · depends_check GREEN (57) · state_check
 GREEN · paramscope_check GREEN.
+
+
+## ADR-111 — the accidental mode gets a name, and arming gets a view (2026-08-22)
+
+**Status:** accepted, shipped.
+
+### The phenomenon, diagnosed
+
+The human: *"When I change the notes in a chord, it now seems to quantize the
+other notes (those already held down) into a new scale. Maybe this only happens
+when I play a note that's out of scale. It sounds very cool, but it should be
+its own mode."*
+
+Every clause of that observation is confirmed by the code path:
+
+1. `lastNoteKey` updates on EVERY note-on (`hypersaw_clap.cpp:2928`).
+2. The global wheel lane quantises absolute pitch `lastNoteKey + x`
+   (`hypersaw_clap.cpp:3259`) — the base-anchoring that ADR-10x installed so
+   bends land on real scale tones.
+3. A note whose class is OUT of the scale therefore produces a nonzero
+   correction at rest: `q = nearestScaleTone(key) − key`.
+4. That lands in `pitchBend`, which is applied through `tune` — a
+   post-lane multiplier on every voice (`updateTuneAll`) — so the ENTIRE
+   sounding field transposes by the newest note's correction, intervals
+   intact. A uniformly transposed chord is the same intervals from a new
+   root, which the ear reads as "re-quantised into a new scale."
+5. In-scale notes correct by zero — hence "maybe only out-of-scale notes."
+6. It sounds deliberate rather than glitchy because the retune commits on the
+   step-time grid and sticks via hysteresis — the lane's own pacing, applied
+   to a correction nobody designed.
+
+### The ruling
+
+The behaviour is kept BIT-EXACT and named **scale (drag)** — the newest note is
+conformed onto the scale and drags the whole field with it. The expected
+behaviour is the new **scale** (anchored): the anchor's own pitch class is
+always admissible, so an out-of-scale anchor rests at exactly zero correction
+and held notes never move; a travelling bend still lands only on admitted
+pitches.
+
+Value assignment is APPEND-ONLY on purpose: existing patches stored 2 and were
+saved while sounding drag, so 2 keeps drag under the honest label and 3 is the
+newcomer. Remapping 2 → anchored would have silently changed the sound of every
+stored patch to "fix" a behaviour the human explicitly asked to keep.
+
+### Where the mode lives, and where it must not
+
+- `glide_core.h` gains `kQuantScaleAnchor = 3`. `kQuantScale` stays strict
+  forever: it mirrors the reference, and the goldens cover it with
+  out-of-scale bases (`glide-quant-root3` — base class 0 excluded by the
+  root-3 mask), so changing its semantics would have gone RED. The anchored
+  variant is a parity-safe superset the mono reference cannot even express —
+  the phenomenon needs polyphony the lab does not have (L0031, fourth
+  instance).
+- Per-note MPE lanes pass each note's own key as base, so anchored is
+  correct there with no extra work: an MPE bend can always return to its own
+  note.
+- The FOLLOWING note-glide lane clamps anchor → strict (`pushNoteLaw`,
+  beside the retMul precedent): its base is `kLogFreqToMidi`, a
+  unit-alignment constant, not a note — "admit the anchor's class" would
+  admit pitch class 0 forever.
+- The note lane's own label array split off (`kNoteQuantLabels`): "drag"
+  describes what the GLOBAL lane does with a correction; a per-voice lane
+  has no field to drag, so its value 2 stays plain "scale".
+
+### The armed corner view
+
+Arming a colour box now shows THAT corner's stored settings in place —
+`morphCornerValsJson(k)` — instead of the live morph output: you look at what
+you are editing. Rows the armed corner is currently voicing keep their solid
+stripe; rows it owns on paper but is not voicing go dotted in the armed colour
+(the human's "provisional ghost"). Both live-repaint sites (the poll and the
+OSC-tab switch) go through one guarded `paintLive()`, so a third site cannot
+quietly forget the rule. Exempt rows stay live — no corner owns them, so the
+armed view has nothing truthful to show there.
+
+### Evidence
+
+`glidepath_probe`: drag moves a held C4 to ~247 Hz on an F#4 strike, anchored
+holds ~262 Hz, at 44.1k AND 48k — the drag case doubling as the
+must-discriminate control for the anchored one. `glide_check` invariants:
+strict corrects an out-of-scale anchor (+1) while anchored rests at exactly 0,
+and a travelling anchored bend emits 4 admitted steps, 0 alien — anchored is
+neither strict nor secretly off. `corner_probe` 13/13 (case 8 binds the
+armed view's data source to the values case 7 authored). Parity untouched:
+glide 3.51308e-08 worst, same as before the change.

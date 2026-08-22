@@ -98,7 +98,13 @@ static const char *const kQTimeModeLabels[] = {"continuous", "free (Hz)", "sync"
 static const char *const kNoteLinkLabels[] = {"own settings", "follow bend law"};
 static const char *const kBendLawLabels[] = {"off (instant)", "constant time", "constant rate",
                                             "lag (one-pole)", "mass-spring"};
-static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale"};
+/* ADR-111. Value 2 keeps the behaviour every existing patch was saved with
+   (drag), value 3 is the newcomer — append-only, so no stored patch changes
+   sound. The note lane gets its own array: "drag" describes what the GLOBAL
+   wheel lane does with a correction (it lands in pitchBend and transposes the
+   whole field); a per-voice lane has no field to drag. */
+static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale (drag)", "scale"};
+static const char *const kNoteQuantLabels[] = {"off", "chromatic", "scale"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
 static const char *const kFxTypeLabels[] = {"Off",  "Drive", "Filter", "Gain",
@@ -323,7 +329,7 @@ static const ParamDef kParams[] = {
     // BEND LANE ONLY, and the core enforces it: a note has no home pitch to
     // spring back to, so retMul is meaningless on the note-pitch lane.
     {113, "bendReturn", "Return x", 0.2, 3, 1, false, nullptr},
-    {114, "bendQuant", "Bend Quantise", 0, 2, 0, true, kBendQuantLabels},
+    {114, "bendQuant", "Bend Quantise", 0, 3, 0, true, kBendQuantLabels},
     {115, "bendHyst", "Quantise Hyst (c)", 0, 50, 8, false, nullptr},
     /* GLOBAL SCALE (ids 116-128). THE MASK IS THE TRUTH, THE NAME IS UI — the
        standing ruling. Consumers store and transmit `{root, mask}` only, never a
@@ -389,7 +395,7 @@ static const ParamDef kParams[] = {
     {141, "noteSpringF", "Note Spring (Hz)", 0.5, 20, 4, false, nullptr},
     {142, "noteDamp", "Note Damping", 0, 1, 0.6, false, nullptr},
     {143, "noteDistOver", "Note Distance Curve", 0, 2, 1, false, nullptr},
-    {144, "noteQuant", "Note Quantise", 0, 2, 0, true, kBendQuantLabels},
+    {144, "noteQuant", "Note Quantise", 0, 2, 0, true, kNoteQuantLabels},
     {145, "noteHyst", "Note Quant Hyst (c)", 0, 50, 8, false, nullptr},
     /* QUANTISE STEP TIMING (146-148). The gate itself is the REFERENCE's `qTime`
        in milliseconds — it has been in bend-lab since 2026-08-07 and simply had
@@ -1275,6 +1281,25 @@ struct Plugin
     return out + "}";
   }
 
+  /* ADR-111: corner k's stored baseline, for the armed view. The GUI paints
+     these INSTEAD of live values while a corner is armed — you are looking at
+     what you are editing, not at what happens to be sounding. Same id-keyed
+     shape as morphOwnersJson so the two consumers share their plumbing. */
+  std::string morphCornerValsJson(int k)
+  {
+    morphInit();
+    if (k < 0 || k > 3) return "{}";
+    std::string out = "{";
+    char buf[48];
+    for (size_t i = 0; i < morphIds.size(); i++)
+    {
+      std::snprintf(buf, sizeof(buf), "%s\"%u\":%.10g", i ? "," : "",
+                    (unsigned)morphIds[i], morphCorner[k][i]);
+      out += buf;
+    }
+    return out + "}";
+  }
+
   std::string morphExemptJson()
   {
     morphInit();
@@ -1447,6 +1472,12 @@ struct Plugin
     // retMul is bend-only by construction (a note has no home pitch), so a
     // FOLLOWING note lane must not inherit the bend lane's return multiplier.
     e.retMul = 1.0;
+    // Anchor mode is bend-only for the same reason: the note lane's `base` is
+    // kLogFreqToMidi — a unit-alignment constant, not a note — so "admit the
+    // anchor's class" would admit pitch class 0 forever. Strict is the honest
+    // reading of "scale" for a lane whose anchor is not a pitch.
+    if ((int)e.quant == hypersaw::GlideCore::kQuantScaleAnchor)
+      e.quant = hypersaw::GlideCore::kQuantScale;
     e.scaleRoot = scale.root;
     for (int d = 0; d < 12; d++) e.scaleMask[d] = scale.mask[d];
     e.qTime = resolveQTimeMs();
@@ -3803,6 +3834,8 @@ extern "C" void hypersaw_debug_state(const clap_plugin_t *p, char *out, uint32_t
 }
 extern "C" void hypersaw_debug_panic(const clap_plugin_t *p) { self(p)->panicWithDump(); }
 extern "C" bool hypersaw_debug_exempt(const clap_plugin_t *p, uint32_t id) { return self(p)->morphToggleExempt((clap_id)id); }
+extern "C" const char *hypersaw_debug_cornervals(const clap_plugin_t *p, int k)
+{ static std::string j; j = self(p)->morphCornerValsJson(k); return j.c_str(); }
 extern "C" const char *hypersaw_debug_ownersjson(const clap_plugin_t *p)
 { static std::string j; j = self(p)->morphOwnersJson(); return j.c_str(); }
 extern "C" const char *hypersaw_debug_exemptjson(const clap_plugin_t *p)
@@ -3838,6 +3871,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.morphToggleExempt = [pl](uint32_t id) { return pl->morphToggleExempt((clap_id)id); };
   hostIf.morphExemptJson = [pl]() { return pl->morphExemptJson(); };
   hostIf.morphOwnersJson = [pl]() { return pl->morphOwnersJson(); };
+  hostIf.morphCornerValsJson = [pl](int k) { return pl->morphCornerValsJson(k); };
   hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
   hostIf.gesture = [pl](uint32_t id, bool begin) { pl->enqueueParam(id, 0, begin ? 1 : 2); };

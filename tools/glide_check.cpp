@@ -195,6 +195,54 @@ int main(int argc, char **argv)
     check(f8 < f0, "hysteresis reduces boundary chatter", b);
   }
 
+  {
+    /* ADR-111 anchored scale quantise. Three claims, each with the control
+       that makes it falsifiable:
+       1) an out-of-scale ANCHOR produces zero correction at rest — and the
+          strict mode on the identical setup produces a NONZERO one, proving
+          the setup can show a correction at all (must-discriminate);
+       2) anchored is not secretly OFF: a travelling bend still emits only
+          admitted pitches (mask + the anchor's class), never the chromatic
+          continuum an off quantiser would pass through. */
+    GlideCore::Params p;
+    p.model = GlideCore::kConstRate; p.rate = 12;
+    p.scaleRoot = 3;
+    const int mask[12] = {1,0,0,1,0,1,0,1,0,0,1,0};   // glide-quant-root3's mask
+    for (int i = 0; i < 12; i++) p.scaleMask[i] = mask[i];
+    const double base = 60;                            // class 9 rel root: OUT of scale
+    auto rest = [&](double quant) {
+      p.quant = quant;
+      GlideCore g(kCR, true); g.reset(0);
+      double q = 1e9;
+      for (long i = 0; i < (long)(0.5 * kCR); i++) q = g.step(0.0, p, base);
+      return q;
+    };
+    const double qs = rest(GlideCore::kQuantScale);
+    const double qa = rest(GlideCore::kQuantScaleAnchor);
+    char b[96];
+    std::snprintf(b, sizeof(b), "(strict %+.0f, anchored %+.0f)", qs, qa);
+    check(std::fabs(qs) > 0.5 && std::fabs(qa) < 1e-9,
+          "anchored: out-of-scale anchor rests at zero, strict corrects it", b);
+
+    p.quant = GlideCore::kQuantScaleAnchor;
+    GlideCore g(kCR, true); g.reset(0);
+    int alien = 0, admitted = 0;
+    double last = 1e9;
+    for (long i = 0; i < (long)(2.0 * kCR); i++)
+    {
+      const double q = g.step(i > 100 ? 7.0 : 0.0, p, base);
+      if (q == last) continue;
+      last = q;
+      const long abs_ = std::lround(base + q);
+      const int idx = (int)(((abs_ - 3) % 12 + 12) % 12);
+      const int anchorCls = (int)(((60 - 3) % 12 + 12) % 12);
+      (mask[idx] || idx == anchorCls) ? admitted++ : alien++;
+    }
+    std::snprintf(b, sizeof(b), "(%d admitted steps, %d alien)", admitted, alien);
+    check(alien == 0 && admitted >= 3,
+          "anchored: a travelling bend emits only admitted pitches", b);
+  }
+
   std::printf("glide_check: %s (%d failure%s; worst parity rms %g)\n",
               failures ? "RED" : "GREEN", failures, failures == 1 ? "" : "s", worst);
   return failures ? 1 : 0;
