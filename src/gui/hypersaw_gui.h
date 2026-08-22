@@ -102,6 +102,7 @@ struct GuiHost
   std::function<std::string()> morphLiveJson;               // ADR-105 A3: live state -> preset
   std::function<bool(uint32_t)> morphToggleExempt;          // ADR-109
   std::function<std::string()> morphExemptJson;
+  std::function<std::string()> morphOwnersJson;             // ADR-110 colour coding
   std::function<bool(uint32_t, const std::string &)> morphCornerApply;
   std::function<void(uint32_t, double)> setParam;        // by frozen CLAP id
   std::function<void(uint32_t, bool)> gesture;           // id, begin

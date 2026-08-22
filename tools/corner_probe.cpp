@@ -9,6 +9,7 @@
 extern "C" void hypersaw_debug_state(const clap_plugin_t*, char*, uint32_t);
 extern "C" bool hypersaw_debug_exempt(const clap_plugin_t*, uint32_t);
 extern "C" const char *hypersaw_debug_exemptjson(const clap_plugin_t*);
+extern "C" const char *hypersaw_debug_ownersjson(const clap_plugin_t*);
 #include <string>
 namespace { 
 #include "notefuzz_scaffold.inc"
@@ -83,6 +84,86 @@ int main()
     if (ex.find("\"" + std::to_string(id) + "\"") != std::string::npos) inScale++;
   std::printf("scale exempts as a unit:  %d/13 %s\n", inScale, inScale==13?"OK":"FAIL");
   if (inScale != 13) bad++;
+
+  // 6. ADR-110: the owners map that drives the GUI's corner colours.
+  //    MUST-READ-ZERO CONTROL FIRST (L0024/L0032): every later assertion here
+  //    is satisfied by an EMPTY map, so without this the whole case is a check
+  //    that cannot fail. The map has to be big before its contents mean
+  //    anything.
+  auto ownerOf = [&](const std::string &js, clap_id id) -> int {
+    const std::string key = "\"" + std::to_string(id) + "\":";
+    const size_t at = js.find(key);
+    return at == std::string::npos ? -99 : std::atoi(js.c_str() + at + key.size());
+  };
+  {
+    // clear the exemptions case 4/5 left behind, so this case reads a clean field
+    hypersaw_debug_exempt(p, 120);          // scale back in (toggles all 13)
+    hypersaw_debug_exempt(p, DET);          // detune back in
+    ev(151, 1); pump(200);                  // morph ON
+
+    const std::string ow = hypersaw_debug_ownersjson(p);
+    int members = 0;
+    for (char c : ow) if (c == ':') members++;
+    std::printf("owners map is populated:  %d entries %s\n", members,
+                members > 40 ? "OK" : "FAIL");
+    if (members <= 40) bad++;
+
+    // a live parameter names a REAL corner, not the "nobody" sentinel
+    const int k = ownerOf(ow, DET);
+    std::printf("live param names a corner: %d (want 0..3)  %s\n", k,
+                (k >= 0 && k <= 3) ? "OK" : "FAIL");
+    if (k < 0 || k > 3) bad++;
+
+    // ...and an exempt one names nobody: the GUI must not tint it as owned
+    hypersaw_debug_exempt(p, DET);
+    const int ke = ownerOf(hypersaw_debug_ownersjson(p), DET);
+    std::printf("exempt param owned by -1: %d (want -1)     %s\n", ke,
+                ke == -1 ? "OK" : "FAIL");
+    if (ke != -1) bad++;
+
+    // with the field OFF nobody owns anything, but MEMBERSHIP survives: the
+    // menu decides whether "Exempt" applies from the key's presence, so an
+    // empty map here would silently hide the item whenever morph is off.
+    hypersaw_debug_exempt(p, DET);
+    ev(151, 0); pump(200);
+    const std::string off = hypersaw_debug_ownersjson(p);
+    int offMembers = 0;
+    for (char c : off) if (c == ':') offMembers++;
+    const int ko = ownerOf(off, DET);
+    std::printf("field off: %d keys, own %d (want %d keys, -1)  %s\n",
+                offMembers, ko, members,
+                (offMembers == members && ko == -1) ? "OK" : "FAIL");
+    if (offMembers != members || ko != -1) bad++;
+  }
+
+  // 7. THE COLOUR MUST NOT LIE. Cases 6's range check (0..3) would pass on a
+  //    constant, a stale read, or an uninitialised zero — it inherits whatever
+  //    that one sample happened to be (L0039). The claim the stripe actually
+  //    makes to the eye is stronger and testable: "this row is showing corner
+  //    k's value". So author two corners apart, then at each pad corner require
+  //    the reported owner AND the sounding value to agree.
+  {
+    ev(151, 1); pump(100);
+    ev(159, 1); ev(DET, 0.11); pump(60);      // author corner A
+    ev(159, 4); ev(DET, 0.88); pump(60);      // author corner D
+    ev(159, 0);
+    struct { double x, y; int want; double val; } spot[] = {
+      {0, 0, 0, 0.11}, {1, 1, 3, 0.88},
+    };
+    int lying = 0;
+    for (auto &t : spot)
+    {
+      ev(152, t.x); ev(153, t.y); pump(500);
+      const int k = ownerOf(hypersaw_debug_ownersjson(p), DET);
+      const double v = get(DET);
+      const bool ok = (k == t.want) && std::fabs(v - t.val) < 0.03;
+      std::printf("  pad(%.0f,%.0f): owner %d val %.3f (want %d / %.2f)  %s\n",
+                  t.x, t.y, k, v, t.want, t.val, ok ? "OK" : "FAIL");
+      if (!ok) lying++;
+    }
+    std::printf("colour matches the sound: %d/2 %s\n", 2 - lying, lying ? "FAIL" : "OK");
+    if (lying) bad++;
+  }
 
   p->stop_processing(p); p->deactivate(p); p->destroy(p);
   return bad;
