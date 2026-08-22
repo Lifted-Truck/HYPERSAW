@@ -275,7 +275,14 @@ static const ParamDef kParams[] = {
     // ADR-059 DEV tune-then-lock: inertia knob taper exponent (0.5 == the sqrt
     // default). Shell-owned; re-derives inertia from the stored knob. Removed
     // once the human locks a value. coreKey is a non-core state key.
-    {70, "inertiaCurve", "Inertia Curve (dev)", 0.3, 5, 0.5, false, nullptr},
+    /* ADR-024 A1 (human 2026-08-22, by ear then checked by arithmetic): 2.5,
+       not 0.5. With w = knob^curve and the musically useful w range ~0.02..0.3,
+       curve 0.5 squeezes that range into knob 0.0004..0.09 — the bottom 9% —
+       while 2.5 spreads it across knob 0.21..0.62. ADR-024's INTENT was to
+       spread the useful range; the exponent went the wrong way. Hidden now
+       that it has a settled value; it stays a parameter so a patch can still
+       carry a different taper. */
+    {70, "inertiaCurve", "Inertia Curve (dev)", 0.3, 5, 2.5, false, nullptr},
     // MASTER VOLUME (B24 mixer, 2026-08-07) — the first id above 99, allocated
     // under Amendment 1's stride-1000 scheme. Needed because Amendment 1 made
     // `vol` (17) per-oscillator: after that there was NO patch-level fader at
@@ -926,7 +933,7 @@ struct Plugin
   // ADR-024 sqrt taper (bit-inert default). Higher = gentler onset just after 0
   // (the low-detune+retrigger steepness). DEV control — dial by ear, then the
   // chosen value gets hardcoded and this param + slider removed.
-  double inertiaCurve = 0.5;
+  double inertiaCurve = 2.5;   // ADR-024 A1; must match the ParamDef default
   // ADR-026 shell voice-mode state (audio-thread only)
   double voiceMono = 0, voiceLegato = 1;
   // ADR-082 classified transpose (35/36/37) PER-OSCILLATOR — "an octave down
@@ -1115,6 +1122,16 @@ struct Plugin
   std::vector<uint8_t> morphExempt;
   double morphArm = 0;
   bool morphFromField = false;   // ADR-109 re-entry guard, see the hook
+  /* ATOMIC GROUP (ADR-109 A1): indices in [first, last] share ONE corner
+     decision, taken on the group's first index. Today the scale is the only
+     group; the mechanism is general because the next one (a chord voicing, an
+     FX slot's four params) will want it. */
+  size_t morphScaleFirst = 0, morphScaleLast = 0;
+  size_t morphGroupLead(size_t i) const
+  {
+    return (morphScaleLast > morphScaleFirst && i >= morphScaleFirst && i <= morphScaleLast)
+               ? morphScaleFirst : i;
+  }
 
   /* ================= QUANTUM MORPH (ADR-104) =================
      The SHELL owns which parameters morph and what a corner is; morph_core.h
@@ -1166,6 +1183,23 @@ struct Plugin
                        114u, 115u, 137u, 138u, 139u, 140u, 141u, 142u, 143u,
                        144u, 145u, 146u, 147u, 148u, 149u})
       morphIds.push_back(id);
+    /* ADR-109 A1 — the globals a human scan found unreachable by right-click
+       (2026-08-22). They were never in the field, so exempt had nothing to
+       toggle and silently did nothing; "doesn't work" was the honest reading.
+       Appended, never inserted: morphIds order is the corner chunk's order, so
+       an existing patch keeps every value it stored.
+       `inertia` and `inertiaCurve` are here because a corner that changes the
+       swarm's weight changes its character more than most timbre knobs. */
+    for (clap_id id : {11u, 70u, 32u, 34u, 38u, 90u, 75u})
+      morphIds.push_back(id);
+    /* THE SCALE IS ONE THING. Root + twelve degrees flip as a UNIT: a
+       per-degree flip would assemble a chimera scale from two corners — C major
+       and F# minor interleaved is not a scale, it is a bug with a musical
+       name. The human said it exactly: "all the individual scale degrees would
+       need to be included collectively, of course." */
+    morphScaleFirst = morphIds.size();
+    for (clap_id id = 116; id <= 128; id++) morphIds.push_back(id);
+    morphScaleLast = morphIds.size() - 1;
     for (int k = 0; k < 4; k++) morphCorner[k].assign(morphIds.size(), 0.0);
     morphCur.assign(morphIds.size(), -1e30);
     morphExempt.assign(morphIds.size(), 0);
@@ -1191,11 +1225,19 @@ struct Plugin
       if (morphIds[i] == id)
       {
         const bool on = !morphExempt[i];
-        morphExempt[i] = on ? 1 : 0;
-        if (on)
+        // A group exempts as a unit, for the same reason it flips as one.
+        const bool grouped = (morphScaleLast > morphScaleFirst &&
+                              i >= morphScaleFirst && i <= morphScaleLast);
+        const size_t lo = grouped ? morphScaleFirst : i;
+        const size_t hi = grouped ? morphScaleLast : i;
+        for (size_t j = lo; j <= hi; j++)
         {
-          const double live = readParam(id);
-          for (int k = 0; k < 4; k++) morphCorner[k][i] = live;
+          morphExempt[j] = on ? 1 : 0;
+          if (on)
+          {
+            const double live = readParam(morphIds[j]);
+            for (int k = 0; k < 4; k++) morphCorner[k][j] = live;
+          }
         }
         return on;
       }
@@ -1303,7 +1345,7 @@ struct Plugin
       return true;
     }
     // quantum: the corner that won this parameter owns the edit
-    const int k = morph.pickCorner((int)idx, lw, morphCoup);
+    const int k = morph.pickCorner((int)morphGroupLead(idx), lw, morphCoup);
     morphCorner[k][idx] = v;
     return true;
   }
@@ -1334,7 +1376,7 @@ struct Plugin
       }
       else
       {
-        const int k = morph.pickCorner((int)i, lw, morphCoup);
+        const int k = morph.pickCorner((int)morphGroupLead(i), lw, morphCoup);
         target = morphCorner[k][i];
         /* ADR-108 -- THE DERIVED MORPH HIERARCHY (the human's ask: "a graph of
            feature dependencies so we can automatically derive a morph
@@ -3729,6 +3771,8 @@ extern "C" void hypersaw_debug_state(const clap_plugin_t *p, char *out, uint32_t
 }
 extern "C" void hypersaw_debug_panic(const clap_plugin_t *p) { self(p)->panicWithDump(); }
 extern "C" bool hypersaw_debug_exempt(const clap_plugin_t *p, uint32_t id) { return self(p)->morphToggleExempt((clap_id)id); }
+extern "C" const char *hypersaw_debug_exemptjson(const clap_plugin_t *p)
+{ static std::string j; j = self(p)->morphExemptJson(); return j.c_str(); }
 extern "C" bool hypersaw_debug_apply(const clap_plugin_t *p, const char *json)
 {
   return self(p)->applyStateJson(json ? json : "");

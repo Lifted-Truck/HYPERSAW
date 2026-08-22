@@ -227,7 +227,7 @@ fx1tone	global	FX1 Tone	FX	FX rack	knob		fx-rack
 fx2tone	global	FX2 Tone	FX	FX rack	knob		fx-rack			
 fx3tone	global	FX3 Tone	FX	FX rack	knob		fx-rack			
 fx4tone	global	FX4 Tone	FX	FX rack	knob		fx-rack			
-inertiaCurve	global	Inertia Curve (dev)	OSC	The coupling	knob		the-coupling			
+inertiaCurve	global	Inertia Curve (dev)	OSC	The coupling	knob		the-coupling	never		never
 masterVol	global	Master Volume	MIX	Mix	knob		mix			
 gSemi	global	Pitch	MIX	Mix	knob		mix			
 gFine	global	Fine	MIX	Mix	knob		mix			

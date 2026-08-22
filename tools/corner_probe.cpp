@@ -8,6 +8,8 @@
 #include "../src/hypersaw_clap_entry.h"
 extern "C" void hypersaw_debug_state(const clap_plugin_t*, char*, uint32_t);
 extern "C" bool hypersaw_debug_exempt(const clap_plugin_t*, uint32_t);
+extern "C" const char *hypersaw_debug_exemptjson(const clap_plugin_t*);
+#include <string>
 namespace { 
 #include "notefuzz_scaffold.inc"
 }
@@ -59,6 +61,29 @@ int main()
   std::printf("exempt holds its value:   %.3f (want 0.420)  %s\n", held,
               std::fabs(held-0.42)<0.01?"OK":"FAIL");
   if(std::fabs(held-0.42)>0.01) bad++;
+  // 4. ADR-109 A1: the globals the human's scan found must now toggle
+  const clap_id SCAN[] = {75, 11, 70, 32, 34, 38, 90, 116};
+  const char *NAMES[] = {"freqGlide","inertia","inertiaCurve","voiceMono",
+                         "voiceLegato","pitchBend","glideMode","scaleRoot"};
+  int notToggling = 0;
+  for (int i = 0; i < 8; i++)
+  {
+    const bool on = hypersaw_debug_exempt(p, SCAN[i]);
+    if (!on) { std::printf("  %s did NOT toggle\n", NAMES[i]); notToggling++; }
+    else hypersaw_debug_exempt(p, SCAN[i]);   // put it back
+  }
+  std::printf("scanned globals toggle:   %d/8 %s\n", 8-notToggling, notToggling?"FAIL":"OK");
+  bad += notToggling ? 1 : 0;
+
+  // 5. the scale exempts COLLECTIVELY: one degree toggles all thirteen
+  hypersaw_debug_exempt(p, 120);            // a middle degree
+  const std::string ex = hypersaw_debug_exemptjson(p);
+  int inScale = 0;
+  for (int id = 116; id <= 128; id++)
+    if (ex.find("\"" + std::to_string(id) + "\"") != std::string::npos) inScale++;
+  std::printf("scale exempts as a unit:  %d/13 %s\n", inScale, inScale==13?"OK":"FAIL");
+  if (inScale != 13) bad++;
+
   p->stop_processing(p); p->deactivate(p); p->destroy(p);
   return bad;
 }
