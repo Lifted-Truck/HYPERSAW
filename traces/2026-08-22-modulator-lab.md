@@ -23,10 +23,10 @@
      Kboost), discarded fraction by route polarity: as-source **43.1%**, bipolar **43.1%**,
      uni+ **0.0%**, uni− **100.0%**.
 - **Evidence consulted:** ROADMAP § LAB BRIEF (`6456-6494`), § MOD MATRIX: DEPTH IS ITSELF A
-  MOD TARGET (`5126`), § THE SHAPE LABS, PLACED (`262-276`); `docs/design/mod-lab.html`
+  MOD TARGET (`5126`), § THE SHAPE LABS, PLACED (`260-276`); `docs/design/mod-lab.html`
   (`KuroSwarm` 95-241, `ClassicLFO` 242-262, `ModEnv` 265-278, scope/per-corner-depth ruling
   and the reachability/polarity finding 590-800); `docs/design/shape-lab-mod.html` (breakpoint
-  grammar and `segCurve`, 117-127); `swarmtime.html` and `docs/design/bend-lab.html` for house
+  grammar and `segCurve`, 119-127); `swarmtime.html` and `docs/design/bend-lab.html` for house
   lab conventions; `tools/labharness/lab_load_check.mjs`; `tools/gen_lab_index.py`.
 - **Alternatives rejected:**
   - *Add a `reverse saw` enum entry.* Rejected: the brief calls the missing shape "the tell
@@ -41,7 +41,7 @@
     the panel; negative K is plain repulsion, not the rank-lattice splay law.
   - *One correlation meter for the two S&H kinds.* Rejected after measurement — see below.
 - **Verify:** `./verify fast`, exit **0**, git `d6d6520` (`.harness/last-verify.json`). The new
-  lab is gated: `lab_load_check.mjs` runs inside `fast()` (`verify:159`) over every
+  lab is gated: `lab_load_check.mjs` runs inside `fast()` (`verify:159-161`) over every
   `docs/design/*.html`; direct run prints `OK modulator-lab.html · GREEN`.
 - **Two defects the offline probe caught, recorded because both are the same class:** a
   detector that agreed with itself for the wrong reason (MEMORY: detector-shares-assumption).
