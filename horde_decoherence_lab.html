@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HORDE — decoherence lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#151210;--panel:#1D1915;--line:#2E2820;--ink:#D8CDBB;--dim:#8A7F6C;
+    --amber:#E8A33D;--cyan:#6FC7BC;--rose:#E05D6F;--violet:#A78BDB;--radius:4px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);
+    font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px;line-height:1.5}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 60px}
+  header{display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap;gap:8px}
+  h1{font-size:15px;font-weight:600;letter-spacing:.24em;color:var(--amber)}
+  h1 span{color:var(--dim);letter-spacing:.1em;font-weight:400}
+  .tag{color:var(--dim);font-size:11px;letter-spacing:.08em}
+  button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:8px 14px;cursor:pointer;letter-spacing:.05em}
+  button:hover{border-color:var(--amber);color:var(--amber)}
+  button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  button.primary{border-color:var(--amber);color:var(--amber)}
+  button.primary.running{background:var(--amber);color:var(--bg)}
+  .transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+
+  .viz{display:grid;grid-template-columns:230px 1fr;gap:0;border:1px solid var(--line);
+    border-radius:var(--radius);background:#0E0C0A;margin-bottom:18px;overflow:hidden}
+  @media(max-width:700px){.viz{grid-template-columns:1fr}}
+  #circle{width:230px;height:230px;display:block}
+  .rwrap{position:relative;border-left:1px solid var(--line)}
+  #rstrip{width:100%;height:230px;display:block}
+  .rlabel{position:absolute;top:6px;left:10px;font-size:10px;color:var(--dim)}
+  .rval{position:absolute;top:6px;right:10px;font-size:11px;color:var(--amber)}
+  .legend{position:absolute;bottom:6px;right:10px;display:flex;gap:12px;font-size:10px;color:var(--dim)}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:1px;margin-right:4px;vertical-align:-1px}
+
+  .keys{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+  .keys .note{min-width:52px;text-align:center}
+  .keys .note.playing{background:var(--amber);color:var(--bg);border-color:var(--amber)}
+  .keys .drone.active{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+  @media(max-width:700px){.grid{grid-template-columns:1fr}}
+  .mod{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px 16px}
+  .mod h2{font-size:12px;font-weight:600;letter-spacing:.18em;margin-bottom:4px}
+  .mod .desc{color:var(--dim);font-size:11px;margin-bottom:12px}
+  .mod[data-c=amber] h2{color:var(--amber)}
+  .mod[data-c=rose] h2{color:var(--rose)}
+  .mod[data-c=cyan] h2{color:var(--cyan)}
+  .mod[data-c=violet] h2{color:var(--violet)}
+  .row{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .row label{width:74px;color:var(--dim);font-size:11px;flex:none}
+  .row output{width:52px;text-align:right;font-size:11px;flex:none}
+  input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:2px;
+    background:var(--line);border-radius:1px;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;
+    border-radius:50%;background:var(--ink);border:1px solid var(--bg)}
+  input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4px}
+  select{font:inherit;font-size:11px;background:var(--bg);color:var(--ink);
+    border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px;flex:1}
+  .btnrow{display:flex;gap:8px;margin-top:10px}
+  .btnrow button{flex:1;letter-spacing:.1em;user-select:none;touch-action:none}
+  .burst.flash{background:var(--rose);color:var(--bg);border-color:var(--rose)}
+  .freezebtn.active{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+  .hint{color:var(--dim);font-size:11px;margin-top:14px}
+  kbd{border:1px solid var(--line);border-radius:3px;padding:0 5px;font-size:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>HORDE <span>/ decoherence lab — glitches in the swarm's dynamics</span></h1>
+    <div class="tag">Kuramoto mean-field · per-sample integration</div>
+  </header>
+
+  <div class="transport">
+    <button id="power" class="primary">Start audio</button>
+    <span class="tag">Play notes with keys <kbd>1</kbd>–<kbd>8</kbd> or the buttons below</span>
+  </div>
+
+  <div class="viz">
+    <canvas id="circle" width="230" height="230"></canvas>
+    <div class="rwrap">
+      <canvas id="rstrip" width="720" height="230"></canvas>
+      <span class="rlabel">order parameter r — 1 is perfect lock, 0 is full splay</span>
+      <span class="rval" id="rval">r = 0.00</span>
+      <div class="legend">
+        <span><i style="background:var(--rose)"></i>decohere</span>
+        <span><i style="background:var(--cyan)"></i>stale field</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="keys" id="keys">
+    <button class="drone" id="droneBtn">DRONE</button>
+  </div>
+
+  <div class="grid">
+    <section class="mod" data-c="amber">
+      <h2>SWARM</h2>
+      <p class="desc">The instrument itself: detuned saws pulled toward the mean field. Coupling near 0.05 barely herds them; 0.15+ locks hard.</p>
+      <div class="row"><label for="p-voices">Voices</label>
+        <input type="range" id="p-voices" min="4" max="32" step="1" value="16"><output>16</output></div>
+      <div class="row"><label for="p-spread">Detune</label>
+        <input type="range" id="p-spread" min="0" max="0.04" step="0.0005" value="0.012"><output>0.0120</output></div>
+      <div class="row"><label for="p-k">Coupling</label>
+        <input type="range" id="p-k" min="0" max="0.5" step="0.005" value="0.15"><output>0.150</output></div>
+    </section>
+
+    <section class="mod" data-c="rose">
+      <h2>DECOHERE</h2>
+      <p class="desc">Coupling flips sign for a burst: the swarm is violently repelled from its own mean, splays to maximum disorder, then heals when K returns.</p>
+      <div class="row"><label for="p-str">Strength</label>
+        <input type="range" id="p-str" min="0.5" max="4" step="0.1" value="1.5"><output>1.5</output></div>
+      <div class="row"><label for="p-burst">Burst</label>
+        <input type="range" id="p-burst" min="30" max="600" step="10" value="150"><output>150 ms</output></div>
+      <div class="btnrow">
+        <button class="burst" id="burstBtn">BURST (D)</button>
+        <button id="holdDec">HOLD</button>
+      </div>
+    </section>
+
+    <section class="mod" data-c="cyan">
+      <h2>STALE FIELD</h2>
+      <p class="desc">The mean field freezes: voices keep coupling to a ghost attractor rotating at the old note's speed. Change notes while frozen — natural frequency and dead field fight.</p>
+      <div class="btnrow">
+        <button class="freezebtn" id="freezeBtn">FREEZE FIELD (F)</button>
+      </div>
+    </section>
+
+    <section class="mod" data-c="violet">
+      <h2>NECROSIS</h2>
+      <p class="desc">Voices fail one at a time — and the coupling law drags the survivors around the corpses. Damage accumulates until healed.</p>
+      <div class="row"><label for="p-fmode">Failure</label>
+        <select id="p-fmode">
+          <option value="0">Dropout — flicker and die</option>
+          <option value="1">Drift — wander off pitch</option>
+          <option value="2">Rot — phase corruption</option>
+          <option value="3">Random per voice</option>
+        </select></div>
+      <div class="btnrow">
+        <button id="dmgBtn">DAMAGE ONE (X)</button>
+        <button id="healBtn">HEAL ALL (H)</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="row" style="max-width:420px">
+    <label for="p-out">Level</label>
+    <input type="range" id="p-out" min="0" max="1" step="0.01" value="0.7"><output>0.70</output>
+  </div>
+
+  <p class="hint">The sequence to try: DRONE on, coupling at 0.15, watch the dots condense and r climb. Fire a BURST — dots explode around the circle, the arrow collapses, the note shatters into a detuned cloud, then re-condenses. Then FREEZE the field and play a different note. Keys: <kbd>1</kbd>–<kbd>8</kbd> notes, <kbd>D</kbd> burst, <kbd>F</kbd> freeze, <kbd>X</kbd> damage, <kbd>H</kbd> heal.</p>
+</div>
+
+<script>
+"use strict";
+const NMAX=32;
+const P={voices:16,spread:0.012,k:0.15,str:1.5,burstMs:150,fmode:0,out:0.7};
+const S={
+  theta:new Float64Array(NMAX), drift:new Float64Array(NMAX),
+  state:new Uint8Array(NMAX),   // 0 alive 1 dropout 2 drift 3 rot
+  age:new Float64Array(NMAX), amp:new Float64Array(NMAX),
+  flicker:new Int32Array(NMAX), lp:new Float64Array(NMAX),
+  f0:110, targetF:110, env:0, gate:false, drone:false,
+  decRemain:0, decHold:false,
+  frozen:false, psiF:0, dpsiF:0, rF:0,
+  psiPrev:0, dpsiSm:0, rSm:0
+};
+const VIS={theta:new Float64Array(NMAX),state:new Uint8Array(NMAX),amp:new Float64Array(NMAX),
+  n:16,r:0,psi:0,rHist:new Float64Array(720),rFlag:new Uint8Array(720),rPos:0,
+  frozen:false,dec:0};
+
+let ctx=null,sp=null,running=false;
+
+function princarg(p){p=p%(2*Math.PI);if(p>Math.PI)p-=2*Math.PI;if(p<-Math.PI)p+=2*Math.PI;return p;}
+
+function initVoices(){
+  for(let i=0;i<NMAX;i++){
+    S.theta[i]=Math.random()*2*Math.PI;
+    S.drift[i]=0;S.state[i]=0;S.age[i]=0;S.amp[i]=1;S.flicker[i]=0;S.lp[i]=0;
+  }
+}
+initVoices();
+
+function detuneShape(i,n){
+  if(n<2)return 0;
+  const lin=2*i/(n-1)-1;
+  return lin*0.6+lin*lin*lin*0.4;
+}
+
+function audioProcess(e){
+  const outL=e.outputBuffer.getChannelData(0);
+  const outR=e.outputBuffer.getChannelData(1);
+  const n=outL.length, sr=ctx.sampleRate, dt=1/sr;
+  const N=P.voices|0;
+  const glide=1-Math.exp(-1/(0.035*sr));
+  const envUp=1-Math.exp(-1/(0.004*sr));
+  const envDn=1-Math.exp(-1/(0.10*sr));
+
+  for(let s=0;s<n;s++){
+    // pitch + envelope
+    S.f0+=(S.targetF-S.f0)*glide;
+    const on=S.gate||S.drone;
+    S.env+=((on?1:0)-S.env)*(on?envUp:envDn);
+    // mean field
+    let cx=0,cy=0;
+    for(let i=0;i<N;i++){cx+=Math.cos(S.theta[i]);cy+=Math.sin(S.theta[i]);}
+    cx/=N;cy/=N;
+    const r=Math.hypot(cx,cy), psi=Math.atan2(cy,cx);
+    const dpsi=princarg(psi-S.psiPrev);S.psiPrev=psi;
+    S.dpsiSm+=(dpsi-S.dpsiSm)*0.005;
+    S.rSm+=(r-S.rSm)*0.005;
+    // effective coupling
+    let K=P.k*S.f0*2*Math.PI;          // scales with pitch so lock behaves the same across notes
+    if(S.decRemain>0||S.decHold){K=-K*P.str;if(S.decRemain>0)S.decRemain--;}
+    // field used (live or stale ghost)
+    let rU=r,psiU=psi;
+    if(S.frozen){S.psiF+=S.dpsiF;rU=S.rF;psiU=S.psiF;}
+    // integrate + render voices
+    let yl=0,yr=0;
+    for(let i=0;i<N;i++){
+      const d=detuneShape(i,N);
+      let w=2*Math.PI*S.f0*(1+P.spread*d)+S.drift[i];
+      // failures
+      const st=S.state[i];
+      if(st!==0)S.age[i]+=dt;
+      if(st===1){ // dropout: decay with flicker
+        S.amp[i]*=Math.exp(-dt*2.2);
+        if(S.flicker[i]>0)S.flicker[i]--;
+        else if(Math.random()<0.0012)S.flicker[i]=(0.05*sr)|0;
+      }else if(st===2){ // drift: random walk grows with age
+        S.drift[i]+=(Math.random()-0.5)*S.age[i]*S.f0*0.00012;
+      }else if(st===3){ // rot: phase jumps, worsening
+        if(Math.random()<0.0008*(1+S.age[i]*3))
+          S.theta[i]+=(Math.random()-0.5)*Math.min(3,S.age[i])*2;
+      }
+      S.theta[i]+=(w+K*rU*Math.sin(psiU-S.theta[i]))*dt;
+      if(S.theta[i]>2*Math.PI)S.theta[i]-=2*Math.PI;
+      else if(S.theta[i]<0)S.theta[i]+=2*Math.PI;
+      // saw voice
+      let a=st===1?(S.flicker[i]>0?0:S.amp[i]):1;
+      let v=(S.theta[i]/Math.PI-1)*a;
+      S.lp[i]+=(v-S.lp[i])*0.35;
+      const pan=(d+1)/2;
+      yl+=S.lp[i]*Math.cos(pan*Math.PI/2);
+      yr+=S.lp[i]*Math.sin(pan*Math.PI/2);
+    }
+    const g=S.env*P.out*2.2/N;
+    outL[s]=Math.tanh(yl*g);
+    outR[s]=Math.tanh(yr*g);
+    // vis history (decimated)
+    if((s&63)===0){
+      VIS.rHist[VIS.rPos]=r;
+      VIS.rFlag[VIS.rPos]=(S.decRemain>0||S.decHold)?1:(S.frozen?2:0);
+      VIS.rPos=(VIS.rPos+1)%VIS.rHist.length;
+    }
+  }
+  // vis snapshot
+  VIS.n=N;VIS.theta.set(S.theta);VIS.state.set(S.state);VIS.amp.set(S.amp);
+  let cx=0,cy=0;
+  for(let i=0;i<N;i++){cx+=Math.cos(S.theta[i]);cy+=Math.sin(S.theta[i]);}
+  VIS.r=Math.hypot(cx/N,cy/N);VIS.psi=Math.atan2(cy/N,cx/N);
+  VIS.frozen=S.frozen;VIS.dec=(S.decRemain>0||S.decHold)?1:VIS.dec*0.8;
+}
+
+/* ---------------- transport ---------------- */
+function startAudio(){
+  if(!ctx){
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    sp=ctx.createScriptProcessor(1024,1,2);
+    sp.onaudioprocess=audioProcess;
+    sp.connect(ctx.destination);
+  }
+  ctx.resume();running=true;
+  const b=document.getElementById('power');
+  b.textContent='Stop';b.classList.add('running');
+}
+function stopAudio(){
+  if(ctx)ctx.suspend();
+  running=false;
+  const b=document.getElementById('power');
+  b.textContent='Start audio';b.classList.remove('running');
+}
+
+/* ---------------- glitch actions ---------------- */
+function burst(){
+  if(!ctx)return;
+  S.decRemain=Math.round(ctx.sampleRate*P.burstMs/1000);
+  const bb=document.getElementById('burstBtn');
+  bb.classList.add('flash');setTimeout(()=>bb.classList.remove('flash'),P.burstMs);
+}
+function toggleFreeze(){
+  S.frozen=!S.frozen;
+  if(S.frozen){S.psiF=S.psiPrev;S.dpsiF=S.dpsiSm;S.rF=Math.max(0.15,S.rSm);}
+  document.getElementById('freezeBtn').classList.toggle('active',S.frozen);
+}
+function damageOne(){
+  const N=P.voices|0, alive=[];
+  for(let i=0;i<N;i++)if(S.state[i]===0)alive.push(i);
+  if(!alive.length)return;
+  const i=alive[(Math.random()*alive.length)|0];
+  let m=P.fmode|0;if(m===3)m=(Math.random()*3|0);
+  S.state[i]=m+1;S.age[i]=0;S.amp[i]=1;
+}
+function healAll(){
+  for(let i=0;i<NMAX;i++){S.state[i]=0;S.age[i]=0;S.amp[i]=1;S.drift[i]=0;S.flicker[i]=0;}
+}
+
+/* ---------------- notes ---------------- */
+const NOTES=[["A2",110],["C3",130.81],["D3",146.83],["E3",164.81],
+  ["G3",196],["A3",220],["C4",261.63],["E4",329.63]];
+const keysDiv=document.getElementById('keys');
+const noteBtns=[];
+NOTES.forEach(([nm,f],idx)=>{
+  const b=document.createElement('button');
+  b.className='note';b.textContent=nm+' '+(idx+1);
+  b.addEventListener('pointerdown',e=>{e.preventDefault();noteOn(idx);});
+  b.addEventListener('pointerup',()=>noteOff(idx));
+  b.addEventListener('pointerleave',()=>noteOff(idx));
+  keysDiv.insertBefore(b,document.getElementById('droneBtn'));
+  noteBtns.push(b);
+});
+let heldNote=-1;
+function noteOn(idx){
+  if(!running)startAudio();
+  heldNote=idx;S.targetF=NOTES[idx][1];S.gate=true;
+  noteBtns.forEach((b,i)=>b.classList.toggle('playing',i===idx));
+}
+function noteOff(idx){
+  if(heldNote===idx){S.gate=false;heldNote=-1;
+    if(!S.drone)noteBtns.forEach(b=>b.classList.remove('playing'));}
+}
+document.getElementById('droneBtn').addEventListener('click',function(){
+  S.drone=!S.drone;this.classList.toggle('active',S.drone);
+  if(S.drone&&!running)startAudio();
+});
+
+/* ---------------- keyboard ---------------- */
+addEventListener('keydown',e=>{
+  if(e.repeat)return;
+  const k=e.key;
+  if(k>='1'&&k<='8')noteOn(+k-1);
+  if(k==='d'||k==='D')burst();
+  if(k==='f'||k==='F')toggleFreeze();
+  if(k==='x'||k==='X')damageOne();
+  if(k==='h'||k==='H')healAll();
+});
+addEventListener('keyup',e=>{
+  const k=e.key;
+  if(k>='1'&&k<='8')noteOff(+k-1);
+});
+
+/* ---------------- UI ---------------- */
+function bindRange(id,key,fmt){
+  const el=document.getElementById(id),out=el.parentElement.querySelector('output');
+  const f=fmt||(v=>(+v).toFixed(2));
+  el.addEventListener('input',()=>{P[key]=+el.value;out.textContent=f(el.value);});
+  P[key]=+el.value;out.textContent=f(el.value);
+}
+bindRange('p-voices','voices',v=>v);
+bindRange('p-spread','spread',v=>(+v).toFixed(4));
+bindRange('p-k','k',v=>(+v).toFixed(3));
+bindRange('p-str','str',v=>(+v).toFixed(1));
+bindRange('p-burst','burstMs',v=>v+' ms');
+bindRange('p-out','out');
+document.getElementById('p-fmode').addEventListener('change',e=>P.fmode=+e.target.value);
+document.getElementById('burstBtn').addEventListener('click',burst);
+const holdDec=document.getElementById('holdDec');
+holdDec.addEventListener('pointerdown',e=>{e.preventDefault();S.decHold=true;holdDec.classList.add('flash');});
+addEventListener('pointerup',()=>{S.decHold=false;holdDec.classList.remove('flash');});
+document.getElementById('freezeBtn').addEventListener('click',toggleFreeze);
+document.getElementById('dmgBtn').addEventListener('click',damageOne);
+document.getElementById('healBtn').addEventListener('click',healAll);
+document.getElementById('power').addEventListener('click',()=>running?stopAudio():startAudio());
+
+/* ---------------- drawing ---------------- */
+const cc=document.getElementById('circle'),cg=cc.getContext('2d');
+const rc=document.getElementById('rstrip'),rg=rc.getContext('2d');
+const stateColor=['#E8A33D','#5A5248','#A78BDB','#E05D6F'];
+function draw(){
+  requestAnimationFrame(draw);
+  /* phase circle */
+  const W=cc.width,H=cc.height,cx0=W/2,cy0=H/2,R=W*0.38;
+  cg.fillStyle='#0E0C0A';cg.fillRect(0,0,W,H);
+  if(VIS.dec>0.05){cg.fillStyle=`rgba(224,93,111,${0.10*VIS.dec})`;cg.fillRect(0,0,W,H);}
+  cg.strokeStyle='#2E2820';cg.beginPath();cg.arc(cx0,cy0,R,0,2*Math.PI);cg.stroke();
+  // mean field arrow
+  const ar=VIS.r*R;
+  cg.strokeStyle=VIS.frozen?'#6FC7BC':'#E8A33D';cg.lineWidth=2;
+  cg.beginPath();cg.moveTo(cx0,cy0);
+  cg.lineTo(cx0+Math.cos(VIS.psi)*ar,cy0+Math.sin(VIS.psi)*ar);cg.stroke();
+  cg.lineWidth=1;
+  // oscillators
+  for(let i=0;i<VIS.n;i++){
+    const st=VIS.state[i];
+    const dim=st===1?Math.max(0.15,VIS.amp[i]):1;
+    cg.fillStyle=stateColor[st];
+    cg.globalAlpha=dim;
+    cg.beginPath();
+    cg.arc(cx0+Math.cos(VIS.theta[i])*R,cy0+Math.sin(VIS.theta[i])*R,4,0,2*Math.PI);
+    cg.fill();
+    cg.globalAlpha=1;
+  }
+  /* r strip */
+  const RW=rc.width,RH=rc.height;
+  rg.fillStyle='#0E0C0A';rg.fillRect(0,0,RW,RH);
+  rg.strokeStyle='#2E2820';rg.beginPath();rg.moveTo(0,RH*0.08);rg.lineTo(RW,RH*0.08);rg.stroke();
+  const NH=VIS.rHist.length;
+  for(let x=0;x<RW;x++){
+    const i=(VIS.rPos+Math.floor(x/RW*NH))%NH;
+    const fl=VIS.rFlag[i];
+    if(fl){rg.fillStyle=fl===1?'rgba(224,93,111,0.18)':'rgba(111,199,188,0.18)';
+      rg.fillRect(x,0,1,RH);}
+  }
+  rg.strokeStyle='#E8A33D';rg.lineWidth=1.4;rg.beginPath();
+  for(let x=0;x<RW;x++){
+    const i=(VIS.rPos+Math.floor(x/RW*NH))%NH;
+    const y=RH-(RH*0.84)*VIS.rHist[i]-RH*0.08;
+    x?rg.lineTo(x,y):rg.moveTo(x,y);
+  }
+  rg.stroke();
+  document.getElementById('rval').textContent='r = '+VIS.r.toFixed(2);
+}
+draw();
+</script>
+</body>
+</html>
