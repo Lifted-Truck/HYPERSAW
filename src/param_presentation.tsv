@@ -283,7 +283,7 @@ noteHyst	global	Note Quant Hyst	MAIN	Bend	knob	c	bend	noteLawLink=0,noteQuant=1|
 bendQTimeMode	global	Step Timing	MAIN	Bend	select		bend	bendQuant=1|2	
 bendQTimeHz	global	Step Rate	MAIN	Bend	knob	Hz	bend	bendQTimeMode=1	log10
 bendQTimeSync	global	Step Grid	MAIN	Bend	knob	/beat	bend	bendQTimeMode=2	
-bendMpeLaw	global	MPE Bend	MAIN	Bend	select		bend	bendLaw=1|2|3|4	
+bendMpeLaw	global	MPE Bend	MAIN	Bend	select		bend		
 morphOn	global	Morph	MORPH	Morph engine	toggle		morph		
 morphMode	global	Morph Mode	MORPH	Morph engine	select		morph	morphOn=1	
 morphTemp	global	Temperature	MORPH	Morph engine	knob		morph	morphOn=1	log10

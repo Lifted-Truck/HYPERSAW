@@ -72,6 +72,17 @@ other parameters' values — becomes the single source:
   pattern): a declared dependency with no engine guard, or a guard with no declaration,
   is a red — the graph cannot drift from the code.
 
+**The first rule the graph must encode, found by the human 2026-08-21** ("I'm not
+sure why MPE bend options don't show up unless a bend law is set. This isn't the case
+for note glide"): **a MODE SELECTOR is always visible; a PARAMETER OF a mode is gated on
+that mode.** `bendMpeLaw` was gated on `bendLaw=1|2|3|4` — on whether ANOTHER LANE was
+doing something — which is neither. Every sibling selector (bendLaw, bendQuant,
+glideMode, noteLawLink) was ungated; `noteLaw`'s `noteLawLink=0` gate is legitimately
+different in kind, because Note Travel is a parameter of the own-settings mode. The
+inconsistency was invisible until a human read the two panels side by side, which is the
+argument for deriving these rather than hand-writing them: hand-written gates encode
+whatever their author was thinking that day.
+
 **Where it lives:** a `depends` column in the presentation table (the table is already
 the parameter registry; a second registry would drift). Grammar: same as shown_when,
 because it BECOMES shown_when.
