@@ -2451,3 +2451,64 @@ and a travelling anchored bend emits 4 admitted steps, 0 alien — anchored is
 neither strict nor secretly off. `corner_probe` 13/13 (case 8 binds the
 armed view's data source to the values case 7 authored). Parity untouched:
 glide 3.51308e-08 worst, same as before the change.
+
+
+## ADR-112 — movable-do, a wheel on screen, and an honest preset selector (2026-08-22)
+
+**Status:** accepted, shipped.
+
+### scale (offset) — the played note is the tonic
+
+`kQuantScaleOffset = 4`: the mask is applied RELATIVE TO THE ANCHOR — whatever
+note you play is the tonic, and a bend walks the scale SHAPE from there.
+`scaleRoot` is deliberately ignored (a root and a movable tonic cannot both be
+in charge), and the presentation graph now says so: the Root row hides when
+only offset is quantising while the twelve degree rows stay live — the
+dependency column earning its keep. The anchor's class is admitted even if
+degree 1 is switched off, because without that every strike would carry a rest
+correction into the global lane and the mode would drag by accident — the
+exact surprise ADR-111 just spent a mode naming.
+
+Evidence: `glide_check` — base 61 under a C-major mask rests at zero and lands
+a +2 bend on exactly 63 (the "re" of C-sharp major) while strict corrects the
+rest (−1) and lands 62; one gesture separates strict/offset/off, so a mode
+that collapsed into either neighbour goes RED. `mpe_check` — offset joins the
+drag/anchor sweep and never moves the held C4.
+
+### The stack, measured instead of asserted
+
+The ADR-111 handoff flagged a hypothesis: note-lane quantise stacking with the
+global drag correction. A scratch probe (not committed) measured it:
+
+- **Plain poly: NO stack.** BND-5 by construction — the note lane cannot move
+  a freshly played note, so a lone F#4 under drag sounds one correction
+  (393.8 Hz — G, the tie toward the A4 boot anchor), law on or off.
+- **Mono/legato: the stack is real.** C4 → legato F#4 under drag + lag +
+  FOLLOW sounds **E4** (329.1 Hz): the glide landing is quantised per-voice
+  (−1) and drag transposes globally (−1). Anchored lands F4 — the note-glide
+  quantise alone, which is that feature doing its stated job.
+
+The ruling on whether mono's double-correction is wanted — and whether the
+note lane should get target-anchored semantics — is B30's, with these numbers
+attached.
+
+### The wheel
+
+Param 38 IS the wheel: it sets `bendTarget` and rides the whole bend path —
+law, quantise, every scale mode — which is exactly what the human could not
+audition without hardware. The on-screen wheel springs back to the
+**pre-gesture value**, not to zero: 38 lives in the morph field, so a corner
+may legitimately hold a nonzero Pitch, and a wheel that springs to zero would
+stomp it on every release.
+
+### The preset selector
+
+Starts on a disabled `Load…` placeholder. The first real preset must not look
+loaded when nothing is; the placeholder can be departed from but never chosen,
+and save/load re-select the real name explicitly.
+
+### Evidence roll-up
+
+`./verify full` EXIT=0 · parity 156/156 untouched · glide_check GREEN (offset
+invariant discriminating) · mpe_check GREEN (drag/anchored/offset sweep, 40:1
+bins) · rows BND-23/24/25, PRE-5.

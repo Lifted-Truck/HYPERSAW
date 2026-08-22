@@ -243,6 +243,39 @@ int main(int argc, char **argv)
           "anchored: a travelling bend emits only admitted pitches", b);
   }
 
+  {
+    /* ADR-112 offset (movable-do): the played note is the tonic; scaleRoot is
+       ignored. Base 61 with a MAJOR mask rooted at 0: 61 (class 1) is out of
+       C major, so strict corrects it at rest and lands a +2 bend on an even
+       pitch — while offset rests at zero and lands the +2 on exactly 63, the
+       "re" of C-sharp major. One gesture, three distinguishable outcomes
+       (strict / offset / off), so a mode that quietly collapsed into either
+       neighbour goes RED. */
+    GlideCore::Params p;
+    p.model = GlideCore::kConstRate; p.rate = 24;
+    p.scaleRoot = 0;   // must be IGNORED by offset — that is the claim
+    const int major[12] = {1,0,1,0,1,1,0,1,0,1,0,1};
+    for (int i = 0; i < 12; i++) p.scaleMask[i] = major[i];
+    const double base = 61;
+    auto runTo = [&](double quant, double target) {
+      p.quant = quant;
+      GlideCore g(kCR, true); g.reset(0);
+      double q = 1e9;
+      for (long i = 0; i < (long)(1.0 * kCR); i++) q = g.step(i > 100 ? target : 0.0, p, base);
+      return q;
+    };
+    const double restS = runTo(GlideCore::kQuantScale, 0.0);
+    const double restO = runTo(GlideCore::kQuantScaleOffset, 0.0);
+    const double landS = runTo(GlideCore::kQuantScale, 2.0) + base;
+    const double landO = runTo(GlideCore::kQuantScaleOffset, 2.0) + base;
+    char b[128];
+    std::snprintf(b, sizeof(b), "(rest strict %+.0f offset %+.0f; +2 lands strict %.0f offset %.0f)",
+                  restS, restO, landS, landO);
+    check(std::fabs(restS) > 0.5 && std::fabs(restO) < 1e-9 &&
+              landO == 63.0 && landS != 63.0,
+          "offset: the played note is the tonic and scaleRoot is ignored", b);
+  }
+
   std::printf("glide_check: %s (%d failure%s; worst parity rms %g)\n",
               failures ? "RED" : "GREEN", failures, failures == 1 ? "" : "s", worst);
   return failures ? 1 : 0;

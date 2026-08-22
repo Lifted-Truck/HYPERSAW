@@ -103,7 +103,7 @@ static const char *const kBendLawLabels[] = {"off (instant)", "constant time", "
    sound. The note lane gets its own array: "drag" describes what the GLOBAL
    wheel lane does with a correction (it lands in pitchBend and transposes the
    whole field); a per-voice lane has no field to drag. */
-static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale (drag)", "scale"};
+static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale (drag)", "scale", "scale (offset)"};
 static const char *const kNoteQuantLabels[] = {"off", "chromatic", "scale"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
@@ -329,7 +329,7 @@ static const ParamDef kParams[] = {
     // BEND LANE ONLY, and the core enforces it: a note has no home pitch to
     // spring back to, so retMul is meaningless on the note-pitch lane.
     {113, "bendReturn", "Return x", 0.2, 3, 1, false, nullptr},
-    {114, "bendQuant", "Bend Quantise", 0, 3, 0, true, kBendQuantLabels},
+    {114, "bendQuant", "Bend Quantise", 0, 4, 0, true, kBendQuantLabels},
     {115, "bendHyst", "Quantise Hyst (c)", 0, 50, 8, false, nullptr},
     /* GLOBAL SCALE (ids 116-128). THE MASK IS THE TRUTH, THE NAME IS UI — the
        standing ruling. Consumers store and transmit `{root, mask}` only, never a
@@ -1476,7 +1476,8 @@ struct Plugin
     // kLogFreqToMidi — a unit-alignment constant, not a note — so "admit the
     // anchor's class" would admit pitch class 0 forever. Strict is the honest
     // reading of "scale" for a lane whose anchor is not a pitch.
-    if ((int)e.quant == hypersaw::GlideCore::kQuantScaleAnchor)
+    if ((int)e.quant == hypersaw::GlideCore::kQuantScaleAnchor ||
+        (int)e.quant == hypersaw::GlideCore::kQuantScaleOffset)
       e.quant = hypersaw::GlideCore::kQuantScale;
     e.scaleRoot = scale.root;
     for (int d = 0; d < 12; d++) e.scaleMask[d] = scale.mask[d];

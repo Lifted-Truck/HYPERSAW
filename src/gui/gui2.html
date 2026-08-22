@@ -231,8 +231,8 @@
     <div class="row" data-addr="bendDamp" data-when="bendLaw=4"><label>Damping</label><input type="range" data-p="111" min="0" max="1" step="0.005" value="0.6"><output></output></div>
     <div class="row" data-addr="bendDistOver" data-when="bendLaw=4"><label>Distance Curve</label><input type="range" data-p="112" min="0" max="2" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="bendReturn" data-when="bendLaw=1|2|3|4"><label>Return x</label><input type="range" data-p="113" min="0.2" max="3" step="0.005" value="1"><output></output></div>
-    <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale (drag)</option><option value="3">scale</option></select><output></output></div>
-    <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2|3"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
+    <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale (drag)</option><option value="3">scale</option><option value="4">scale (offset)</option></select><output></output></div>
+    <div class="row" data-addr="bendHyst" data-when="bendQuant=1|2|3|4"><label>Quantise Hyst <span class="u">c</span></label><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><output></output></div>
     <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0">own settings</option><option value="1" selected>follow bend law</option></select><output></output></div>
     <div class="row" data-addr="noteLaw" data-when="noteLawLink=0"><label>Note Travel</label><select data-p="138"><option value="0">off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3" selected>lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
     <div class="row" data-addr="noteTime" data-when="noteLawLink=0,noteLaw=1"><label>Note Time <span class="u">ms</span></label><input type="range" data-p="139" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><output></output></div>
@@ -242,25 +242,25 @@
     <div class="row" data-addr="noteDistOver" data-when="noteLawLink=0,noteLaw=4"><label>Note Distance Curve</label><input type="range" data-p="143" min="0" max="2" step="0.005" value="1"><output></output></div>
     <div class="row" data-addr="noteQuant" data-when="noteLawLink=0"><label>Note Quantise</label><select data-p="144"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
     <div class="row" data-addr="noteHyst" data-when="noteLawLink=0,noteQuant=1|2"><label>Note Quant Hyst <span class="u">c</span></label><input type="range" data-p="145" min="0" max="50" step="0.005" value="8"><output></output></div>
-    <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2|3"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
+    <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2|3|4"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
     <div class="row" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"><output></output></div>
     <div class="row" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"><output></output></div>
     <div class="row" data-addr="bendMpeLaw"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Scale</h2>
     <div class="row" data-addr="scaleRoot" data-when="bendQuant=2|3;noteQuant=2"><label>Root</label><select data-p="116"><option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select><output></output></div>
-    <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2|3;noteQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg1" data-when="bendQuant=2|3;noteQuant=2"><label>b2</label><input type="checkbox" data-p="118"><output></output></div>
-    <div class="row" data-addr="scaleDeg2" data-when="bendQuant=2|3;noteQuant=2"><label>2</label><input type="checkbox" data-p="119" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg3" data-when="bendQuant=2|3;noteQuant=2"><label>b3</label><input type="checkbox" data-p="120"><output></output></div>
-    <div class="row" data-addr="scaleDeg4" data-when="bendQuant=2|3;noteQuant=2"><label>3</label><input type="checkbox" data-p="121" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg5" data-when="bendQuant=2|3;noteQuant=2"><label>4</label><input type="checkbox" data-p="122" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg6" data-when="bendQuant=2|3;noteQuant=2"><label>b5</label><input type="checkbox" data-p="123"><output></output></div>
-    <div class="row" data-addr="scaleDeg7" data-when="bendQuant=2|3;noteQuant=2"><label>5</label><input type="checkbox" data-p="124" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg8" data-when="bendQuant=2|3;noteQuant=2"><label>b6</label><input type="checkbox" data-p="125"><output></output></div>
-    <div class="row" data-addr="scaleDeg9" data-when="bendQuant=2|3;noteQuant=2"><label>6</label><input type="checkbox" data-p="126" checked><output></output></div>
-    <div class="row" data-addr="scaleDeg10" data-when="bendQuant=2|3;noteQuant=2"><label>b7</label><input type="checkbox" data-p="127"><output></output></div>
-    <div class="row" data-addr="scaleDeg11" data-when="bendQuant=2|3;noteQuant=2"><label>7</label><input type="checkbox" data-p="128" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg0" data-when="bendQuant=2|3|4;noteQuant=2"><label>1 (root)</label><input type="checkbox" data-p="117" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg1" data-when="bendQuant=2|3|4;noteQuant=2"><label>b2</label><input type="checkbox" data-p="118"><output></output></div>
+    <div class="row" data-addr="scaleDeg2" data-when="bendQuant=2|3|4;noteQuant=2"><label>2</label><input type="checkbox" data-p="119" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg3" data-when="bendQuant=2|3|4;noteQuant=2"><label>b3</label><input type="checkbox" data-p="120"><output></output></div>
+    <div class="row" data-addr="scaleDeg4" data-when="bendQuant=2|3|4;noteQuant=2"><label>3</label><input type="checkbox" data-p="121" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg5" data-when="bendQuant=2|3|4;noteQuant=2"><label>4</label><input type="checkbox" data-p="122" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg6" data-when="bendQuant=2|3|4;noteQuant=2"><label>b5</label><input type="checkbox" data-p="123"><output></output></div>
+    <div class="row" data-addr="scaleDeg7" data-when="bendQuant=2|3|4;noteQuant=2"><label>5</label><input type="checkbox" data-p="124" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg8" data-when="bendQuant=2|3|4;noteQuant=2"><label>b6</label><input type="checkbox" data-p="125"><output></output></div>
+    <div class="row" data-addr="scaleDeg9" data-when="bendQuant=2|3|4;noteQuant=2"><label>6</label><input type="checkbox" data-p="126" checked><output></output></div>
+    <div class="row" data-addr="scaleDeg10" data-when="bendQuant=2|3|4;noteQuant=2"><label>b7</label><input type="checkbox" data-p="127"><output></output></div>
+    <div class="row" data-addr="scaleDeg11" data-when="bendQuant=2|3|4;noteQuant=2"><label>7</label><input type="checkbox" data-p="128" checked><output></output></div>
   </div>
   <!--/GEN:MAIN-->
   </div>
@@ -849,7 +849,11 @@ const presetStore = {
   const refresh = async () => {
     if (!list) return;
     const names = await presetStore.list('presets');
-    list.innerHTML = names.map(n => `<option>${n}</option>`).join('');
+    /* The first real preset must not LOOK loaded when nothing is (human,
+       2026-08-22). The placeholder is disabled so it can be departed from but
+       never chosen; save/load re-select the real name explicitly. */
+    list.innerHTML = '<option value="" disabled selected>Load\u2026</option>' +
+                     names.map(n => `<option>${n}</option>`).join('');
   };
   refresh();
   const flash = (b, t) => { const o = b.textContent; b.textContent = t; setTimeout(() => { b.textContent = o; }, 900); };
@@ -886,6 +890,38 @@ const presetStore = {
     const ok = await presetStore.save('corners', n, j);
     flashB(ok ? 'SAVED' : 'FAIL');
   });
+}
+/* ============ SIMULATED BEND WHEEL (ADR-112) ============
+   Param 38 IS the wheel: it sets bendTarget, so a gesture here rides the whole
+   bend path — law, quantise, drag/anchor/offset — which is exactly what the
+   human could not test without hardware. Spring-back returns to the
+   PRE-GESTURE value, not to zero: 38 lives in the morph field, so a corner may
+   legitimately hold a nonzero Pitch, and a wheel that springs to zero would
+   stomp it on every release. */
+{
+  const bendCluster = document.querySelector('[data-addr="bendQuant"]')?.closest('.cluster');
+  if (bendCluster) {
+    const box = document.createElement('div');
+    box.className = 'row wheelRow';
+    box.innerHTML = '<label>Wheel</label><input type="range" class="bendWheel" min="-12" max="12" step="0.01" value="0">' +
+                    '<output>0.00 st</output>';
+    bendCluster.appendChild(box);
+    const w = box.querySelector('.bendWheel');
+    const o = box.querySelector('output');
+    let rest = 0;
+    const send = v => { bridge.setParam(38, v); lastParams[38] = v; o.textContent = (+v).toFixed(2) + ' st'; };
+    w.addEventListener('pointerdown', () => { rest = +(lastParams[38] ?? 0); bridge.gesture(38, true); });
+    w.addEventListener('input', () => send(+w.value));
+    const release = () => { w.value = rest; send(rest); bridge.gesture(38, false); };
+    w.addEventListener('pointerup', release);
+    w.addEventListener('pointercancel', release);
+    // the poll keeps the strip honest while the engine (law, morph) moves 38
+    setInterval(() => {
+      if (document.activeElement === w) return;
+      const v = +(lastParams[38] ?? 0);
+      w.value = v; o.textContent = v.toFixed(2) + ' st';
+    }, 250);
+  }
 }
 /* ============ MORPH PAD + CORNERS (ADR-104) ============ */
 const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
