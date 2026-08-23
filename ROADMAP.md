@@ -2049,7 +2049,7 @@ Human direction, three parts, all recorded in **ADR-091**:
   the spec's own four cases: sustained note per vowel · vowel snap i→a at ζ 0.2 · octave drop A3→A1
   at lag 4 Hz · burst 4/4 at f0 55 Hz; plus its stability sweep (max morph rate × max lag × min ζ,
   blocks 32–1024). `formant_check` joins `./verify`.
-- **F2 · The lab: polyphonic choir + vowel coupling** — the human's stated first work: *"expanding it
+- **F2 · The lab: polyphonic choir + vowel coupling** — **BUILT 2026-08-23** (`docs/design/formant-lab.html`): per-voice f0/grain-train/register R, voice stealing by age, and `choir K` implementing the FORMANT-MASS option of the three this entry posed (a Kuramoto term pulling each voice's formant i toward the sounding-voice mean of formant i; the vowel-field-position and R options remain untried). Also carries the two things the human asked for on hearing it — formant detune width (copies/detune/stereo width/spread curve) and a grain de-click — plus seeded masking (F0's content, in the lab) and a poly trim, because the reference's mono drive stage pins the tanh on a six-note chord (measured 1 voice peak 0.84 / 6 voices 1.00). Remaining for the FOLD: which coupling reads as a choir rather than N soloists is still an ear question for the human. Original brief: *"expanding it
   to give it the quality of a proper polyphonic choir synth with a coupling logic for the vowel
   sounds."* Spec §7 already says the plugin is polyphonic with per-voice masses and a global vowel
   field; the lab's question is what couples ACROSS voices — a Kuramoto term on the vowel-field

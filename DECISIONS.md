@@ -2562,3 +2562,51 @@ reason — L0024's shape again). The blob-text assertion ("0.777" present)
 pins the middle so a symmetric writer/parser no-op cannot pass. Plant
 (remove the save line — the shipped bug) → RED on 4 assertions; reverse-
 replaced, verify full EXIT=0.
+
+
+### ADR-091 A1 — the formant click, diagnosed; and F2 built as a lab (2026-08-23)
+
+Human, playing the formant prototype: "There is occasionally a little clicking
+at the lower frequencies. Could we add a polyphonic mode? I also want to hear
+controls that add detune width to the formants."
+
+**The click is grain truncation, and it is register-dependent by construction.**
+A FOF grain's envelope is `exp(-pi*bw*t)`; the reference ends it at
+`dur = min(0.06, tex + ln(1000)/(pi*bw))` — the -60 dB point, OR a 60 ms cap,
+whichever comes first. The register state narrows bandwidth as pitch falls
+(`bwk = 2^-1.6R`), which LENGTHENS the decay, so low notes hit the cap and the
+grain vanishes at a finite amplitude — a step. Every formant spawns on the same
+period boundary, so all five steps align and sum into one click per period.
+Computed, then confirmed live in the lab's own readout:
+
+| f0 | R | F1 bw | decay needs | grain ends at |
+|---|---|---|---|---|
+| 220 Hz | 0.00 | 59.2 Hz | 39 ms | -62.4 dB (finishes; no click) |
+| 55 Hz | 0.67 | 28.3 Hz | 79 ms | -46.3 dB (truncated) |
+| 27.5 Hz | 1.00 | 19.5 Hz | 114 ms | **-32.0 dB (clicks)** |
+
+With `bw scale` down the same mechanism reaches -13 dB. Fix: ramp the envelope
+to zero over the last ~2 ms so truncation cannot step, whatever ended the grain.
+`grain fade = 0` reproduces the reference exactly, so bug and fix are one A/B and
+the readout names which regime you are in.
+
+**Why a new file.** `horde_formant_pulsar_fof.html` is the ingested reference and
+a protected path — it IS the spec, and polyphony is an architectural claim about
+what the engine is, exactly the decision that belongs in a lab that can be A/B'd
+and ratified rather than slipped into the reference. Same shape as glitch-lab vs
+horde_decoherence_lab. This lands ROADMAP **F2**, which already asked for the
+polyphonic-choir lab and posed three candidate coupling sites; `choir K`
+implements the formant-mass one.
+
+**Measured while building, not assumed:** two voices at 55 Hz and 440 Hz report
+R 0.667 and R 0.000 — per-voice register confirmed. Stereo width verified by
+L/R correlation with its own control: copies 1 → 1.000 (inert at the reference
+setting), 4 copies with width 0 → 1.000 (so the decorrelation is the width
+control, not merely having copies), width 1.0 → 0.9755. A poly trim was added
+because the reference's mono drive stage pins the tanh on a chord (1 voice peak
+0.84, 6 voices 1.00); it divides by sqrt(voice LIMIT), never the live count,
+since scaling by the live count would duck held notes as new ones arrive.
+
+**The lab-load gate earned its keep**: it caught a bare `devicePixelRatio`
+(window-only; a ReferenceError in the headless check) that no amount of
+in-browser testing would have surfaced.
