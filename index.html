@@ -1,0 +1,114 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>horde — HYPERSAW</title>
+<!-- Served at the dev server's root (`.claude/launch.json` → python http.server
+     over the repo). Without it the root request fell through to the directory
+     listing — "the address just delivers the file tree" (human, 2026-08-23).
+
+     WHAT THIS PAGE DOES NOT DO: list the design labs. There are 20+ of them and
+     they arrive continuously, so a hand-kept copy here would be a second index
+     drifting out of step with the generated one — the same two-copies rot the
+     state twins and the corner map each cost us. The labs' index is generated;
+     this page links to it and lists only what nothing else indexes: the two
+     GUIs and the root-level reference prototypes (a protected, slow-changing
+     set — an edit there IS a spec change, per CLAUDE.md §Domain). -->
+<style>
+  :root { --bg:#0b0e13; --panel:#11151f; --line:#2a3040; --dim:#7f8899;
+          --text:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); padding:22px 26px 60px;
+         font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
+  h1 { font-size:15px; letter-spacing:2px; color:var(--pull); margin-bottom:4px; }
+  .sub { color:var(--dim); margin-bottom:26px; max-width:74ch; }
+  h2 { font-size:11px; letter-spacing:2px; color:var(--dim); margin:26px 0 10px;
+       border-bottom:1px solid var(--line); padding-bottom:5px; }
+  .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  a.card { display:block; background:var(--panel); border:1px solid var(--line);
+           border-radius:5px; padding:11px 13px; text-decoration:none; color:inherit; }
+  a.card:hover { border-color:var(--pull); }
+  a.card h3 { font-size:12px; color:var(--pull); letter-spacing:1px; }
+  a.card .file { color:var(--dim); font-size:10px; margin:2px 0 6px; }
+  a.card p { font-size:11px; opacity:.85; }
+  .tag { display:inline-block; font-size:9px; letter-spacing:1px; padding:1px 5px;
+         border-radius:3px; border:1px solid var(--amber); color:var(--amber);
+         margin-left:6px; vertical-align:1px; }
+  .foot { color:var(--dim); font-size:11px; margin-top:30px; border-top:1px solid var(--line);
+          padding-top:10px; max-width:74ch; }
+</style></head><body>
+
+<h1>horde — HYPERSAW</h1>
+<div class="sub">Dev server root. The synthesizer's shells, the reference
+prototypes that <em>are</em> the spec, and the design labs.</div>
+
+<h2>THE INSTRUMENT</h2>
+<div class="grid">
+  <a class="card" href="src/gui/gui2.html"><h3>gui2</h3>
+    <div class="file">src/gui/gui2.html</div>
+    <p>The current shell — paged, generated from the presentation table. What the
+       plugin actually shows.</p></a>
+  <a class="card" href="src/gui/gui.html"><h3>gui (dev)</h3>
+    <div class="file">src/gui/gui.html</div>
+    <p>The original single-page shell. Kept for the dev affordances gui2 has not
+       absorbed.</p></a>
+</div>
+
+<h2>DESIGN LABS</h2>
+<div class="grid">
+  <a class="card" href="docs/design/index.html"><h3>all design labs &rarr;</h3>
+    <div class="file">docs/design/index.html</div>
+    <p>Generated index of every lab — bend, detune, filter, routing, modulator,
+       glitch, reverb, shape, width, and the rest. Generated on purpose, so it
+       cannot go stale against the directory the way a hand-kept list would.</p></a>
+</div>
+
+<h2>REFERENCE PROTOTYPES <span style="color:var(--dim);letter-spacing:0">— protected; these ARE the spec (spec-in-code, ADR-003)</span></h2>
+<div class="grid">
+  <a class="card" href="swarmsaw.html"><h3>swarmsaw</h3>
+    <div class="file">swarmsaw.html · SwarmSynth</div>
+    <p>The founding engine: a Kuramoto swarm over a kernel — the supersaw taken
+       seriously as physics. v2 lineage (ADR-011/012).</p></a>
+  <a class="card" href="swarmspectra.html"><h3>swarmspectra</h3>
+    <div class="file">swarmspectra.html · SpectraSynth</div>
+    <p>The per-partial sibling: coupling applied to the spectrum rather than to a
+       bank of saws.</p></a>
+  <a class="card" href="swarmdynamics.html"><h3>swarmdynamics</h3>
+    <div class="file">swarmdynamics.html · DynSynth</div>
+    <p>The dynamics lab — drift, gravity, and the forces the shared force system
+       was ported from.</p></a>
+  <a class="card" href="swarmfilter.html"><h3>swarmfilter</h3>
+    <div class="file">swarmfilter.html · FilterLab</div>
+    <p>Track E: swarm-steered filters. Ported to filter_core.h.</p></a>
+  <a class="card" href="swarmphaser.html"><h3>swarmphaser</h3>
+    <div class="file">swarmphaser.html · PhaserLab</div>
+    <p>Track E: notches as swarm members. Ported to notch_core.h.</p></a>
+  <a class="card" href="swarmtime.html"><h3>swarmtime</h3>
+    <div class="file">swarmtime.html · TimeLab</div>
+    <p>Track E: Kuramoto-modulated delays and reverb.</p></a>
+  <a class="card" href="swarmalator.html"><h3>swarmalator</h3>
+    <div class="file">swarmalator.html · Swarmalator</div>
+    <p>Experimental: phase and position coupled to each other (ADR-048).</p></a>
+  <a class="card" href="kuramoto-views.html"><h3>kuramoto views</h3>
+    <div class="file">kuramoto-views.html</div>
+    <p>Eight ways of seeing K — the visualization study behind the instrument's
+       swarm displays.</p></a>
+  <a class="card" href="horde_formant_pulsar_fof.html"><h3>CANTO<span class="tag">CANDIDATE</span></h3>
+    <div class="file">horde_formant_pulsar_fof.html · FormantCore</div>
+    <p>The formant engine — FOF/pulsar grains, formants as masses on springs
+       (ADR-091). A candidate until its masking RNG is seeded.</p></a>
+  <a class="card" href="horde_distortion_engine.html"><h3>WARP<span class="tag">CANDIDATE</span></h3>
+    <div class="file">horde_distortion_engine.html</div>
+    <p>Not a fourth engine — the prototype for FX-C, the morphing waveshaper with
+       hysteresis every source hands off to (ADR-092). Same unseeded-RNG blocker.</p></a>
+  <a class="card" href="horde_decoherence_lab.html"><h3>decoherence<span class="tag">UNSEEDED</span></h3>
+    <div class="file">horde_decoherence_lab.html</div>
+    <p>The ingested glitch-module reference. Its RNG is unseeded, so the
+       deterministic reimplementation is <em>docs/design/glitch-lab.html</em>.</p></a>
+</div>
+
+<div class="foot">
+  Reference prototypes are a protected path: an edit there is a spec change, not
+  a tweak (CLAUDE.md §Domain). Serve this tree with the <strong>labs</strong>
+  configuration in <code>.claude/launch.json</code>.<br>
+  Last verified against the tree: <strong>2026-08-23</strong>.
+</div>
+
+</body></html>
