@@ -124,8 +124,10 @@ table.meas td:last-child{text-align:right;color:var(--cyan)}
       <div class="row"><label>voices</label><input id="poly" type="range" min="1" max="8" step="1" value="6"><output>6</output></div>
       <div class="row"><label>choir K</label><input id="choir" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output></div>
       <div class="row"><label>poly trim</label><input id="ptrim" type="range" min="0" max="1" step="0.01" value="1"><output>1.00</output></div>
+      <div class="row"><label>grain budget</label><input id="budget" type="range" min="200" max="4000" step="50" value="1100"><output>1100</output></div>
       <div class="vstrip" id="vstrip"></div>
       <p class="hint">Each voice is an independent singer — own fundamental, own grain train, own register state R (the bar height in each cell). <b>choir K</b> couples the voices' formants toward the ensemble mean: at 0 they are separate singers, turned up they agree on a vowel the way the swarm agrees on a phase. Voice stealing takes the oldest.</p>
+      <p class="hint"><b>grain budget</b> is the total live grains allowed across all voices, split evenly by the voice limit. Each grain costs a handful of multiplies per sample, so this IS the CPU control: a voice that runs out stops emitting and its train thins — it never cuts a sounding grain, because cutting one mid-flight is the same discontinuity the de-click exists to prevent. The readout above the waveform says <b>audio OK</b> until the worklet stops keeping up; push the budget up and watch it fall.</p>
       <p class="hint"><b>poly trim</b> divides by &radic;(voice limit) before the drive stage — the reference is mono, so its drive was tuned for one voice and a six-note chord otherwise pins the tanh (measured: 1 voice peaks 0.84, 6 peak 1.00). Trim follows the LIMIT, not the live count, so notes never duck each other. Set it to 0 to hear the reference's summing.</p>
     </div>
 
@@ -252,7 +254,7 @@ class PolyFormantCore {
     this.sr=sr; this.post=post;
     this.p={mode:'fof',tex:1.5,bws:1,cyc:3,shift:0,rate:6,zeta:0.9,K:0,mask:0,bon:8,boff:0,
             glide:12,drive:1.4,rel:220,regMan:0,regFollow:1,regLag:4,
-            poly:6,choir:0,ptrim:1,fv:1,fdet:14,fwidth:0.7,fcurve:1,fade:2,cap:60,seed:1234};
+            poly:6,choir:0,ptrim:1,budget:1100,fv:1,fdet:14,fwidth:0.7,fcurve:1,fade:2,cap:60,seed:1234};
     this.vowel={f:[600,1040,2250,2450,2750],bw:[60,70,110,120,130],db:[0,-7,-9,-9,-20]};
     this.N=5;
     this.voices=[]; for(let i=0;i<8;i++) this.voices.push(new Voice(sr,this.vowel,i));
@@ -286,8 +288,37 @@ class PolyFormantCore {
     // equal-power pan, computed once at spawn (pan does not move mid-grain)
     const a=(Math.max(-1,Math.min(1,pan))+1)*Math.PI/4;
     g.gl=Math.cos(a); g.gr=Math.sin(a);
+    /* RECURSIVE GRAIN (ADR-091 A3). The straight reading of the maths —
+       sin(2*pi*fc*t) and exp(-pi*bw*t) evaluated per sample — costs TWO
+       transcendentals per grain per sample, which is what actually killed
+       polyphony: at ~870 grains that is ~77M transcendental calls a second.
+       Every one of those closed forms is the solution to a recursion, so the
+       recursion is what we run:
+         carrier  -> rotate a unit vector by w each sample; its y IS sin(w*n)
+         decay    -> multiply by exp(-pi*bw/sr) each sample
+         attack   -> rotate at pi/tex; its x IS cos(pi*t/tex)
+       Same values, ~12 multiply-adds instead of two library calls. The state is
+       seeded at t=0 exactly (sin 0 = 0, cos 0 = 1, exp 0 = 1), so the first
+       sample is bit-identical to the closed form and later samples drift only
+       by float64 rounding (~1e-13 over the longest grain). */
+    const sr=this.sr;
+    const w=2*Math.PI*fc/sr;
+    g.cw=Math.cos(w); g.sw=Math.sin(w); g.zr=1; g.zi=0;          // sin(0)=0
+    if(mode==='fof'){
+      g.dec=Math.exp(-Math.PI*bw/sr); g.damp=1;                   // exp(0)=1
+      const aw=Math.PI/Math.max(1e-9,tex*sr);
+      g.acw=Math.cos(aw); g.asw=Math.sin(aw);
+    }else{
+      g.dec=1; g.damp=1;
+      const pw=2*Math.PI/Math.max(1e-9,g.dur*sr);
+      g.acw=Math.cos(pw); g.asw=Math.sin(pw);
+    }
+    g.ar=1; g.ai=0;                                               // cos(0)=1
     vo.grains.push(g);
-    this.events.push([i,amp,g.dur,vo.idx]);
+    // The train is a PICTURE, not a log. Unbounded, it floods postMessage at
+    // 24.6k events/s under 8 voices x 5 copies (measured) and the main thread
+    // dies dressing the canvas. A bounded sample per post looks the same.
+    if(this.events.length<96) this.events.push([i,amp,g.dur,vo.idx]);
   }
   // The detune ladder for one formant: symmetric offsets in -1..1, curve-shaped.
   offsetOf(d,n,curve){
@@ -295,13 +326,19 @@ class PolyFormantCore {
     const u=(d/(n-1))*2-1;                       // -1 .. +1
     return Math.sign(u)*Math.pow(Math.abs(u),curve);
   }
+  /* NO CPU METER IN HERE. The obvious version — time render() against the
+     block's wall-clock budget — cannot work: "performance" is UNDEFINED in
+     AudioWorkletGlobalScope (probed in this browser; typeof === "undefined"),
+     so it silently reported 0% forever, which is worse than no meter. The
+     starvation check lives on the main thread instead, where it compares the
+     AUDIO clock against the wall clock — see "pollStarve()". */
   render(outL,outR){
     const sr=this.sr, p=this.p, dt=1/sr, n=outL.length;
     const relCoef=Math.exp(-1/(p.rel*0.001*sr));
     const wr=2*Math.PI*p.regLag, z=p.zeta, w=2*Math.PI*p.rate, wg=2*Math.PI*p.glide;
     const shManual=p.shift/12*Math.LN2;
     const lim=Math.max(1,Math.min(8,p.poly|0));
-    const fadeS=p.fade*0.001, capS=p.cap*0.001;
+    const fadeS=p.fade*0.001, capS=p.cap*0.001, invFade=fadeS>0?1/fadeS:0;
     const nCopies=Math.max(1,Math.min(5,p.fv|0)), ampComp=1/Math.sqrt(nCopies);
     /* POLY TRIM. The reference is monophonic, so its drive stage was tuned for
        ONE voice; summing N before the tanh turns a chord into a fuzz box
@@ -310,6 +347,17 @@ class PolyFormantCore {
        count would duck every held note each time a new one arrives, which is
        an audible pump nobody asked for. ptrim 0 restores the reference. */
     const polyTrim=Math.pow(lim,-0.5*Math.max(0,Math.min(1,p.ptrim)));
+    /* GRAIN BUDGET — the crash the human hit. Each grain costs a sin() per
+       SAMPLE, so cost is (total grains x sample rate) and the old per-voice cap
+       of 500 multiplied by voice count: measured 125 grains at 1 voice, 1249 at
+       6, 3221 at 8x5 copies = 142M sin/s, and the worklet fell to 30% of real
+       time (its message rate dropped 187/s -> 52/s).
+       The budget is GLOBAL and spent at SPAWN: a voice that is out of budget
+       stops emitting new grains and its train thins. It never kills a sounding
+       grain — that is precisely the mid-flight truncation the de-click exists to
+       prevent, so enforcing the cap by splicing would have re-introduced the
+       click as a crash fix. */
+    const perVoice=Math.max(48,Math.floor(Math.max(200,p.budget)/lim));
     const chunk=128, hdt=chunk/sr, hs=chunk/sr;
     for(let n0=0;n0<n;n0+=chunk){
       const end=Math.min(n,n0+chunk);
@@ -363,6 +411,7 @@ class PolyFormantCore {
                 const amp=Math.pow(10,db/20)*vo.env*ampComp;
                 const bw=this.vowel.bw[i]*p.bws*reg.bwk;
                 for(let d=0;d<nCopies;d++){
+                  if(vo.grains.length>=perVoice) break;   // out of budget: thin, never cull
                   const off=this.offsetOf(d,nCopies,p.fcurve);
                   const fcd=fc*Math.pow(2,(off*p.fdet)/1200);
                   this.spawn(vo,i,fcd,amp,p.tex*0.001*reg.tex,bw,p.cyc,p.mode,capS,off*p.fwidth);
@@ -371,23 +420,37 @@ class PolyFormantCore {
               // The sub is the voice's own fundamental — ONE, never detuned:
               // spreading it would beat against the pitch, which is the one
               // place this instrument must stay solid.
-              if(reg.sub>0.005) this.spawn(vo,5,vo.f0,reg.sub*vo.env,0.002,5,1,'fof',Math.max(capS,0.6),0);
+              if(reg.sub>0.005 && vo.grains.length<perVoice) this.spawn(vo,5,vo.f0,reg.sub*vo.env,0.002,5,1,'fof',Math.max(capS,0.6),0);
             }
-            if(vo.grains.length>500) vo.grains.splice(0,vo.grains.length-500);
+            // (no cull here: the spawn budget above bounds the list by construction)
           }
           for(let k=vo.grains.length-1;k>=0;k--){
             const g=vo.grains[k]; let e;
-            if(g.mode==='fof'){ e = g.t<g.tex ? 0.5*(1-Math.cos(Math.PI*g.t/g.tex)) : 1;
-                                e *= Math.exp(-Math.PI*g.bw*g.t); }
-            else { e = 0.5*(1-Math.cos(2*Math.PI*g.t/g.dur)); }
+            if(g.mode==='fof'){
+              if(g.t<g.tex){ e=0.5*(1-g.ar);                       // raised-cosine attack
+                             const nr=g.ar*g.acw-g.ai*g.asw; g.ai=g.ar*g.asw+g.ai*g.acw; g.ar=nr; }
+              else e=1;
+              e*=g.damp; g.damp*=g.dec;                            // exp(-pi*bw*t)
+            } else {
+              e=0.5*(1-g.ar);                                      // pulsar window
+              const nr=g.ar*g.acw-g.ai*g.asw; g.ai=g.ar*g.asw+g.ai*g.acw; g.ar=nr;
+            }
             // DE-CLICK: force the envelope to zero AT dur. Without this a grain
             // truncated by the cap vanishes at a finite value — a step, and
             // every formant steps on the same period boundary, so they sum.
-            if(fadeS>0){ const left=g.dur-g.t; if(left<fadeS) e*= left>0? left/fadeS : 0; }
-            const y=g.amp*e*Math.sin(2*Math.PI*g.fc*g.t);
+            if(fadeS>0){ const left=g.dur-g.t; if(left<fadeS) e*= left>0? left*invFade : 0; }
+            const y=g.amp*e*g.zi;                                  // zi == sin(2*pi*fc*t)
+            const nzr=g.zr*g.cw-g.zi*g.sw; g.zi=g.zr*g.sw+g.zi*g.cw; g.zr=nzr;
             sumL+=y*g.gl; sumR+=y*g.gr;
             g.t+=dt;
-            if(g.t>=g.dur){ vo.grains.splice(k,1); vo.pool.push(g); }
+            if(g.t>=g.dur){
+              // Swap-with-last + pop: O(1) where splice was O(n), and the sum
+              // does not care about order. The loop runs BACKWARD, so the
+              // element swapped in from the end was already summed this sample.
+              const last=vo.grains.length-1;
+              if(k!==last) vo.grains[k]=vo.grains[last];
+              vo.grains.pop(); vo.pool.push(g);
+            }
           }
         }
         outL[s0]=Math.tanh(sumL*polyTrim*p.drive*0.9);
@@ -429,6 +492,24 @@ const state={octave:2,vowel:'a',mode:'fof',keys:{}};
 let formantNow=[600,1040,2250,2450,2750,110];
 let voiceState=[];
 let lowF0=0, lowR=0, lowBwk=1;
+/* STARVATION DETECTOR. When the worklet cannot finish a block in time the
+   AUDIO clock advances slower than the wall clock — that ratio is the honest
+   "is it killing audio" signal, and it is measurable only from here. 1.00 =
+   keeping up. Raise `grain budget` past what the machine can carry and this
+   drops; that is the control proving the detector fires. */
+let audioKeep=1, _lastAT=0, _lastWT=0;
+function pollStarve(){
+  if(!ctx || ctx.state!=='running'){ _lastWT=0; return; }
+  const at=ctx.currentTime, wt=performance.now()/1000;
+  if(_lastWT){
+    const dw=wt-_lastWT;
+    if(dw>0.05){ const ratio=(at-_lastAT)/dw;
+      audioKeep = audioKeep*0.7 + Math.max(0,Math.min(1.2,ratio))*0.3; }
+    else return;
+  }
+  _lastAT=at; _lastWT=wt;
+}
+setInterval(pollStarve,250);
 const trainEvents=[];
 
 async function start(){
@@ -441,7 +522,9 @@ async function start(){
     if(d.x){ formantNow=d.x; lowF0=d.f0; lowR=d.R; lowBwk=d.bwk; }
     if(d.voices) voiceState=d.voices;
     if(d.ev) for(const ev of d.ev) trainEvents.push({i:ev[0],amp:ev[1],dur:ev[2],v:ev[3],t:performance.now()});
-    while(trainEvents.length>4000) trainEvents.shift();
+    // ONE splice, not N shifts: shift() is O(n), so trimming a 4000-long array
+    // 24.6k times a second moved ~98M elements/s on the UI thread — the freeze.
+    if(trainEvents.length>1500) trainEvents.splice(0,trainEvents.length-1500);
   };
   analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0.6;
   waveBuf=new Float32Array(analyser.fftSize); specBuf=new Uint8Array(analyser.frequencyBinCount);
@@ -464,7 +547,7 @@ const CTL=[
   ['boff',v=>String(v)],['glide',v=>v+' Hz'],['drive',v=>v.toFixed(2)],
   ['rel',v=>v+' ms'],['regFollow',v=>v.toFixed(2)],['regMan',v=>v.toFixed(2)],
   ['regLag',v=>v+' Hz'],
-  ['poly',v=>String(v)],['choir',v=>v.toFixed(2)],['ptrim',v=>v.toFixed(2)],
+  ['poly',v=>String(v)],['choir',v=>v.toFixed(2)],['ptrim',v=>v.toFixed(2)],['budget',v=>String(v)],
   ['fv',v=>String(v)],['fdet',v=>v.toFixed(1)+' ¢'],['fwidth',v=>v.toFixed(2)],
   ['fcurve',v=>v.toFixed(2)],['fade',v=>v.toFixed(1)+' ms'],['cap',v=>v+' ms'],
   ['seed',v=>String(v)],
@@ -630,7 +713,12 @@ function draw(){
       cell.querySelector('i').style.background=VHUE[i%VHUE.length];
       cell.querySelector('b').textContent= on? Math.round(st[1]) : '·';
     }
-    $('#polylbl').textContent = voiceState.filter(v=>v&&v[0]).length+' sounding';
+    const g=voiceState.reduce((a,v)=>a+((v&&v[0])?v[3]:0),0);
+    const keep=Math.round(audioKeep*100);
+    const lab=$('#polylbl');
+    lab.textContent = voiceState.filter(v=>v&&v[0]).length+' sounding · '+g+' grains · audio '
+                    + (keep>=97 ? 'OK' : keep+'% (dropping)');
+    lab.style.color = keep>=97 ? 'var(--dim)' : (keep>=85 ? 'var(--amber)' : 'var(--pink)');
   }
   if(!analyser) return;
   // ---- waveform ----

@@ -2610,3 +2610,84 @@ since scaling by the live count would duck held notes as new ones arrive.
 **The lab-load gate earned its keep**: it caught a bare `devicePixelRatio`
 (window-only; a ReferenceError in the headless check) that no amount of
 in-browser testing would have surfaced.
+
+
+### ADR-091 A2 — the polyphony crash was a grain budget, on two threads (2026-08-23)
+
+Human: "Something keeps crashing when I try polyphony." Reproduced and measured
+before touching anything; it was two compounding failures, one per thread.
+
+**Audio thread — unbounded grain count.** Every grain costs a `sin()` per
+SAMPLE, so cost is (total grains x sample rate). The cap was per-voice (500), so
+the total scaled with voice count and with formant-detune copies:
+
+| setting | live grains | events/s | biggest message |
+|---|---|---|---|
+| 1 voice, 1 copy | 125 | 1,313 | 12 |
+| 6 voices, 1 copy | 1,249 | 10,403 | 84 |
+| 8 voices, 5 copies | **3,221** | **24,600** | **572** |
+
+3,221 grains x 44.1 kHz = 142M sin/s. The tell was the worklet's own message
+rate falling from 187/s to 52/s — it was rendering at ~30% of real time.
+
+**Main thread — an O(n) trim in a hot loop.** `while(len>4000) shift()` at
+24.6k events/s moved ~98M array elements per second. That is the freeze the
+human saw as a crash.
+
+**Fixes.** A GLOBAL grain budget (900, divided by the voice limit) spent at
+SPAWN: a voice out of budget stops emitting and its train thins. It never culls
+a sounding grain — culling mid-flight is exactly the truncation discontinuity
+the de-click (A1) exists to prevent, so enforcing the cap by splicing would have
+shipped the click back as a crash fix. Events are bounded at the source (96 per
+post: the train is a picture, not a log), and the UI trim is one `splice`
+instead of N `shift`s.
+
+**Verified end to end, with the page's own handler intact** (the first
+measurement bypassed it, which would have measured the wrong thread): grains
+874 at the worst setting, worklet at full real-time (181-188 msg/s) at every
+configuration, main thread 60 fps with an 18 ms worst frame. Stress: 240
+note-ons through 8 slots (232 steals) peaked at 866 grains and drained to
+exactly 0 after all-off — no leak.
+
+
+### ADR-091 A3 — the polyphony crash, properly: grains were transcendental (2026-08-23)
+
+A2 bounded the grain COUNT and I reported it fixed. The human came back: "I'm
+still seeing it; once polyphony tries to exceed 6, it kills audio." A2 was a
+real fix to a real bug and it was not enough — it moved the wall instead of
+removing it, because it never addressed what a grain COSTS.
+
+**Each grain evaluated two transcendentals per sample** — `sin(2*pi*fc*t)` for
+the carrier and `exp(-pi*bw*t)` for the decay. At A2's ~870-grain ceiling that
+is ~77M library calls a second, so a machine also running a DAW still starved
+and the audio died. Every one of those closed forms is the solution to a
+recursion, so the recursion is what we run now: rotate a unit vector by w per
+sample (its y IS sin(w*n)), multiply by exp(-pi*bw/sr) per sample, rotate at
+pi/tex for the raised-cosine attack. **Verified equal to the closed form to
+1e-14** over a full grain life at F1, F5, sub and pulsar — float64 rounding,
+not an approximation.
+
+Also fixed: `grains.splice(k,1)` ran INSIDE the per-sample loop, O(n) per
+ending grain. Swap-with-last + pop is O(1), and the backward loop means the
+element swapped in was already summed this sample.
+
+**The meter that could not fire.** I first put a CPU meter in the worklet timing
+render() against the block budget. It read 0% forever: `performance` is
+UNDEFINED in AudioWorkletGlobalScope (probed: `typeof performance ===
+"undefined"`). A meter that always reads zero is worse than none. The honest
+signal lives on the main thread — when the worklet cannot keep up, the AUDIO
+clock advances slower than the wall clock, and that ratio is exactly "is it
+killing audio". The lab now prints it.
+
+**With a must-fire control, because an "OK" that cannot say otherwise is
+worthless.** Raising grain budget alone did NOT overload it (density is capped
+by spawn rate and lifetime, not by the budget), so the control raises the grain
+CAP too: budget 4000 + cap 300 ms + 5 copies at a high octave reached 3909
+grains and the detector read **43%** — brackets the original crash at 3221
+grains, and matches the human's report exactly. At defaults, poly 6/7/8 each
+with three extra steals: 100%, ~1000 grains, drains to 0 on release.
+
+**The lab-load gate caught what testing could not**: six stray backticks in
+comments I added INSIDE the worklet's template literal, which terminated the
+string. Then my own repair swept too broadly and replaced the template's own
+delimiters — caught again, same gate, same run.
