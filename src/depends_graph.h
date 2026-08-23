@@ -24,7 +24,7 @@ static const DepCond kDep109[] = {{106, 3}};
 static const DepCond kDep107[] = {{106, 1}};
 static const DepCond kDep33[] = {{137, 0}, {138, 3}};
 static const DepCond kDep155[] = {{151, 1}};
-static const DepCond kDep158[] = {{151, 1}, {157, 0}};
+static const DepCond kDep158[] = {{151, 1}};
 static const DepCond kDep157[] = {{151, 1}};
 static const DepCond kDep156[] = {{151, 1}};
 static const DepCond kDep154[] = {{151, 1}};
@@ -79,7 +79,7 @@ static const DepRule kDepRules[] = {
   {107, kDep107, 1},
   {33, kDep33, 2},
   {155, kDep155, 1},
-  {158, kDep158, 2},
+  {158, kDep158, 1},
   {157, kDep157, 1},
   {156, kDep156, 1},
   {154, kDep154, 1},

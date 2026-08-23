@@ -437,7 +437,14 @@ static const ParamDef kParams[] = {
     {155, "morphCoup", "Coupling", 0, 1, 0.3, false, nullptr},
     {156, "morphSeed", "Morph Seed", 1, 9999, 1024, true, nullptr},
     {157, "morphMode", "Morph Mode", 0, 1, 0, true, kMorphModeLabels},
-    {158, "morphGlide", "Flip Glide (s)", 0, 0.5, 0.008, false, nullptr},
+    /* ADR-112 A2: this is THE morph rate, not a flip de-clicker. morphStep
+       runs every target through its coefficient in BOTH modes; the old label
+       and the flip-only GUI gate hid a control that was always in the path —
+       "there isn't a morph rate slider" (human, 2026-08-22): there was, it
+       was just lying about its job. Max widened 0.5 -> 5 s: a performance
+       morph time, not a smoothing constant. Stored patches (<= 0.5) keep
+       their value; CLAP params carry plain values, so no renormalisation. */
+    {158, "morphGlide", "Morph Glide (s)", 0, 5, 0.008, false, nullptr},
     /* CORNER EDITING (ADR-109, the human's 2026-08-19 model). `morphArm` is the
        four colour boxes: 0 = none armed, 1..4 = corner A..D. Global, and
        deliberately NOT morphable — an edit-routing mode that morphed would
