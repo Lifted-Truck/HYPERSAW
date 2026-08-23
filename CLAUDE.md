@@ -80,8 +80,9 @@ as masses on springs, a register state R; `SPEC-FORMANT.md`, prototype
 fourth engine but the prototype for **FX-C**, the morphing waveshaper with
 hysteresis; it is a shared post-stage every source hands off to (ADR-092), and
 carries the same unseeded-RNG blocker CANTO does. CLAP-native instrument
-plugin, VST3 via clap-wrapper (ADR-002). Working product title horde; naming
-open until Phase 5. Design docs: SPEC.md (the instrument), ACCEPTANCE.md (the
+plugin, VST3 via clap-wrapper (ADR-002). The DEVICE is **horde** (ADR-114,
+settled 2026-08-23); HYPERSAW is the founding ENGINE, the repo name, and the
+frozen plugin id. Design docs: SPEC.md (the instrument), ACCEPTANCE.md (the
 oracle contract), PRIOR-ART.md, PARKED.md.
 
 **Stack & entrypoints.** C++20 CLAP-first plugin: impl in `src/hypersaw_clap.cpp`

@@ -41,16 +41,24 @@ namespace
 static const char *s_features[] = {CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_SYNTHESIZER,
                                    CLAP_PLUGIN_FEATURE_STEREO, nullptr};
 
+/* ADR-114: the DEVICE is "horde"; HYPERSAW is the founding ENGINE inside it
+   (the name the engine selector shows) and the repo's own name. The display
+   string below is what a host puts in its browser, so it follows the device.
+   THE ID DOES NOT AND MUST NOT. `com.lifted-truck.hypersaw` is how every host
+   re-finds this plugin in an already-saved session; renaming it would orphan
+   every project that has ever loaded the device — a rename is a new plugin as
+   far as a DAW is concerned. The id is an identifier that happens to read like
+   a name, which is exactly why it is tempting to "fix". */
 static const clap_plugin_descriptor_t s_desc = {
     CLAP_VERSION_INIT,
-    "com.lifted-truck.hypersaw",
-    "HYPERSAW",
+    "com.lifted-truck.hypersaw",   // FROZEN — see above; not a display string
+    "horde",
     "Lifted Truck",
     "https://github.com/Lifted-Truck/HYPERSAW",
     "",
     "",
     "0.1.0",
-    "Coupled-oscillator swarm synthesizer (SAW core)",
+    "Coupled-oscillator swarm synthesizer",
     &s_features[0]};
 
 /* ---- parameter table (IDs frozen; append-only) ---- */
