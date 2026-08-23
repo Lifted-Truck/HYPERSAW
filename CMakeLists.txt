@@ -29,11 +29,15 @@ add_subdirectory(libs/clap-wrapper EXCLUDE_FROM_ALL)
 # find_package resolves the interpreter portably — bare `python3` is absent
 # from Windows CI runners' PATH (same trap family as L0003).
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
-# HYPERSAW_GUI2: embed the greenfield multi-oscillator interface
-# (src/gui/gui2.html) instead of the original single-column layout. OFF by
-# default — the new interface is built up cluster by cluster on its own branch
-# (human direction 2026-08-07) and swaps in only when it reaches parity.
-option(HYPERSAW_GUI2 "Embed the experimental gui2.html interface" OFF)
+# HYPERSAW_GUI2: which interface gets embedded. ON since 2026-08-23 — gui2 is
+# now the shipped interface and gui.html is the legacy one, on the human's call.
+# The 2026-08-07 condition for the swap was "when it reaches parity", and it
+# has: gui_reach measures gui2 at 142/159 declared params against gui.html's
+# 102/159, and gui2 is the only one carrying the morph engine, the second
+# oscillator, the mixer and the FX rack. Pass -DHYPERSAW_GUI2=OFF for the
+# legacy single-column interface, which is kept building precisely so that
+# escape hatch stays real rather than notional.
+option(HYPERSAW_GUI2 "Embed gui2.html (default); OFF embeds the legacy gui.html" ON)
 if(HYPERSAW_GUI2)
   set(GUI_HTML_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/gui2.html)
 else()

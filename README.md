@@ -6,8 +6,9 @@
 
 **Elevator version:** every existing supersaw picks a fixed detune recipe and hides it. horde makes the swarm itself the instrument: voices are Kuramoto-coupled oscillators you can herd into lock, dissolve into cloud, splay into harmonic multiplication, or erase by interference; the same coupling law operating between *notes* settles chords into just intonation; and every behavior is deterministic, seeded, and provenance-tracked.
 
-![horde GUI — phase circle, voice map, note monitor, full param surface](docs/img/gui-overview.png)
-*The instrument as of build `86bdedd` — phase circle with live R meters, voice map (pan × pitch, target vs actual), note monitor, log spectrum, and the full four-cluster parameter surface. (Screenshot refreshed with GUI-changing PRs; the build hash in its corner says exactly which code drew it.)*
+![horde GUI — the MAIN page of GUI2](docs/img/gui-overview.png)
+*GUI2's MAIN page. See `docs/img/README.md` for the capture list and conventions —
+the build hash in the corner of each shot says exactly which code drew it.*
 
 ## What this repo is
 
@@ -17,7 +18,7 @@ A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built fro
 
 | Path | Purpose |
 |---|---|
-| `SPEC.md` · `SPEC-EFFECTS.md` · `SPEC-SWARMALATOR.md` · `SPEC-FORMANT.md` | The instrument, the effects line, the swarmalator, and the formant engine (ADR-091) — one spec per engine family member |
+| `SPEC.md` · `SPEC-EFFECTS.md` · `SPEC-SWARMALATOR.md` · `SPEC-FORMANT.md` · `SPEC-DISTORTION.md` | The instrument, the effects line, the swarmalator, the formant engine (ADR-091) and the morphing waveshaper (ADR-092) — one spec per engine family member |
 | `ACCEPTANCE.md` | Layer-0 and Layer-E criteria with measured numbers (+ ratified protocol notes) |
 | `ROADMAP.md` | Phase-gated build plan, Phase 0 → 5 — **the single source of truth for status** |
 | `DECISIONS.md` | ADR log, append-only (ADR-001…) |
@@ -32,41 +33,40 @@ A working CLAP-native instrument plugin (VST3 + AUv2 via clap-wrapper) built fro
 
 ## Two interfaces, and which one you get
 
-The repo carries **two** GUIs, and they are a **succession, not a fork**: `gui.html` is the
-original single-oscillator interface, and `gui2.html` is the ground-up successor that will
-replace it. Worth knowing before you build:
+The repo carries **two** GUIs, and they are a **succession, not a fork**. As of
+**2026-08-23 the succession completed**: `gui2.html` is what a default build embeds, and
+`gui.html` is the legacy interface, kept building so the escape hatch stays real rather
+than notional.
 
 | | reaches | shape | build |
 |---|---|---|---|
-| **`src/gui/gui.html`** — "GUI1" | **102 / 105** params | one long, complete column | **what a default build embeds** |
-| `src/gui/gui2.html` — "GUI2" | **105 / 105** params | four pages: MAIN · MIX · OSC · FX | opt in with `-DHYPERSAW_GUI2=ON` |
-
-**If you are just curious about the instrument, build the default and look at GUI1.** It is the
-coherent one: every control the engine has, laid out as a single surface you can read top to bottom,
-and it is what the screenshot above shows. Nothing extra to pass, nothing to switch on.
+| **`src/gui/gui2.html`** — "GUI2" | **142 / 159** params | paged: MAIN · OSC · MIX · FX · MORPH (SPACE and MOD are stubs) | **what a default build embeds** |
+| `src/gui/gui.html` — "GUI1", legacy | 102 / 159 params | one long single-oscillator column | opt in with `-DHYPERSAW_GUI2=OFF` |
 
 ```bash
 cmake -S . -B build-release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release -j
 ```
 
-**GUI2 is where the instrument is going, and it is interesting for a different reason.** Its controls are no longer
-hand-placed — 144 of them are **generated** from `src/param_presentation.tsv`, an address-keyed table
-of label/page/group/widget, so adding a parameter means adding a row and a control can no longer be
-forgotten. That table is deliberately separate from the parameter's *structure* (ranges, ids), and it
-carries **no id column at all**, because a page name that doubles as a dispatch fact re-fuses the two
-things the split exists to separate. Its page assignment is a **proposal** rather than a decision —
-`docs/design/layout-lab.html` is where information architecture gets settled, and changing it means
-editing one column rather than moving markup.
+**Why the default moved.** The 2026-08-07 condition was "GUI2 swaps in when it reaches
+parity", and it has — by reach (142/159 against 102/159) and by scope: GUI1 predates the
+second oscillator, the mixer, the FX rack and the morph engine, and cannot show any of
+them. It is no longer a smaller view of the same instrument; it is a view of an older one.
+That is what makes it legacy rather than an alternative.
 
-Both are gated: `gui_reach` fails the build if any declared parameter is unreachable in *every* GUI,
-which is how 29 silently dead controls were found and killed.
+**What is interesting about GUI2**, beyond being newer: its controls are not hand-placed.
+119 of them are **generated** from `src/param_presentation.tsv`, an address-keyed table of
+label/page/group/widget, so adding a parameter means adding a row and a control can no
+longer be forgotten. That table is deliberately separate from the parameter's *structure*
+(ranges, ids) and carries **no id column at all**, because a page name that doubles as a
+dispatch fact re-fuses the two things the split exists to separate. A `depends` column
+generates the show/hide graph (ADR-108), so a control that only applies under some setting
+says so in one place instead of in scattered markup.
 
-**Why GUI1 is still the default if GUI2 is the successor.** GUI2 was deliberately held at a partial
-surface while the parameter plumbing was designed, rather than grown on top of the debt GUI1 carries
-— so for a long stretch "incomplete" was the *correct* state for it to be in, not a gap. Now that the
-declaration split exists, GUI2 is generated to the full surface and the default will move to it. If
-you want to see the instrument today, GUI1; if you want to see where it is going, GUI2.
+Both are gated: `gui_reach` fails the build if any declared parameter is unreachable in
+*every* GUI — which is how 29 silently dead controls were found and killed. Note the gate's
+exact shape: it is an **either-GUI** check, so it does not by itself force GUI2 to complete
+coverage. The 17-parameter gap is real and tracked, not hidden by a green gate.
 
 ## Reference implementations (the oracle)
 
@@ -90,45 +90,61 @@ ADR-048), ported to `swarmalator_core.h` and gated, but not yet in the shell.
 firing rate, formants are masses on springs in log-frequency with their own coupling K, and one
 hidden register state reshapes the whole engine as pitch descends. Spec: `SPEC-FORMANT.md`. Status:
 prototype validated by ear, **candidate oracle** — its masking RNG must be seeded before it can
-generate goldens. Not yet in the shell; the first lab will grow it into a polyphonic choir with
-coupling logic for the vowels.
+generate goldens. Not in the shell, and **its future is an open question rather than a plan**: the
+polyphonic-choir lab called for in ROADMAP F2 was built (`docs/design/formant-lab.html`) and its
+polyphony was then **reverted** on 2026-08-23 — the human heard the output cut out past six voices
+while every in-page instrument reported healthy, and their verdict on the sound settled it. The lab
+is monophonic, keeps the formant detune width and the grain de-click, and the standing question is
+whether this engine belongs in horde at all (ADR-091 A4).
 
 These are the reference implementation per ADR-003. The C++ port must match them (parity oracle), and their headless test harnesses are the templates for `./verify fast`.
 
 ## Repo status
 
-*Last verified current: **2026-08-15**.* (ROADMAP.md is the authoritative status trail; this is the
+*Last verified current: **2026-08-23**.* (ROADMAP.md is the authoritative status trail; this is the
 human-readable snapshot. A dated line that is honestly stale beats a confident one that is quietly
 wrong — if this date is old, trust ROADMAP.md.)
 
 - **Phases 0–4 CLOSED.** A shippable, playable instrument with two selectable engines (**HYPERSAW** /
-  **SPECTRA** — the first renamed from SAW 2026-08-17, ADR-091) and the dynamics layer live inside HYPERSAW. HYPERSAW carries the full surface — six detune
-  laws, seeded distributions, drift, ADSR, density comp, width + super-width, mono/glide/legato,
-  phase and pan scatter. SPECTRA is the per-partial swarm, ported bit-exact, with the strip
-  visualizer, up to 32 partials, and a per-voice sub-oscillator (ADR-042). Performance/IO: MPE
-  per-note pitch, the transposition suite, bass-mono output, COPY/PASTE STATE, session persistence.
-- **The oracle — `./verify fast|full`, 30 gates.** 25 compiled probes plus 5 script gates. L0-1
-  parity is **147/147 scenarios, worst 4.262e-09 RMS**, with goldens regenerated from the HTML
-  references every run. Alongside parity sit the invariant probes that parity structurally *cannot*
-  see: subdivision invariance, sample-rate independence, RT-safety (allocation-free audio thread),
-  note-lifecycle fuzz, steal priority, forensic capture, GUI reachability, and presentation-table
-  totality. CI mirrors it on every push.
+  **SPECTRA** — the first renamed from SAW 2026-08-17, ADR-091) and the dynamics layer live inside
+  HYPERSAW. HYPERSAW carries the full surface — six detune laws, seeded distributions, drift, ADSR,
+  density comp, width + super-width, mono/glide/legato, phase and pan scatter. SPECTRA is the
+  per-partial swarm, ported bit-exact, with the strip visualizer, up to 32 partials, and a per-voice
+  sub-oscillator (ADR-042). Performance/IO: MPE per-note pitch, the transposition suite, bass-mono
+  output, COPY/PASTE STATE, session persistence.
+- **Two oscillators** (ADR-082): `kNumOsc = 2`, the second silent and disabled by default. Measured
+  cost of enabling it is **2×** the voice loop; disabled it costs **0.03% of a core**, because the
+  skip path means a disabled oscillator does not run at all rather than running quietly
+  (`docs/research/2026-08-22-two-osc-cpu-measurement.md`).
+- **The morph engine** (ADR-104 → ADR-112): an XY field over four corner snapshots, with Gumbel-max
+  corner assignment, hysteresis, per-parameter exemption (right-click → *Exempt from morph*), an
+  armed-corner authoring view, corner-colour coding on every row, and the field riding both the
+  preset **and** the DAW session.
+- **The oracle — `./verify fast|full`, 31 gates.** L0-1 parity is **156/156 scenarios, worst
+  4.262e-09 RMS**, with goldens regenerated from the HTML references every run. Alongside parity sit
+  the invariant probes that parity structurally *cannot* see: subdivision invariance, sample-rate
+  independence, RT-safety (allocation-free audio thread), note-lifecycle fuzz, steal priority,
+  forensic capture, GUI reachability, presentation-table totality, and the dependency graph. CI
+  mirrors it on every push.
 - **Note-lifecycle conformance against FOUNDATIONS.** Their ruled note behaviours run as a suite
   against **our** bookkeeping (`tools/conformance_check.cpp`): **8 passed · 0 ruled failures · 3
   library-default divergences**, plus our own timing-independent END ledger — every identity issued
   comes back through an END exactly once. The three divergences are ruled **conforming** (their R8:
   the rule constrains the *path*, not the *moment*). The gate **pins** that set, so a new failure
   *and* an unexpected pass both go red — good news is still drift.
-- **A test table per page and feature.** `tests/feature_tests.tsv` — **42 tests, 35 agentic, 7 human,
-  4 openly awaiting an oracle.** Every row declares whether it pins a **RULING** (a decision) or an
-  **ENCODING** (how it happens to be done today) and names the owner, so a table survives a harness
-  change. Coverage is checked against the GUI: a feature cannot appear on screen with no test row.
-- **18 design labs** in `docs/design/` — benches where behaviour is auditioned before it becomes
-  code. Newest is `feedback-lab.html`, which runs its whole loop in one AudioWorklet (a node graph
-  cannot express a one-sample delay, which is the quantity under test) behind three independent
-  safety mechanisms: loop gain starting at zero, an always-on limiter, and an auto-kill on the
-  *pre*-limiter signal. Every lab is swept by a load gate, because a lab that throws at setup still
-  *looks* fine.
+- **A test table per page and feature.** `tests/feature_tests.tsv` — **124 tests, 68 agentic, 56
+  human, 5 openly awaiting an oracle.** Every row declares whether it pins a **RULING** (a decision)
+  or an **ENCODING** (how it happens to be done today) and names the owner, so a table survives a
+  harness change. Coverage is checked against the GUI: a feature cannot appear on screen with no
+  test row.
+- **22 design labs** in `docs/design/` — benches where behaviour is auditioned before it becomes
+  code. Recent arrivals: `modulator-lab.html` (shape as a routable axis rather than an enum; S&H as
+  a sampler whose two kinds differ in the *clock*), `glitch-lab.html` (three state-tier modules that
+  live *inside* the oscillator, seeded, with a self-test panel that ships one light deliberately
+  dark rather than a green one it cannot trust), and `formant-lab.html`. Every lab is swept by a
+  load gate, because a lab that throws at setup still *looks* fine — it has caught a window-only
+  global and a stray backtick inside a worklet string that no amount of in-browser clicking would
+  have explained.
 - **Track E (effects line)** on the shared **force core** (ADR-034): resonator bank, notch swarm,
   time engines (tap delay + FDN room), the SWARM-FX effect shell, and the internal FX rack — now
   with NOTCH selectable as slot type 6. An open design question is queued: the rack's slot contract,
@@ -149,9 +165,16 @@ wrong — if this date is old, trust ROADMAP.md.)
   PRs run the coverage this dev Mac *cannot* produce (Linux + Windows) while **`build-macos` runs on
   push to `main` as the post-merge net** — and macOS is precisely the platform `./verify full`
   already covers locally on every change. Verified: the last six pushes to `main` all succeeded.
-- Four test-table rows have **no oracle yet**: the bend-quantiser regression (behaviour fixed, gate
-  unwritten), `amount=0` passthrough across every FX slot type, the master level meter (not built),
-  and mute/solo + master octave.
+- **Five** test-table rows have **no oracle yet** — they are listed in `tests/feature_tests.tsv` and
+  counted by the gate rather than quietly carried.
+- **GUI2 reaches 142 of 159 declared parameters.** `gui_reach` is an either-GUI check, so it stays
+  green while that gap exists; the gap is tracked here instead of being inferred from a green gate.
+- **Two probes are built but not gated** — `mixer_check` and `corner_probe` run clean and are not
+  wired into `./verify`, which is a human call on gate scope, not an oversight.
+- **In-page WebAudio health readouts are not trustworthy** and the labs deliberately show none: an
+  AnalyserNode taps the graph rather than the device, and `ctx.currentTime` is the device clock,
+  which advances straight through an underrun. Both reported healthy audio through three rounds
+  while a human heard the output cutting out (ADR-091 A4).
 - Feedback routing in the **modulation** graph is now **ruled** (2026-08-17): cycles are legal,
   every feedback edge carries a **unit delay at block rate**. Still lab-only in practice, but for
   a narrower reason — the *stability* bound is a separate open question, so a legal cycle is not
