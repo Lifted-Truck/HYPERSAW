@@ -2610,3 +2610,41 @@ since scaling by the live count would duck held notes as new ones arrive.
 **The lab-load gate earned its keep**: it caught a bare `devicePixelRatio`
 (window-only; a ReferenceError in the headless check) that no amount of
 in-browser testing would have surfaced.
+
+
+### ADR-091 A2 — the polyphony crash was a grain budget, on two threads (2026-08-23)
+
+Human: "Something keeps crashing when I try polyphony." Reproduced and measured
+before touching anything; it was two compounding failures, one per thread.
+
+**Audio thread — unbounded grain count.** Every grain costs a `sin()` per
+SAMPLE, so cost is (total grains x sample rate). The cap was per-voice (500), so
+the total scaled with voice count and with formant-detune copies:
+
+| setting | live grains | events/s | biggest message |
+|---|---|---|---|
+| 1 voice, 1 copy | 125 | 1,313 | 12 |
+| 6 voices, 1 copy | 1,249 | 10,403 | 84 |
+| 8 voices, 5 copies | **3,221** | **24,600** | **572** |
+
+3,221 grains x 44.1 kHz = 142M sin/s. The tell was the worklet's own message
+rate falling from 187/s to 52/s — it was rendering at ~30% of real time.
+
+**Main thread — an O(n) trim in a hot loop.** `while(len>4000) shift()` at
+24.6k events/s moved ~98M array elements per second. That is the freeze the
+human saw as a crash.
+
+**Fixes.** A GLOBAL grain budget (900, divided by the voice limit) spent at
+SPAWN: a voice out of budget stops emitting and its train thins. It never culls
+a sounding grain — culling mid-flight is exactly the truncation discontinuity
+the de-click (A1) exists to prevent, so enforcing the cap by splicing would have
+shipped the click back as a crash fix. Events are bounded at the source (96 per
+post: the train is a picture, not a log), and the UI trim is one `splice`
+instead of N `shift`s.
+
+**Verified end to end, with the page's own handler intact** (the first
+measurement bypassed it, which would have measured the wrong thread): grains
+874 at the worst setting, worklet at full real-time (181-188 msg/s) at every
+configuration, main thread 60 fps with an 18 ms worst frame. Stress: 240
+note-ons through 8 slots (232 steals) peaked at 866 grains and drained to
+exactly 0 after all-off — no leak.

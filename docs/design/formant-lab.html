@@ -287,7 +287,10 @@ class PolyFormantCore {
     const a=(Math.max(-1,Math.min(1,pan))+1)*Math.PI/4;
     g.gl=Math.cos(a); g.gr=Math.sin(a);
     vo.grains.push(g);
-    this.events.push([i,amp,g.dur,vo.idx]);
+    // The train is a PICTURE, not a log. Unbounded, it floods postMessage at
+    // 24.6k events/s under 8 voices x 5 copies (measured) and the main thread
+    // dies dressing the canvas. A bounded sample per post looks the same.
+    if(this.events.length<96) this.events.push([i,amp,g.dur,vo.idx]);
   }
   // The detune ladder for one formant: symmetric offsets in -1..1, curve-shaped.
   offsetOf(d,n,curve){
@@ -310,6 +313,17 @@ class PolyFormantCore {
        count would duck every held note each time a new one arrives, which is
        an audible pump nobody asked for. ptrim 0 restores the reference. */
     const polyTrim=Math.pow(lim,-0.5*Math.max(0,Math.min(1,p.ptrim)));
+    /* GRAIN BUDGET — the crash the human hit. Each grain costs a sin() per
+       SAMPLE, so cost is (total grains x sample rate) and the old per-voice cap
+       of 500 multiplied by voice count: measured 125 grains at 1 voice, 1249 at
+       6, 3221 at 8x5 copies = 142M sin/s, and the worklet fell to 30% of real
+       time (its message rate dropped 187/s -> 52/s).
+       The budget is GLOBAL and spent at SPAWN: a voice that is out of budget
+       stops emitting new grains and its train thins. It never kills a sounding
+       grain — that is precisely the mid-flight truncation the de-click exists to
+       prevent, so enforcing the cap by splicing would have re-introduced the
+       click as a crash fix. */
+    const perVoice=Math.max(48,Math.floor(900/lim));
     const chunk=128, hdt=chunk/sr, hs=chunk/sr;
     for(let n0=0;n0<n;n0+=chunk){
       const end=Math.min(n,n0+chunk);
@@ -363,6 +377,7 @@ class PolyFormantCore {
                 const amp=Math.pow(10,db/20)*vo.env*ampComp;
                 const bw=this.vowel.bw[i]*p.bws*reg.bwk;
                 for(let d=0;d<nCopies;d++){
+                  if(vo.grains.length>=perVoice) break;   // out of budget: thin, never cull
                   const off=this.offsetOf(d,nCopies,p.fcurve);
                   const fcd=fc*Math.pow(2,(off*p.fdet)/1200);
                   this.spawn(vo,i,fcd,amp,p.tex*0.001*reg.tex,bw,p.cyc,p.mode,capS,off*p.fwidth);
@@ -371,9 +386,9 @@ class PolyFormantCore {
               // The sub is the voice's own fundamental — ONE, never detuned:
               // spreading it would beat against the pitch, which is the one
               // place this instrument must stay solid.
-              if(reg.sub>0.005) this.spawn(vo,5,vo.f0,reg.sub*vo.env,0.002,5,1,'fof',Math.max(capS,0.6),0);
+              if(reg.sub>0.005 && vo.grains.length<perVoice) this.spawn(vo,5,vo.f0,reg.sub*vo.env,0.002,5,1,'fof',Math.max(capS,0.6),0);
             }
-            if(vo.grains.length>500) vo.grains.splice(0,vo.grains.length-500);
+            // (no cull here: the spawn budget above bounds the list by construction)
           }
           for(let k=vo.grains.length-1;k>=0;k--){
             const g=vo.grains[k]; let e;
@@ -441,7 +456,9 @@ async function start(){
     if(d.x){ formantNow=d.x; lowF0=d.f0; lowR=d.R; lowBwk=d.bwk; }
     if(d.voices) voiceState=d.voices;
     if(d.ev) for(const ev of d.ev) trainEvents.push({i:ev[0],amp:ev[1],dur:ev[2],v:ev[3],t:performance.now()});
-    while(trainEvents.length>4000) trainEvents.shift();
+    // ONE splice, not N shifts: shift() is O(n), so trimming a 4000-long array
+    // 24.6k times a second moved ~98M elements/s on the UI thread — the freeze.
+    if(trainEvents.length>1500) trainEvents.splice(0,trainEvents.length-1500);
   };
   analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0.6;
   waveBuf=new Float32Array(analyser.fftSize); specBuf=new Uint8Array(analyser.frequencyBinCount);
@@ -630,7 +647,8 @@ function draw(){
       cell.querySelector('i').style.background=VHUE[i%VHUE.length];
       cell.querySelector('b').textContent= on? Math.round(st[1]) : '·';
     }
-    $('#polylbl').textContent = voiceState.filter(v=>v&&v[0]).length+' sounding';
+    const g=voiceState.reduce((a,v)=>a+((v&&v[0])?v[3]:0),0);
+    $('#polylbl').textContent = voiceState.filter(v=>v&&v[0]).length+' sounding · '+g+' grains';
   }
   if(!analyser) return;
   // ---- waveform ----
