@@ -2533,3 +2533,32 @@ mode but hides in blend mode is the gating rule inverted: gate with what it
 EDITS (A1's rule), and it edits the whole field. Relabeled "Morph Glide (s)",
 gate widened to `morphOn=1`, max 0.5 → 5 s (a performance morph time, not a
 de-clicker; stored patches keep their values, CLAP params are plain-valued).
+
+
+### ADR-112 A3 — the morph field rides the session, not just the preset (2026-08-23)
+
+Human: "I don't think sessions save the position of the morph XY." The
+position was the one part that DID save — X/Y are ordinary params and both
+state paths round-trip them (probed: 0.830/0.210 through host state AND the
+JSON preset path). What sessions lost was everything else about the field:
+`state_save`/`state_load` (the HOST path — what a DAW session uses) carried
+no morph chunk at all, so the four corner snapshots and the exempt set
+silently dropped. On reload every live param restored and the corners lazily
+re-initialised FROM those live values — a degenerate field, all four corners
+identical, where moving the pad changes nothing. "Sessions don't save the
+morph" is exactly what that feels like from the chair.
+
+Fix: ONE parser (`applyMorphChunk`), extracted from applyStateJson and called
+by both paths; state_save appends the chunk as a single opaque
+`morph=<json>` line. Old builds ignore the unknown key; new builds loading
+old blobs simply have no line (lazy init, exactly the prior behaviour) —
+append-only compatibility both directions, no version bump.
+
+Oracle: state_check authors corner D to 0.777 while the live value ends at
+0.3 — a split a lazy re-init cannot produce — through REAL process blocks
+(the first draft authored via params_flush, which in a no-audio-thread
+harness only enqueues: it authored nothing and could not fail for the right
+reason — L0024's shape again). The blob-text assertion ("0.777" present)
+pins the middle so a symmetric writer/parser no-op cannot pass. Plant
+(remove the save line — the shipped bug) → RED on 4 assertions; reverse-
+replaced, verify full EXIT=0.
