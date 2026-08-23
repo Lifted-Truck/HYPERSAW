@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HORDE · formant swarm lab — poly / detune width / de-click</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<!--
+  FORMANT SWARM LAB — the evolution surface for CANTO.
+
+  WHY THIS IS A SEPARATE FILE. `horde_formant_pulsar_fof.html` is the INGESTED
+  REFERENCE and a protected path: it IS the spec (ADR-003, spec-in-code), so an
+  edit there is a spec change, and polyphony is an architectural claim about
+  what the engine IS — exactly the kind of decision that belongs in a lab where
+  it can be A/B'd and then ratified, not slipped into the reference. Same shape
+  as glitch-lab vs horde_decoherence_lab (2026-08-22). Fold discipline:
+  lab -> protected reference -> C++ port -> goldens -> parity.
+
+  WHAT IS NEW HERE, all three from the human (2026-08-23):
+    1. POLYPHONY. Voices are independent singers: own f0, own grain train, own
+       REGISTER state R. Register per voice is the musically honest reading —
+       a low note should sound like a low singer even while a high note is held.
+       Plus CHOIR coupling, off by default: the voices' formants pull toward the
+       ensemble mean, so a chord can lock its vowel the way the swarm locks phase.
+    2. FORMANT DETUNE WIDTH. Each formant is voiced by several slightly detuned
+       grains, spread across the stereo field — the supersaw move applied to
+       formants. Beating in the FORMANT rather than in the fundamental.
+    3. DE-CLICK, with the bug left audible beside the fix. See below.
+
+  THE CLICK (human: "occasionally a little clicking at the lower frequencies"),
+  diagnosed and quantified before it was fixed:
+    A FOF grain's envelope is exp(-pi*bw*t); the reference ends it at
+    dur = min(0.06, tex + ln(1000)/(pi*bw)) — i.e. at -60 dB, OR at the 60 ms
+    cap, whichever is first. Register narrows bandwidth (bwk = 2^-1.6R) as pitch
+    falls, which LENGTHENS the decay, so at low pitch the cap fires first and the
+    grain vanishes at a finite amplitude — a step discontinuity. Every formant
+    spawns on the same period boundary, so all five truncations align and sum
+    into one click per fundamental period:
+        f0 220 Hz -> grain ends at -62 dB   (inaudible, no click)
+        f0  55 Hz -> ends at -47 dB
+        f0  27 Hz -> ends at -32 dB
+        f0  55 Hz + bw scale 0.4 -> -19 dB  (loud)
+    Fix: a short fade over the end of the grain, so the envelope reaches zero at
+    `dur` no matter what truncated it. `grain fade` = 0 reproduces the reference
+    exactly, so the bug and the fix are one A/B — the readout below the control
+    prints the measured truncation level live.
+
+  DETERMINISM. The reference calls Math.random() for masking — the unseeded-RNG
+  blocker that keeps CANTO a CANDIDATE (ADR-091). Here masking runs on seeded
+  mulberry32 streams (one per voice), so the same seed and gesture render
+  identically. Same treatment glitch-lab gave the decoherence reference.
+-->
+<style>
+:root{
+  --ink:#16121f; --panel:#221b30; --panel2:#2c2340; --line:#3c3152;
+  --bone:#efe6d6; --dim:#9a8fb0; --pink:#ff3d8a; --cyan:#5fe0d8; --amber:#ffb84d;
+  --good:#7ae582;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--bone);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}
+header{display:flex;align-items:baseline;gap:18px;padding:16px 20px 8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-family:Syne,sans-serif;font-weight:800;font-size:22px;letter-spacing:.02em;margin:0}
+header h1 span{color:var(--pink)}
+header p{margin:0;color:var(--dim)}
+#start{margin-left:auto;background:var(--pink);color:var(--ink);border:0;font:600 12px 'IBM Plex Mono';padding:8px 14px;cursor:pointer;border-radius:3px}
+#start.on{background:var(--panel2);color:var(--cyan);border:1px solid var(--cyan)}
+main{display:grid;grid-template-columns:1fr 306px;gap:14px;padding:14px 20px 20px}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.viz{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+canvas{display:block;width:100%}
+.viz .lbl{padding:6px 10px;color:var(--dim);border-top:1px solid var(--line);font-size:11px;display:flex;justify-content:space-between;gap:10px}
+.side{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px}
+.card h2{font-family:Syne,sans-serif;font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.card h2 em{font-style:normal;color:var(--pink);letter-spacing:0;text-transform:none;font-weight:400;font-family:'IBM Plex Mono',monospace;font-size:10px}
+.row{display:grid;grid-template-columns:92px 1fr 58px;align-items:center;gap:8px;margin:5px 0}
+.row label{color:var(--bone)}
+.row output{text-align:right;color:var(--cyan)}
+input[type=range]{width:100%;accent-color:var(--pink);height:18px}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{background:var(--panel2);border:1px solid var(--line);color:var(--bone);font:inherit;padding:5px 9px;cursor:pointer;border-radius:3px}
+.seg button.on{border-color:var(--pink);color:var(--pink)}
+.seg button:focus-visible,#start:focus-visible{outline:2px solid var(--cyan);outline-offset:1px}
+.keys{display:flex;gap:2px;margin-top:6px}
+.keys button{flex:1;height:44px;background:var(--panel2);border:1px solid var(--line);color:var(--dim);font:inherit;cursor:pointer;border-radius:2px}
+.keys button.on{background:var(--pink);color:var(--ink)}
+.hint{color:var(--dim);margin:6px 0 0;line-height:1.5}
+.warn{color:var(--amber)}
+.ok{color:var(--good)}
+.vstrip{display:flex;gap:3px;margin:6px 0 2px}
+.vcell{flex:1;height:26px;border:1px solid var(--line);border-radius:2px;background:var(--panel2);position:relative;overflow:hidden}
+.vcell i{position:absolute;left:0;bottom:0;right:0;background:var(--amber);opacity:.55}
+.vcell b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:400 10px 'IBM Plex Mono';color:var(--bone)}
+.vcell.on{border-color:var(--pink)}
+table.meas{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}
+table.meas td{padding:2px 0;color:var(--dim)}
+table.meas td:last-child{text-align:right;color:var(--cyan)}
+</style>
+</head>
+<body>
+<header>
+  <h1>HORDE <span>/ formant swarm lab</span></h1>
+  <p>polyphonic · formant detune width · grain de-click · seeded</p>
+  <button id="start">start audio</button>
+</header>
+<main>
+  <section class="viz">
+    <canvas id="train" height="200"></canvas>
+    <div class="lbl"><span>grain train — one row per formant, one bar per emitted grain (hue = voice, length = grain life)</span><span id="f0lbl">—</span></div>
+    <canvas id="wave" height="90"></canvas>
+    <div class="lbl"><span>output waveform (L)</span><span id="polylbl">—</span></div>
+    <canvas id="spec" height="130"></canvas>
+    <div class="lbl"><span>spectrum · amber ticks = formant centres of the lowest sounding voice</span><span id="flist"></span></div>
+    <div class="card" style="border:0;border-top:1px solid var(--line);border-radius:0">
+      <h2>play <em>— hold a chord; every voice keeps its own register</em></h2>
+      <div class="keys" id="keys"></div>
+      <p class="hint">keys <b>a w s e d f t g y h u j k</b> play a chromatic octave · <b>z / x</b> shift octave. Hold a low note and a high note together: the low one sinks into bass register (sub, narrowed bandwidths, downward slide) while the high one stays bright — that is the per-voice R.</p>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="card">
+      <h2>polyphony <em>— new</em></h2>
+      <div class="row"><label>voices</label><input id="poly" type="range" min="1" max="8" step="1" value="6"><output>6</output></div>
+      <div class="row"><label>choir K</label><input id="choir" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output></div>
+      <div class="row"><label>poly trim</label><input id="ptrim" type="range" min="0" max="1" step="0.01" value="1"><output>1.00</output></div>
+      <div class="vstrip" id="vstrip"></div>
+      <p class="hint">Each voice is an independent singer — own fundamental, own grain train, own register state R (the bar height in each cell). <b>choir K</b> couples the voices' formants toward the ensemble mean: at 0 they are separate singers, turned up they agree on a vowel the way the swarm agrees on a phase. Voice stealing takes the oldest.</p>
+      <p class="hint"><b>poly trim</b> divides by &radic;(voice limit) before the drive stage — the reference is mono, so its drive was tuned for one voice and a six-note chord otherwise pins the tanh (measured: 1 voice peaks 0.84, 6 peak 1.00). Trim follows the LIMIT, not the live count, so notes never duck each other. Set it to 0 to hear the reference's summing.</p>
+    </div>
+
+    <div class="card">
+      <h2>formant detune width <em>— new</em></h2>
+      <div class="row"><label>copies</label><input id="fv" type="range" min="1" max="5" step="1" value="1"><output>1</output></div>
+      <div class="row"><label>detune</label><input id="fdet" type="range" min="0" max="80" step="0.5" value="14"><output>14.0 ¢</output></div>
+      <div class="row"><label>stereo width</label><input id="fwidth" type="range" min="0" max="1" step="0.01" value="0.7"><output>0.70</output></div>
+      <div class="row"><label>spread curve</label><input id="fcurve" type="range" min="0.3" max="3" step="0.05" value="1"><output>1.00</output></div>
+      <p class="hint">Every formant is voiced by <b>copies</b> grains at ±<b>detune</b>, panned apart. The beating lands <em>inside the formant</em> rather than on the fundamental, so the vowel shimmers while the pitch stays solid. <b>spread curve</b> &lt; 1 bunches the copies at the edges (two-sided chorus), &gt; 1 crowds them at centre. Level is compensated by 1/&radic;copies, so the control is width, not loudness.</p>
+    </div>
+
+    <div class="card">
+      <h2>grain de-click <em>— new</em></h2>
+      <div class="row"><label>grain fade</label><input id="fade" type="range" min="0" max="8" step="0.1" value="2"><output>2.0 ms</output></div>
+      <div class="row"><label>grain cap</label><input id="cap" type="range" min="20" max="300" step="5" value="60"><output>60 ms</output></div>
+      <table class="meas">
+        <tr><td>lowest voice f0</td><td id="mF0">—</td></tr>
+        <tr><td>its register R</td><td id="mR">—</td></tr>
+        <tr><td>F1 bandwidth</td><td id="mBw">—</td></tr>
+        <tr><td>decay needs</td><td id="mNeed">—</td></tr>
+        <tr><td>grain ends at</td><td id="mCut">—</td></tr>
+      </table>
+      <p class="hint" id="clickHint"></p>
+      <p class="hint">Set <b>grain fade</b> to 0 to hear the reference exactly — the click returns wherever the readout says the grain ends above about &minus;40 dB. Raising <b>grain cap</b> also fixes it (the grain is allowed to finish) at the cost of more overlapping grains; the fade is the cheap fix, the cap is the honest one.</p>
+    </div>
+
+    <div class="card">
+      <h2>grain model</h2>
+      <div class="seg" id="mode">
+        <button data-v="fof" class="on">FOF</button>
+        <button data-v="pulsar">pulsar</button>
+      </div>
+      <div class="row"><label>attack tex</label><input id="tex" type="range" min="0.2" max="8" step="0.1" value="1.5"><output>1.5 ms</output></div>
+      <div class="row"><label>bw scale</label><input id="bws" type="range" min="0.2" max="4" step="0.05" value="1"><output>1.00×</output></div>
+      <div class="row"><label>cycles</label><input id="cyc" type="range" min="1" max="12" step="1" value="3"><output>3</output></div>
+    </div>
+
+    <div class="card">
+      <h2>vowel field</h2>
+      <div class="seg" id="vowel">
+        <button data-v="a" class="on">a</button><button data-v="e">e</button><button data-v="i">i</button><button data-v="o">o</button><button data-v="u">u</button>
+      </div>
+      <canvas id="xy" height="180" style="margin-top:8px;border:1px solid var(--line);border-radius:3px;cursor:crosshair;touch-action:none"></canvas>
+      <div class="row"><label>formant shift</label><input id="shift" type="range" min="-24" max="24" step="1" value="0"><output>0 st</output></div>
+      <div id="ftable" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
+      <h2>formant physics</h2>
+      <div class="row"><label>morph rate</label><input id="rate" type="range" min="0.5" max="40" step="0.5" value="6"><output>6 Hz</output></div>
+      <div class="row"><label>bounce</label><input id="zeta" type="range" min="0.05" max="1.5" step="0.01" value="0.9"><output>ζ 0.90</output></div>
+      <div class="row"><label>coupling K</label><input id="K" type="range" min="-1" max="1" step="0.01" value="0"><output>0.00</output></div>
+    </div>
+
+    <div class="card">
+      <h2>masking <em>— seeded</em></h2>
+      <div class="row"><label>seed</label><input id="seed" type="range" min="1" max="9999" step="1" value="1234"><output>1234</output></div>
+      <div class="row"><label>drop prob</label><input id="mask" type="range" min="0" max="0.95" step="0.01" value="0"><output>0%</output></div>
+      <div class="row"><label>burst on</label><input id="bon" type="range" min="1" max="16" step="1" value="8"><output>8</output></div>
+      <div class="row"><label>burst off</label><input id="boff" type="range" min="0" max="16" step="1" value="0"><output>0</output></div>
+      <p class="hint">Masking runs on a seeded mulberry32 stream per voice — same seed and same gesture render identically. The reference uses <code>Math.random()</code>, which is the blocker keeping CANTO a candidate (ADR-091).</p>
+    </div>
+
+    <div class="card">
+      <h2>register</h2>
+      <div class="row"><label>pitch follow</label><input id="regFollow" type="range" min="0" max="1" step="0.01" value="1"><output>1.00</output></div>
+      <div class="row"><label>manual</label><input id="regMan" type="range" min="-1" max="1" step="0.01" value="0"><output>0.00</output></div>
+      <div class="row"><label>lag</label><input id="regLag" type="range" min="0.3" max="30" step="0.1" value="4"><output>4 Hz</output></div>
+    </div>
+
+    <div class="card">
+      <h2>voice</h2>
+      <div class="row"><label>glide</label><input id="glide" type="range" min="0.5" max="40" step="0.5" value="12"><output>12 Hz</output></div>
+      <div class="row"><label>drive</label><input id="drive" type="range" min="0.5" max="8" step="0.05" value="1.4"><output>1.40</output></div>
+      <div class="row"><label>release</label><input id="rel" type="range" min="10" max="1500" step="10" value="220"><output>220 ms</output></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+// ---------- vowel tables (bass-ish, 5 formants: Hz, bandwidth Hz, dB) ----------
+const VOWELS = {
+  a:{f:[600,1040,2250,2450,2750], bw:[60,70,110,120,130], db:[0,-7,-9,-9,-20]},
+  e:{f:[400,1620,2400,2800,3100], bw:[40,80,100,120,120], db:[0,-12,-9,-12,-18]},
+  i:{f:[250,1750,2600,3050,3340], bw:[60,90,100,120,120], db:[0,-30,-16,-22,-28]},
+  o:{f:[400,750,2400,2600,2900],  bw:[40,80,100,120,120], db:[0,-11,-21,-20,-40]},
+  u:{f:[350,600,2400,2675,2950],  bw:[40,80,100,120,120], db:[0,-20,-32,-28,-36]},
+};
+
+// ---------- worklet source ----------
+const CORE = `
+// Seeded stream: the reference's Math.random() is the CANTO candidate blocker
+// (ADR-091). One stream per voice so voice count cannot change voice 0's draws.
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+
+class Voice {
+  constructor(sr,vowel,idx){
+    this.sr=sr; this.idx=idx; this.N=5;
+    this.x=vowel.f.map(f=>Math.log(f)); this.v=[0,0,0,0,0];
+    this.f0target=110; this.f0=110; this.f0v=0;
+    this.R=0; this.Rv=0; this.reg={sub:0,shift:0,bwk:1,tilt:0,tex:1};
+    this.gate=0; this.env=0; this.phase=0; this.periodCount=0;
+    this.grains=[]; this.pool=[];
+    this.key=-1; this.age=0; this.rnd=mulberry32(1234+idx*7919);
+  }
+  reseed(seed){ this.rnd=mulberry32((seed|0)+this.idx*7919); }
+  // A voice is "sounding" while gated OR still releasing OR still draining grains.
+  get busy(){ return this.gate===1 || this.env>0.0005 || this.grains.length>0; }
+  noteOn(f,key,age){
+    this.f0target=f; this.gate=1; this.key=key; this.age=age;
+    // Re-strike from silence starts AT the pitch: gliding up from a stale f0
+    // would be a portamento nobody asked for. A stolen voice keeps its f0 so
+    // the steal glides rather than jumps.
+    if(this.env<0.0005){ this.f0=f; this.f0v=0; this.phase=0; }
+  }
+  noteOff(){ this.gate=0; this.key=-1; }
+}
+
+class PolyFormantCore {
+  constructor(sr,post){
+    this.sr=sr; this.post=post;
+    this.p={mode:'fof',tex:1.5,bws:1,cyc:3,shift:0,rate:6,zeta:0.9,K:0,mask:0,bon:8,boff:0,
+            glide:12,drive:1.4,rel:220,regMan:0,regFollow:1,regLag:4,
+            poly:6,choir:0,ptrim:1,fv:1,fdet:14,fwidth:0.7,fcurve:1,fade:2,cap:60,seed:1234};
+    this.vowel={f:[600,1040,2250,2450,2750],bw:[60,70,110,120,130],db:[0,-7,-9,-9,-20]};
+    this.N=5;
+    this.voices=[]; for(let i=0;i<8;i++) this.voices.push(new Voice(sr,this.vowel,i));
+    this.ageCounter=0;
+    this.events=[]; this.blockN=0;
+    this.mean=[0,0,0,0,0];
+  }
+  msg(m){
+    if(m.type==='param'){
+      this.p[m.k]=m.v;
+      if(m.k==='seed') for(const v of this.voices) v.reseed(m.v);
+    }
+    else if(m.type==='vowel'){ this.vowel=m.v; }
+    else if(m.type==='note'){ this.alloc(m.f,m.key); }
+    else if(m.type==='off'){ for(const v of this.voices) if(v.key===m.key) v.noteOff(); }
+    else if(m.type==='allOff'){ for(const v of this.voices) v.noteOff(); }
+  }
+  alloc(f,key){
+    const lim=Math.max(1,Math.min(8,this.p.poly|0));
+    const live=this.voices.slice(0,lim);
+    // same key already down -> retrigger it rather than burning a second voice
+    let v=live.find(u=>u.key===key);
+    if(!v) v=live.find(u=>!u.busy);
+    if(!v) v=live.reduce((a,b)=>a.age<=b.age?a:b);   // steal the oldest
+    v.noteOn(f,key,++this.ageCounter);
+  }
+  spawn(vo,i,fc,amp,tex,bw,cyc,mode,capS,pan){
+    const g=vo.pool.pop()||{};
+    g.i=i; g.t=0; g.fc=fc; g.amp=amp; g.tex=tex; g.bw=bw; g.mode=mode;
+    g.dur = mode==='fof' ? Math.min(capS, tex+Math.log(1000)/(Math.PI*bw)) : cyc/fc;
+    // equal-power pan, computed once at spawn (pan does not move mid-grain)
+    const a=(Math.max(-1,Math.min(1,pan))+1)*Math.PI/4;
+    g.gl=Math.cos(a); g.gr=Math.sin(a);
+    vo.grains.push(g);
+    this.events.push([i,amp,g.dur,vo.idx]);
+  }
+  // The detune ladder for one formant: symmetric offsets in -1..1, curve-shaped.
+  offsetOf(d,n,curve){
+    if(n<=1) return 0;
+    const u=(d/(n-1))*2-1;                       // -1 .. +1
+    return Math.sign(u)*Math.pow(Math.abs(u),curve);
+  }
+  render(outL,outR){
+    const sr=this.sr, p=this.p, dt=1/sr, n=outL.length;
+    const relCoef=Math.exp(-1/(p.rel*0.001*sr));
+    const wr=2*Math.PI*p.regLag, z=p.zeta, w=2*Math.PI*p.rate, wg=2*Math.PI*p.glide;
+    const shManual=p.shift/12*Math.LN2;
+    const lim=Math.max(1,Math.min(8,p.poly|0));
+    const fadeS=p.fade*0.001, capS=p.cap*0.001;
+    const nCopies=Math.max(1,Math.min(5,p.fv|0)), ampComp=1/Math.sqrt(nCopies);
+    /* POLY TRIM. The reference is monophonic, so its drive stage was tuned for
+       ONE voice; summing N before the tanh turns a chord into a fuzz box
+       (measured: 1 voice peaks 0.84, 6 voices peak 1.00 and stay there).
+       Trim is 1/sqrt(voice LIMIT), never the live count — scaling by the live
+       count would duck every held note each time a new one arrives, which is
+       an audible pump nobody asked for. ptrim 0 restores the reference. */
+    const polyTrim=Math.pow(lim,-0.5*Math.max(0,Math.min(1,p.ptrim)));
+    const chunk=128, hdt=chunk/sr, hs=chunk/sr;
+    for(let n0=0;n0<n;n0+=chunk){
+      const end=Math.min(n,n0+chunk);
+      // ---- per-voice register + formant physics, once per chunk ----
+      // Ensemble mean per formant across SOUNDING voices only: a silent voice
+      // parked at its last vowel would drag the choir toward a note nobody
+      // played, which is the sort of thing that sounds like a bug, not a choir.
+      if(p.choir>0){
+        for(let i=0;i<this.N;i++){
+          let s=0,c=0;
+          for(let vi=0;vi<lim;vi++){ const vo=this.voices[vi]; if(!vo.busy) continue; s+=vo.x[i]; c++; }
+          this.mean[i]= c? s/c : 0;
+        }
+      }
+      for(let vi=0;vi<lim;vi++){
+        const vo=this.voices[vi];
+        if(!vo.busy) continue;
+        const Rt=Math.min(1,Math.max(0, p.regFollow*Math.log2(220/Math.max(20,vo.f0))/3 + p.regMan));
+        const acc=wr*wr*(Rt-vo.R)-2*z*wr*vo.Rv; vo.Rv+=acc*hs; vo.R+=vo.Rv*hs;
+        const R=Math.min(1.3,Math.max(-0.3,vo.R)), Rc=Math.min(1,Math.max(0,R));
+        const bwk=Math.pow(2,-1.6*R), reg=vo.reg;
+        reg.bwk=bwk; reg.shift=-R*0.55*Math.LN2; reg.tilt=14*Rc; reg.tex=1+R;
+        reg.sub=Math.max(0,(0.08+0.9*Math.pow(Rc,0.7))*(0.55+0.45*bwk));
+        const sh=shManual+reg.shift;
+        let mn=0; for(let i=0;i<this.N;i++) mn+=vo.x[i]; mn/=this.N;
+        for(let i=0;i<this.N;i++){
+          const tgt=Math.log(this.vowel.f[i])+sh;
+          let a2 = w*w*(tgt-vo.x[i]) - 2*z*w*vo.v[i] + p.K*w*w*(mn-vo.x[i]);
+          if(p.choir>0) a2 += p.choir*w*w*(this.mean[i]-vo.x[i]);
+          vo.v[i]+=a2*hdt; vo.x[i]+=vo.v[i]*hdt;
+        }
+      }
+      // ---- audio ----
+      for(let s0=n0;s0<end;s0++){
+        let sumL=0,sumR=0;
+        for(let vi=0;vi<lim;vi++){
+          const vo=this.voices[vi];
+          if(!vo.busy) continue;
+          const accg=wg*wg*(vo.f0target-vo.f0)-2*0.95*wg*vo.f0v; vo.f0v+=accg*dt; vo.f0+=vo.f0v*dt;
+          vo.env = vo.gate ? Math.min(1,vo.env+0.0006) : vo.env*relCoef;
+          vo.phase+=vo.f0*dt;
+          if(vo.phase>=1 && vo.env>0.001){
+            vo.phase-=1; vo.periodCount++;
+            const burstOn=(vo.periodCount % (p.bon+p.boff)) < p.bon;
+            if(burstOn){
+              const reg=vo.reg;
+              for(let i=0;i<this.N;i++){
+                if(vo.rnd()<p.mask) continue;
+                const fc=Math.exp(vo.x[i]);
+                const db=this.vowel.db[i] + reg.tilt*(i/(this.N-1));
+                const amp=Math.pow(10,db/20)*vo.env*ampComp;
+                const bw=this.vowel.bw[i]*p.bws*reg.bwk;
+                for(let d=0;d<nCopies;d++){
+                  const off=this.offsetOf(d,nCopies,p.fcurve);
+                  const fcd=fc*Math.pow(2,(off*p.fdet)/1200);
+                  this.spawn(vo,i,fcd,amp,p.tex*0.001*reg.tex,bw,p.cyc,p.mode,capS,off*p.fwidth);
+                }
+              }
+              // The sub is the voice's own fundamental — ONE, never detuned:
+              // spreading it would beat against the pitch, which is the one
+              // place this instrument must stay solid.
+              if(reg.sub>0.005) this.spawn(vo,5,vo.f0,reg.sub*vo.env,0.002,5,1,'fof',Math.max(capS,0.6),0);
+            }
+            if(vo.grains.length>500) vo.grains.splice(0,vo.grains.length-500);
+          }
+          for(let k=vo.grains.length-1;k>=0;k--){
+            const g=vo.grains[k]; let e;
+            if(g.mode==='fof'){ e = g.t<g.tex ? 0.5*(1-Math.cos(Math.PI*g.t/g.tex)) : 1;
+                                e *= Math.exp(-Math.PI*g.bw*g.t); }
+            else { e = 0.5*(1-Math.cos(2*Math.PI*g.t/g.dur)); }
+            // DE-CLICK: force the envelope to zero AT dur. Without this a grain
+            // truncated by the cap vanishes at a finite value — a step, and
+            // every formant steps on the same period boundary, so they sum.
+            if(fadeS>0){ const left=g.dur-g.t; if(left<fadeS) e*= left>0? left/fadeS : 0; }
+            const y=g.amp*e*Math.sin(2*Math.PI*g.fc*g.t);
+            sumL+=y*g.gl; sumR+=y*g.gr;
+            g.t+=dt;
+            if(g.t>=g.dur){ vo.grains.splice(k,1); vo.pool.push(g); }
+          }
+        }
+        outL[s0]=Math.tanh(sumL*polyTrim*p.drive*0.9);
+        outR[s0]=Math.tanh(sumR*polyTrim*p.drive*0.9);
+      }
+    }
+    if(++this.blockN%2===0){
+      let low=null;
+      for(let vi=0;vi<lim;vi++){ const vo=this.voices[vi];
+        if(vo.busy && (!low || vo.f0<low.f0)) low=vo; }
+      const vs=[]; for(let vi=0;vi<lim;vi++){ const vo=this.voices[vi];
+        vs.push([vo.busy?1:0, vo.f0, vo.R, vo.grains.length]); }
+      this.post({ev:this.events, voices:vs,
+                 x: low? low.x.map(Math.exp).concat([low.f0]) : null,
+                 f0: low? low.f0 : 0, R: low? low.R : 0,
+                 bwk: low? low.reg.bwk : 1});
+      this.events=[];
+    }
+  }
+}
+`;
+const WORKLET = CORE + `
+class FormantSwarmPoly extends AudioWorkletProcessor {
+  constructor(){ super(); this.core=new PolyFormantCore(sampleRate, m=>this.port.postMessage(m));
+                 this.port.onmessage=e=>this.core.msg(e.data); }
+  process(inputs,outputs){
+    const o=outputs[0];
+    this.core.render(o[0], o.length>1?o[1]:o[0]);
+    return true;
+  }
+}
+registerProcessor('formant-swarm-poly',FormantSwarmPoly);
+`;
+
+// ---------- audio setup ----------
+let ctx, node, analyser, waveBuf, specBuf;
+const $=s=>document.querySelector(s);
+const state={octave:2,vowel:'a',mode:'fof',keys:{}};
+let formantNow=[600,1040,2250,2450,2750,110];
+let voiceState=[];
+let lowF0=0, lowR=0, lowBwk=1;
+const trainEvents=[];
+
+async function start(){
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const blob=new Blob([WORKLET],{type:'application/javascript'});
+  await ctx.audioWorklet.addModule(URL.createObjectURL(blob));
+  node=new AudioWorkletNode(ctx,'formant-swarm-poly',{outputChannelCount:[2]});
+  node.port.onmessage=e=>{
+    const d=e.data;
+    if(d.x){ formantNow=d.x; lowF0=d.f0; lowR=d.R; lowBwk=d.bwk; }
+    if(d.voices) voiceState=d.voices;
+    if(d.ev) for(const ev of d.ev) trainEvents.push({i:ev[0],amp:ev[1],dur:ev[2],v:ev[3],t:performance.now()});
+    while(trainEvents.length>4000) trainEvents.shift();
+  };
+  analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0.6;
+  waveBuf=new Float32Array(analyser.fftSize); specBuf=new Uint8Array(analyser.frequencyBinCount);
+  node.connect(analyser); analyser.connect(ctx.destination);
+  pushAll(); sendVowel();
+  $('#start').classList.add('on'); $('#start').textContent='running';
+}
+$('#start').onclick=()=>{ if(!ctx) start(); else if(ctx.state==='suspended') ctx.resume(); };
+
+function send(k,v){ if(node) node.port.postMessage({type:'param',k,v}); }
+function sendVowel(){ if(node) node.port.postMessage({type:'vowel',v:currentVowelTable()}); }
+
+const VPOS={a:[0.5,0.92],e:[0.28,0.5],i:[0.12,0.1],o:[0.75,0.5],u:[0.88,0.12]};
+let vxy=[0.5,0.92];
+// ---------- controls ----------
+const CTL=[
+  ['tex',v=>v.toFixed(1)+' ms'],['bws',v=>v.toFixed(2)+'×'],['cyc',v=>String(v)],
+  ['shift',v=>v+' st'],['rate',v=>v+' Hz'],['zeta',v=>'ζ '+v.toFixed(2)],
+  ['K',v=>v.toFixed(2)],['mask',v=>Math.round(v*100)+'%'],['bon',v=>String(v)],
+  ['boff',v=>String(v)],['glide',v=>v+' Hz'],['drive',v=>v.toFixed(2)],
+  ['rel',v=>v+' ms'],['regFollow',v=>v.toFixed(2)],['regMan',v=>v.toFixed(2)],
+  ['regLag',v=>v+' Hz'],
+  ['poly',v=>String(v)],['choir',v=>v.toFixed(2)],['ptrim',v=>v.toFixed(2)],
+  ['fv',v=>String(v)],['fdet',v=>v.toFixed(1)+' ¢'],['fwidth',v=>v.toFixed(2)],
+  ['fcurve',v=>v.toFixed(2)],['fade',v=>v.toFixed(1)+' ms'],['cap',v=>v+' ms'],
+  ['seed',v=>String(v)],
+];
+for(const [id,fmt] of CTL){
+  const el=document.getElementById(id); if(!el) continue;
+  const out=el.parentElement.querySelector('output');
+  const paint=()=>{ const v=+el.value; if(out) out.textContent=fmt(v); send(id,v); measure(); };
+  el.addEventListener('input',paint);
+  paint();
+}
+function pushAll(){ for(const [id] of CTL){ const el=document.getElementById(id); if(el) send(id,+el.value); }
+                    send('mode',state.mode); }
+
+document.querySelectorAll('#mode button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#mode button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); state.mode=b.dataset.v; send('mode',state.mode); measure();
+});
+
+// ---------- vowel field ----------
+function currentVowelTable(){
+  // distance-weighted blend of the five vowel corners, exactly the reference's
+  // idea; the table is what the formant masses chase.
+  let wsum=0; const f=[0,0,0,0,0], bw=[0,0,0,0,0], db=[0,0,0,0,0];
+  for(const k in VPOS){
+    const dx=vxy[0]-VPOS[k][0], dy=vxy[1]-VPOS[k][1];
+    const w=1/Math.max(0.004,dx*dx+dy*dy);
+    const V=VOWELS[k]; wsum+=w;
+    for(let i=0;i<5;i++){ f[i]+=w*V.f[i]; bw[i]+=w*V.bw[i]; db[i]+=w*V.db[i]; }
+  }
+  for(let i=0;i<5;i++){ f[i]/=wsum; bw[i]/=wsum; db[i]/=wsum; }
+  return {f,bw,db};
+}
+document.querySelectorAll('#vowel button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#vowel button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); state.vowel=b.dataset.v; vxy=VPOS[b.dataset.v].slice();
+  sendVowel(); drawXY(); ftable(); measure();
+});
+const xy=$('#xy');
+function xyPick(ev){
+  const r=xy.getBoundingClientRect();
+  vxy=[Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)),
+       Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height))];
+  sendVowel(); drawXY(); ftable(); measure();
+}
+xy.addEventListener('pointerdown',e=>{ xy.setPointerCapture(e.pointerId); xyPick(e); });
+xy.addEventListener('pointermove',e=>{ if(e.buttons) xyPick(e); });
+function drawXY(){
+  const c=xy.getContext('2d'), dpr=(typeof window!=='undefined'&&window.devicePixelRatio)||1;
+  const w=xy.clientWidth, h=180;
+  if(xy.width!==w*dpr){ xy.width=w*dpr; xy.height=h*dpr; }
+  c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  c.fillStyle='#2c2340'; c.fillRect(0,0,w,h);
+  c.font='11px IBM Plex Mono';
+  for(const k in VPOS){ const p=VPOS[k];
+    c.fillStyle='#9a8fb0'; c.fillText(k,p[0]*w-3,p[1]*h+4); }
+  c.strokeStyle='#ff3d8a'; c.lineWidth=1.5;
+  c.beginPath(); c.arc(vxy[0]*w,vxy[1]*h,6,0,6.2832); c.stroke();
+}
+function ftable(){
+  const V=currentVowelTable();
+  $('#ftable').innerHTML=V.f.map((f,i)=>
+    '<div class="f"><b>F'+(i+1)+'</b><span>'+Math.round(f)+' Hz</span><span>bw '+Math.round(V.bw[i])+
+    '</span><span>'+V.db[i].toFixed(0)+' dB</span></div>').join('');
+}
+
+// ---------- the click readout: measured, not asserted ----------
+function measure(){
+  const V=currentVowelTable();
+  const bws=+$('#bws').value, tex=+$('#tex').value*0.001;
+  const cap=+$('#cap').value*0.001, fade=+$('#fade').value*0.001;
+  const bw=V.bw[0]*bws*lowBwk;
+  const need=tex+Math.log(1000)/(Math.PI*bw);
+  const dur=Math.min(cap,need);
+  const cut=20*Math.log10(Math.max(1e-9,Math.exp(-Math.PI*bw*dur)));
+  $('#mF0').textContent = lowF0? lowF0.toFixed(1)+' Hz' : '—';
+  $('#mR').textContent  = lowF0? lowR.toFixed(2) : '—';
+  $('#mBw').textContent = bw.toFixed(1)+' Hz';
+  $('#mNeed').textContent = (need*1000).toFixed(0)+' ms';
+  $('#mCut').textContent = cut.toFixed(1)+' dB';
+  const hint=$('#clickHint');
+  if(fade>0) hint.innerHTML='<span class="ok">fade on</span> — the grain is ramped to zero at its end, so the truncation cannot step regardless of the numbers above.';
+  else if(need>cap && cut>-40) hint.innerHTML='<span class="warn">clicking</span> — the cap ends the grain at '+cut.toFixed(0)+' dB, a step; all five formants step on the same period boundary and sum.';
+  else if(need>cap) hint.innerHTML='truncated, but at '+cut.toFixed(0)+' dB — below the audible step threshold.';
+  else hint.textContent='the grain finishes its own decay; nothing to click.';
+}
+
+// ---------- keyboard ----------
+const KEYMAP={a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12};
+const NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B','C'];
+const keysBox=$('#keys');
+Object.keys(KEYMAP).forEach(k=>{
+  const b=document.createElement('button'); b.textContent=NAMES[KEYMAP[k]]; b.dataset.k=k;
+  b.onpointerdown=()=>noteOn(k); b.onpointerup=b.onpointerleave=()=>noteOff(k);
+  keysBox.appendChild(b);
+});
+function freqOf(k){ return 32.703*Math.pow(2,state.octave+KEYMAP[k]/12); }
+function noteOn(k){
+  if(!ctx) start();
+  if(state.keys[k]) return;
+  state.keys[k]=1;
+  const b=keysBox.querySelector('[data-k="'+k+'"]'); if(b) b.classList.add('on');
+  if(node) node.port.postMessage({type:'note',f:freqOf(k),key:k+'@'+state.octave});
+}
+function noteOff(k){
+  if(!state.keys[k]) return;
+  const key=k+'@'+state.octave;
+  delete state.keys[k];
+  const b=keysBox.querySelector('[data-k="'+k+'"]'); if(b) b.classList.remove('on');
+  if(node) node.port.postMessage({type:'off',key});
+}
+window.addEventListener('keydown',e=>{
+  if(e.repeat) return; const k=e.key.toLowerCase();
+  if(k in KEYMAP){ e.preventDefault(); noteOn(k); }
+  // Octave shift releases held notes first: their note-off carries the octave
+  // in its key, so shifting with a note down would strand it forever.
+  if(k==='z'||k==='x'){
+    for(const held in state.keys) noteOff(held);
+    state.octave = k==='z' ? Math.max(0,state.octave-1) : Math.min(5,state.octave+1);
+  }
+});
+window.addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); if(k in KEYMAP) noteOff(k); });
+
+// ---------- visuals ----------
+const VHUE=['#ff3d8a','#5fe0d8','#ffb84d','#7ae582','#b18cff','#ff7d9c','#4cc9f0','#f2b134'];
+function fit(cv,h){ const dpr=(typeof window!=='undefined'&&window.devicePixelRatio)||1, w=cv.clientWidth||600;
+  if(cv.width!==Math.round(w*dpr)){ cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); }
+  const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); return {c,w,h}; }
+
+function draw(){
+  requestAnimationFrame(draw);
+  // ---- grain train ----
+  { const {c,w,h}=fit($('#train'),200);
+    c.fillStyle='#221b30'; c.fillRect(0,0,w,h);
+    const rows=6, rh=h/rows, now=performance.now(), span=2200;
+    c.strokeStyle='#3c3152'; c.lineWidth=1;
+    for(let i=1;i<rows;i++){ c.beginPath(); c.moveTo(0,i*rh); c.lineTo(w,i*rh); c.stroke(); }
+    for(const ev of trainEvents){
+      const age=now-ev.t; if(age>span) continue;
+      const x=w-(age/span)*w, len=Math.max(1.5,ev.dur*1000*(w/span));
+      c.globalAlpha=Math.max(0.12,Math.min(1,ev.amp*3));
+      c.fillStyle=VHUE[ev.v%VHUE.length];
+      c.fillRect(x-len,ev.i*rh+2,len,rh-4);
+    }
+    c.globalAlpha=1;
+    c.fillStyle='#9a8fb0'; c.font='10px IBM Plex Mono';
+    for(let i=0;i<5;i++) c.fillText('F'+(i+1),4,i*rh+12);
+    c.fillText('sub',4,5*rh+12);
+    $('#f0lbl').textContent = lowF0? 'lowest '+lowF0.toFixed(1)+' Hz · R '+lowR.toFixed(2) : '—';
+  }
+  // ---- voice strip ----
+  { const strip=$('#vstrip'), lim=+$('#poly').value;
+    if(strip.children.length!==lim){
+      strip.innerHTML=''; for(let i=0;i<lim;i++){
+        const d=document.createElement('div'); d.className='vcell';
+        d.innerHTML='<i style="height:0"></i><b></b>'; strip.appendChild(d); }
+    }
+    for(let i=0;i<lim;i++){
+      const cell=strip.children[i], st=voiceState[i];
+      const on=st&&st[0];
+      cell.classList.toggle('on',!!on);
+      cell.querySelector('i').style.height=(on? Math.max(0,Math.min(1,st[2]))*100 : 0)+'%';
+      cell.querySelector('i').style.background=VHUE[i%VHUE.length];
+      cell.querySelector('b').textContent= on? Math.round(st[1]) : '·';
+    }
+    $('#polylbl').textContent = voiceState.filter(v=>v&&v[0]).length+' sounding';
+  }
+  if(!analyser) return;
+  // ---- waveform ----
+  { const {c,w,h}=fit($('#wave'),90);
+    analyser.getFloatTimeDomainData(waveBuf);
+    c.fillStyle='#221b30'; c.fillRect(0,0,w,h);
+    c.strokeStyle='#5fe0d8'; c.lineWidth=1; c.beginPath();
+    for(let i=0;i<w;i++){
+      const v=waveBuf[Math.floor(i/w*waveBuf.length)];
+      const y=h/2-v*(h/2-3);
+      i? c.lineTo(i,y) : c.moveTo(i,y);
+    }
+    c.stroke();
+  }
+  // ---- spectrum ----
+  { const {c,w,h}=fit($('#spec'),130);
+    analyser.getByteFrequencyData(specBuf);
+    c.fillStyle='#221b30'; c.fillRect(0,0,w,h);
+    const nyq=ctx.sampleRate/2, fmin=60, fmax=5000;
+    const xOf=f=>(Math.log(f/fmin)/Math.log(fmax/fmin))*w;
+    c.strokeStyle='#5fe0d8'; c.lineWidth=1; c.beginPath();
+    for(let i=1;i<specBuf.length;i++){
+      const f=i/specBuf.length*nyq; if(f<fmin||f>fmax) continue;
+      const x=xOf(f), y=h-(specBuf[i]/255)*h;
+      c.lineTo(x,y);
+    }
+    c.stroke();
+    c.strokeStyle='#ffb84d';
+    for(let i=0;i<5;i++){ const f=formantNow[i]; if(!f||f<fmin||f>fmax) continue;
+      const x=xOf(f); c.beginPath(); c.moveTo(x,0); c.lineTo(x,h); c.stroke(); }
+    $('#flist').textContent=formantNow.slice(0,5).map(f=>Math.round(f)).join(' · ');
+  }
+  measure();
+}
+drawXY(); ftable(); measure(); draw();
+</script>
+</body>
+</html>
