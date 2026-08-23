@@ -2857,3 +2857,71 @@ Left alone deliberately: the log directory `~/Library/Logs/HYPERSAW` and the
 `"plugin":"HYPERSAW"` marker in the state JSON. Both are identifiers rather than
 display strings, and the second is written into every preset a user has already
 saved.
+
+
+## ADR-116 — the horde UI spec, ingested (2026-08-23)
+
+**Status:** accepted as the design of record; **not implemented**.
+
+`HORDE UI Spec.dc.html` arrived from a Claude Design session, written against
+this repo's gui2. Filed at `docs/design-system/` as delivered — not transcribed
+to markdown, because it is ~200 exact values (hexes, pixel counts, angles,
+timings) and a normative document with two copies is one that will disagree with
+itself.
+
+### What it is
+
+Format-neutral values in §1–7 (normative for any stack), a webview build in §8
+(CSS verbatim, normative for gui2 today), and a native-port appendix in §9 for a
+C++ painter that does not exist yet. It declares its own precedence: **where they
+conflict, §1–7 win.** That single line settles every future argument about
+whether the CSS or the design is authoritative.
+
+### What it changes about the shipped interface
+
+This is a **re-skin, not a restyle**:
+
+- **Ground inverts.** Spec is cream (`#F2EDE2`); gui2 is near-black (`#0b0e13`).
+  Every colour decision in the current file was made against a dark ground.
+- **The corner palette moves** — A `#FFD702`, B `#FF2E88`, C `#00D5C8`,
+  D `#A6F219`, each with a dark text pair and a 10% tint.
+- **Semantic colours get one job each and may not be borrowed** — value/physics/
+  meter/marker/celebrate/caution/alarm/dry-ghost. The rule with teeth: red
+  appears at most twice on a page (PANIC + clip) "or it stops meaning danger".
+- **Fonts become bundled TTF** (Archivo + Roboto Mono, offline). gui2 has **zero**
+  `@font-face` rules today and rides system monospace.
+- **Hard-shadow, flat-ink language** (1.5px offset, no blur) — a visual idiom the
+  current interface does not use at all.
+
+### THE TRAP TO FIX FIRST
+
+gui2 **already defines the corner palette twice, and the two copies already
+disagree**:
+
+- `MCOLORS` (JS, line ~927): `#5ff2e0 #ffc24b #b18cff #ff7d9c` — drives the pad
+  washes, the arm boxes, the per-row ownership stripes and the corner labels.
+- `--cA…--cD` (CSS, line ~21): `#f2b134 #ff4d6d #4cc9f0 #7ae582` — **consumed by
+  nothing** (0 references).
+
+They are not the same colours. The CSS set is currently dead, which is the only
+reason nobody has seen it: the first person to style something with `var(--cA)`
+gets a colour that does not match the pad, and corner identity — which the spec
+makes load-bearing across five surfaces — silently splits in two. **Any re-skin
+must land on ONE palette source**, and the dead set must die rather than be
+updated alongside. This is the same two-copies failure as the JSON state twins
+and the corner-owner map, found before it could cost anything.
+
+### What it specifies that does not exist yet
+
+Mod halos and live dots (no modulators — B16/B23), the census bar, FX module
+corner strips, the temperature wheel, the goniometer, the LFO rotor, the envelope
+node editor, and the generative wordmark warp (§5 — which connects to the logo
+work already parked). The spec is ahead of the instrument on purpose; it should
+not be read as a list of things that are broken.
+
+### Not delivered
+
+The spec's last line points at page compositions living in a **Design Directions**
+file, and the human also named `HORDE Design System.dc.html`. Neither arrived. So
+we hold tokens and widget behaviour but not page layouts — the better half to
+have first, since layouts can be re-derived from tokens and not the reverse.
