@@ -28,6 +28,9 @@ namespace
 
 extern "C" void hypersaw_debug_state(const clap_plugin_t *, char *, uint32_t);
 extern "C" bool hypersaw_debug_apply(const clap_plugin_t *, const char *);
+extern "C" bool hypersaw_debug_exempt(const clap_plugin_t *, uint32_t);
+extern "C" const char *hypersaw_debug_cornervals(const clap_plugin_t *, int);
+extern "C" const char *hypersaw_debug_exemptjson(const clap_plugin_t *);
 
 int g_failures = 0;
 void check(bool ok, const char *what)
@@ -321,6 +324,71 @@ int main()
     check(applied && std::fabs(a - 0.111) < 1e-9, "JSON state: base param round-trips");
     check(std::fabs(bb - 0.222) < 1e-9, "JSON state: oscillator 2 TWIN round-trips");
     j->stop_processing(j); j->deactivate(j); j->destroy(j);
+  }
+
+  {
+    /* ADR-112 A3: the HOST path must round-trip the morph FIELD — corners and
+       exempt — not merely the params. This is exactly the case that shipped
+       broken: every param restored, the field silently degenerate (all four
+       corners lazily re-init to the restored live values). Author corner D to
+       0.777 while the LIVE value ends at 0.3 — a value a lazy re-init CANNOT
+       produce — save via the state extension, load into a FRESH instance, and
+       require the authored corner and the exempt flag back.
+       Authoring drives real PROCESS blocks (corner_probe's proven path):
+       params_flush in this harness only enqueues host->engine edits, and with
+       no audio thread the queue never drains — the first draft of this case
+       authored nothing and could not fail for the right reason. */
+    const clap_plugin_t *m = makePlugin();
+    m->activate(m, 44100.0, 32, 256);
+    m->start_processing(m);
+    auto *ms = (const clap_plugin_state_t *)m->get_extension(m, CLAP_EXT_STATE);
+    EvList ev2;
+    ev2.list.ctx = &ev2; ev2.list.size = ev_size; ev2.list.get = ev_get;
+    std::vector<float> mL(256), mR(256);
+    float *mch[2] = {mL.data(), mR.data()};
+    clap_audio_buffer_t mout{};
+    mout.data32 = mch; mout.channel_count = 2;
+    auto pumpM = [&](const clap_plugin_t *pp) {
+      clap_process_t pr{};
+      pr.frames_count = 256; pr.audio_outputs = &mout; pr.audio_outputs_count = 1;
+      pr.in_events = &ev2.list; pr.out_events = &kOut;
+      for (int i = 0; i < 4; i++) { pp->process(pp, &pr); ev2.evs.clear(); }
+    };
+    auto push = [&](clap_id id, double v) {
+      clap_event_param_value_t e{};
+      e.header.size = sizeof(e); e.header.type = CLAP_EVENT_PARAM_VALUE;
+      e.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      e.param_id = id; e.value = v;
+      e.note_id = -1; e.port_index = -1; e.channel = -1; e.key = -1;
+      ev2.evs.push_back(e);
+    };
+    push(151, 1); pumpM(m);                 // morph on
+    push(159, 4); pumpM(m);                 // arm corner D
+    push(4, 0.777); pumpM(m);               // author D's detune
+    push(159, 0); pumpM(m);                 // release the arm
+    push(4, 0.3); pumpM(m);                 // live detune 0.3 (lands on the owner, not D)
+    hypersaw_debug_exempt(m, 11);           // exempt inertia
+    OStr ms_out;
+    ms_out.s.ctx = &ms_out; ms_out.s.write = ostr_write;
+    check(ms->save(m, &ms_out.s), "morph-field state saves");
+    check(ms_out.data.find("morph=") != std::string::npos, "host blob carries the morph chunk");
+    // The middle is pinned in TEXT: the writer must have serialised the
+    // authored value, so a symmetric writer/parser no-op cannot pass.
+    check(ms_out.data.find("0.777") != std::string::npos, "authored value reaches the blob");
+    m->stop_processing(m); m->deactivate(m); m->destroy(m);
+
+    const clap_plugin_t *m2 = makePlugin();
+    auto *ms2 = (const clap_plugin_state_t *)m2->get_extension(m2, CLAP_EXT_STATE);
+    IStr ms_in;
+    ms_in.s.ctx = &ms_in; ms_in.s.read = istr_read; ms_in.data = ms_out.data;
+    check(ms2->load(m2, &ms_in.s), "morph-field state loads on fresh instance");
+    const std::string cd = hypersaw_debug_cornervals(m2, 3);
+    const size_t at = cd.find("\"4\":");
+    const double d = at == std::string::npos ? -99 : std::atof(cd.c_str() + at + 4);
+    check(std::fabs(d - 0.777) < 1e-6, "authored corner D survives the session");
+    const std::string ex = hypersaw_debug_exemptjson(m2);
+    check(ex.find("\"11\"") != std::string::npos, "exempt set survives the session");
+    m2->destroy(m2);
   }
 
   b->destroy(b);
