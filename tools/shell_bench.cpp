@@ -22,8 +22,10 @@ int main()
     {"default patch, 8 held notes",               {}},
     {"16 voices/osc, 8 notes",                    {{1,16}}},
     {"+ bend law on (const-time)",                {{1,16},{106,1}}},
-    {"+ osc2 audible (vol 0.4)",                  {{1,16},{106,1},{1017,0.4}}},
-    {"+ drift + width + tone tilt",               {{1,16},{106,1},{1017,0.4},{9,30},{14,1.5},{66,0.5}}},
+    // osc2 needs BOTH enable (1150) and volume (1017): ADR-100 ships it OFF,
+    // so a volume write alone still measures one oscillator.
+    {"+ osc2 audible (enable + vol 0.4)",         {{1,16},{106,1},{1150,1},{1017,0.4}}},
+    {"+ drift + width + tone tilt",               {{1,16},{106,1},{1150,1},{1017,0.4},{9,30},{14,1.5},{66,0.5}}},
     {"osc2 vol=0 (default) but 16v",              {{1,16}}},
     // The human's hypothesis (2026-08-20): the ADR-094 saw-shape section is the
     // eater. Each stage alone, then all four, against the same 16v/8-note base.
