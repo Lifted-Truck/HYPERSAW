@@ -7,9 +7,10 @@ itself the instrument: its voices are Kuramoto-coupled oscillators you can herd 
 dissolve into cloud, splay into harmonic multiplication, or erase by interference. Everything
 is deterministic and seeded — the same patch and the same notes produce the same samples.
 
-*Names: the **device** is **horde**. **HYPERSAW** is the engine inside it (and the repo's own
-name, and the plugin id hosts use to re-find saved sessions — that id is frozen forever, so it
-will keep saying `hypersaw` long after nothing else does).*
+*Names: the **device** is **horde**; its founding **engine** is **SWARM SAW**, with **SPECTRA**
+as its per-partial sibling. "HYPERSAW" is now only the repository's name and the frozen plugin
+id hosts use to re-find saved sessions — so that id will keep saying `hypersaw` long after
+nothing on screen does.*
 
 ![horde — the MAIN page](docs/img/gui-overview.png)
 *MAIN: the XY pad, the bend laws with their step-response and vibrato-retention meters, patch
@@ -68,7 +69,9 @@ sources, mono/legato, and MPE per-note bend live here too.
 
 The feature that makes horde a *patch explorer* rather than a synth with a lot of knobs.
 
-Four corners each hold a complete snapshot of the patch. Drag the XY field and every parameter
+Four corners each hold a complete snapshot of the patch. The field **starts at 100% corner A**,
+not in the middle: at a corner every parameter is owned by one snapshot, so the morph behaves
+like an ordinary patch until you choose to move. Drag the XY field and every parameter
 independently decides which corner it follows — this is **not** a crossfade. Each parameter
 runs its own weighted draw, so moving across the field re-assembles the patch out of the four
 corners rather than averaging them into mush. The controls that shape it:

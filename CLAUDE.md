@@ -70,7 +70,7 @@ lists as protected.
 
 **What this is.** A synthesizer built from a family of experimental, responsive
 engines with dynamical characteristics, oriented toward the sounds of hyperpop
-(ADR-091). The founding engine — **HYPERSAW** (formerly SAW) — is a
+(ADR-091). The founding engine — **SWARM SAW** (formerly SAW, then HYPERSAW; ADR-115) — is a
 coupled-oscillator system (Kuramoto swarm over a kernel — "the supersaw taken
 seriously as physics"); **SPECTRA** is its per-partial sibling; the first new
 member is the **formant engine** (working name CANTO — FOF/pulsar grains, formants
