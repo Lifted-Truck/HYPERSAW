@@ -2768,3 +2768,39 @@ gates, 159 declared params. Also added: the two-oscillator cost measurement, the
 morph engine, the formant engine's reverted polyphony and open future, and a
 Known Gaps entry recording that in-page WebAudio health readouts are not
 trustworthy (ADR-091 A4) so no future session rebuilds one.
+
+
+## ADR-114 — the device is horde; HYPERSAW is the engine (2026-08-23)
+
+**Status:** accepted, shipped.
+
+Human: "The device is going to be called horde instead of hypersaw." That closes
+the question §Domain had been carrying as *"working product title horde; naming
+open until Phase 5"* — it is no longer open, and no longer working.
+
+The name now resolves to three different things, and keeping them distinct is
+the whole content of this ADR:
+
+- **horde** — the DEVICE. What a host shows in its browser, what the README
+  leads with, what a user calls it. The CLAP descriptor's display string moved
+  here.
+- **HYPERSAW** — the founding ENGINE, and the label the engine selector shows.
+  Unchanged; SPECTRA is its sibling in that same list. Also the repo's name,
+  which is left alone (renaming a repo breaks every link ever shared to it, for
+  no gain a redirect would not give).
+- **`com.lifted-truck.hypersaw`** — the plugin ID, **frozen forever**. This is
+  how every host re-finds the plugin in an already-saved session. Renaming it
+  does not rename the plugin; it creates a *different* plugin and orphans every
+  project that ever loaded the old one. It is an identifier that happens to read
+  like a name, which is exactly why a future session will be tempted to tidy it
+  — the comment at the descriptor says so in place.
+
+The README was rewritten around the same decision, and around the human's
+complaint that it was "mostly a graveyard of old concepts, nothing about the
+current functionality or the morph grid or the roadmap": it now leads with what
+the instrument does, gives the morph grid its own section (it is the feature
+that makes horde a patch explorer rather than a synth with many knobs), carries
+the five new screenshots, and summarises where the work is going. The
+archaeology — the two-interface justification, the phase-by-phase history, the
+retired house mark — is gone; ROADMAP.md and this log already hold it, and a
+README repeating them is a second copy free to drift.
