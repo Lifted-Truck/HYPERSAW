@@ -2237,6 +2237,63 @@ struct Plugin
     return out + "]}";
   }
 
+  /* ADR-112 A3: ONE parser for the morph chunk, called by BOTH state paths.
+     The JSON preset path always carried the corners; the HOST session path
+     (state_save/state_load) never did, so a DAW session restored every live
+     param and silently dropped the field — all four corners lazily re-init
+     to the restored live values, a degenerate field where the pad moves
+     nothing ("sessions don't save the morph", human 2026-08-23). The writer
+     (morphJson) and this parser stay adjacent twins on purpose: the JSON
+     state-twins bug was two copies drifting apart. */
+  void applyMorphChunk(const std::string &json)
+  {
+    {
+      size_t ep = json.find("\"morphExempt\"");
+      if (ep != std::string::npos)
+      {
+        morphInit();
+        const char *c = std::strchr(json.c_str() + ep, '[');
+        if (c)
+        {
+          c++;
+          for (size_t i = 0; i < morphExempt.size(); i++)
+          {
+            morphExempt[i] = (uint8_t)(std::atoi(c) != 0);
+            const char *nx = std::strchr(c, ',');
+            const char *cl = std::strchr(c, ']');
+            if (!nx || (cl && cl < nx)) break;
+            c = nx + 1;
+          }
+        }
+      }
+    }
+    /* ADR-104: corner snapshots. Simple bracketed-array scan of our own
+       writer's output — four arrays in morphIds order. */
+    {
+      size_t mp = json.find("\"morphCorners\"");
+      if (mp != std::string::npos)
+      {
+        morphInit();
+        const char *c = json.c_str() + mp;
+        for (int k = 0; k < 4; k++)
+        {
+          c = std::strchr(c, '[');
+          if (!c) break;
+          if (k == 0) { c = std::strchr(c + 1, '['); if (!c) break; }   // outer, then inner
+          c++;
+          for (size_t i = 0; i < morphIds.size(); i++)
+          {
+            morphCorner[k][i] = std::atof(c);
+            const char *nx = std::strchr(c, ',');
+            const char *cl = std::strchr(c, ']');
+            if (!nx || (cl && cl < nx)) { c = cl ? cl + 1 : c; break; }
+            c = nx + 1;
+          }
+        }
+      }
+    }
+  }
+
   std::string morphJson()
   {
     if (morphIds.empty()) return "";
@@ -2343,51 +2400,7 @@ struct Plugin
       enqueueParam(137, 0, 0);                                  // own settings
       enqueueParam(138, hypersaw::GlideCore::kLag, 0);          // lag, as it always was
     }
-    {
-      size_t ep = json.find("\"morphExempt\"");
-      if (ep != std::string::npos)
-      {
-        morphInit();
-        const char *c = std::strchr(json.c_str() + ep, '[');
-        if (c)
-        {
-          c++;
-          for (size_t i = 0; i < morphExempt.size(); i++)
-          {
-            morphExempt[i] = (uint8_t)(std::atoi(c) != 0);
-            const char *nx = std::strchr(c, ',');
-            const char *cl = std::strchr(c, ']');
-            if (!nx || (cl && cl < nx)) break;
-            c = nx + 1;
-          }
-        }
-      }
-    }
-    /* ADR-104: corner snapshots. Simple bracketed-array scan of our own
-       writer's output — four arrays in morphIds order. */
-    {
-      size_t mp = json.find("\"morphCorners\"");
-      if (mp != std::string::npos)
-      {
-        morphInit();
-        const char *c = json.c_str() + mp;
-        for (int k = 0; k < 4; k++)
-        {
-          c = std::strchr(c, '[');
-          if (!c) break;
-          if (k == 0) { c = std::strchr(c + 1, '['); if (!c) break; }   // outer, then inner
-          c++;
-          for (size_t i = 0; i < morphIds.size(); i++)
-          {
-            morphCorner[k][i] = std::atof(c);
-            const char *nx = std::strchr(c, ',');
-            const char *cl = std::strchr(c, ']');
-            if (!nx || (cl && cl < nx)) { c = cl ? cl + 1 : c; break; }
-            c = nx + 1;
-          }
-        }
-      }
-    }
+    applyMorphChunk(json);
     /* ADR-103: schema<2 patches saved glideMode=1 when that option behaved as
        ALWAYS (silence included) — the new mode 1 (ringing-gated) did not exist.
        Migrate the stored 1 to 2: same sound, new number. */
@@ -3715,6 +3728,10 @@ bool state_save(const clap_plugin_t *p, const clap_ostream_t *stream)
                     self(p)->readParam((clap_id)(d.id + k * kOscStride)));
       blob += line;
     }
+  // ADR-112 A3: the morph field rides the session, not just the preset. The
+  // fragment is opaque JSON on one line; the parser find()s its keys, so the
+  // leading comma the fragment carries is harmless.
+  blob += "morph=" + self(p)->morphJson() + "\n";
   int64_t written = 0;
   while (written < (int64_t)blob.size())
   {
@@ -3750,6 +3767,11 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
     const size_t eq = line.find('=');
     if (eq == std::string::npos) continue;
     std::string key = line.substr(0, eq);
+    if (key == "morph")   // ADR-112 A3: the field's chunk, shared parser
+    {
+      pl->applyMorphChunk(line.substr(eq + 1));
+      continue;
+    }
     const double val = std::atof(line.c_str() + eq + 1);
     // ADR-082: split an `o<k>.` prefix off the key and resolve it to that
     // oscillator's block. A prefix naming an oscillator this build does not
