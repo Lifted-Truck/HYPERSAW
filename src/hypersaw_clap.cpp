@@ -121,7 +121,13 @@ static const char *const kFxTypeLabels[] = {"Off",  "Drive", "Filter", "Gain",
 static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
                                             "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
 
-static const char *const kEngineLabels[] = {"HYPERSAW", "SPECTRA"};   // engine renamed SAW -> HYPERSAW 2026-08-17 (ADR-091); value 0 and state key unchanged
+/* ADR-115: the engine is SWARM SAW. Renamed SAW -> HYPERSAW (ADR-091), and now
+   -> SWARM SAW, which returns it to the lineage its own prototype never left
+   (swarmsaw.html / SwarmSynth). With the device named horde, "HYPERSAW" now
+   survives ONLY as the repo name and the frozen plugin id — it is off the
+   product surface entirely. The VALUE and the state key are untouched, as in
+   ADR-091: a label is not an identity, and every stored patch keeps loading. */
+static const char *const kEngineLabels[] = {"SWARM SAW", "SPECTRA"};
 static const char *const kWlawLabels[] = {"cents", "Hz"};
 static const ParamDef kParams[] = {
     {1, "n", "Voices", 1, 32, 7, true, nullptr},
@@ -439,8 +445,19 @@ static const ParamDef kParams[] = {
        Seed is a stepped param: the patchwork's IDENTITY, automatable like any
        other, reshuffled deterministically when it changes. */
     {151, "morphOn", "Morph", 0, 1, 0, true, kOffOn},
-    {152, "morphX", "Morph X", 0, 1, 0.5, false, nullptr},
-    {153, "morphY", "Morph Y", 0, 1, 0.5, false, nullptr},
+    /* ADR-115: the field STARTS AT CORNER A, not in the middle. w[0] = (1-x)(1-y),
+       so (0,0) is 100% A. The centre was the worst possible default on two
+       counts the human named as one ("the middle is the messiest place on the
+       grid and the most confusing to edit"): every corner weighs 0.25 there, so
+       the Gumbel draw scatters parameters across all four and the patch you hear
+       is a patchwork of four sources; and because an UNARMED edit lands on
+       whichever corner owns that parameter (ADR-109), edits at the centre
+       scatter into four different corners too. At 100% A every parameter is
+       owned by A, so the field behaves exactly like a plain patch until you
+       choose to move — which is the right first experience of a feature this
+       strange. */
+    {152, "morphX", "Morph X", 0, 1, 0.0, false, nullptr},
+    {153, "morphY", "Morph Y", 0, 1, 0.0, false, nullptr},
     {154, "morphTemp", "Temperature", 0.02, 4, 1, false, nullptr},
     {155, "morphCoup", "Coupling", 0, 1, 0.3, false, nullptr},
     {156, "morphSeed", "Morph Seed", 1, 9999, 1024, true, nullptr},
@@ -1168,7 +1185,10 @@ struct Plugin
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
   std::vector<double> morphCorner[4];     // snapshots, aligned to morphIds
   std::vector<double> morphCur;           // last applied value per morphIds slot
-  double morphX = 0.5, morphY = 0.5, morphTemp = 1, morphCoup = 0.3;
+  // ADR-115: MUST match the ParamDef defaults for 152/153 (corner A = 0,0).
+  // paramscope_check's default-truth sweep exists for exactly this pair going
+  // out of step, and caught it the first time this changed.
+  double morphX = 0.0, morphY = 0.0, morphTemp = 1, morphCoup = 0.3;
   double morphOn = 0, morphMode = 0, morphGlideS = 0.008;
   uint32_t morphSeed = 1024;
   int morphAccum = 0;

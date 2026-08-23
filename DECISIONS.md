@@ -2804,3 +2804,56 @@ the five new screenshots, and summarises where the work is going. The
 archaeology — the two-interface justification, the phase-by-phase history, the
 retired house mark — is gone; ROADMAP.md and this log already hold it, and a
 README repeating them is a second copy free to drift.
+
+
+## ADR-115 — the field starts at corner A; the engine is SWARM SAW (2026-08-23)
+
+**Status:** accepted, shipped.
+
+### Morph X/Y default 0.5 -> 0.0
+
+Human: "the default setting should probably put the morph grid at 100% corner A
+instead of in the middle, since the middle is the messiest place on the grid and
+the most confusing to edit."
+
+Both halves of that are true, and they are the same fact seen from two sides.
+`weights()` is bilinear, so at (0.5, 0.5) every corner weighs exactly 0.25 —
+the point of MAXIMUM disagreement in the field. Two consequences:
+
+- **What you hear** is a patchwork drawn from all four corners at once. Harmless
+  at init, when the corners are identical copies of the defaults; maximally
+  scrambled the moment you author them, which is the moment a new user first
+  tries the feature.
+- **What you edit** scatters the same way. An unarmed edit lands on whichever
+  corner owns that parameter (ADR-109), so at the centre consecutive edits land
+  in different corners with nothing on screen explaining why.
+
+At (0, 0) every parameter is owned by A, so the field behaves exactly like a
+plain patch until the user chooses to move. The strangeness becomes opt-in
+rather than the first thing encountered.
+
+**`paramscope_check` earned its keep here.** ADR-107's default-truth sweep went
+RED immediately: the ParamDef said 0.0 while the member initialisers still said
+0.5 — the same ParamDef/member split that bit ADR-024 A1. The gate named it as
+"2 lie(s)" on a fresh instance before the change could ship.
+
+### The engine is SWARM SAW
+
+Human: "instead of hypersaw, the engine itself should be called swarm saw."
+
+SAW -> HYPERSAW (ADR-091) -> **SWARM SAW**, which returns the engine to the
+lineage its own prototype never left (`swarmsaw.html`, `SwarmSynth`,
+`swarm_core.h` — none of which ever said HYPERSAW). Chosen in caps to sit beside
+SPECTRA in the same selector.
+
+With the device named horde (ADR-114), **"HYPERSAW" is now off the product
+surface entirely** — it survives only as the repository name and the frozen
+plugin id `com.lifted-truck.hypersaw`. Both stay: renaming a repo breaks every
+link ever shared to it, and renaming the id orphans every saved session. As in
+ADR-091, the parameter VALUE and the state key are untouched — a label is not an
+identity, and every stored patch keeps loading.
+
+Left alone deliberately: the log directory `~/Library/Logs/HYPERSAW` and the
+`"plugin":"HYPERSAW"` marker in the state JSON. Both are identifiers rather than
+display strings, and the second is written into every preset a user has already
+saved.
