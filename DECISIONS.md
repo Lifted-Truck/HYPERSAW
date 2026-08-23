@@ -2737,3 +2737,34 @@ both audio-health readouts.
 **Standing question for the human, not answered here:** whether CANTO earns a
 place in horde at all ("I'm not entirely convinced this one will make it into
 Horde"). ROADMAP F2 is closed as *tried and reverted*, not as delivered.
+
+
+### ADR-113 — GUI1 demoted; gui2 is the shipped interface (2026-08-23)
+
+Human: "update the readme and now demote GUI 1."
+
+The 2026-08-07 condition for the swap was "GUI2 swaps in when it reaches
+parity." It has, on both readings: reach (`gui_reach` measures gui2 at 142/159
+declared parameters against gui.html's 102/159) and scope — GUI1 predates the
+second oscillator, the mixer, the FX rack and the morph engine and cannot show
+any of them. It stopped being a smaller view of the same instrument and became
+a view of an older one, which is what makes it legacy rather than an
+alternative.
+
+`HYPERSAW_GUI2` now defaults **ON**. GUI1 is kept building behind
+`-DHYPERSAW_GUI2=OFF`, and that escape hatch was verified rather than asserted:
+a clean configure with the flag off resolves `src/gui/gui.html` and compiles
+green.
+
+Worth stating because it is exactly the kind of thing a green gate hides:
+`gui_reach` is an **either-GUI** check, so it stays green while gui2's 17-param
+gap exists. The README now names that gap instead of leaving a reader to infer
+coverage from a passing gate.
+
+The README was stale on nearly every number (147/147 parity, 42 tests, 18 labs,
+30 gates, "105 params", a 2026-08-15 date). Refreshed from a measured
+`./verify full` in the same change: 156/156 parity, 124 tests, 22 labs, 31
+gates, 159 declared params. Also added: the two-oscillator cost measurement, the
+morph engine, the formant engine's reverted polyphony and open future, and a
+Known Gaps entry recording that in-page WebAudio health readouts are not
+trustworthy (ADR-091 A4) so no future session rebuilds one.
