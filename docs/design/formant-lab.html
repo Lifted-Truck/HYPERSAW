@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HORDE · formant swarm lab — poly / detune width / de-click</title>
+<title>HORDE · formant swarm lab — formant detune width / de-click</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <!--
   FORMANT SWARM LAB — the evolution surface for CANTO.
@@ -16,16 +16,20 @@
   as glitch-lab vs horde_decoherence_lab (2026-08-22). Fold discipline:
   lab -> protected reference -> C++ port -> goldens -> parity.
 
-  WHAT IS NEW HERE, all three from the human (2026-08-23):
-    1. POLYPHONY. Voices are independent singers: own f0, own grain train, own
-       REGISTER state R. Register per voice is the musically honest reading —
-       a low note should sound like a low singer even while a high note is held.
-       Plus CHOIR coupling, off by default: the voices' formants pull toward the
-       ensemble mean, so a chord can lock its vowel the way the swarm locks phase.
-    2. FORMANT DETUNE WIDTH. Each formant is voiced by several slightly detuned
+  POLYPHONY WAS TRIED AND REVERTED (2026-08-23). It ran as independent voices
+  with per-voice register and an optional choir coupling; two rounds of
+  performance work (a grain budget, then recursive grains) did not stop the
+  human hearing the output cut out past six voices, and my instruments reported
+  healthy throughout — see the note by the audio readout, and ADR-091 A4. The
+  human's verdict on the sound settled it: "not terribly impressed with how this
+  sounds as a polyphonic instrument anyway." The voice machinery is left in
+  place pinned to lim = 1, so restoring it is one line if the engine earns it.
+
+  WHAT REMAINS, from the human (2026-08-23):
+    1. FORMANT DETUNE WIDTH. Each formant is voiced by several slightly detuned
        grains, spread across the stereo field — the supersaw move applied to
        formants. Beating in the FORMANT rather than in the fundamental.
-    3. DE-CLICK, with the bug left audible beside the fix. See below.
+    2. DE-CLICK, with the bug left audible beside the fix. See below.
 
   THE CLICK (human: "occasionally a little clicking at the lower frequencies"),
   diagnosed and quantified before it was fixed:
@@ -87,11 +91,6 @@ input[type=range]{width:100%;accent-color:var(--pink);height:18px}
 .hint{color:var(--dim);margin:6px 0 0;line-height:1.5}
 .warn{color:var(--amber)}
 .ok{color:var(--good)}
-.vstrip{display:flex;gap:3px;margin:6px 0 2px}
-.vcell{flex:1;height:26px;border:1px solid var(--line);border-radius:2px;background:var(--panel2);position:relative;overflow:hidden}
-.vcell i{position:absolute;left:0;bottom:0;right:0;background:var(--amber);opacity:.55}
-.vcell b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:400 10px 'IBM Plex Mono';color:var(--bone)}
-.vcell.on{border-color:var(--pink)}
 table.meas{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}
 table.meas td{padding:2px 0;color:var(--dim)}
 table.meas td:last-child{text-align:right;color:var(--cyan)}
@@ -100,7 +99,7 @@ table.meas td:last-child{text-align:right;color:var(--cyan)}
 <body>
 <header>
   <h1>HORDE <span>/ formant swarm lab</span></h1>
-  <p>polyphonic · formant detune width · grain de-click · seeded</p>
+  <p>monophonic · formant detune width · grain de-click · seeded</p>
   <button id="start">start audio</button>
 </header>
 <main>
@@ -112,25 +111,13 @@ table.meas td:last-child{text-align:right;color:var(--cyan)}
     <canvas id="spec" height="130"></canvas>
     <div class="lbl"><span>spectrum · amber ticks = formant centres of the lowest sounding voice</span><span id="flist"></span></div>
     <div class="card" style="border:0;border-top:1px solid var(--line);border-radius:0">
-      <h2>play <em>— hold a chord; every voice keeps its own register</em></h2>
+      <h2>play</h2>
       <div class="keys" id="keys"></div>
-      <p class="hint">keys <b>a w s e d f t g y h u j k</b> play a chromatic octave · <b>z / x</b> shift octave. Hold a low note and a high note together: the low one sinks into bass register (sub, narrowed bandwidths, downward slide) while the high one stays bright — that is the per-voice R.</p>
+      <p class="hint">keys <b>a w s e d f t g y h u j k</b> play a chromatic octave · <b>z / x</b> shift octave. Monophonic — the newest note takes the voice.</p>
     </div>
   </section>
 
   <aside class="side">
-    <div class="card">
-      <h2>polyphony <em>— new</em></h2>
-      <div class="row"><label>voices</label><input id="poly" type="range" min="1" max="8" step="1" value="6"><output>6</output></div>
-      <div class="row"><label>choir K</label><input id="choir" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output></div>
-      <div class="row"><label>poly trim</label><input id="ptrim" type="range" min="0" max="1" step="0.01" value="1"><output>1.00</output></div>
-      <div class="row"><label>grain budget</label><input id="budget" type="range" min="200" max="4000" step="50" value="1100"><output>1100</output></div>
-      <div class="vstrip" id="vstrip"></div>
-      <p class="hint">Each voice is an independent singer — own fundamental, own grain train, own register state R (the bar height in each cell). <b>choir K</b> couples the voices' formants toward the ensemble mean: at 0 they are separate singers, turned up they agree on a vowel the way the swarm agrees on a phase. Voice stealing takes the oldest.</p>
-      <p class="hint"><b>grain budget</b> is the total live grains allowed across all voices, split evenly by the voice limit. Each grain costs a handful of multiplies per sample, so this IS the CPU control: a voice that runs out stops emitting and its train thins — it never cuts a sounding grain, because cutting one mid-flight is the same discontinuity the de-click exists to prevent. The readout above the waveform says <b>audio OK</b> until the worklet stops keeping up; push the budget up and watch it fall.</p>
-      <p class="hint"><b>poly trim</b> divides by &radic;(voice limit) before the drive stage — the reference is mono, so its drive was tuned for one voice and a six-note chord otherwise pins the tanh (measured: 1 voice peaks 0.84, 6 peak 1.00). Trim follows the LIMIT, not the live count, so notes never duck each other. Set it to 0 to hear the reference's summing.</p>
-    </div>
-
     <div class="card">
       <h2>formant detune width <em>— new</em></h2>
       <div class="row"><label>copies</label><input id="fv" type="range" min="1" max="5" step="1" value="1"><output>1</output></div>
@@ -273,7 +260,7 @@ class PolyFormantCore {
     else if(m.type==='allOff'){ for(const v of this.voices) v.noteOff(); }
   }
   alloc(f,key){
-    const lim=Math.max(1,Math.min(8,this.p.poly|0));
+    const lim=1;   // monophonic, see render()
     const live=this.voices.slice(0,lim);
     // same key already down -> retrigger it rather than burning a second voice
     let v=live.find(u=>u.key===key);
@@ -326,18 +313,21 @@ class PolyFormantCore {
     const u=(d/(n-1))*2-1;                       // -1 .. +1
     return Math.sign(u)*Math.pow(Math.abs(u),curve);
   }
-  /* NO CPU METER IN HERE. The obvious version — time render() against the
-     block's wall-clock budget — cannot work: "performance" is UNDEFINED in
-     AudioWorkletGlobalScope (probed in this browser; typeof === "undefined"),
-     so it silently reported 0% forever, which is worse than no meter. The
-     starvation check lives on the main thread instead, where it compares the
-     AUDIO clock against the wall clock — see "pollStarve()". */
+  /* NO CPU METER IN HERE, and none on the main thread either. Timing
+     render() against the block budget cannot work: "performance" is
+     UNDEFINED in AudioWorkletGlobalScope, so it read 0% forever. Its
+     replacement (audio clock vs wall clock) was no better and is gone
+     too — see the long note by the readout for why both were blind. */
   render(outL,outR){
     const sr=this.sr, p=this.p, dt=1/sr, n=outL.length;
     const relCoef=Math.exp(-1/(p.rel*0.001*sr));
     const wr=2*Math.PI*p.regLag, z=p.zeta, w=2*Math.PI*p.rate, wg=2*Math.PI*p.glide;
     const shManual=p.shift/12*Math.LN2;
-    const lim=Math.max(1,Math.min(8,p.poly|0));
+    /* MONOPHONIC (human, 2026-08-23: "maybe we should just revert to the
+       monophony after all"). The voice machinery is left standing but pinned
+       to one, so the diff that brings polyphony back is one line — and so the
+       measured reason it was reverted stays legible next to it. */
+    const lim=1;
     const fadeS=p.fade*0.001, capS=p.cap*0.001, invFade=fadeS>0?1/fadeS:0;
     const nCopies=Math.max(1,Math.min(5,p.fv|0)), ampComp=1/Math.sqrt(nCopies);
     /* POLY TRIM. The reference is monophonic, so its drive stage was tuned for
@@ -492,24 +482,18 @@ const state={octave:2,vowel:'a',mode:'fof',keys:{}};
 let formantNow=[600,1040,2250,2450,2750,110];
 let voiceState=[];
 let lowF0=0, lowR=0, lowBwk=1;
-/* STARVATION DETECTOR. When the worklet cannot finish a block in time the
-   AUDIO clock advances slower than the wall clock — that ratio is the honest
-   "is it killing audio" signal, and it is measurable only from here. 1.00 =
-   keeping up. Raise `grain budget` past what the machine can carry and this
-   drops; that is the control proving the detector fires. */
-let audioKeep=1, _lastAT=0, _lastWT=0;
-function pollStarve(){
-  if(!ctx || ctx.state!=='running'){ _lastWT=0; return; }
-  const at=ctx.currentTime, wt=performance.now()/1000;
-  if(_lastWT){
-    const dw=wt-_lastWT;
-    if(dw>0.05){ const ratio=(at-_lastAT)/dw;
-      audioKeep = audioKeep*0.7 + Math.max(0,Math.min(1.2,ratio))*0.3; }
-    else return;
-  }
-  _lastAT=at; _lastWT=wt;
-}
-setInterval(pollStarve,250);
+/* NO AUDIO-HEALTH READOUT HERE, DELIBERATELY. Two attempts both reported
+   healthy while the human could hear the output cut out (2026-08-23):
+     - AnalyserNode RMS taps the GRAPH, not the device. It reports what the node
+       computed, and keeps reporting the last buffer when the worklet stalls —
+       so it is loudest precisely when the speakers have gone quiet.
+     - ctx.currentTime vs wall clock is driven by the audio DEVICE clock, which
+       keeps advancing through an underrun (the device happily clocks out
+       silence), so it only moved under catastrophic overload.
+   Both instruments shared the assumption they were meant to test. Until there
+   is a detector that measures the OUTPUT (a MediaStreamDestination recording
+   checked for gaps), the honest position is no number at all — the ear is the
+   oracle. See DECISIONS ADR-091 A4. */
 const trainEvents=[];
 
 async function start(){
@@ -547,7 +531,7 @@ const CTL=[
   ['boff',v=>String(v)],['glide',v=>v+' Hz'],['drive',v=>v.toFixed(2)],
   ['rel',v=>v+' ms'],['regFollow',v=>v.toFixed(2)],['regMan',v=>v.toFixed(2)],
   ['regLag',v=>v+' Hz'],
-  ['poly',v=>String(v)],['choir',v=>v.toFixed(2)],['ptrim',v=>v.toFixed(2)],['budget',v=>String(v)],
+  
   ['fv',v=>String(v)],['fdet',v=>v.toFixed(1)+' ¢'],['fwidth',v=>v.toFixed(2)],
   ['fcurve',v=>v.toFixed(2)],['fade',v=>v.toFixed(1)+' ms'],['cap',v=>v+' ms'],
   ['seed',v=>String(v)],
@@ -698,28 +682,8 @@ function draw(){
     c.fillText('sub',4,5*rh+12);
     $('#f0lbl').textContent = lowF0? 'lowest '+lowF0.toFixed(1)+' Hz · R '+lowR.toFixed(2) : '—';
   }
-  // ---- voice strip ----
-  { const strip=$('#vstrip'), lim=+$('#poly').value;
-    if(strip.children.length!==lim){
-      strip.innerHTML=''; for(let i=0;i<lim;i++){
-        const d=document.createElement('div'); d.className='vcell';
-        d.innerHTML='<i style="height:0"></i><b></b>'; strip.appendChild(d); }
-    }
-    for(let i=0;i<lim;i++){
-      const cell=strip.children[i], st=voiceState[i];
-      const on=st&&st[0];
-      cell.classList.toggle('on',!!on);
-      cell.querySelector('i').style.height=(on? Math.max(0,Math.min(1,st[2]))*100 : 0)+'%';
-      cell.querySelector('i').style.background=VHUE[i%VHUE.length];
-      cell.querySelector('b').textContent= on? Math.round(st[1]) : '·';
-    }
-    const g=voiceState.reduce((a,v)=>a+((v&&v[0])?v[3]:0),0);
-    const keep=Math.round(audioKeep*100);
-    const lab=$('#polylbl');
-    lab.textContent = voiceState.filter(v=>v&&v[0]).length+' sounding · '+g+' grains · audio '
-                    + (keep>=97 ? 'OK' : keep+'% (dropping)');
-    lab.style.color = keep>=97 ? 'var(--dim)' : (keep>=85 ? 'var(--amber)' : 'var(--pink)');
-  }
+  { const g=voiceState.reduce((a,v)=>a+((v&&v[0])?v[3]:0),0);
+    $('#polylbl').textContent = g+' grains'; }
   if(!analyser) return;
   // ---- waveform ----
   { const {c,w,h}=fit($('#wave'),90);

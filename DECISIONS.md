@@ -2691,3 +2691,49 @@ with three extra steals: 100%, ~1000 grains, drains to 0 on release.
 comments I added INSIDE the worklet's template literal, which terminated the
 string. Then my own repair swept too broadly and replaced the template's own
 delimiters — caught again, same gate, same run.
+
+
+### ADR-091 A4 — polyphony reverted, and both my instruments were blind (2026-08-23)
+
+Human: "Every time you've run a test, the audio has cut out after 6 voices even
+though the output displays continue as normal... I'm not terribly impressed with
+how this sounds as a polyphonic instrument anyway, so maybe we should just
+revert to the monophony."
+
+**The measurement failure is the finding.** Across three rounds I reported
+healthy audio from two instruments, and the human — listening to the same runs —
+heard the output cut out every time. Both instruments were structurally
+incapable of seeing the failure they were pointed at:
+
+- **AnalyserNode RMS taps the GRAPH, not the device.** It reports what the node
+  computed and keeps reporting its last buffer when the worklet stalls. It is
+  loudest exactly when the speakers have gone quiet. Every "rms 0.6, audible:
+  true" line in A2/A3 is this.
+- **ctx.currentTime vs wall clock is the audio DEVICE clock**, which keeps
+  advancing through an underrun — the device clocks out silence perfectly on
+  time. It only moved (43%) under a catastrophic 3909-grain overload, which is
+  why the must-fire control "passed" while the real regime went unseen.
+
+This is the trap the project memory already names: a probe that confirms the
+expected answer for the wrong reason. I built the must-fire control for the
+detector's *sensitivity* and never asked the prior question — whether the
+quantity being measured is downstream of the fault at all. A control proves a
+check can fire; it does not prove the check is pointed at the right thing.
+
+The honest instrument here is a recording of the OUTPUT
+(MediaStreamDestination, checked for gaps). Until that exists the lab shows no
+audio-health number at all, because a number that argues against the user's
+ears is worse than no number — it cost three rounds.
+
+**The revert.** Polyphony is out; `lim` is pinned to 1 with the voice machinery
+left standing, so restoring it is one line if the engine earns it. Kept, because
+none of it depends on polyphony and all of it was asked for or fixes a reported
+bug: formant detune width, the grain de-click (with its A/B and live readout),
+the recursive grain (verified equal to the closed form to 1e-14 — a real
+speedup that stands on its own), and seeded masking. Removed with the
+polyphony: the voice strip, choir coupling, poly trim, grain budget control, and
+both audio-health readouts.
+
+**Standing question for the human, not answered here:** whether CANTO earns a
+place in horde at all ("I'm not entirely convinced this one will make it into
+Horde"). ROADMAP F2 is closed as *tried and reverted*, not as delivered.
