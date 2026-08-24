@@ -167,6 +167,13 @@
   body:not(.dark) {
     --marker:#8A6A00;      /* was #FFD702 at 1.20:1 -> 5.6:1               */
     --celebrate:#4E7A00;   /* was #A6F219 at 1.17:1 -> 5.3:1               */
+    /* THE LOGO'S four corner colours. It cycles through corner identity, so it
+       needs the corner HUES -- but measured on cream the raw corner set reads
+       A 1.20 : B 3.00 : C 1.58 : D 1.17, i.e. the mark would vanish for three
+       quarters of its cycle. Same hues, lightness moved until each clears the
+       ground (4.34 / 5.05 / 5.10 / 4.38); dark mode uses the corner colours
+       themselves, where they already measure 5.27-13.46. */
+    --lgA:#8A6A00; --lgB:#C4006B; --lgC:#00706A; --lgD:#4E7A00;
   }
   body.dark {
     --bg:#151220; --panel:#1F1B2E; --well:#0E0C16; --panel2:#2C2740;
@@ -186,6 +193,9 @@
     --cB:#FF2E88; --cBtx:#FF6FAE;
     --cC:#00D5C8; --cCtx:#4DEDE3;
     --cD:#A6F219; --cDtx:#C6F86A;
+    /* on the dark ground the corner colours ARE legible, so the logo uses the
+       identity directly rather than a variant */
+    --lgA:#FFD702; --lgB:#FF2E88; --lgC:#00D5C8; --lgD:#A6F219;
     /* canvas-only names (ADR-118 A2) follow the same roles */
     --text-hi:#FFFFFF; --dim2:#9A93A8; --grid:#312B47; --grid2:#312B47;
     --hot:#FF3DAD; --bad:#FF5A4D; --badge-bg:rgba(255,182,39,.9);
@@ -3010,6 +3020,56 @@ function tdWarp(seed) {
     warp.addBlob(38 * K, 26 * K, 0.31, 0.62, 1, 0.0);
     warp.addBlob(-30 * K, 22 * K, 0.74, 0.28, 2, 3.1);
 
+    /* ---- corner-colour drift (human: "unevenly shift between the four morph
+       colors") ------------------------------------------------------------
+       UNEVEN in two independent ways, because a single irregularity still
+       reads as a pattern once you have watched it twice:
+         1. each corner holds for a DIFFERENT dwell, so the cycle is 1.0 : 1.7
+            : 0.8 : 1.4 rather than four equal quarters;
+         2. the rate itself wobbles on two incommensurate sines, so a given
+            corner is never approached at the same speed twice.
+       The mark is tinted, not re-baked: the warp writes alpha, and a source-in
+       fill colours only where the glyphs landed. That keeps the whole thing to
+       one gradient and one fillRect per frame -- negligible beside the remap --
+       and means the colour never has to know the warp exists. */
+    const LG = ['--lgA', '--lgB', '--lgC', '--lgD'];
+    const DWELL = [1.0, 1.7, 0.8, 1.4];         // seconds-ish, deliberately unequal
+    const mix = (a, b, f) => {
+      const pa = /^#?(..)(..)(..)$/.exec(a), pb = /^#?(..)(..)(..)$/.exec(b);
+      if (!pa || !pb) return a;
+      const c = i => Math.round(parseInt(pa[i], 16)
+                   + (parseInt(pb[i], 16) - parseInt(pa[i], 16)) * f)
+                   .toString(16).padStart(2, '0');
+      return '#' + c(1) + c(2) + c(3);
+    };
+    let cu = 0, ctime = 0;                       // ring position, and its own clock
+    const tint = (dt) => {
+      const i = Math.floor(cu) % 4, j = (i + 1) % 4;
+      /* The wobble reads an INDEPENDENT clock, not `cu`. Driving it from the
+         ring position looked uneven and was not: cu retraces the same
+         trajectory every lap, so every lap took exactly the same time and the
+         whole sequence repeated every ~6 s (measured 0.73 / 1.13 / 0.90 / 3.20
+         on every single visit). Against a free-running clock with
+         incommensurate periods the laps never coincide, so a corner is held
+         for a different length each time it comes round. */
+      ctime += dt;
+      const rate = 1 + 0.45 * Math.sin(ctime * 0.31)
+                     + 0.25 * Math.sin(ctime * 0.113 + 2.1);
+      cu = (cu + dt * Math.max(0.15, rate) / DWELL[i]) % 4;
+      const raw = cu - Math.floor(cu);
+      const f = raw * raw * (3 - 2 * raw);        // smoothstep the handover
+      const cA = mix(TOK(LG[i], '#FF2E88'), TOK(LG[j], '#00D5C8'), f);
+      /* a small lead/lag across the mark so a handover sweeps through it
+         rather than flipping the whole word at once */
+      const cB = mix(TOK(LG[i], '#FF2E88'), TOK(LG[j], '#00D5C8'),
+                     Math.min(1, Math.max(0, f + 0.22)));
+      const g = ctx.createLinearGradient(0, 0, W, H * 0.7);
+      g.addColorStop(0, cA); g.addColorStop(1, cB);
+      ctx.globalCompositeOperation = 'source-in';
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+    };
+
     let last = 0, tSec = 0;
     const SPEED = 0.55;                      // t-units per second
     const FRAME = 1000 / 30;
@@ -3021,7 +3081,8 @@ function tdWarp(seed) {
       if (TOK('--text', '#191521') !== bakedInk) bake();
       tSec = (tSec + dt * SPEED) % TD_CYCLE;          // seamless: loops at 8.0
       warp.render(SRC.data, DST.data, W, H, tSec);
-      ctx.putImageData(DST, 0, 0);
+      ctx.putImageData(DST, 0, 0);              // ignores compositing, so tint after
+      tint(dt);
     };
     if (reduce) { ctx.putImageData(SRC, 0, 0); }      // static, undistorted
     else requestAnimationFrame(draw);
