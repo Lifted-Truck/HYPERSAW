@@ -15,31 +15,57 @@
      Increment 1: shell + MIX + OSC pages, MAIN with the XY. No viz canvases
      yet — that cluster lands with the intermediary snapshot work. -->
 <html><head><meta charset="utf-8"><title>HYPERSAW</title><style>
-  :root { --bg:#0b0e13; --panel:#11151f; --panel2:#161b28; --line:#2a3040;
-    --dim:#7f8899; --text:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b;
-    /* CORNER PALETTE — THE ONLY DECLARATION. It used to exist twice: these four
-       vars, and a separate MCOLORS array in the script, holding DIFFERENT
-       colours. The vars were dead (0 references), which is the only reason
-       nobody hit it; the first `var(--cA)` in a stylesheet would have split
-       corner identity across the five surfaces that carry it (pad washes, arm
-       boxes, row ownership stripes, corner labels, ghost rows). MCOLORS now
-       READS these, so there is one source. (ADR-118)
-       KNOWN COLLISION, deliberately left for the re-skin to resolve: --cA is
-       byte-identical to --pull and --cB to --amber, so nothing in this file
-       distinguishes "corner A" from "the accent". Any recolour must separate
-       them BEFORE moving either, or the accent follows the corner by accident. */
-    --cA:#5ff2e0; --cB:#ffc24b; --cC:#b18cff; --cD:#ff7d9c;
-    /* Canvas-only colours, named here so the stylesheet is the single source
-       for PAINTED colour too (ADR-118). Values are exactly what the literals
-       held, so this declaration changes nothing — the re-skin edits them next.
-       Three of them absorb a near-duplicate that had drifted by a digit:
-       --bg absorbs #0b0e14, --dim absorbs #7c8698, --text-hi absorbs #e8ecf2. */
-    --text-hi:#e8ecf4;   /* brighter than --text: pad puck, XY dot          */
-    --dim2:#3a4152;      /* canvas axis labels, dimmer than --dim           */
-    --grid:#232a3a;      /* in-well gridlines (phase circle)                */
-    --grid2:#1a2030;     /* in-well gridlines (strip) — dimmer variant      */
-    --hot:#ff4fa3;       /* live-value marks on canvas                      */
-    --bad:#ff4d6d; }     /* a measured cost worth flagging (vibrato loss)   */
+  /* ============================================================
+     TOKENS — horde UI spec v1 (docs/design-system/), §1 + §8.
+     The spec is normative for values; where it and the Design System file
+     disagree, §1–7 win (ADR-117). Old token NAMES are kept where the file
+     already used them, so 56 var() sites and every TOK() call inherit the new
+     value without being touched — the re-skin is this block, by design
+     (ADR-118 spent two increments making that true).
+     ============================================================ */
+  :root {
+    /* ground */
+    --bg:#F2EDE2;        /* page ground (cream)                    */
+    --panel:#FCFAF4;     /* module cards                           */
+    --well:#FFFFFF;      /* DATA surfaces: viz, pads, keyboards     */
+    --panel2:#E9E3D4;    /* well-alt: control tracks, empty meters  */
+    --line:#191521;      /* ink — ALL outlines                     */
+    --hair:#E5DFD0;      /* in-well gridlines ONLY, never borders   */
+    --div:#D8D1C0;       /* dashed intra-card separators           */
+    /* text */
+    --text:#191521;      /* primary (ink)                          */
+    --t2:#494356;        /* secondary                              */
+    --dim:#9A93A3;       /* hint                                   */
+    --dis:#B6AFA0;       /* disabled                               */
+    /* signal — one job each, never borrowed */
+    --value:#F5169C;     /* the user's authored value              */
+    --pull:#F5169C;      /* legacy name for the accent = value      */
+    --physics:#6431F0;   /* order parameter, K vector, rotor lead   */
+    --meter:#00D5C8;     /* analyzers, R rim arc                   */
+    --marker:#FFD702;    /* attention: root, overshoot, lock front  */
+    --celebrate:#A6F219; /* OK / meters in the green               */
+    --caution:#F5A300;   --caution-bg:#FBE9BD; --caution-tx:#6D570B;
+    --amber:#F5A300;     /* legacy name for caution                 */
+    --alarm:#C2261A;     /* PANIC, clip, mute — NOTHING else        */
+    --ghost:#C9C2FF;     /* dry/reference traces behind wet         */
+    /* corners — preset identity (fill / dark text pair) */
+    --cA:#FFD702; --cAtx:#D4A900;
+    --cB:#FF2E88; --cBtx:#FF2E88;
+    --cC:#00D5C8; --cCtx:#00B3A8;
+    --cD:#A6F219; --cDtx:#6FB200;
+    /* canvas-only names from ADR-118 A2, re-pointed at spec roles */
+    --text-hi:#191521;   /* was "brighter than text" on dark; on cream that is ink */
+    --dim2:#494356;      /* canvas axis labels — secondary, per §2   */
+    --grid:#E5DFD0;      /* gridlines = hairline                    */
+    --grid2:#E5DFD0;     /* second gridline variant collapses in    */
+    --hot:#F5169C;       /* live-value marks = value                */
+    --bad:#C2261A;       /* a measured cost worth flagging = alarm   */
+    --badge-bg:rgba(245,163,0,.9);   /* caution at badge alpha      */
+    /* geometry */
+    --r-card:10px; --r-well:8px; --stroke:1.5px;
+    --shadow:1.5px 1.5px 0 var(--line);
+    --shadow-hover:2.5px 2.5px 0 var(--line);
+    --focus:0 0 0 2.5px rgba(245,22,156,.45); }     /* a measured cost worth flagging (vibrato loss)   */
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
@@ -47,7 +73,7 @@
   .tab { padding:4px 14px; border:1px solid var(--line); border-radius:3px;
     cursor:pointer; color:var(--dim); background:var(--panel); font-size:11px;
     letter-spacing:1px; }
-  .tab.on { color:#0b0e13; background:var(--text); font-weight:600; }
+  .tab.on { color:var(--bg); background:var(--line); font-weight:600; }
   .tab.stub { opacity:.35; cursor:default; }
   .page { display:none; }
   .page.on { display:grid; gap:10px; }
@@ -96,25 +122,25 @@
   h2 { font-size:11px; color:var(--pull); letter-spacing:1px; margin-bottom:6px; }
   .strip { background:var(--panel2); border:1px solid var(--line); border-radius:3px;
     padding:6px 9px; margin-bottom:8px; min-width:0; }
-  .strip b { font-size:10px; color:var(--dim); letter-spacing:1px; }
+  .strip b { font-size:10px; color:var(--t2); letter-spacing:1px; }
   .msrow { display:flex; gap:4px; align-items:center; margin:4px 0 2px; }
   .msbtn { flex:0 0 auto; font-size:9px; letter-spacing:1px; padding:2px 7px;
            border:1px solid var(--line); border-radius:3px; background:var(--panel);
            color:var(--dim); cursor:pointer; user-select:none; }
-  .msbtn.on[data-ms="m"] { background:#7a2740; border-color:#a8395b; color:#ffd9e4; }
-  .msbtn.on[data-ms="s"] { background:#7a6a1f; border-color:#b09a2c; color:#fff3c9; }
+  .msbtn.on[data-ms="m"] { background:var(--alarm); border-color:var(--line); color:#FCF0EE; }
+  .msbtn.on[data-ms="s"] { background:var(--caution); border-color:var(--line); color:var(--line); }
   /* Dimmed by ANOTHER strip's solo — distinct from self-muted, or the mixer
      lies about which control silenced you. */
   .strip.bysolo { opacity:.45; }
-  .meter { flex:1 1 auto; height:6px; background:#0d1119; border:1px solid var(--line);
+  .meter { flex:1 1 auto; height:6px; background:var(--panel2); border:1px solid var(--line);
            border-radius:2px; overflow:hidden; }
-  .meter i { display:block; height:100%; width:0%; background:linear-gradient(90deg,#2f7d55,#61c08a);
+  .meter i { display:block; height:100%; width:0%; background:var(--celebrate);
              transition:width .05s linear; }
-  .meter i.clip { background:linear-gradient(90deg,#a8395b,#ff6b8f); }
+  .meter i.clip { background:var(--alarm); }
   .strip.master b { color:var(--text); }
   .row { display:grid; grid-template-columns:64px minmax(0,1fr) 52px;
     align-items:center; gap:6px; margin:5px 0; }
-  .row label { color:var(--dim); font-size:10px; }
+  .row label { color:var(--t2); font-size:10px; }
   .row output { font-size:10px; text-align:right; color:var(--text); }
   input[type=range] { width:100%; accent-color:var(--pull); min-width:0; }
   #xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
@@ -122,7 +148,7 @@
   .oscSel { display:inline-flex; gap:3px; margin-left:8px; }
   .oscSel .oscTab { font:inherit; font-size:10px; padding:1px 7px; cursor:pointer;
     background:var(--panel2); color:var(--dim); border:1px solid var(--line); border-radius:3px; }
-  .oscSel .oscTab.on { color:#0b0e13; background:var(--text); border-color:var(--text); font-weight:600; }
+  .oscSel .oscTab.on { color:var(--bg); background:var(--line); border-color:var(--line); font-weight:600; }
   .oscSel .oscTab.silent { opacity:.62; }
   .oscSel .oscTab.on.silent { opacity:1; }
   .oscSel .oscTab.oscoff { text-decoration:line-through; opacity:.45; }
@@ -139,8 +165,8 @@
   .row.ghost > label { color:var(--armc, var(--text)); opacity:.65; }
   .row.owned > label { color:var(--own); }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
-           background:var(--panel,#15171c); border:1px solid var(--line);
-           border-radius:7px; box-shadow:0 8px 26px #000a; font-size:11px; }
+           background:var(--panel,#FCFAF4); border:1px solid var(--line);
+           border-radius:7px; box-shadow:var(--shadow); font-size:11px; }
   .pmenuHead { display:flex; justify-content:space-between; gap:10px; padding:4px 7px 6px;
                border-bottom:1px solid var(--line); color:var(--text); font-weight:600; }
   .pmenuId { opacity:.45; font-weight:400; }
@@ -159,14 +185,14 @@
   /* An unmissable reminder: while a corner is armed, edits are NOT going where
      a performer would expect. Cheap tint rather than a modal. */
   body.arming .ctlcol .cluster, body.arming .page .cluster { border-style:dashed; }
-  .oscPow.on { color:#0b0e13; background:var(--text); border-color:var(--text);
+  .oscPow.on { color:var(--bg); background:var(--text); border-color:var(--text);
                opacity:1; box-shadow:0 0 6px rgba(232,236,244,.55); }
   .note { color:var(--dim); font-size:10.5px; }
   canvas.xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
               width:100%; touch-action:none; }
   #carpetC, #stripC, #vmapC { width:100%; background:var(--panel2);
                               border:1px solid var(--line); display:block; }
-  .vlabel { color:var(--dim); font-size:10px; margin:6px 0 3px; }
+  .vlabel { color:var(--t2); font-size:10px; margin:6px 0 3px; }
   .oscbar h2 { display:flex; align-items:center; gap:8px; }
   .oscbar { border-color:var(--pull); }
   /* [hidden] IS NOT ENOUGH when the element sets its own display. `.row` is
@@ -580,8 +606,8 @@ function TOK(name, fallback) {
 }
 // Corner colours come from the stylesheet now. The literals stay ONLY as the
 // headless fallback, and must equal the :root values above.
-const MCOLORS = [TOK('--cA', '#5ff2e0'), TOK('--cB', '#ffc24b'),
-                 TOK('--cC', '#b18cff'), TOK('--cD', '#ff7d9c')];
+const MCOLORS = [TOK('--cA', '#FFD702'), TOK('--cB', '#FF2E88'),
+                 TOK('--cC', '#00D5C8'), TOK('--cD', '#A6F219')];
 
 "use strict";
 /* ============ PLUMBING (ported from gui.html — proven, do not fork) ======= */
@@ -986,7 +1012,7 @@ const presetStore = {
     let padW = 0, padH = 0;
     const drawField = () => {
       const fx = field.getContext('2d');
-      fx.fillStyle = TOK('--bg'); fx.fillRect(0, 0, padW, padH);
+      fx.fillStyle = TOK('--well'); fx.fillRect(0, 0, padW, padH);
       for (let k = 0; k < 4; k++) {
         const gx = (k % 2) ? padW : 0, gy = (k > 1) ? padH : 0;
         const gr = fx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(padW, padH));
@@ -1452,7 +1478,7 @@ function drawXY() {
   for (const cv of XYS()) {
     const xyctx = cv.getContext('2d');
     const w = cv.width, h = cv.height;
-    xyctx.fillStyle = TOK('--panel2'); xyctx.fillRect(0, 0, w, h);
+    xyctx.fillStyle = TOK('--well'); xyctx.fillRect(0, 0, w, h);
     const x = curX * w, y = (1 - (curK + 1) / 2) * h;
     xyctx.strokeStyle = TOK('--line');
     xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
@@ -1558,7 +1584,7 @@ async function vizFrame() {
       for (const cv of [document.getElementById('phaseC'), document.getElementById('phaseC2')]) {
         if (!cv || !cv.offsetWidth) continue;
         const g = cv.getContext('2d');
-        g.fillStyle = TOK('--bg'); g.fillRect(0, 0, cv.width, cv.height);
+        g.fillStyle = TOK('--well'); g.fillRect(0, 0, cv.width, cv.height);
         g.fillStyle = TOK('--dim2'); g.font = '10px monospace'; g.textAlign = 'center';
         g.fillText('osc off', cv.width / 2, cv.height / 2);
         g.textAlign = 'start';
@@ -1605,8 +1631,8 @@ for (const c of document.querySelectorAll('canvas.wavscope')) {
   c.title = 'click to freeze / unfreeze — a detuned swarm never repeats exactly, so freeze to study a shape';
   c.onclick = () => {
     scopeFrozen = !scopeFrozen;
-    if (scopeFrozen && wvx) { wvx.fillStyle = 'rgba(255,194,75,0.9)'; wvx.fillRect(wvC.width - 34, 3, 31, 11);
-      wvx.fillStyle = TOK('--bg'); wvx.font = '9px monospace';
+    if (scopeFrozen && wvx) { wvx.fillStyle = TOK('--badge-bg'); wvx.fillRect(wvC.width - 34, 3, 31, 11);
+      wvx.fillStyle = TOK('--text'); wvx.font = '9px monospace';
       wvx.fillText('HOLD', wvC.width - 31, 12); blitScope(); }
   };
 }
@@ -1617,7 +1643,7 @@ async function drawScope() {
   // so the ring is stale — show the OFF state instead of a frozen wave.
   if (lastVizOscEnabled === false) {
     const w2 = wvC.width, h2 = wvC.height;
-    wvx.fillStyle = TOK('--bg'); wvx.fillRect(0, 0, w2, h2);
+    wvx.fillStyle = TOK('--well'); wvx.fillRect(0, 0, w2, h2);
     wvx.fillStyle = TOK('--dim2'); wvx.font = '10px monospace';
     wvx.fillText('osc off', 8, h2 / 2);
     blitScope();
@@ -1635,7 +1661,7 @@ async function drawScope() {
     // rising zero-crossing in L and draw forward from there, so a periodic
     // waveform stands still and L/R phase differences (super-width's whole
     // story) are readable as a fixed offset between the two traces.
-    wvx.fillStyle = TOK('--bg');
+    wvx.fillStyle = TOK('--well');
     wvx.fillRect(0, 0, w, h);
     wvx.strokeStyle = TOK('--line');
     wvx.beginPath(); wvx.moveTo(0, h / 2); wvx.lineTo(w, h / 2); wvx.stroke();
@@ -1727,7 +1753,7 @@ async function specFrame() {
 // try and its catch, which the lab-load gate rejected as a syntax error.
 function _drawSpecOne(specSm) {
     const w = sc2.width, h = sc2.height;
-    sctx2.fillStyle = TOK('--bg'); sctx2.fillRect(0, 0, w, h);
+    sctx2.fillStyle = TOK('--well'); sctx2.fillRect(0, 0, w, h);
     sctx2.strokeStyle = TOK('--pull'); sctx2.lineWidth = 1.2;
     sctx2.lineJoin = 'round';
     sctx2.beginPath();
@@ -1767,7 +1793,7 @@ window.addEventListener('load', async () => {
       }
       n.textContent = '⚠ ' + h;
     }, 2000);
-    el.style.cssText = 'position:fixed;right:6px;bottom:4px;font-size:9px;color:#7f8899;opacity:.6;pointer-events:none';
+    el.style.cssText = 'position:fixed;right:6px;bottom:4px;font-size:9px;color:var(--dim);opacity:.6;pointer-events:none';
     document.body.appendChild(el);
   } catch (e) {}
   syncFromEngine().catch(() => {});

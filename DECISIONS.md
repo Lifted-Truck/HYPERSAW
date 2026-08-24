@@ -3134,3 +3134,52 @@ Same lesson as ADR-091 A4, in a new costume: **ask whether the instrument can
 see the thing before believing what it reports.** A hash that is stable because
 nothing is drawn looks exactly like a hash that is stable because nothing
 changed.
+
+
+### ADR-118 A3 — increment 1c: the ground flips (2026-08-24)
+
+The visible one. `:root` is now the spec's token set and gui2 is a **cream**
+instrument: cream ground, white data wells, ink outlines, magenta as the
+authored value. Because A1 and A2 spent two increments making every colour
+token-driven, this landed as **one block plus twelve targeted edits** rather
+than a hunt.
+
+Legacy token NAMES were kept pointing at their new spec ROLES (`--pull` →
+value, `--amber` → caution, `--text` → ink), so 56 `var()` sites and every
+`TOK()` call inherited the new palette untouched. That was the whole bet of
+increments 0–1b and it paid.
+
+Twelve places needed a semantic decision rather than a value swap:
+
+- **Data wells are WHITE, not the ground.** Five canvas fills were painting
+  `--bg`; on a dark theme "page ground" and "well" were the same colour, so
+  nothing distinguished them. §1 separates them, so they now paint `--well`.
+- **The HOLD badge's text** was `--bg` (dark text on an amber chip). On cream
+  that would have vanished; it is `--text` (ink).
+- **M / S, the meter, and its clip state** went to their spec roles — alarm,
+  celebrate, caution — and the meter lost its gradient, because §4 specifies
+  flat fills.
+- **The menu's shadow** was `0 8px 26px #000a`. The spec bans blur outright
+  ("hard, no blur"), so it is `var(--shadow)` — a 1.5px offset.
+- **MCOLORS' headless fallbacks** still held the OLD corner colours. They only
+  fire where there is no computed style, so they would have been wrong exactly
+  where nobody looks.
+
+### A contrast audit caught a mapping error of mine
+
+I mapped `--dim` → the spec's **hint** colour and left labels on it. §2 says
+labels are **secondary**; only hints take hint. Measured on the rendered DOM:
+labels were at **2.84:1**, below 3:1 for 10px text. Moved to `--t2`:
+**9.06:1**. Canvas axis labels had the same fault (mapped to `disabled`
+weight, 2.09:1) and are now 9.46:1.
+
+Worth recording what the audit did *not* flag, so a later reader does not
+"fix" it: `meter`/`marker`/`celebrate`/`corner A` all sit near 1.4:1 against
+white, and that is correct — the spec never uses them as text, always as
+**fills carrying an ink 1.5 border**. Hairlines at 1.33:1 are gridlines and are
+meant to be faint. Hint text stays at 2.84:1 because §2 deliberately sets it
+quieter than a label; that is the spec's call, and it is now the only text
+below 3:1 rather than the default for every label on the page.
+
+`./verify full` EXIT=0, parity 156/156 — the interface changed, the instrument
+did not.
