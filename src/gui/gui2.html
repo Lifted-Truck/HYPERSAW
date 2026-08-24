@@ -171,9 +171,14 @@
        needs the corner HUES -- but measured on cream the raw corner set reads
        A 1.20 : B 3.00 : C 1.58 : D 1.17, i.e. the mark would vanish for three
        quarters of its cycle. Same hues, lightness moved until each clears the
-       ground (4.34 / 5.05 / 5.10 / 4.38); dark mode uses the corner colours
-       themselves, where they already measure 5.27-13.46. */
-    --lgA:#8A6A00; --lgB:#C4006B; --lgC:#00706A; --lgD:#4E7A00;
+       ground. Re-lightened 2026-08-24 (human: "in light mode, the text appears
+       a little too dark"): a logo is DISPLAY type, so the governing floor is
+       3:1 for graphics, not the 4.5:1 body-text one that produced the first,
+       muddier set. Each hue was solved down to ~3.30:1 rather than eyeballed
+       -- 4.34/5.05/5.10/4.38 became 3.30 across the board, which is as bright
+       as the cream ground allows while still separating from it. Dark mode
+       uses the corner colours themselves, where they measure 5.27-13.46. */
+    --lgA:#988000; --lgB:#FE006E; --lgC:#009289; --lgD:#608F08;
   }
   body.dark {
     --bg:#151220; --panel:#1F1B2E; --well:#0E0C16; --panel2:#2C2740;
@@ -2870,9 +2875,14 @@ function tdWarp(seed) {
   const ph1 = next() * TD_TAU, ph2 = next() * TD_TAU, ph3 = next() * TD_TAU;
   const P = { waveAmp: 26, waveFreq: 1.4, tremor: 3.5,
               smearAngle: 0, angleJitter: 12, waveJitter: 0.5 };
-  const strokes = [], fields = [];
+  const strokes = [], fields = [], corners = [];
   return {
     params: P,
+    /* fx,fy are FRACTIONS of the canvas, so the four corners stay put whatever
+       size the mark is rendered at. env never uses floor(), so position and
+       strength are both C1 in time -- which is the whole point. */
+    addCorner: (fx, fy, rad, sc, rot, freq, ph) =>
+      corners.push({ fx, fy, rad, sc, rot, freq, ph }),
     addBlob: (amp, rad, r1, r2, cyc, bph) =>
       strokes.push({ x0: 0, y0: 0, amp, rad, r1, r2, blob: true, cyc, bph }),
     addSwirl: (rad, sc, rot, cyc, bph) => fields.push({ rad, sc, rot, cyc, bph }),
@@ -2904,6 +2914,17 @@ function tdWarp(seed) {
                    wf: 0.11 * Math.pow(2.5, (st.r2 * 2 - 1) * P.waveJitter) });
       }
       const flds = [];
+      /* Four invisible corners the word presses itself into. Same per-pixel
+         maths as a swirl -- local scale + rotation around a point -- but the
+         point is FIXED and the envelope is a plain raised cosine, so it
+         breathes instead of popping. Each corner runs its own period, and the
+         periods are chosen not to share a common multiple, so the four never
+         reach full press together and the expansion stays uneven. */
+      for (const c of corners) {
+        const e = 0.15 + 0.85 * (0.5 * (1 - Math.cos(t * TD_W1 * c.freq + c.ph)));
+        flds.push({ x0: c.fx * W, y0: c.fy * H, rad: c.rad,
+                    sc: c.sc * e, rot: c.rot * e });
+      }
       for (const f of fields) {
         const ph = t * TD_W1 * 4 * f.cyc + f.bph;
         const e = Math.pow(0.5 * (1 - Math.cos(ph)), 1.6);
@@ -3010,15 +3031,33 @@ function tdWarp(seed) {
        and the vertical extent is what legibility runs out of first. */
     const TD_AUTHORED_H = 288, K = H / TD_AUTHORED_H;
     const warp = tdWarp(7);
-    warp.params.waveAmp *= K;
-    warp.params.tremor  *= K;
-    /* One swirl and two blobs -- the README's own VST sketch shape. Frozen
-       here rather than randomised so the mark is the same every launch; the
-       browser tool is where these get art-directed, and a chosen seed is the
-       whole point of the engine being deterministic. */
-    warp.addSwirl(140 * K, 0.30, 0.45, 1, 2.6);   // sc/rot are unitless ratios
-    warp.addBlob(38 * K, 26 * K, 0.31, 0.62, 1, 0.0);
-    warp.addBlob(-30 * K, 22 * K, 0.74, 0.28, 2, 3.1);
+    /* Base wriggle retuned for a RIPPLE rather than a heave: more cycles
+       across the width at a smaller throw. The old single slow wave at full
+       amplitude read as the whole word sliding, which is what left the blobs
+       carrying all the visible motion. */
+    warp.params.waveAmp  *= K * 0.55;
+    warp.params.tremor   *= K * 1.6;
+    warp.params.waveFreq  = 2.6;
+    /* FOUR CORNERS, no blobs (human 2026-08-24: "the words wriggle around and
+       press themselves into four invisible corners as they expand unevenly").
+       The corners sit just outside the glyphs, so the word is pulled toward
+       them rather than orbiting a point inside itself. sc > 0 is a local
+       expansion, which is what reads as "pressing into"; the small alternating
+       rot is the wriggle, and alternating its sign keeps the four from
+       agreeing on a direction of spin.
+       Periods 2.0 / 2.74 / 1.58 / 3.26 share no common multiple, so the four
+       presses drift in and out of phase forever -- that is where "unevenly"
+       comes from, rather than from randomness, which would reintroduce the
+       jerk the blobs had. */
+    /* Strengths kept low on purpose. At sc ~0.3 with this reach the four
+       corners tear the word apart -- "horde" stopped being readable, which is
+       a logo failing at its one job. These press and release visibly while the
+       word stays itself; the motion should be felt more than watched. */
+    const R = 0.62 * W;                       // reach: each corner covers the word
+    warp.addCorner(0.06, 0.10, R, 0.15,  0.075, 2.00, 0.0);
+    warp.addCorner(0.94, 0.10, R, 0.13, -0.065, 2.74, 1.9);
+    warp.addCorner(0.06, 0.90, R, 0.14, -0.070, 1.58, 3.6);
+    warp.addCorner(0.94, 0.90, R, 0.12,  0.080, 3.26, 5.2);
 
     /* ---- corner-colour drift (human: "unevenly shift between the four morph
        colors") ------------------------------------------------------------
