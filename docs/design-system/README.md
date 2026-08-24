@@ -6,6 +6,7 @@
 |---|---|
 | `HORDE-UI-Spec.dc.html` | **The UI implementation spec, v1** (2026-08-23) — tokens, widget state tables, visualizer recipes, morph presentation. Normative for **values**. |
 | `HORDE-Design-System.dc.html` | **The consolidated system** (2026-08-23) — page compositions for MAIN, OSC, FX, MIX and the bend+scale panels, with the reasoning. Normative for **layout**. |
+| `HORDE-Vaporwave-Phosphor.dc.html` | **The display direction** (2026-08-24, adopted) — data wells become dark phosphor tubes; the cream chrome stays. Normative for **screen tokens and trace rendering**; where it touches chrome values, the UI Spec still wins. |
 | `support.js` | The Claude Design canvas runtime both `.dc.html` files load. Vendored beside them **only** so the specs render from a checkout; it is not ours and is not edited. A separately-delivered `hp-support.js` was byte-identical (same SHA-256), so there is one copy, not two. |
 
 The spec is kept **as delivered**, not transcribed into markdown. A normative
@@ -75,4 +76,7 @@ human ruling**, recorded on ROADMAP as B37's blocking questions:
    chips for that job instead.
 2. **Re-theming.** UI Spec: "corner colours never re-theme". Design System:
    "corner identity becomes per-direction, not global." These cannot both hold
-   if a second visual direction ever ships.
+   if a second visual direction ever ships. *Note (2026-08-24): the Vaporwave
+   Phosphor direction shipped WITHOUT triggering this — it re-tunes only the
+   signal hexes inside wells and leaves corner colours alone, so the ruling
+   stays open rather than decided by accident.*
