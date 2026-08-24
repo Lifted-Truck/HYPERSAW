@@ -1628,7 +1628,7 @@ function _drawPhaseOne(s) {
   const twoClu = s.topo === 2, halfN = n >> 1;
   for (let i = 0; i < n; i++) {
     // data dimension (cluster membership), NOT corner identity
-    pctx.fillStyle = (twoClu && i >= halfN) ? TOK('--amber') : TOK('--pull');
+    pctx.fillStyle = (twoClu && i >= halfN) ? TOK('--ghost') : TOK('--value');
     pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
   }
   // K-vector: Cartesian-smoothed direction, separately-smoothed scalar length
@@ -1830,8 +1830,10 @@ async function drawScope() {
       }
       const g = (h / 2 - 3) / pk;
       // data dimension (channel), NOT corner identity
-      for (const [arr, col] of [[s.r, TOK('--amber')], [s.l, TOK('--pull')]]) {
-        wvx.strokeStyle = col; wvx.lineWidth = 1.2; wvx.beginPath();
+      for (const [arr, col] of [[s.r, TOK('--ghost')], [s.l, TOK('--value')]]) {
+        wvx.strokeStyle = col;
+        wvx.lineWidth = (col === TOK('--value')) ? 2.0 : 1.4;   // §6 weights
+        wvx.beginPath();
         for (let i = 0; i < span; i++) {
           const x = i / (span - 1) * w, y = h / 2 - arr[trig + i] * g;
           i ? wvx.lineTo(x, y) : wvx.moveTo(x, y);
@@ -1943,7 +1945,7 @@ function drawCarpet(s) {
   for (let i = 0; i < n; i++) {
     const y = 4 + s.phase[i] * (h - 8);
     // data dimension (cluster membership), NOT corner identity
-    cctx2.fillStyle = (twoClu && i >= half) ? TOK('--amber') : TOK('--pull');
+    cctx2.fillStyle = (twoClu && i >= half) ? TOK('--ghost') : TOK('--value');
     cctx2.beginPath(); cctx2.arc(i * colW + colW / 2, y, 2.6, 0, Math.PI * 2); cctx2.fill();
   }
 }
@@ -2010,13 +2012,35 @@ function drawVmap(s) {
   for (let i = 1; i < s.vmPan.length; i++) if (Math.abs(s.vmPan[i]) < Math.abs(s.vmPan[root])) root = i;
   for (let i = 0; i < s.vmVf.length; i++) {
     const x = X(s.vmPan[i]);
-    // marker semantics (root note), NOT corner identity
-    const col = i === root ? TOK('--amber') : TOK('--pull');
-    vmx.strokeStyle = col;
-    vmx.beginPath(); vmx.arc(x, Y(s.vmVf[i]), 3.4, 0, Math.PI * 2); vmx.stroke();
-    vmx.fillStyle = col;
-    vmx.beginPath(); vmx.arc(x, Y(s.vmEff[i]), 2.2, 0, Math.PI * 2); vmx.fill();
+    const yT = Y(s.vmVf[i]), yA = Y(s.vmEff[i]);
+    // §6: TARGET is structure — an ink ring, the pitch you asked for.
+    vmx.strokeStyle = TOK('--line'); vmx.lineWidth = 1.5;
+    vmx.beginPath(); vmx.arc(x, yT, 3.8, 0, Math.PI * 2); vmx.stroke();
+    // §6: ACTUAL is the value — filled magenta with a hairline, so the gap
+    // between ring and dot IS drift + glide + pull, readable at a glance.
+    vmx.fillStyle = TOK('--value');
+    vmx.beginPath(); vmx.arc(x, yA, 3.0, 0, Math.PI * 2); vmx.fill();
+    vmx.strokeStyle = TOK('--line'); vmx.lineWidth = 1;
+    vmx.beginPath(); vmx.arc(x, yA, 3.0, 0, Math.PI * 2); vmx.stroke();
+    // §6: the ROOT gets a marker star — its own channel, so root-ness no longer
+    // rides the same colour that distinguishes target from actual.
+    if (i === root) star(vmx, x, yT, 6.2, TOK('--marker'), TOK('--line'));
   }
+}
+/* A five-point star, because §6 asks for one and a coloured dot is not a star.
+   Drawn ink-outlined so it survives on a white well at marker yellow, which
+   is 1.4:1 against white on its own (§1 pairs every fill with an ink border). */
+function star(g, cx, cy, r, fill, ink) {
+  g.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const rr = k % 2 ? r * 0.42 : r;
+    const a = -Math.PI / 2 + k * Math.PI / 5;
+    const px = cx + rr * Math.cos(a), py = cy + rr * Math.sin(a);
+    k ? g.lineTo(px, py) : g.moveTo(px, py);
+  }
+  g.closePath();
+  g.fillStyle = fill; g.fill();
+  g.strokeStyle = ink; g.lineWidth = 1; g.stroke();
 }
 
 
