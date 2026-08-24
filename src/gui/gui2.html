@@ -66,15 +66,27 @@
        WELLS become phosphor tubes, so canvases read these while every CSS
        control keeps the chrome set. Semantics carry 1:1 — value/meter/physics/
        marker keep their MEANINGS, the hexes re-tune for emission. */
-    --scr-tube:#180A26;      /* the tube ground                         */
+    /* Screen palette retuned 2026-08-24 (human: "replace the display green
+       with more of a lime green and try more of a cyan or teal background for
+       the visualizers instead of the purplish one"). The tube goes deep teal
+       and the MEASURE role goes lime — the classic phosphor pairing. Roles are
+       unchanged; only their hexes move, which is the whole point of naming
+       colours by job. */
+    --scr-tube:#06211F;      /* the tube ground — deep teal              */
     --scr-value:#FF5ECF;     /* your value, as hot-pink phosphor        */
-    --scr-meter:#59F6E8;     /* meter/measure, as cyan                  */
+    --scr-meter:#B8F227;     /* meter/measure, as LIME                  */
     --scr-physics:#9D6CFF;   /* the system's own state                  */
     --scr-marker:#FFB86B;    /* attention/root, as amber                */
-    --scr-grid:#9D6CFF;      /* in-tube structure — painted at low alpha */
+    --scr-grid:#4FD8BE;      /* in-tube structure — painted at low alpha */
     --scr-scan:0.22;         /* scanline strength — retuned by scr-light   */
     /* geometry */
-    --r-card:10px; --r-well:8px; --stroke:1.5px;
+    /* ONE roundness (human 2026-08-24: "make all the corners rounder on all
+       the objects (so they all have the same roundness) ... including the
+       visualizer screens"). --r-well is kept as an ALIAS rather than deleted so
+       the spec's own vocabulary still reads, but it resolves to the same value:
+       a second radius token is a second chance to disagree. Capsules (pills,
+       toggles, chips) stay 999 — that is a shape, not a corner radius. */
+    --r-card:10px; --r-well:var(--r-card); --r:var(--r-card); --stroke:1.5px;
     --shadow:1.5px 1.5px 0 var(--line);
     --shadow-hover:2.5px 2.5px 0 var(--line);
     --focus:0 0 0 2.5px rgba(245,22,156,.45); }     /* a measured cost worth flagging (vibrato loss)   */
@@ -90,8 +102,8 @@
      color scheme with a light screen"). Same roles, hexes re-tuned for a pale
      LCD; toggled by the SCR chip in the tab bar. Values are mine to audition,
      not the designer's — replace freely. */
-  body.scr-light { --scr-tube:#F2EEFF; --scr-value:#C40E86; --scr-meter:#00776E;
-    --scr-physics:#5527D0; --scr-marker:#B36A00; --scr-grid:#5527D0;
+  body.scr-light { --scr-tube:#EAF7F3; --scr-value:#C40E86; --scr-meter:#4E7A00;
+    --scr-physics:#5527D0; --scr-marker:#9A5B00; --scr-grid:#1F7A6B;
     --scr-scan:0.07; }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
@@ -144,14 +156,14 @@
   @media (max-width: 720px) { #pg-MAIN.on, #pg-OSC.on, #pg-MORPH.on { grid-template-columns: 1fr; } }
   /* superseded by the ADR-098 flow rule below */
   .cluster { background:var(--panel); border:1px solid var(--line);
-    border-radius:4px; padding:8px 10px; min-width:0; }
+    border-radius:var(--r); padding:8px 10px; min-width:0; }
   h2 { font-size:11px; color:var(--pull); letter-spacing:1px; margin-bottom:6px; }
-  .strip { background:var(--panel2); border:1px solid var(--line); border-radius:3px;
+  .strip { background:var(--panel2); border:1px solid var(--line); border-radius:var(--r);
     padding:6px 9px; margin-bottom:8px; min-width:0; }
   .strip b { font-size:10px; color:var(--t2); letter-spacing:1px; }
   .msrow { display:flex; gap:4px; align-items:center; margin:4px 0 2px; }
   .msbtn { flex:0 0 auto; font-size:9px; letter-spacing:1px; padding:2px 7px;
-           border:1px solid var(--line); border-radius:3px; background:var(--panel);
+           border:1px solid var(--line); border-radius:var(--r); background:var(--panel);
            color:var(--dim); cursor:pointer; user-select:none; }
   .msbtn.on[data-ms="m"] { background:var(--alarm); border-color:var(--line); color:#FCF0EE; }
   .msbtn.on[data-ms="s"] { background:var(--caution); border-color:var(--line); color:var(--line); }
@@ -159,7 +171,7 @@
      lies about which control silenced you. */
   .strip.bysolo { opacity:.45; }
   .meter { flex:1 1 auto; height:6px; background:var(--panel2); border:1px solid var(--line);
-           border-radius:2px; overflow:hidden; }
+           border-radius:var(--r); overflow:hidden; }
   .meter i { display:block; height:100%; width:0%; background:var(--celebrate);
              transition:width .05s linear; }
   .meter i.clip { background:var(--alarm); }
@@ -188,7 +200,7 @@
       var(--panel2) calc(var(--pct, 0) * 100%) 100%); }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance:none; appearance:none;
-    width:13px; height:13px; border-radius:4px; margin-top:-3.5px;  /* centre on a 6+3 track */
+    width:13px; height:13px; border-radius:4px; margin-top:-3.5px;  /* handle: 13px cannot take 10 */
     background:var(--panel); border:var(--stroke) solid var(--line);
     box-shadow:var(--shadow); }
   input[type=range]:hover::-webkit-slider-thumb { box-shadow:var(--shadow-hover); }
@@ -255,13 +267,13 @@
     cursor:crosshair; width:100%; }
   .oscSel { display:inline-flex; gap:3px; margin-left:8px; }
   .oscSel .oscTab { font:inherit; font-size:10px; padding:1px 7px; cursor:pointer;
-    background:var(--panel2); color:var(--dim); border:1px solid var(--line); border-radius:3px; }
+    background:var(--panel2); color:var(--dim); border:1px solid var(--line); border-radius:var(--r); }
   .oscSel .oscTab.on { color:var(--bg); background:var(--line); border-color:var(--line); font-weight:600; }
   .oscSel .oscTab.silent { opacity:.62; }
   .oscSel .oscTab.on.silent { opacity:1; }
   .oscSel .oscTab.oscoff { text-decoration:line-through; opacity:.45; }
   .oscPow { font:inherit; font-size:11px; padding:1px 5px; cursor:pointer; background:none;
-            border:1px solid var(--line); border-radius:3px; color:var(--dim); opacity:.55; }
+            border:1px solid var(--line); border-radius:var(--r); color:var(--dim); opacity:.55; }
   /* ON glows white like a selected osc tab (human 2026-08-21); OFF is the dim
      default above, so an unpainted button never LOOKS on. */
   /* the owning corner, as a stripe down the row's leading edge — readable at a
@@ -274,19 +286,19 @@
   .row.owned > label { color:var(--own); }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
            background:var(--panel,#FCFAF4); border:1px solid var(--line);
-           border-radius:7px; box-shadow:var(--shadow); font-size:11px; }
+           border-radius:var(--r); box-shadow:var(--shadow); font-size:11px; }
   .pmenuHead { display:flex; justify-content:space-between; gap:10px; padding:4px 7px 6px;
                border-bottom:1px solid var(--line); color:var(--text); font-weight:600; }
   .pmenuId { opacity:.45; font-weight:400; }
   .pmenuItem { display:block; width:100%; text-align:left; padding:6px 7px; margin-top:2px;
-               background:none; border:0; border-radius:5px; color:var(--text);
+               background:none; border:0; border-radius:var(--r); color:var(--text);
                font:inherit; cursor:pointer; }
   .pmenuItem:hover { background:var(--line); }
   .pmenuHint { display:block; opacity:.5; font-size:10px; margin-top:1px; }
   .row.exempt > label::after { content:' \2298'; color:var(--pull); opacity:.8; }
   .row.exempt { opacity:.92; }
   .armSel { display:inline-flex; gap:3px; margin-left:10px; vertical-align:middle; }
-  .armBox { width:14px; height:14px; border:1px solid var(--line); border-radius:3px;
+  .armBox { width:14px; height:14px; border:1px solid var(--line); border-radius:4px;
             cursor:pointer; padding:0; opacity:.45; }
   .armBox.armed { opacity:1; box-shadow:0 0 7px currentColor; border-color:var(--text);
                   outline:1px solid var(--text); }
@@ -324,7 +336,7 @@
   .cluster.folded > h2::before { transform:rotate(-90deg); }
   .cluster.folded > *:not(h2) { display:none; }
   canvas.gviz { width:100%; height:auto; display:block; background:var(--panel2);
-                border:1px solid var(--line); border-radius:3px; margin-bottom:6px; }
+                border:1px solid var(--line); border-radius:var(--r); margin-bottom:6px; }
 </style></head><body>
 
 <!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
