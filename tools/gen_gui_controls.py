@@ -242,9 +242,17 @@ def main():
                 # menu and double-click reset all keep working untouched.
                 knob = widget == "knob" and ctrl.startswith('<input type="range"')
                 if knob:
-                    ctrl = ('<span class="knob"><span class="karc"></span>'
+                    # `kmod`/`kmnow` are the MODULATION ring and its live
+                    # position (ADR-121). No modulator writes them yet, and with
+                    # no depth declared the conic gradient has zero width and the
+                    # tick is transparent -- so the knob is pixel-identical until
+                    # something feeds it. The space is reserved now rather than
+                    # when the first modulator lands, because a ring appearing
+                    # later would resize every cell and undo the density pass.
+                    ctrl = ('<span class="knob"><span class="kmod"></span>'
+                            '<span class="karc"></span>'
                             '<span class="kcap"></span><span class="kptr"></span>'
-                            + ctrl + '</span>')
+                            + ctrl + '<span class="kmnow"></span></span>')
                 # data-when carries the GATING declaration to the runtime: the base
                 # key of the controlling param and the values under which this row
                 # has any effect. A control the engine cannot read in the current

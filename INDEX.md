@@ -49,3 +49,5 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 
 - L0038 oracle coverage is per-transport; a reasoned exclusion still needs an owner (the dead pitch wheel)
 - L0039 a check built against one sample inherits that sample's coincidences (FOUNDATIONS' row grammar + our readback aliasing, same week)
+- L0040 meeting every acceptance criterion is not evidence the change did its job — measure the RESOURCE against an extracted baseline (the knobs that passed SS4 and bought 2%)
+- L0041 `typeof x` does NOT guard a let/const — it throws in the TDZ, so the guard crashes in exactly the ordering it was written for

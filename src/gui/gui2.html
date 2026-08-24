@@ -78,7 +78,12 @@
     --scr-physics:#9D6CFF;   /* the system's own state                  */
     --scr-marker:#FFB86B;    /* attention/root, as amber                */
     --scr-grid:#4FD8BE;      /* in-tube structure — painted at low alpha */
-    --scr-scan:0.22;         /* scanline strength — retuned by scr-light   */
+    --scr-scan:0.22;         /* scanline strength — retuned per scheme     */
+    --scr-alpha:1;           /* multiplier on every TOKA() alpha. 1 on the
+                                tube; pale schemes raise it, because a low-alpha
+                                mark that glows on near-black washes out on
+                                near-white and the ~40 alphas in the painters
+                                were every one of them tuned on the dark ground. */
     /* geometry */
     /* ONE roundness (human 2026-08-24: "make all the corners rounder on all
        the objects (so they all have the same roundness) ... including the
@@ -98,13 +103,25 @@
      No shadow: §3 says shadows are for interactive elements, never wells. */
   canvas { border:var(--stroke) solid var(--line); border-radius:var(--r-well);
            background:var(--scr-tube); }
-  /* LIGHT SCREEN — an AUDITION, not a ruling (human asked to "try an alternate
-     color scheme with a light screen"). Same roles, hexes re-tuned for a pale
-     LCD; toggled by the SCR chip in the tab bar. Values are mine to audition,
-     not the designer's — replace freely. */
-  body.scr-light { --scr-tube:#EAF7F3; --scr-value:#C40E86; --scr-meter:#4E7A00;
-    --scr-physics:#5527D0; --scr-marker:#9A5B00; --scr-grid:#1F7A6B;
-    --scr-scan:0.07; }
+  /* SCREEN SCHEMES — AUDITIONS, not rulings. The SCR chip cycles them and
+     names the one you are looking at. Each redefines the same seven roles and
+     nothing else; no painter knows a scheme exists. Inks on the pale grounds
+     are darkened to stay legible — a phosphor hue that glows on a black tube
+     is invisible on a white one, so these are re-derived per ground rather
+     than reused. All four are mine to audition; replace freely.
+       (none)     TUBE  — deep teal, the shipped vaporwave phosphor
+       scr-frost  FROST — near-white cyan
+       scr-lumen  LUMEN — near-white warm yellow
+       scr-paper  PAPER — plain white                                        */
+  body.scr-frost { --scr-tube:#E8FBFA; --scr-value:#C4177F; --scr-meter:#3F6B00;
+    --scr-physics:#5127C8; --scr-marker:#9A5400; --scr-grid:#1B8478;
+    --scr-scan:0.06; --scr-alpha:1.7; }
+  body.scr-lumen { --scr-tube:#FDF8E3; --scr-value:#C01475; --scr-meter:#4A6A00;
+    --scr-physics:#5A28C0; --scr-marker:#8F5100; --scr-grid:#7C6B2E;
+    --scr-scan:0.06; --scr-alpha:1.7; }
+  body.scr-paper { --scr-tube:#FFFFFF; --scr-value:#C8127E; --scr-meter:#46700A;
+    --scr-physics:#5324CE; --scr-marker:#96550A; --scr-grid:#63636E;
+    --scr-scan:0.05; --scr-alpha:1.8; }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
   .tabs { display:flex; gap:4px; margin-bottom:10px; }
@@ -265,10 +282,26 @@
      arc is one conic-gradient per §8; --a0/--a1 carry the filled segment so
      unipolar (from min) and bipolar (from centre) are the same declaration. */
   .knob { position:relative; width:36px; height:36px; flex:0 0 auto; }
-  .karc { position:absolute; inset:0; border-radius:50%;
+  .karc { position:absolute; inset:1.7px; border-radius:50%;
     background:conic-gradient(from 220deg,
       var(--panel2) 0deg var(--a0,0deg), var(--value) var(--a0,0deg) var(--a1,0deg),
       var(--panel2) var(--a1,0deg) 280deg, transparent 280deg 360deg); }
+  /* MOD SPAN — the reach a modulator has from where you set the knob, as an
+     arc on the outer edge. Physics violet, because this is the system acting
+     on your value, not the value you authored (§1: one job per colour). With
+     --m0 == --m1 (the default) the gradient has zero width and paints nothing,
+     so an unmodulated knob is unchanged. */
+  .kmod { position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(from 220deg,
+      transparent 0deg var(--m0,0deg), var(--physics) var(--m0,0deg) var(--m1,0deg),
+      transparent var(--m1,0deg) 360deg); opacity:.85; }
+  /* the live modulated position: where the value IS right now, as opposed to
+     where you left the knob. Hidden until a modulator declares one. */
+  .kmnow { position:absolute; left:50%; top:0; width:2.5px; height:5px;
+    margin-left:-1.25px; border-radius:1.25px; background:var(--physics);
+    transform-origin:50% 18px; transform:rotate(var(--mang,0deg));
+    opacity:0; }
+  .knob.mod .kmnow { opacity:1; }
   .kcap { position:absolute; inset:4.5px; border-radius:50%;
     background:var(--panel); border:var(--stroke) solid var(--line);
     box-shadow:var(--shadow); }
@@ -368,9 +401,9 @@
   .oscPow.on { color:var(--bg); background:var(--text); border-color:var(--text);
                opacity:1; box-shadow:var(--shadow); }   /* §3 bans blur — hard offset only */
   .note { color:var(--dim); font-size:10.5px; }
-  canvas.xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
+  canvas.xy { aspect-ratio:1.6; border:1px solid var(--line);
               width:100%; touch-action:none; }
-  #carpetC, #stripC, #vmapC { width:100%; background:var(--panel2);
+  #carpetC, #stripC, #vmapC { width:100%;
                               border:1px solid var(--line); display:block; }
   .vlabel { color:var(--t2); font-size:10px; margin:6px 0 3px; }
   /* the phase-circle readout: FIXED format, tabular digits, reserved height —
@@ -395,7 +428,7 @@
   .cluster > h2::before { content:'\25be'; font-size:9px; opacity:.75; transition:transform .12s; }
   .cluster.folded > h2::before { transform:rotate(-90deg); }
   .cluster.folded > *:not(h2) { display:none; }
-  canvas.gviz { width:100%; height:auto; display:block; background:var(--panel2);
+  canvas.gviz { width:100%; height:auto; display:block;
                 border:1px solid var(--line); border-radius:var(--r); margin-bottom:6px; }
 </style></head><body>
 
@@ -450,33 +483,33 @@
     <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
     <canvas class="gviz" data-viz="bendvib" width="260" height="72"></canvas>
     <div class="row" data-addr="voiceMono"><label>Mono</label><input type="checkbox" data-p="32"><output></output></div>
-    <div class="row kcell" data-addr="glide" data-when="noteLawLink=0,noteLaw=3"><label>Note Lag <span class="u">s</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="glide" data-when="noteLawLink=0,noteLaw=3"><label>Note Lag <span class="u">s</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="33" min="0" max="2" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="voiceLegato"><label>Legato</label><input type="checkbox" data-p="34" checked><output></output></div>
-    <div class="row kcell" data-addr="pitchBend"><label>Pitch</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="pitchBend"><label>Pitch</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="38" min="-12" max="12" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="polyGlide" data-when="never"><label>Poly Glide (dev)</label><input type="checkbox" data-p="89" checked><output></output></div>
     <div class="row" data-addr="glideMode"><label>Glide From</label><select data-p="90"><option value="0" selected>held note (legato)</option><option value="1">last note (ringing)</option><option value="2">always</option></select><output></output></div>
     <div class="row" data-addr="bendLaw"><label>Bend Law</label><select data-p="106"><option value="0" selected>off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3">lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
-    <div class="row kcell" data-addr="bendTime" data-when="bendLaw=1"><label>Bend Time <span class="u">ms</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="107" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"></span><output></output></div>
-    <div class="row kcell" data-addr="bendRate" data-when="bendLaw=2"><label>Bend Rate <span class="u">st/s</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="108" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"></span><output></output></div>
-    <div class="row kcell" data-addr="bendTau" data-when="bendLaw=3"><label>Bend Lag <span class="u">ms</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="109" data-log10="1" min="0" max="3.301" step="0.001" value="1.778"></span><output></output></div>
-    <div class="row kcell" data-addr="bendSpringF" data-when="bendLaw=4"><label>Spring <span class="u">Hz</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="110" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"></span><output></output></div>
-    <div class="row kcell" data-addr="bendDamp" data-when="bendLaw=4"><label>Damping</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="111" min="0" max="1" step="0.005" value="0.6"></span><output></output></div>
-    <div class="row kcell" data-addr="bendDistOver" data-when="bendLaw=4"><label>Distance Curve</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="112" min="0" max="2" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="bendReturn" data-when="bendLaw=1|2|3|4"><label>Return x</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="113" min="0.2" max="3" step="0.005" value="1"></span><output></output></div>
+    <div class="row kcell" data-addr="bendTime" data-when="bendLaw=1"><label>Bend Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="107" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="bendRate" data-when="bendLaw=2"><label>Bend Rate <span class="u">st/s</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="108" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="bendTau" data-when="bendLaw=3"><label>Bend Lag <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="109" data-log10="1" min="0" max="3.301" step="0.001" value="1.778"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="bendSpringF" data-when="bendLaw=4"><label>Spring <span class="u">Hz</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="110" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="bendDamp" data-when="bendLaw=4"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="111" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="bendDistOver" data-when="bendLaw=4"><label>Distance Curve</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="112" min="0" max="2" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="bendReturn" data-when="bendLaw=1|2|3|4"><label>Return x</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="113" min="0.2" max="3" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="bendQuant"><label>Bend Quantise</label><select data-p="114"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale (drag)</option><option value="3">scale</option><option value="4">scale (offset)</option></select><output></output></div>
-    <div class="row kcell" data-addr="bendHyst" data-when="bendQuant=1|2|3|4"><label>Quantise Hyst <span class="u">c</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"></span><output></output></div>
+    <div class="row kcell" data-addr="bendHyst" data-when="bendQuant=1|2|3|4"><label>Quantise Hyst <span class="u">c</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="115" min="0" max="50" step="0.005" value="8"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="noteLawLink"><label>Note Law</label><select data-p="137"><option value="0">own settings</option><option value="1" selected>follow bend law</option></select><output></output></div>
     <div class="row" data-addr="noteLaw" data-when="noteLawLink=0"><label>Note Travel</label><select data-p="138"><option value="0">off (instant)</option><option value="1">constant time</option><option value="2">constant rate</option><option value="3" selected>lag (one-pole)</option><option value="4">mass-spring</option></select><output></output></div>
-    <div class="row kcell" data-addr="noteTime" data-when="noteLawLink=0,noteLaw=1"><label>Note Time <span class="u">ms</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="139" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"></span><output></output></div>
-    <div class="row kcell" data-addr="noteRate" data-when="noteLawLink=0,noteLaw=2"><label>Note Rate <span class="u">st/s</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="140" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"></span><output></output></div>
-    <div class="row kcell" data-addr="noteSpringF" data-when="noteLawLink=0,noteLaw=4"><label>Note Spring <span class="u">Hz</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="141" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"></span><output></output></div>
-    <div class="row kcell" data-addr="noteDamp" data-when="noteLawLink=0,noteLaw=4"><label>Note Damping</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="142" min="0" max="1" step="0.005" value="0.6"></span><output></output></div>
-    <div class="row kcell" data-addr="noteDistOver" data-when="noteLawLink=0,noteLaw=4"><label>Note Distance Curve</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="143" min="0" max="2" step="0.005" value="1"></span><output></output></div>
+    <div class="row kcell" data-addr="noteTime" data-when="noteLawLink=0,noteLaw=1"><label>Note Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="139" data-log10="1" min="0.699" max="3.176" step="0.001" value="2.079"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="noteRate" data-when="noteLawLink=0,noteLaw=2"><label>Note Rate <span class="u">st/s</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="140" data-log10="1" min="-0.301" max="2.301" step="0.001" value="1.38"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="noteSpringF" data-when="noteLawLink=0,noteLaw=4"><label>Note Spring <span class="u">Hz</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="141" data-log10="1" min="-0.301" max="1.301" step="0.001" value="0.6021"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="noteDamp" data-when="noteLawLink=0,noteLaw=4"><label>Note Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="142" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="noteDistOver" data-when="noteLawLink=0,noteLaw=4"><label>Note Distance Curve</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="143" min="0" max="2" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="noteQuant" data-when="noteLawLink=0"><label>Note Quantise</label><select data-p="144"><option value="0" selected>off</option><option value="1">chromatic</option><option value="2">scale</option></select><output></output></div>
-    <div class="row kcell" data-addr="noteHyst" data-when="noteLawLink=0,noteQuant=1|2"><label>Note Quant Hyst <span class="u">c</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="145" min="0" max="50" step="0.005" value="8"></span><output></output></div>
+    <div class="row kcell" data-addr="noteHyst" data-when="noteLawLink=0,noteQuant=1|2"><label>Note Quant Hyst <span class="u">c</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="145" min="0" max="50" step="0.005" value="8"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="bendQTimeMode" data-when="bendQuant=1|2|3|4"><label>Step Timing</label><select data-p="146"><option value="0" selected>continuous</option><option value="1">free (Hz)</option><option value="2">sync</option></select><output></output></div>
-    <div class="row kcell" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"></span><output></output></div>
-    <div class="row kcell" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"></span><output></output></div>
+    <div class="row kcell" data-addr="bendQTimeHz" data-when="bendQTimeMode=1"><label>Step Rate <span class="u">Hz</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="147" data-log10="1" min="-0.699" max="1.699" step="0.001" value="0.9031"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="bendQTimeSync" data-when="bendQTimeMode=2"><label>Step Grid <span class="u">/beat</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="148" min="0.25" max="8" step="0.005" value="4"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="bendMpeLaw"><label>MPE Bend</label><select data-p="149"><option value="0">instant</option><option value="1" selected>follow bend law</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Scale</h2>
@@ -526,7 +559,7 @@
   <div class="cluster"><h2>Output & perception</h2>
     <div class="row" data-addr="mono"><label>Mono Fold</label><input type="checkbox" data-p="15"><output></output></div>
     <div class="row" data-addr="bassMono"><label>Bass Mono</label><input type="checkbox" data-p="40"><output></output></div>
-    <div class="row kcell" data-addr="bassMonoHz"><label>Bass XOver (Hz)</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="41" min="60" max="500" step="0.005" value="120"></span><output></output></div>
+    <div class="row kcell" data-addr="bassMonoHz"><label>Bass XOver (Hz)</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="41" min="60" max="500" step="0.005" value="120"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="oversample"><label>Oversample 2x</label><input type="checkbox" data-p="88"><output></output></div>
   </div>
   <!--/GEN:MIX-->
@@ -555,13 +588,13 @@
     <!--GEN:MORPH-->
   <div class="cluster"><h2>Morph engine</h2>
     <div class="row" data-addr="morphOn"><label>Morph</label><input type="checkbox" data-p="151"><output></output></div>
-    <div class="row kcell" data-addr="morphX" data-when="morphOn=1"><label>Morph X</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="152" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="morphY" data-when="morphOn=1"><label>Morph Y</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="153" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="morphTemp" data-when="morphOn=1"><label>Temperature</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="154" data-log10="1" min="-1.699" max="0.6021" step="0.001" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="morphCoup" data-when="morphOn=1"><label>Coupling</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="155" min="0" max="1" step="0.005" value="0.3"></span><output></output></div>
-    <div class="row kcell" data-addr="morphSeed" data-when="morphOn=1"><label>Morph Seed</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="156" min="1" max="9999" step="1" value="1024"></span><output></output></div>
+    <div class="row kcell" data-addr="morphX" data-when="morphOn=1"><label>Morph X</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="152" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="morphY" data-when="morphOn=1"><label>Morph Y</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="153" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="morphTemp" data-when="morphOn=1"><label>Temperature</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="154" data-log10="1" min="-1.699" max="0.6021" step="0.001" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="morphCoup" data-when="morphOn=1"><label>Coupling</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="155" min="0" max="1" step="0.005" value="0.3"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="morphSeed" data-when="morphOn=1"><label>Morph Seed</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="156" min="1" max="9999" step="1" value="1024"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="morphMode" data-when="morphOn=1"><label>Morph Mode</label><select data-p="157"><option value="0" selected>quantum (flip)</option><option value="1">blend</option></select><output></output></div>
-    <div class="row kcell" data-addr="morphGlide" data-when="morphOn=1"><label>Morph Glide <span class="u">s</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="158" min="0" max="5" step="0.005" value="0.008"></span><output></output></div>
+    <div class="row kcell" data-addr="morphGlide" data-when="morphOn=1"><label>Morph Glide <span class="u">s</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="158" min="0" max="5" step="0.005" value="0.008"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="morphArm" data-when="never"><label>Edit Corner</label><select data-p="159"><option value="0" selected>live (owning corner)</option><option value="1">A</option><option value="2">B</option><option value="3">C</option><option value="4">D</option></select><output></output></div>
   </div>
   <!--/GEN:MORPH-->
@@ -613,10 +646,10 @@
 
 <!--GEN:FX-->
   <div class="cluster"><h2>FX rack</h2>
-    <div class="row kcell" data-addr="fx1mix"><label>FX1 Mix</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="133" data-fixed="1" min="0" max="1" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="fx2mix"><label>FX2 Mix</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="134" data-fixed="1" min="0" max="1" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="fx3mix"><label>FX3 Mix</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="135" data-fixed="1" min="0" max="1" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="fx4mix"><label>FX4 Mix</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="136" data-fixed="1" min="0" max="1" step="0.005" value="1"></span><output></output></div>
+    <div class="row kcell" data-addr="fx1mix"><label>FX1 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="133" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx2mix"><label>FX2 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="134" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx3mix"><label>FX3 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="135" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx4mix"><label>FX4 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="136" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
   </div>
   <!--/GEN:FX-->
 </div>
@@ -678,83 +711,83 @@
   </div>
     <!--GEN:OSC-->
   <div class="cluster"><h2>Drift</h2>
-    <div class="row kcell" data-addr="osc1.driftDepth"><label>Drift Depth (c) <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="9" min="0" max="100" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.driftRate"><label>Drift Rate <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="10" min="0" max="1" step="0.005" value="0.4"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.driftDepth"><label>Drift Depth (c) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="9" min="0" max="100" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.driftRate"><label>Drift Rate <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="10" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.driftMode"><label>Drift Mode <span class="sc">osc1</span></label><select data-p="73"><option value="0" selected>walk (1/f)</option><option value="1">sine (per-voice)</option><option value="2">sample & hold</option></select><output></output></div>
     <div class="row" data-addr="osc1.keepPhase"><label>Keep Phase <span class="sc">osc1</span></label><input type="checkbox" data-p="74"><output></output></div>
-    <div class="row kcell" data-addr="freqGlide"><label>Freq Glide (s)</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="75" min="0" max="0.1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.motionCenter"><label>Centre Pin <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="78" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="freqGlide"><label>Freq Glide (s)</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="75" min="0" max="0.1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.motionCenter"><label>Centre Pin <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="78" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
   </div>
   <div class="cluster"><h2>Dynamics</h2>
     <div class="row" data-addr="osc1.topo"><label>Topology <span class="sc">osc1</span></label><select data-p="24"><option value="0" selected>mean-field</option><option value="1">ring</option><option value="2">two-cluster</option></select><output></output></div>
-    <div class="row kcell" data-addr="osc1.reach" data-when="topo=1"><label>Ring Reach <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="25" min="1" max="8" step="1" value="5"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.mu" data-when="topo=2"><label>Cluster Link <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="26" min="0" max="1" step="0.005" value="0.6"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.alpha"><label>Phase Lag <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="27" min="-90" max="90" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.reach" data-when="topo=1"><label>Ring Reach <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="25" min="1" max="8" step="1" value="5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.mu" data-when="topo=2"><label>Cluster Link <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="26" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.alpha"><label>Phase Lag <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="27" min="-90" max="90" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.poles" data-when="topo=0"><label>Poles q <span class="sc">osc1</span></label><select data-p="28"><option value="1" selected>1 — classic</option><option value="2">2 — pair</option><option value="3">3 — triad</option><option value="4">4 — quad</option></select><output></output></div>
-    <div class="row kcell" data-addr="osc1.grav"><label>Gravity <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="29" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.basin"><label>Basin (c) <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="30" min="10" max="50" step="0.005" value="35"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.grav"><label>Gravity <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="29" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.basin"><label>Basin (c) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="30" min="10" max="50" step="0.005" value="35"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.absK"><label>Absolute K <span class="sc">osc1</span></label><input type="checkbox" data-p="31"><output></output></div>
-    <div class="row kcell" data-addr="osc1.balance" data-when="topo=2"><label>A/B Balance <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="56" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.balance" data-when="topo=2"><label>A/B Balance <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="56" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.pivotMode"><label>Pivot <span class="sc">osc1</span></label><select data-p="83"><option value="0" selected>mean field</option><option value="1">root (fundamental)</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Envelope</h2>
     <canvas class="gviz" data-viz="envelope" width="260" height="72"></canvas>
-    <div class="row kcell" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="19" data-log10="1" min="-3" max="0.301" step="0.001" value="-2.523"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="20" data-log10="1" min="-2.301" max="0.6021" step="0.001" value="-0.7959"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.sustain"><label>Sustain <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="21" min="0" max="1" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="22" data-log10="1" min="-2.301" max="0.9031" step="0.001" value="-0.7959"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.attack"><label>Attack (s) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="19" data-log10="1" min="-3" max="0.301" step="0.001" value="-2.523"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.decay"><label>Decay (s) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="20" data-log10="1" min="-2.301" max="0.6021" step="0.001" value="-0.7959"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.sustain"><label>Sustain <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="21" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.release"><label>Release (s) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="22" data-log10="1" min="-2.301" max="0.9031" step="0.001" value="-0.7959"><span class="kmnow"></span></span><output></output></div>
   </div>
   <div class="cluster"><h2>Image & tone</h2>
-    <div class="row kcell" data-addr="osc1.rtone"><label>R->Tone <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="12" min="-1" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.normExp"><label>Density Comp <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="13" min="0.5" max="1" step="0.005" value="0.75"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.width"><label>Width <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="14" min="0" max="1.5" step="0.005" value="0.8"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.digital"><label>Digital <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="16" min="0" max="1" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.panScatter"><label>Pan Scatter <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="42" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.toneTilt"><label>Tone Tilt <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="71" min="-1" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.hiTame"><label>Hi Tame <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="72" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.panMotion"><label>Pan Motion <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="76" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.rtone"><label>R->Tone <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="12" min="-1" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.normExp"><label>Density Comp <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="13" min="0.5" max="1" step="0.005" value="0.75"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.width"><label>Width <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="14" min="0" max="1.5" step="0.005" value="0.8"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.digital"><label>Digital <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="16" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.panScatter"><label>Pan Scatter <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="42" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.toneTilt"><label>Tone Tilt <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="71" min="-1" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.hiTame"><label>Hi Tame <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="72" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.panMotion"><label>Pan Motion <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="76" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.panMode"><label>Pan Motion Mode <span class="sc">osc1</span></label><select data-p="77"><option value="0" selected>drift (per-voice)</option><option value="1">sweep (whole image)</option></select><output></output></div>
     <div class="row" data-addr="osc1.panLayout"><label>Pan Image <span class="sc">osc1</span></label><select data-p="84"><option value="0" selected>pitch fan</option><option value="1">legacy (x-position)</option></select><output></output></div>
-    <div class="row kcell" data-addr="osc1.panCurve"><label>Fan Curve <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="85" min="0" max="1" step="0.005" value="0.5"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.panCurve"><label>Fan Curve <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="85" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.panInvert"><label>Fan Invert <span class="sc">osc1</span></label><input type="checkbox" data-p="86"><output></output></div>
     <div class="row" data-addr="osc1.superMode"><label>Super-Width Mode <span class="sc">osc1</span></label><select data-p="87"><option value="0" selected>wide (clean)</option><option value="1">pulse (M/S)</option><option value="2">smear (allpass)</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Onset & scatter</h2>
     <canvas class="gviz" data-viz="scatter" width="260" height="72"></canvas>
-    <div class="row kcell" data-addr="osc1.onsetScatter"><label>Onset Scatter (ms) <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="91" min="0" max="80" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.onsetAlpha"><label>Timing Correction <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="92" min="0" max="1.5" step="0.005" value="0.25"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.attackScatter"><label>Attack Scatter <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="93" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.onsetScatter"><label>Onset Scatter (ms) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="91" min="0" max="80" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.onsetAlpha"><label>Timing Correction <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="92" min="0" max="1.5" step="0.005" value="0.25"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.attackScatter"><label>Attack Scatter <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="93" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.voiceEnv"><label>Per-Partial Env <span class="sc">osc1</span></label><input type="checkbox" data-p="94"><output></output></div>
-    <div class="row kcell" data-addr="osc1.relScatter"><label>Release Scatter <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="95" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.relScatter"><label>Release Scatter <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="95" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
   </div>
   <div class="cluster"><h2>Saw shape</h2>
     <canvas class="gviz" data-viz="shapewave" width="260" height="72"></canvas>
-    <div class="row kcell" data-addr="osc1.shape"><label>Squareness <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="69" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.sawBase"><label>Saw Base <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="129" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.sawProfile"><label>Roundness Shape <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="130" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.round"><label>Roundness <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="131" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.roundHi"><label>Round x Pitch <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="132" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.shape"><label>Squareness <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="69" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.sawBase"><label>Saw Base <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="129" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.sawProfile"><label>Roundness Shape <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="130" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.round"><label>Roundness <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="131" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.roundHi"><label>Round x Pitch <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="132" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
   </div>
   <div class="cluster"><h2>The coupling</h2>
-    <div class="row kcell" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.onset"><label>Onset Lock <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.dissolve"><label>Dissolve (s) <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="8" data-log10="1" min="-1.301" max="0.8998" step="0.001" value="-0.2007"></span><output></output></div>
-    <div class="row kcell" data-addr="inertia"><label>Inertia</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="11" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.onset"><label>Onset Lock <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.dissolve"><label>Dissolve (s) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="8" data-log10="1" min="-1.301" max="0.8998" step="0.001" value="-0.2007"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="inertia"><label>Inertia</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="11" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.retrig"><label>Retrigger <span class="sc">osc1</span></label><input type="checkbox" data-p="18" checked><output></output></div>
-    <div class="row kcell" data-addr="osc1.scatter"><label>Phase Scatter <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="39" min="0" max="1" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="inertiaCurve" data-when="never"><label>Inertia Curve (dev)</label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="70" min="0.3" max="5" step="0.005" value="2.5"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.scatter"><label>Phase Scatter <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="39" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="inertiaCurve" data-when="never"><label>Inertia Curve (dev)</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="70" min="0.3" max="5" step="0.005" value="2.5"><span class="kmnow"></span></span><output></output></div>
   </div>
   <div class="cluster"><h2>The swarm</h2>
-    <div class="row kcell" data-addr="osc1.n"><label>Voices <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="1" min="1" max="32" step="1" value="7"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.n"><label>Voices <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="1" min="1" max="32" step="1" value="7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.dist"><label>Distribution <span class="sc">osc1</span></label><select data-p="2"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
-    <div class="row kcell" data-addr="osc1.seed"><label>Seed <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.detune"><label>Detune <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.seed"><label>Seed <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.detune"><label>Detune <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.law"><label>Detune Law <span class="sc">osc1</span></label><select data-p="5"><option value="0" selected>cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option><option value="3">tempo-grid</option><option value="4">harmonic (series)</option><option value="5">stretch (inharmonic)</option></select><output></output></div>
     <div class="row" data-addr="osc1.beatMult" data-when="law=3"><label>Grid Cycles/Beat <span class="sc">osc1</span></label><input type="range" data-p="23" min="0.25" max="8" step="0.005" value="1"><output></output></div>
-    <div class="row kcell" data-addr="osc1.harmReach" data-when="law=4"><label>Harmonic Reach <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="79" min="0.25" max="4" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.stretchB" data-when="law=5"><label>Stretch B <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="80" min="0" max="6" step="0.005" value="0"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.spread"><label>Octave Spread <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="81" min="1" max="24" step="0.005" value="1"></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.anchor"><label>Root Anchor <span class="sc">osc1</span></label><span class="knob"><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="82" min="0" max="1" step="0.005" value="0"></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.harmReach" data-when="law=4"><label>Harmonic Reach <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="79" min="0.25" max="4" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.stretchB" data-when="law=5"><label>Stretch B <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="80" min="0" max="6" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.spread"><label>Octave Spread <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="81" min="1" max="24" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.anchor"><label>Root Anchor <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="82" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
   </div>
   <!--/GEN:OSC-->
     <div class="note">retrigger OFF = free-run phases; random starts can null for
@@ -789,6 +822,17 @@ const _tok = {};
 /* Phosphor helpers (ADR-119). Glow is ALWAYS an underlay stroke or disc at low
    alpha, never a blur filter — the same no-blur rule the chrome follows, and
    the recipe stays portable to a native painter. */
+/* The four auditionable screen schemes (ADR-121). `cls` is the body class the
+   stylesheet carries; TUBE is the absence of one, which is why it is ''. Order
+   is the cycle order the SCR chip walks. Adding a fifth means one CSS block and
+   one row here — no painter changes, because a scheme is only ever a value set
+   for the seven --scr-* roles. */
+const SCHEMES = [
+  { cls: '',          name: 'TUBE'  },
+  { cls: 'scr-frost', name: 'FROST' },
+  { cls: 'scr-lumen', name: 'LUMEN' },
+  { cls: 'scr-paper', name: 'PAPER' }
+];
 function scanA() { return parseFloat(TOK('--scr-scan', '0.22')) || 0.22; }
 function scan(g, w, h, a) {
   // CRT scanlines: 1px dark line every 3px. On trail-fade canvases the caller
@@ -810,7 +854,13 @@ function RGBA(hex, a) {
   if (!m) return hex;
   return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
 }
-function TOKA(name, a, fallback) { return RGBA(TOK(name, fallback), a); }
+function TOKA(name, a, fallback) {
+  /* Alpha is scaled by the SCHEME, never by the caller: painters express
+     "faint" and the scheme decides what faint costs on its own ground. Clamped
+     at 1 so a multiplier can never turn a translucent mark opaque. */
+  const m = parseFloat(TOK('--scr-alpha', '1')) || 1;
+  return RGBA(TOK(name, fallback), Math.min(1, a * m));
+}
 function mixHex(a, b, t) {
   const pa = /^#?(..)(..)(..)$/.exec(a), pb = /^#?(..)(..)(..)$/.exec(b);
   if (!pa || !pb) return a;
@@ -959,14 +1009,41 @@ document.addEventListener('click', hzMaybeRelease, true);
     // the pad field; trail-fade canvases converge to the new ground within a
     // few frames on their own. Session-only on purpose — it is an audition.
     const scr = document.createElement('button');
-    scr.type = 'button'; scr.className = 'tab'; scr.textContent = 'SCR';
-    scr.title = 'audition: dark phosphor \u2194 light LCD screens';
+    scr.type = 'button'; scr.className = 'tab';
+    scr.title = 'audition the screen scheme: tube \u2192 frost \u2192 lumen \u2192 paper';
     scr.style.marginLeft = '6px';
-    scr.addEventListener('click', () => {
-      document.body.classList.toggle('scr-light');
+    let schemeIx = 0;
+    /* `repaint` is a PARAMETER rather than an unconditional call because the
+       first invocation runs while the module is still initialising, and the
+       painters are `const`s declared further down. A `typeof canPaint ===
+       'function'` guard does NOT help there: typeof throws on a let/const in
+       its temporal dead zone instead of returning 'undefined', which is exactly
+       how this shipped broken once. The boot call paints nothing; the page
+       renders its canvases itself moments later. */
+    const applyScheme = (repaint) => {
+      const sc = SCHEMES[schemeIx];
+      document.body.classList.remove(...SCHEMES.map(x => x.cls).filter(Boolean));
+      if (sc.cls) document.body.classList.add(sc.cls);
+      scr.textContent = 'SCR \u00b7 ' + sc.name;
+      /* The cache is keyed by token NAME, so a scheme change invalidates all of
+         it, and the pad bakes its field once — both must be told. Trail-fade
+         canvases converge on the new ground within a few frames by themselves. */
       for (const k in _tok) delete _tok[k];
       if (window._padInvalidate) window._padInvalidate();
+      /* The gviz set is drawn ONCE when its data arrives and then holds, so
+         after a scheme change it holds the OLD ground -- that is the stale dark
+         "Saw shape" box. Trail-fade canvases converge by themselves; these need
+         telling, with the same redraw the page-switch handler already uses. */
+      if (repaint && canPaint()) {
+        drawEnvelope(null); drawScatter(lastViz); drawBendStep();
+        drawBendVib(); drawShapeWave();
+      }
+    };
+    scr.addEventListener('click', () => {
+      schemeIx = (schemeIx + 1) % SCHEMES.length;
+      applyScheme(true);
     });
+    applyScheme(false);
     tabs.appendChild(scr);
   }
 }
@@ -1069,6 +1146,47 @@ function paintFill(el) {
   k.style.setProperty('--a1', a1.toFixed(2) + 'deg');
   k.style.setProperty('--ang', (-140 + pct * SWEEP).toFixed(2) + 'deg');
   k.classList.toggle('dis', el.disabled);
+}
+
+/* MODULATION DISPLAY (ADR-121). Nothing calls this yet -- the modulators are
+   B16/B23/B31 -- so it exists as the seam those will write to, and until then
+   every knob renders exactly as it did before.
+
+     addr   the parameter's data-addr
+     depth  modulation reach, SIGNED, as a fraction of the parameter's full
+            range (+0.25 = a quarter-range upward; negative reaches down)
+     now    where the modulated value currently sits, same units; omit for a
+            static depth display
+
+   Deliberately expressed in FRACTIONS OF RANGE rather than parameter units: the
+   knob already knows its own min/max, and a caller that had to convert would be
+   the second place that knows a parameter's range -- which is how the two copies
+   drift. Pass depth 0 to clear. */
+function setKnobMod(addr, depth, now) {
+  const row = document.querySelector(`.row.kcell[data-addr="${addr}"]`);
+  const k = row && row.querySelector('.knob');
+  if (!k) return false;
+  const el = k.querySelector('input[type=range]');
+  const lo = +el.min, hi = +el.max;
+  const pct = (hi > lo) ? Math.min(1, Math.max(0, (+el.value - lo) / (hi - lo))) : 0;
+  const SWEEP = 280;
+  const d = Math.max(-1, Math.min(1, +depth || 0));
+  if (!d) {
+    k.classList.remove('mod');
+    k.style.removeProperty('--m0'); k.style.removeProperty('--m1');
+    return true;
+  }
+  /* The span is CLAMPED to the sweep, not wrapped: a modulator reaching past a
+     parameter's limit cannot drive the value past it either, so an arc that
+     wrapped around the gap would draw reach the parameter does not have. */
+  const a = Math.max(0, Math.min(1, pct)), b = Math.max(0, Math.min(1, pct + d));
+  k.style.setProperty('--m0', (Math.min(a, b) * SWEEP).toFixed(2) + 'deg');
+  k.style.setProperty('--m1', (Math.max(a, b) * SWEEP).toFixed(2) + 'deg');
+  if (now === undefined) { k.classList.remove('mod'); return true; }
+  const n = Math.max(0, Math.min(1, pct + (+now || 0)));
+  k.style.setProperty('--mang', (-140 + n * SWEEP).toFixed(2) + 'deg');
+  k.classList.add('mod');
+  return true;
 }
 
 /* §4 knob input: vertical drag, 200px = full range, shift = x0.25, double
@@ -1176,7 +1294,8 @@ function drawShapeWave() {
   g.clearRect(0, 0, w, h);
   bridge.getShapeWave().then(j => {
     const d = JSON.parse(j || '{}');
-    if (!d.wave) { g.fillStyle = TOKA('--scr-grid', 0.75);
+    if (!d.wave) { g.fillStyle = TOK('--scr-tube'); g.fillRect(0, 0, w, h);
+      g.fillStyle = TOKA('--scr-grid', 0.75);
       g.font = '10px monospace'; g.fillText('no engine — open in the plugin', 8, h / 2); return; }
     g.strokeStyle = TOK('--scr-value');
     g.lineWidth = 1.5; g.beginPath();
@@ -2674,6 +2793,7 @@ function refreshBendCurve() {
 }
 function noCurve(g, why) {
   const { ctx, w, h } = g;
+  ctx.fillStyle = TOK('--scr-tube'); ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = TOKA('--scr-grid', 0.75);
   ctx.font = '10px ui-monospace,Menlo,monospace';
   ctx.fillText(why, 8, h / 2);
