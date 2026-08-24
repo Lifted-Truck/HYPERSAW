@@ -635,8 +635,16 @@
     <div class="note">SAVE stores the CURRENT sound as a corner preset — no capture
       needed. Load it into any corner below; the dropdown keeps the loaded name.</div>
     <div id="mcorners"></div>
-    <div class="note">CAPTURE stores the current patch into a corner. Corner
-      colors follow the lab: A teal, B amber, C violet, D rose. (Corner
+    <!-- The colour list here was STALE: it still named the lab's original
+         A teal / B amber / C violet / D rose while --cA..--cD have been
+         yellow / pink / teal / lime since the re-skin, so the caption
+         contradicted the swatches printed directly above it. Naming the colours
+         in prose is what made it rot -- the swatches are generated from the
+         tokens and cannot lie, so the caption now points at them instead of
+         re-stating them. -->
+    <div class="note">CAPTURE stores the current patch into a corner. Each
+      corner's colour is the swatch beside its name above, and it is what marks
+      that corner's parameters everywhere else in the interface. (Corner
       baseline-editing — the four color boxes on every page — is the recorded
       next phase, not this one.)</div>
   </div>
@@ -1097,7 +1105,6 @@ document.addEventListener('click', hzMaybeRelease, true);
          it, and the pad bakes its field once — both must be told. Trail-fade
          canvases converge on the new ground within a few frames by themselves. */
       for (const k in _tok) delete _tok[k];
-      if (window._padInvalidate) window._padInvalidate();
       /* MEASURED, against what I had asserted: trail-fade canvases do NOT
          converge on a new ground by themselves. They converge only while
          something is feeding them frames -- with no engine the RAF loop never
@@ -1111,6 +1118,9 @@ document.addEventListener('click', hzMaybeRelease, true);
         g.clearRect(0, 0, cv.width, cv.height);
         g.fillStyle = TOK('--scr-tube'); g.fillRect(0, 0, cv.width, cv.height);
       }
+      /* AFTER the blanket clear, never before: the pad re-bakes itself now, so
+         invalidating first would just have the clear wipe the fresh bake. */
+      if (window._padInvalidate) window._padInvalidate();
       /* and the gviz set is drawn ONCE when its data arrives and then holds,
          so it needs the same redraw the page-switch handler already uses. */
       if (repaint && canPaint()) {
@@ -1557,7 +1567,25 @@ const presetStore = {
       padH = pad.height = field.height = h;
       drawField();
     };
-    window._padInvalidate = () => { padW = -1; padH = -1; };
+    /* Must RE-BAKE, not merely mark dirty (human 2026-08-24: "the morph XY in
+       the morph panel loses its corner colors when I switch color options").
+       Two compounding causes, both mine:
+         1. the scheme switch clears every canvas to the new ground, the pad
+            included -- so the visible pad goes flat;
+         2. the paint loop below early-returns when the XY position is
+            unchanged, which after a scheme switch is the NORMAL case, so it
+            declines to re-blit and the pad stays flat until you drag it.
+       Marking dirty was enough when only a resize invalidated the field, since
+       a resize implies motion. A recolour does not. So: re-bake the field with
+       the new tube and corner colours, clear the position latch so the loop
+       will paint, and blit once here so it is correct even if no frame ever
+       runs (the pad's rAF does not tick in every host -- see the probe hook). */
+    window._padInvalidate = () => {
+      padW = -1; padH = -1; lastX = -1; lastY = -1;
+      if (!pad.offsetWidth) return;      // hidden: resize() re-bakes on reveal
+      resize();
+      px.drawImage(field, 0, 0);
+    };
     // NOT a ResizeObserver: measured in the embedded preview browser, RO simply
     // never delivered — not on attach, not on a real 333->326px change — and a
     // resize path that depends on an event that may not exist is the hidden-row
@@ -1969,6 +1997,15 @@ for (const [name, live] of PAGES) {
     // chance and stayed blank (measured litPx 0 on arrival, 2032 from an
     // identical call once visible).
     document.getElementById('pg-' + name).classList.add('on');
+    /* The pad bakes its field on RESIZE, inside the rAF loop -- so a pad that
+       was invalidated while hidden (the boot case: the scheme applies before
+       any page is shown) depends on a frame arriving to get its corner colours
+       back. This file already documents that rAF is not guaranteed in every
+       host, and the measured preview browser fires none at all. Re-baking on
+       reveal makes the pad correct without waiting for a frame that may never
+       come -- the same reasoning that moved the resize check out of a
+       ResizeObserver and into the loop. */
+    if (name === 'MORPH' && window._padInvalidate) window._padInvalidate();
     if (typeof canPaint === 'function' && canPaint()) {
       drawEnvelope(null); drawScatter(lastViz); drawBendStep(); drawBendVib(); drawShapeWave();
     }
