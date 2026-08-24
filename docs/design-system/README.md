@@ -80,3 +80,42 @@ human ruling**, recorded on ROADMAP as B37's blocking questions:
    Phosphor direction shipped WITHOUT triggering this — it re-tunes only the
    signal hexes inside wells and leaves corner colours alone, so the ruling
    stays open rather than decided by accident.*
+
+## Open question 3 — is there a DARK chassis? (raised 2026-08-24)
+
+Both source documents describe exactly one world: a cream ground with flat ink
+outlines. The human has since asked for "a light and dark mode for the whole
+design", so `body.dark` now exists in gui2 as a **derivation, not a ruling** —
+the values are mine, the designer has not seen them, and they are named here so
+nobody later mistakes them for spec.
+
+What the derivation assumes, so it can be corrected precisely rather than
+wholesale:
+
+1. **Ink inverts, ground gains a violet bias.** Near-black neutral read as a
+   colour nobody chose; the bias keeps the chassis inside the instrument's own
+   hyperpop world.
+2. **Well/card contrast DIRECTION flips, not just lightness.** On cream a data
+   well is *lighter* than its card (`--well #FFFFFF` on `--panel #FCFAF4`); on
+   dark it must be *darker* (`#0E0C16` under `#1F1B2E`). "Recessed" is what a
+   well means, and depth reads by contrast direction. Flipping tokens without
+   flipping this relationship makes every well read as raised.
+3. **Signal keeps its hues and its jobs; only emission moves.** One exception:
+   `--ghost` is the dry trace *behind* the wet one, so on a dark ground it goes
+   DARKER, not lighter — lifting it with everything else would put the
+   reference in front of the signal.
+4. **Screens are a separate axis from the chassis.** MODE switches the chassis;
+   SCR switches `--scr-*` only. They pair by default (dark+tube, light+lumen)
+   but can be crossed, because a design that cannot show you a pale screen in a
+   dark chassis has hidden a decision inside a preset.
+
+### A measured finding for the designer
+
+The **light** chassis has elements at **2.84:1** — `.note`, `.vlabel`, and the
+inactive `.tab`, all on `--dim` (#9A93A3) over `--panel`. The dark chassis puts
+the same elements at 4.63:1. This is pre-existing and comes from the spec's own
+`--dim` (the *hint* role), so it has NOT been changed here: `--dim` is a
+normative value, and an inactive tab arguably is not a hint but navigation —
+which is the same mapping question that was already got wrong once for labels
+(they were on `--dim` at 2.84 and moved to `--t2` at 9.06). Ruling wanted:
+should the inactive tab and `.vlabel` be *secondary* rather than *hint*?

@@ -113,15 +113,50 @@
        scr-frost  FROST — near-white cyan
        scr-lumen  LUMEN — near-white warm yellow
        scr-paper  PAPER — plain white                                        */
-  body.scr-frost { --scr-tube:#E8FBFA; --scr-value:#C4177F; --scr-meter:#3F6B00;
-    --scr-physics:#5127C8; --scr-marker:#9A5400; --scr-grid:#1B8478;
-    --scr-scan:0.06; --scr-alpha:1.7; }
-  body.scr-lumen { --scr-tube:#FDF8E3; --scr-value:#C01475; --scr-meter:#4A6A00;
-    --scr-physics:#5A28C0; --scr-marker:#8F5100; --scr-grid:#7C6B2E;
-    --scr-scan:0.06; --scr-alpha:1.7; }
-  body.scr-paper { --scr-tube:#FFFFFF; --scr-value:#C8127E; --scr-meter:#46700A;
-    --scr-physics:#5324CE; --scr-marker:#96550A; --scr-grid:#63636E;
-    --scr-scan:0.05; --scr-alpha:1.8; }
+  /* LUMEN, re-derived vibrant (human: "for lumen in particular I would much
+     prefer a more vibrant hyperpop palette"). The first pass muted every ink
+     to buy contrast -- dark olive, brown -- which is the safe move and the
+     wrong one: it made the pale scheme read as a washed-out version of the
+     tube rather than as its own world. These are MAXIMUM-CHROMA hues held at
+     the lightness contrast demands, which is the honest way to be vivid on a
+     pale ground: move the lightness, never the saturation. Magenta / electric
+     purple / deep teal / red-orange on warm yellow, every role >= 4.1:1.
+     FROST and PAPER retired here on the human's pick (tube + lumen); they are
+     one `git show` away if either is wanted back. */
+  body.scr-lumen { --scr-tube:#FFF7A8; --scr-value:#E5007A; --scr-meter:#00857F;
+    --scr-physics:#7B1FFF; --scr-marker:#E02B00; --scr-grid:#005E8A;
+    --scr-scan:0.05; --scr-alpha:1.6; }
+  /* ---- DARK CHASSIS ---- the flat-ink idiom inverted, not merely darkened.
+     Ink becomes light and the ground goes near-black with a violet bias, which
+     keeps it inside the instrument's own hyperpop world instead of landing on
+     a neutral grey nobody chose. The one structural inversion worth naming:
+     on cream, DATA WELLS are LIGHTER than their card (--well #FFFFFF on
+     --panel #FCFAF4); on dark they must be DARKER (--well #0E0C16 under
+     --panel #1F1B2E), because "recessed" is what the well means and depth
+     reads by contrast direction, not by lightness. Flipping the tokens without
+     flipping that relationship would make every well read as raised. */
+  body.dark {
+    --bg:#151220; --panel:#1F1B2E; --well:#0E0C16; --panel2:#2C2740;
+    --line:#EFE9FA; --hair:#312B47; --div:#3B3455;
+    --text:#EFE9FA; --t2:#BDB4D4; --dim:#8A82A3; --dis:#514A6B;
+    /* signal keeps its HUES and its jobs; only emission moves */
+    --value:#FF3DAD; --pull:#FF3DAD; --physics:#A07CFF; --meter:#2DF2E2;
+    --marker:#FFE04D; --celebrate:#C2F53E;
+    --caution:#FFB627; --caution-bg:#4A3A12; --caution-tx:#FFD98A;
+    --amber:#FFB627; --alarm:#FF5A4D;
+    /* --ghost is the DRY trace behind the wet one: it must RECEDE, so on a
+       dark ground it goes darker, not lighter. Lifting it with everything
+       else would put the reference in front of the signal. */
+    --ghost:#5B4E8F;
+    /* corner identity stays recognisably itself, lifted to emit */
+    --cA:#FFD702; --cAtx:#FFE566;
+    --cB:#FF2E88; --cBtx:#FF6FAE;
+    --cC:#00D5C8; --cCtx:#4DEDE3;
+    --cD:#A6F219; --cDtx:#C6F86A;
+    /* canvas-only names (ADR-118 A2) follow the same roles */
+    --text-hi:#FFFFFF; --dim2:#9A93A8; --grid:#312B47; --grid2:#312B47;
+    --hot:#FF3DAD; --bad:#FF5A4D; --badge-bg:rgba(255,182,39,.9);
+    --focus:0 0 0 2.5px rgba(255,61,173,.45); }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
   .tabs { display:flex; gap:4px; margin-bottom:10px; }
@@ -829,9 +864,17 @@ const _tok = {};
    for the seven --scr-* roles. */
 const SCHEMES = [
   { cls: '',          name: 'TUBE'  },
-  { cls: 'scr-frost', name: 'FROST' },
-  { cls: 'scr-lumen', name: 'LUMEN' },
-  { cls: 'scr-paper', name: 'PAPER' }
+  { cls: 'scr-lumen', name: 'LUMEN' }
+];
+/* MODE is the CHASSIS axis; SCHEME above is the SCREEN axis. They are separate
+   controls on purpose -- pairing them into one preset would hide the crossed
+   combinations, and a pale screen inside a dark chassis is exactly the
+   comparison worth being able to see. `pairs` is only the DEFAULT the mode
+   drops you into, never a constraint: switching mode moves the scheme with it,
+   and SCR afterwards moves the scheme alone. */
+const MODES = [
+  { cls: '',     name: 'LIGHT', pairs: 'LUMEN' },
+  { cls: 'dark', name: 'DARK',  pairs: 'TUBE'  }
 ];
 function scanA() { return parseFloat(TOK('--scr-scan', '0.22')) || 0.22; }
 function scan(g, w, h, a) {
@@ -1010,7 +1053,7 @@ document.addEventListener('click', hzMaybeRelease, true);
     // few frames on their own. Session-only on purpose — it is an audition.
     const scr = document.createElement('button');
     scr.type = 'button'; scr.className = 'tab';
-    scr.title = 'audition the screen scheme: tube \u2192 frost \u2192 lumen \u2192 paper';
+    scr.title = 'audition the screen scheme (the data wells only)';
     scr.style.marginLeft = '6px';
     let schemeIx = 0;
     /* `repaint` is a PARAMETER rather than an unconditional call because the
@@ -1030,10 +1073,21 @@ document.addEventListener('click', hzMaybeRelease, true);
          canvases converge on the new ground within a few frames by themselves. */
       for (const k in _tok) delete _tok[k];
       if (window._padInvalidate) window._padInvalidate();
-      /* The gviz set is drawn ONCE when its data arrives and then holds, so
-         after a scheme change it holds the OLD ground -- that is the stale dark
-         "Saw shape" box. Trail-fade canvases converge by themselves; these need
-         telling, with the same redraw the page-switch handler already uses. */
+      /* MEASURED, against what I had asserted: trail-fade canvases do NOT
+         converge on a new ground by themselves. They converge only while
+         something is feeding them frames -- with no engine the RAF loop never
+         repaints them, so they hold a half-faded ground indefinitely (measured
+         frozen at [110,123,88] across 4s switching LUMEN -> TUBE, where the
+         target was [6,33,31]). So every canvas is cleared to the new ground
+         explicitly. Painters draw over it on their next frame; a canvas with
+         nothing to say keeps a correct ground instead of a stale blend. */
+      for (const cv of document.querySelectorAll('canvas')) {
+        const g = cv.getContext('2d'); if (!g) continue;
+        g.clearRect(0, 0, cv.width, cv.height);
+        g.fillStyle = TOK('--scr-tube'); g.fillRect(0, 0, cv.width, cv.height);
+      }
+      /* and the gviz set is drawn ONCE when its data arrives and then holds,
+         so it needs the same redraw the page-switch handler already uses. */
       if (repaint && canPaint()) {
         drawEnvelope(null); drawScatter(lastViz); drawBendStep();
         drawBendVib(); drawShapeWave();
@@ -1045,6 +1099,30 @@ document.addEventListener('click', hzMaybeRelease, true);
     });
     applyScheme(false);
     tabs.appendChild(scr);
+
+    /* MODE -- the whole chassis, not just the wells. One token block does all
+       of it (every colour outside :root is a var()), so this handler only ever
+       swaps a class and tells the painters to re-read. */
+    const md = document.createElement('button');
+    md.type = 'button'; md.className = 'tab';
+    md.title = 'light / dark for the whole interface';
+    let modeIx = 0;
+    const applyMode = (repaint) => {
+      const m = MODES[modeIx];
+      document.body.classList.remove(...MODES.map(x => x.cls).filter(Boolean));
+      if (m.cls) document.body.classList.add(m.cls);
+      md.textContent = 'MODE \u00b7 ' + m.name;
+      const want = SCHEMES.findIndex(x => x.name === m.pairs);
+      if (want >= 0) { schemeIx = want; applyScheme(repaint); }
+      else { for (const k in _tok) delete _tok[k];
+             if (window._padInvalidate) window._padInvalidate(); }
+    };
+    md.addEventListener('click', () => {
+      modeIx = (modeIx + 1) % MODES.length;
+      applyMode(true);
+    });
+    applyMode(false);
+    tabs.appendChild(md);
   }
 }
 function paintArm(v) {
