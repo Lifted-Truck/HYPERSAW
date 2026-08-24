@@ -193,19 +193,36 @@
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
   .tabs { display:flex; gap:4px; margin-bottom:10px; align-items:center; }
-  /* ---- warping wordmark (ADR-122, ported from the human's GoopBox) ---- */
-  .brand { flex:0 0 auto; width:86px; height:26px; margin-right:6px;
-           overflow:visible; cursor:default; user-select:none; }
-  .brand text { font:700 19px/1 ui-monospace,Menlo,monospace; letter-spacing:.04em;
-                fill:var(--text); }
-  /* the lit mass is tinted by a flood, and flood-color IS settable from CSS --
-     which is the only reason the lighting chain can follow a token at all */
-  #brandInk { flood-color:var(--text); flood-opacity:1; }
-  /* The filter is the expensive part, so it is attached only while the mark is
-     actually warping. `.brand.still` drops it entirely, which is what makes an
-     idle logo cost the same as static text. */
-  .brand.warp text { filter:url(#brandWarp); }
-  @media (prefers-reduced-motion:reduce) { .brand.warp text { filter:none; } }
+  /* ---- warping wordmark (ADR-122): the human's own td::Warp engine ----
+     Sized to overhang the Editing bar below it (human 2026-08-24: "larger,
+     maybe it can bump over the 'editing' bar and share some of that vertical
+     height and also go wider"). The negative bottom margin is what lets it
+     overhang WITHOUT growing the tab row -- the row keeps its height and the
+     mark simply hangs into the bar beneath, which is the effect asked for. */
+  /* DISPLAYED at 224x64, RENDERED at 168x48 and upscaled. That is the
+     module README's own guidance -- "render at half resolution and upscale --
+     the effect is soft anyway" -- and it is the difference between 13.1% of a
+     core and about 2.5%: the warp is O(W*H) with a sin per pixel, so the
+     backing store size IS the cost. A logo has no business competing with the
+     voice loop for a budget that is already tight at the ceiling. */
+  /* OUT of the tab flow, not merely first in it. In the row it pushed the
+     page tabs onto a second line and then its own overhang covered them; taking
+     it out of flow lets it hang over the Editing bar -- which is the ask --
+     while the tab row keeps its full width and simply starts to the right. */
+  .brand { position:absolute; top:10px; left:12px; width:224px; height:64px;
+           cursor:default; user-select:none; z-index:3; pointer-events:none;
+           image-rendering:auto;
+           /* The global `canvas` rule makes every canvas a phosphor TUBE --
+              ink border, rounded, tube ground. The wordmark is chrome, not a
+              data well, so it opts out; without this the logo arrives in a
+              bordered box. */
+           border:0; background:transparent; border-radius:0; }
+  .tabs { flex-wrap:wrap; row-gap:4px; padding-left:242px; }
+  /* the Editing bar's title steps aside for the part of the mark that hangs
+     into it; the bar itself keeps its full width so nothing else moves */
+  .oscbar > h2 { padding-left:242px; }
+  /* the Editing bar's own content steps aside for the overhang */
+
   .tab { padding:4px 14px; border:var(--stroke) solid var(--line); border-radius:999px; min-height:28px;
     cursor:pointer; color:var(--dim); background:var(--panel); font-size:11px;
     letter-spacing:1px; }
@@ -551,54 +568,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="tabs" id="tabs"><svg class="brand still" id="brand" viewBox="0 0 86 26"
-     aria-label="horde" role="img"><defs><filter id="brandWarp"
-     x="-25%" y="-45%" width="150%" height="190%" color-interpolation-filters="sRGB">
-  <!-- 1. noise -->
-  <feTurbulence id="brandNoise" type="fractalNoise" baseFrequency="0.022 0.03"
-                numOctaves="2" seed="7" result="n"/>
-  <!-- 2. warp the glyphs by it -->
-  <feDisplacementMap id="brandDisp" in="SourceGraphic" in2="n" scale="0"
-                     xChannelSelector="R" yChannelSelector="G" result="w"/>
-  <!-- 3. FUSE: blur then threshold the alpha, so adjacent strokes melt into one
-          mass instead of each wobbling on its own. This is the step that makes
-          it read as goo rather than as shaky text. -->
-  <feGaussianBlur in="w" stdDeviation="1.1" result="b"/>
-  <feColorMatrix in="b" mode="matrix" result="goo"
-     values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 17 -7"/>
-  <!-- 4. HEIGHT MAP: a rounded core plus a wider "skirt", so the surface rises
-          toward the middle of each stroke instead of ending at a hard edge.
-          This is the half of the human's GoopBox that was deferred last round
-          pending a cost measurement; measured at this size it is cheap, so it
-          lands. -->
-  <feGaussianBlur in="goo" stdDeviation="1.2" result="core"/>
-  <feGaussianBlur in="core" stdDeviation="2.4" result="foot"/>
-  <feComposite in="core" in2="foot" operator="arithmetic"
-              k1="0" k2="0.55" k3="0.45" k4="0" result="bump0"/>
-  <feComponentTransfer in="bump0" result="bump">
-    <feFuncA type="gamma" amplitude="1" exponent="0.75" offset="0"/>
-  </feComponentTransfer>
-  <!-- 5. light that height map as one continuous surface -->
-  <feDiffuseLighting in="bump" surfaceScale="2.4" diffuseConstant="1"
-                     lighting-color="#ffffff" result="diff">
-    <feDistantLight azimuth="235" elevation="55"/>
-  </feDiffuseLighting>
-  <feSpecularLighting in="bump" surfaceScale="2.4" specularConstant="0.7"
-                      specularExponent="22" lighting-color="#ffffff" result="spec">
-    <feDistantLight azimuth="235" elevation="55"/>
-  </feSpecularLighting>
-  <!-- 6. tint the lit mass with the CHASSIS text token, so the mark follows
-          both modes; flood-color is set from CSS, which is why it can be a var -->
-  <feFlood id="brandInk" result="ink"/>
-  <feComposite in="ink" in2="goo" operator="in" result="mass"/>
-  <feComposite in="mass" in2="diff" operator="arithmetic"
-              k1="1" k2="0" k3="0" k4="0" result="litMass"/>
-  <feComposite in="spec" in2="goo" operator="in" result="specIn"/>
-  <feComposite in="specIn" in2="litMass" operator="arithmetic"
-              k1="0" k2="0.55" k3="1" k4="0" result="lit"/>
-  <!-- 7. keep the crisp warped glyph on top so it stays legible at 19px -->
-  <feComposite in="w" in2="lit" operator="over"/>
-</filter></defs><text x="0" y="19">horde</text></svg><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
+<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="168" height="48" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -2873,46 +2843,192 @@ document.querySelectorAll('.row.kcell > label').forEach(l => {
     if (t) n.nodeValue = t; else n.remove();
   }
 });
-/* ---- wordmark: warp on load and on hover, static otherwise (ADR-122) ----
-   `scale` on the displacement map is the whole animation; baseFrequency stays
-   put because changing it per frame forces the noise itself to regenerate,
-   which is the costly half. Ramping only the displacement re-uses one noise
-   tile and still reads as the letters breathing. */
+/* ===================== td::Warp, ported to JS =========================
+   A line-for-line port of the human's cpp/text_distortion.hpp. Constant names
+   and the order of operations are kept identical to the header so the two can
+   be diffed; see the ADR-122 comment in the markup for why this lives in JS.
+   ===================================================================== */
+const TD_TAU = 6.28318530718, TD_CYCLE = 8.0, TD_W1 = TD_TAU / TD_CYCLE;
+/* must stay fract(sin(a*127.1+b*311.7)*43758.5453) or relocation diverges
+   from the browser tool -- the README calls this out explicitly */
+const tdHash2 = (a, b) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+                            return x - Math.floor(x); };
+function tdWarp(seed) {
+  // JS rng from the header: a = (a*9301+49297) % 233280
+  let a = (seed * 9301 + 49297) % 233280;
+  const next = () => { a = (a * 9301 + 49297) % 233280; return a / 233280; };
+  const ph1 = next() * TD_TAU, ph2 = next() * TD_TAU, ph3 = next() * TD_TAU;
+  const P = { waveAmp: 26, waveFreq: 1.4, tremor: 3.5,
+              smearAngle: 0, angleJitter: 12, waveJitter: 0.5 };
+  const strokes = [], fields = [];
+  return {
+    params: P,
+    addBlob: (amp, rad, r1, r2, cyc, bph) =>
+      strokes.push({ x0: 0, y0: 0, amp, rad, r1, r2, blob: true, cyc, bph }),
+    addSwirl: (rad, sc, rot, cyc, bph) => fields.push({ rad, sc, rot, cyc, bph }),
+    render(src, dst, W, H, t) {
+      const d1 = ph1 + t * TD_W1 + 1.7 * Math.sin(t * TD_W1 * 2 + 0.5);
+      const d2 = ph2 - t * TD_W1 + 1.3 * Math.sin(t * TD_W1 * 3 + 2.0);
+      const aMod = 1 + 0.35 * Math.sin(t * TD_W1 * 2 + 1.0) * Math.sin(t * TD_W1);
+      const wave = new Float32Array(W);
+      for (let x = 0; x < W; x++) {
+        const fx = x / W;
+        wave[x] = P.waveAmp * aMod * Math.sin(fx * P.waveFreq * TD_TAU + d1)
+                + P.waveAmp * 0.35 * Math.sin(fx * P.waveFreq * 5.1 + d2);
+      }
+      const sts = [];
+      for (const st of strokes) {
+        let amp = st.amp, x0 = st.x0, y0 = st.y0;
+        if (st.blob) {
+          const ph = t * TD_W1 * 4 * st.cyc + st.bph;
+          const env = 0.5 * (1 - Math.cos(ph));
+          amp = st.amp * Math.pow(env, 1.6);
+          const k = Math.floor(ph / TD_TAU);
+          x0 = W * (0.15 + tdHash2(st.bph, k) * 0.7);
+          y0 = H * (0.25 + tdHash2(st.bph + 9.7, k) * 0.5);
+        }
+        if (Math.abs(amp) <= 2) continue;
+        const th = (P.smearAngle + (st.r1 * 2 - 1) * P.angleJitter) * TD_TAU / 360;
+        sts.push({ amp, x0, y0, tanT: Math.tan(th), cosT: Math.cos(th),
+                   sinT: Math.sin(th), rad: st.rad + Math.abs(amp) * 0.25,
+                   wf: 0.11 * Math.pow(2.5, (st.r2 * 2 - 1) * P.waveJitter) });
+      }
+      const flds = [];
+      for (const f of fields) {
+        const ph = t * TD_W1 * 4 * f.cyc + f.bph;
+        const e = Math.pow(0.5 * (1 - Math.cos(ph)), 1.6);
+        if (Math.abs(f.sc * e) <= 0.005 && Math.abs(f.rot * e) <= 0.005) continue;
+        const k = Math.floor(ph / TD_TAU);
+        flds.push({ x0: W * (0.15 + tdHash2(f.bph + 3.1, k) * 0.7),
+                    y0: H * (0.25 + tdHash2(f.bph + 13.9, k) * 0.5),
+                    rad: f.rad, sc: f.sc * e, rot: f.rot * e });
+      }
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          let sy = y + wave[x] + P.tremor * Math.sin(y * 0.055 + x * 0.01 + ph3
+                     + t * TD_W1 * 2 + Math.sin(t * TD_W1) * 2);
+          let sx = x;
+          for (const f of flds) {
+            const dx = x - f.x0, dy = y - f.y0;
+            if (dx > f.rad * 3 || dx < -f.rad * 3 || dy > f.rad * 3 || dy < -f.rad * 3) continue;
+            /* -0.0111 is the value at the 3-sigma cutoff, so the field reaches
+               exactly zero at its bounding box -- load-bearing per the README */
+            const env = Math.exp(-(dx * dx + dy * dy) / (2 * f.rad * f.rad)) - 0.0111;
+            if (env <= 0) continue;
+            sx -= env * (f.sc * dx - f.rot * dy);
+            sy -= env * (f.sc * dy + f.rot * dx);
+          }
+          for (const q of sts) {
+            const dxr = x - (q.x0 + (y - q.y0) * q.tanT);
+            if (dxr > q.rad * 3.5 || dxr < -q.rad * 3.5) continue;
+            const env = Math.exp(-(dxr * dxr) / (2 * q.rad * q.rad)) - 0.0022;
+            if (env <= 0) continue;
+            const ad = Math.abs(q.amp), sg = q.amp > 0 ? 1 : -1;
+            const dl = (y - q.y0) * sg;
+            if (dl > -40) {
+              const rise = 1 - Math.exp(-Math.max(0, dl) / (ad * 0.5 + 10));
+              const over = Math.max(0, dl - ad * 1.6);
+              const fall = Math.exp(-(over * over) / (2 * (ad + 60) * (ad + 60)));
+              const shift = q.amp * env * rise * fall
+                + sg * env * Math.min(ad * 0.45, 70) * Math.sin(dl * q.wf) * rise * fall;
+              sy -= shift * q.cosT;
+              sx -= shift * q.sinT;
+            }
+          }
+          if (sy < 0) sy = 0; if (sy > H - 1.01) sy = H - 1.01;
+          if (sx < 0) sx = 0; if (sx > W - 1.01) sx = W - 1.01;
+          const x0i = sx | 0, y0i = sy | 0;
+          const fx = sx - x0i, fy = sy - y0i;
+          const i00 = (y0i * W + x0i) * 4, i10 = i00 + 4,
+                i01 = i00 + W * 4, i11 = i01 + 4;
+          const di = (y * W + x) * 4;
+          /* DIVERGENCE from the header, deliberate: it writes dst[di+3]=255
+             because it assumes an opaque canvas. A logo over the chassis must
+             keep its transparency, so alpha is sampled like the colours. */
+          for (let ch = 0; ch < 4; ch++) {
+            const top = src[i00 + ch] + (src[i10 + ch] - src[i00 + ch]) * fx;
+            const bot = src[i01 + ch] + (src[i11 + ch] - src[i01 + ch]) * fx;
+            dst[di + ch] = (top + (bot - top) * fy + 0.5) | 0;
+          }
+        }
+      }
+    }
+  };
+}
+
+/* ---- wordmark driver: bake once, then run the 8-unit seamless loop -------
+   The source bitmap is baked ONCE (the README's "freeze the undistorted text"
+   step, done at runtime here rather than at build time so the mark follows the
+   chassis token instead of shipping a fixed-colour PNG). Everything after that
+   is the warp reading a static source, which is exactly the model the engine
+   assumes -- no per-frame text layout.
+
+   30 fps, not 60: the warp is O(W*H) with a sin per pixel, so halving the rate
+   halves the cost outright, and at this size the motion is soft enough that
+   30 reads identical. Re-bakes on a mode/scheme change, since the baked colour
+   is a token. */
 {
-  const brand = document.getElementById('brand');
-  const disp  = document.getElementById('brandDisp');
+  const cv = document.getElementById('brand');
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (brand && disp && !reduce) {
-    let raf = 0, t0 = 0, running = false;
-    const MAXW = 7;                                  // px of displacement at peak
-    const stop = () => { running = false; if (raf) cancelAnimationFrame(raf); raf = 0;
-                         disp.setAttribute('scale', '0');
-                         brand.classList.remove('warp'); brand.classList.add('still'); };
-    const run = (ms, hold) => {
-      brand.classList.add('warp'); brand.classList.remove('still');
-      running = true; t0 = 0;
-      const tick = (now) => {
-        if (!running) return;
-        if (!t0) t0 = now;
-        const k = (now - t0) / ms;
-        if (k >= 1 && !hold) return stop();
-        /* settle: a decaying wobble, so it arrives rather than stopping dead */
-        const env = hold ? 1 : (1 - k);
-        disp.setAttribute('scale', (MAXW * env * (0.55 + 0.45 * Math.sin((now - t0) / 90))).toFixed(2));
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
+  if (cv) {
+    const W = cv.width, H = cv.height, ctx = cv.getContext('2d', { willReadFrequently: true });
+    const srcCv = document.createElement('canvas');
+    srcCv.width = W; srcCv.height = H;
+    const sctx = srcCv.getContext('2d', { willReadFrequently: true });
+    let SRC = null, DST = null, bakedInk = '';
+    const bake = () => {
+      const ink = TOK('--text', '#191521');
+      sctx.clearRect(0, 0, W, H);
+      sctx.fillStyle = ink;
+      sctx.font = '700 34px ui-monospace,Menlo,monospace';
+      sctx.textBaseline = 'middle';
+      sctx.fillText('horde', 6, H / 2);
+      SRC = sctx.getImageData(0, 0, W, H);
+      DST = ctx.createImageData(W, H);
+      bakedInk = ink;
     };
-    /* A timer backstops the settle. rAF is NOT guaranteed in every host -- the
-       measured preview browser fires none at all, and this file already carries
-       that finding twice -- and without this the settle would stop mid-flight
-       with the filter still attached, leaving a permanently warped mark AND
-       permanently paying the filter cost the design exists to avoid. The timer
-       cannot leave it running; rAF only makes it smooth. */
-    run(900, false);                                 // settle once on load
-    setTimeout(stop, 1100);
-    brand.addEventListener('mouseenter', () => { if (raf) cancelAnimationFrame(raf); run(0, true); });
-    brand.addEventListener('mouseleave', stop);
+    bake();
+    window._brandRebake = () => { bake(); };
+
+    /* SCALE THE PIXEL STRENGTHS TO THIS CANVAS. The README is explicit and I
+       missed it on the first pass: "All strengths are in pixels of the
+       authored canvas; if you render at a different resolution, scale
+       amp/rad/waveAmp/tremor proportionally." The tool authors at 450x288;
+       this mark is 168x48, so an unscaled waveAmp of 26px displaces more than
+       half the height and the word becomes unreadable -- which is exactly what
+       it did. Scaled on HEIGHT, because wave and tremor displace vertically
+       and the vertical extent is what legibility runs out of first. */
+    const TD_AUTHORED_H = 288, K = H / TD_AUTHORED_H;
+    const warp = tdWarp(7);
+    warp.params.waveAmp *= K;
+    warp.params.tremor  *= K;
+    /* One swirl and two blobs -- the README's own VST sketch shape. Frozen
+       here rather than randomised so the mark is the same every launch; the
+       browser tool is where these get art-directed, and a chosen seed is the
+       whole point of the engine being deterministic. */
+    warp.addSwirl(140 * K, 0.30, 0.45, 1, 2.6);   // sc/rot are unitless ratios
+    warp.addBlob(38 * K, 26 * K, 0.31, 0.62, 1, 0.0);
+    warp.addBlob(-30 * K, 22 * K, 0.74, 0.28, 2, 3.1);
+
+    let last = 0, tSec = 0;
+    const SPEED = 0.55;                      // t-units per second
+    const FRAME = 1000 / 30;
+    const draw = (nowMs) => {
+      requestAnimationFrame(draw);
+      if (nowMs - last < FRAME) return;
+      const dt = last ? Math.min(0.25, (nowMs - last) / 1000) : 0;
+      last = nowMs;
+      if (TOK('--text', '#191521') !== bakedInk) bake();
+      tSec = (tSec + dt * SPEED) % TD_CYCLE;          // seamless: loops at 8.0
+      warp.render(SRC.data, DST.data, W, H, tSec);
+      ctx.putImageData(DST, 0, 0);
+    };
+    if (reduce) { ctx.putImageData(SRC, 0, 0); }      // static, undistorted
+    else requestAnimationFrame(draw);
+    /* rAF is not guaranteed in every host (this file records that twice), so a
+       static first frame is painted immediately -- without it a host with no
+       rAF would show an empty logo rather than a still one. */
+    ctx.putImageData(SRC, 0, 0);
   }
 }
 document.querySelectorAll('canvas.spec').forEach(wireSpecHover);
