@@ -66,16 +66,15 @@
        WELLS become phosphor tubes, so canvases read these while every CSS
        control keeps the chrome set. Semantics carry 1:1 — value/meter/physics/
        marker keep their MEANINGS, the hexes re-tune for emission. */
-    /* Screen palette retuned 2026-08-24 (human: "replace the display green
-       with more of a lime green and try more of a cyan or teal background for
-       the visualizers instead of the purplish one"). The tube goes deep teal
-       and the MEASURE role goes lime — the classic phosphor pairing. Roles are
-       unchanged; only their hexes move, which is the whole point of naming
-       colours by job. */
-    --scr-tube:#06211F;      /* the tube ground — deep teal              */
+    /* TUBE, back to a PURPLE ground (human 2026-08-24, reversing their own
+       earlier push-back). The lime meter stays — that was a separate request
+       and was not withdrawn. Physics lifts from #9D6CFF to #B48CFF because a
+       violet mark on a violet ground would re-create, by the back door, the
+       exact collision ADR-118 removed when grid and physics shared one hex. */
+    --scr-tube:#1B0733;      /* the tube ground — deep violet            */
     --scr-value:#FF5ECF;     /* your value, as hot-pink phosphor        */
     --scr-meter:#B8F227;     /* meter/measure, as LIME                  */
-    --scr-physics:#9D6CFF;   /* the system's own state                  */
+    --scr-physics:#B48CFF;   /* the system's own state                  */
     --scr-marker:#FFB86B;    /* attention/root, as amber                */
     --scr-grid:#4FD8BE;      /* in-tube structure — painted at low alpha */
     --scr-scan:0.22;         /* scanline strength — retuned per scheme     */
@@ -113,18 +112,26 @@
        scr-frost  FROST — near-white cyan
        scr-lumen  LUMEN — near-white warm yellow
        scr-paper  PAPER — plain white                                        */
-  /* LUMEN, re-derived vibrant (human: "for lumen in particular I would much
-     prefer a more vibrant hyperpop palette"). The first pass muted every ink
-     to buy contrast -- dark olive, brown -- which is the safe move and the
-     wrong one: it made the pale scheme read as a washed-out version of the
-     tube rather than as its own world. These are MAXIMUM-CHROMA hues held at
-     the lightness contrast demands, which is the honest way to be vivid on a
-     pale ground: move the lightness, never the saturation. Magenta / electric
-     purple / deep teal / red-orange on warm yellow, every role >= 4.1:1.
-     FROST and PAPER retired here on the human's pick (tube + lumen); they are
-     one `git show` away if either is wanted back. */
-  body.scr-lumen { --scr-tube:#FFF7A8; --scr-value:#E5007A; --scr-meter:#00857F;
-    --scr-physics:#7B1FFF; --scr-marker:#E02B00; --scr-grid:#005E8A;
+  /* THE LIGHT GROUNDS (human 2026-08-24: "the yellow of the light mode is way
+     too harsh. Maybe that should be a very light purplish or cyan or orange
+     tint instead"). LUMEN's saturated yellow is gone; these three are TINTS —
+     a hint of hue on near-white, not a colour field.
+
+     They share ONE vivid ink family (value / meter / physics identical across
+     all three) and differ only in GROUND, GRID and MARKER. That is deliberate
+     and it is the point: the ground is the variable under audition, the
+     hyperpop ink set is what carries the world, and picking a winner therefore
+     does not re-open the ink question — which is the part that already
+     measured well. Inks stay maximum-chroma at the lightness contrast demands;
+     every role clears 4.4:1 on every one of the three grounds. */
+  body.scr-orchid { --scr-tube:#F3EBFF; --scr-value:#D6006B; --scr-meter:#007A73;
+    --scr-physics:#6E14E8; --scr-marker:#C43A00; --scr-grid:#5A3FA8;
+    --scr-scan:0.05; --scr-alpha:1.6; }
+  body.scr-frost  { --scr-tube:#E6F8FF; --scr-value:#D6006B; --scr-meter:#007A73;
+    --scr-physics:#6E14E8; --scr-marker:#C43A00; --scr-grid:#00618C;
+    --scr-scan:0.05; --scr-alpha:1.6; }
+  body.scr-ember  { --scr-tube:#FFF0E4; --scr-value:#D6006B; --scr-meter:#007A73;
+    --scr-physics:#6E14E8; --scr-marker:#B03000; --scr-grid:#8A5A2E;
     --scr-scan:0.05; --scr-alpha:1.6; }
   /* ---- DARK CHASSIS ---- the flat-ink idiom inverted, not merely darkened.
      Ink becomes light and the ground goes near-black with a violet bias, which
@@ -863,8 +870,10 @@ const _tok = {};
    one row here — no painter changes, because a scheme is only ever a value set
    for the seven --scr-* roles. */
 const SCHEMES = [
-  { cls: '',          name: 'TUBE'  },
-  { cls: 'scr-lumen', name: 'LUMEN' }
+  { cls: '',           name: 'TUBE'   },   /* deep violet, the dark ground   */
+  { cls: 'scr-orchid', name: 'ORCHID' },   /* the three light TINTS, sharing */
+  { cls: 'scr-frost',  name: 'FROST'  },   /* one ink family so only the     */
+  { cls: 'scr-ember',  name: 'EMBER'  }    /* ground is under audition       */
 ];
 /* MODE is the CHASSIS axis; SCHEME above is the SCREEN axis. They are separate
    controls on purpose -- pairing them into one preset would hide the crossed
@@ -873,7 +882,7 @@ const SCHEMES = [
    drops you into, never a constraint: switching mode moves the scheme with it,
    and SCR afterwards moves the scheme alone. */
 const MODES = [
-  { cls: '',     name: 'LIGHT', pairs: 'LUMEN' },
+  { cls: '',     name: 'LIGHT', pairs: 'ORCHID' },
   { cls: 'dark', name: 'DARK',  pairs: 'TUBE'  }
 ];
 function scanA() { return parseFloat(TOK('--scr-scan', '0.22')) || 0.22; }
