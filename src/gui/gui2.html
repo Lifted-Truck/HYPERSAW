@@ -1869,21 +1869,57 @@ async function specFrame() {
 // One canvas's worth of spectrum. Split out so the fan-out above stays inside
 // specFrame's try — an earlier splice put a function declaration between the
 // try and its catch, which the lab-load gate rejected as a syntax error.
+/* §6 SPECTRUM: third-octave bars in METER teal, gap ~ bar/3, magenta peak caps
+   held 1.5 s, an ink floor, and the 0 dBFS ceiling dashed.
+
+   The engine already emits a LOG axis — f = 30 * (16000/30)^(b/(n-1)), which is
+   exactly the spec's 30 Hz-16 kHz — but at 256 points it is ~0.036 octaves per
+   bin, far finer than a third. So the bins are AGGREGATED into third-octave
+   bands (max within each band: a spectrum display should not hide a peak by
+   averaging it away). 30 Hz to 16 kHz is log2(533) ~ 9.06 octaves, so ~27 bands.
+
+   ON "caps render red ABOVE the ceiling": the engine clamps v = (dB+80)/80 to
+   1.0, so 0 dBFS is the top of the range and nothing can be drawn above it.
+   A cap that has REACHED the ceiling is therefore the clip signal, and that is
+   what turns red — faithful to the intent, honest about the data. */
+const SPEC_BANDS = (() => {
+  const lo = 30, hi = 16000, per = Math.cbrt(2);          // third-octave ratio
+  const edges = [];
+  for (let f = lo; f < hi; f *= per) edges.push(f);
+  edges.push(hi);
+  return edges;
+})();
+const specPeak = new Float32Array(SPEC_BANDS.length - 1);
+const specPeakAt = new Float64Array(SPEC_BANDS.length - 1);
 function _drawSpecOne(specSm) {
-    const w = sc2.width, h = sc2.height;
+    const w = sc2.width, h = sc2.height, n = specSm.length;
     sctx2.fillStyle = TOK('--well'); sctx2.fillRect(0, 0, w, h);
-    sctx2.strokeStyle = TOK('--pull'); sctx2.lineWidth = 1.2;
-    sctx2.lineJoin = 'round';
-    sctx2.beginPath();
-    const n = specSm.length;
-    for (let i = 0; i < n; i++) {
-      const a = specSm[i > 0 ? i - 1 : 0], b = specSm[i], c = specSm[i < n - 1 ? i + 1 : n - 1];
-      const sm = 0.25 * a + 0.5 * b + 0.25 * c;
-      const x = i / (n - 1) * w;
-      const y = h - sm * (h - 4) - 2;
-      if (i === 0) sctx2.moveTo(x, y); else sctx2.lineTo(x, y);
+    // bin index for a frequency, inverting the engine's log mapping
+    const idxOf = f => Math.round(Math.log(f / 30) / Math.log(16000 / 30) * (n - 1));
+    const nb = SPEC_BANDS.length - 1, slot = w / nb;
+    const barW = slot * 0.75;                              // gap ~ bar/3
+    const now = (typeof performance !== 'undefined') ? performance.now() : 0;
+    const floorY = h - 2;
+    for (let b = 0; b < nb; b++) {
+      let v = 0;
+      const i0 = Math.max(0, idxOf(SPEC_BANDS[b])), i1 = Math.min(n - 1, idxOf(SPEC_BANDS[b + 1]));
+      for (let i = i0; i <= i1; i++) if (specSm[i] > v) v = specSm[i];
+      const x = b * slot + (slot - barW) / 2;
+      const barH = v * (h - 6);
+      sctx2.fillStyle = TOK('--meter');
+      sctx2.fillRect(x, floorY - barH, barW, barH);
+      // peak cap: rises instantly, holds 1.5 s, then falls
+      if (v >= specPeak[b]) { specPeak[b] = v; specPeakAt[b] = now; }
+      else if (now - specPeakAt[b] > 1500) specPeak[b] = Math.max(v, specPeak[b] - 0.012);
+      const py = floorY - specPeak[b] * (h - 6);
+      sctx2.fillStyle = specPeak[b] >= 0.999 ? TOK('--alarm') : TOK('--value');
+      sctx2.fillRect(x, py - 2.5, barW, 2.5);
     }
-    sctx2.stroke();
+    sctx2.fillStyle = TOK('--line'); sctx2.fillRect(0, floorY, w, 2);   // ink floor
+    sctx2.strokeStyle = TOK('--line'); sctx2.lineWidth = 1;             // 0 dBFS
+    sctx2.setLineDash([3, 3]);
+    sctx2.beginPath(); sctx2.moveTo(0, floorY - (h - 6)); sctx2.lineTo(w, floorY - (h - 6));
+    sctx2.stroke(); sctx2.setLineDash([]);
 }
 
 
