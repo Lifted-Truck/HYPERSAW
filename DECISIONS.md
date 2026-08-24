@@ -3314,3 +3314,36 @@ distinction the colour currently carries. The real carpet lands with the page
 compositions.
 
 `./verify full` EXIT=0, parity 156/156.
+
+
+### ADR-118 A7 — increment 3c: §6 spectrum (2026-08-24)
+
+The spectrum was a smoothed magenta polyline. §6 asks for third-octave bars in
+METER teal with magenta peak caps, an ink floor and a dashed 0 dBFS ceiling.
+
+**The data was already most of the way there, which is worth recording.** The
+engine emits a LOG axis — `f = 30 · (16000/30)^(b/(n−1))` — which is exactly the
+spec's stated 30 Hz–16 kHz range. It is simply *finer* than a third octave: 256
+points across 9.06 octaves is ~0.036 octaves per bin. So the bins are aggregated
+into **28 third-octave bands**, taking the **max** within each band rather than
+the mean, because a spectrum display that averages a peak away is hiding the one
+thing it exists to show.
+
+**Peak caps** rise instantly, hold 1.5 s, then fall — the asymmetry §4 already
+specifies for meters, for the same reason (a peak indicator that falls as fast
+as the signal cannot be read at frame rate).
+
+**On "caps render red ABOVE the ceiling".** The engine clamps `v = (dB+80)/80`
+to 1.0, so 0 dBFS *is* the top of the range and nothing can be drawn above it.
+A cap that has REACHED the ceiling is therefore the clip condition, and that is
+what turns alarm red. Faithful to the intent, honest about the data — the
+alternative would be inventing headroom the engine does not report.
+
+Verified by driving the painter with a synthetic spectrum containing one band
+pinned at 0 dBFS: **5342 teal** (bars), **438 magenta** (peak caps), **15 alarm**
+(the pinned band only), **660 ink** (floor + dashed ceiling). The alarm count
+being small and non-zero is the point — it fires on the clipped band and nowhere
+else.
+
+`./verify full` EXIT=0, parity 156/156. §6 is now complete except the true phase
+carpet, which is a different picture rather than different paint (A6).
