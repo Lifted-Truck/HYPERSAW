@@ -4,8 +4,9 @@
 
 | file | what it is |
 |---|---|
-| `HORDE-UI-Spec.dc.html` | **The UI implementation spec, v1** (2026-08-23). Normative. Open it in a browser. |
-| `support.js` | The Claude Design canvas runtime the `.dc.html` loads. Vendored beside it **only** so the spec renders from a checkout; it is not ours and is not edited. |
+| `HORDE-UI-Spec.dc.html` | **The UI implementation spec, v1** (2026-08-23) — tokens, widget state tables, visualizer recipes, morph presentation. Normative for **values**. |
+| `HORDE-Design-System.dc.html` | **The consolidated system** (2026-08-23) — page compositions for MAIN, OSC, FX, MIX and the bend+scale panels, with the reasoning. Normative for **layout**. |
+| `support.js` | The Claude Design canvas runtime both `.dc.html` files load. Vendored beside them **only** so the specs render from a checkout; it is not ours and is not edited. A separately-delivered `hp-support.js` was byte-identical (same SHA-256), so there is one copy, not two. |
 
 The spec is kept **as delivered**, not transcribed into markdown. A normative
 document with two copies is a normative document that will disagree with itself,
@@ -36,14 +37,42 @@ it specifies that does not exist yet, and the one trap that must be fixed before
 any of it lands (the corner palette currently exists twice in gui2, and the two
 copies already disagree).
 
-## Not yet delivered
+## Which document wins
 
-The spec's own last line points at a companion:
+Both, on different questions, and they say so themselves:
 
-> Page compositions live in the Design Directions file, turns 6a–10a.
+- `HORDE-UI-Spec.dc.html` — **values**. "§1–7 are format-neutral values …
+  normative for both stacks."
+- `HORDE-Design-System.dc.html` — **compositions**: what goes on MAIN, OSC, FX,
+  MIX and the bend+scale panels, and the reasoning for each layout. Its own
+  header defers on values: *"Values are normative in HORDE UI Spec."*
 
-That file has not arrived, and neither has `HORDE Design System.dc.html`. So we
-have the **tokens and widget behaviour** but not the **page layouts**. That is
-the right half to have first — layouts can be re-derived from tokens, tokens
-cannot be re-derived from layouts — but B37's page work is blocked until they
-land.
+So a question about a hex, a radius or a timing is answered by the UI Spec even
+if the Design System shows something else; a question about what a page contains
+is answered by the Design System.
+
+### Where they actually disagree
+
+Found by reading them against each other (ADR-117). The value conflicts are
+settled by the rule above — **UI Spec wins** — and are listed so nobody
+"corrects" the implementation toward the losing side:
+
+| | UI Spec (wins) | Design System |
+|---|---|---|
+| window | 1180 × 820, min 1000 × 700 | 1180 × 780, min 1000 × 660 |
+| shadow | 1.5px 1.5px 0 | 2px 2px 0 |
+| meter fill | `#A6F219` | acid `#9BE514` |
+| `well` | `#FFFFFF` (`well-alt` = `#E9E3D4`) | `#E9E3D4` |
+
+Two conflicts are **not** value questions and are **unresolved — they need a
+human ruling**, recorded on ROADMAP as B37's blocking questions:
+
+1. **Glyphs.** UI Spec: "NO glyphs anywhere", corner identity is colour + preset
+   name. Design System: every corner carries one (GLASS ◆ / GRIT ▲ / HOLLOW ● /
+   BLOOM ■) and "glyph always rides with colour". This is an accessibility
+   argument as much as an aesthetic one — a glyph is how corner identity
+   survives colour-blindness, which is why the UI Spec's own §8 offers preset
+   chips for that job instead.
+2. **Re-theming.** UI Spec: "corner colours never re-theme". Design System:
+   "corner identity becomes per-direction, not global." These cannot both hold
+   if a second visual direction ever ships.
