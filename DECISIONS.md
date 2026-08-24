@@ -3442,3 +3442,44 @@ Track and clip names the user typed stay whatever they typed.
 the id, changing `com.lifted-truck.hypersaw` by even one character would mint a
 new CID and orphan every project ever saved. The comment at the descriptor
 already says never to touch it; now the mechanism is on record too.
+
+
+### ADR-119 A2 — bezels, the light-screen audition, and the instruments of coherence (2026-08-24)
+
+Four interface notes from the human, and one sound claim measured first.
+
+**"K range feels reduced" — measured: unchanged.** A/B probe through the real
+plugin against a 2026-08-22 pre-change build: K→clarity identical to four
+decimal places at every sweep point (`docs/research/2026-08-24-k-coherence-ab.md`).
+The inertia taper was cleared analytically too — it moved every stored knob's
+effective inertia DOWN, and inertia here is a lock-slowing mass-spring, so it
+could only have helped. What changed in the same window was the coherence
+INSTRUMENTS: invisible netting (fixed), a diminished readout (restored below),
+blooms smearing alignment. The claim was treated as a sound bug until the
+measurement said otherwise; the offer to re-run against a named patch stands.
+
+**Bezels.** Every canvas now wears the card language — ink 1.5, radius 8 — which
+is the congruity element the tubes were missing. No shadow: §3 reserves shadows
+for interactive elements, never wells.
+
+**The readout returns, fixed-format.** `R 0.534 · A — · B —` under both phase
+circles (A/B fill in under two-cluster topology), and `gravity —` that NEVER
+collapses to an empty line — every segment always present, absent values print
+an em dash, tabular-nums so digits do not wiggle. The per-frame painter no
+longer owns the readout; drawViz does, because it has topo/RA/RB.
+
+**The waveform's hue rides R.** The wet beam mixes from value-pink toward
+marker-amber as the smoothed order parameter rises — coherence becomes visible
+in the waveform itself, exactly as asked.
+
+**The light screen is an AUDITION.** `body.scr-light` re-tunes the six screen
+tokens to a pale-LCD set (tube #F2EEFF, deeper traces, scanlines at 0.07), and
+an SCR chip in the tab bar flips it live — clearing the token cache and
+re-baking the pad field; trail canvases converge on their own. Session-only by
+design. The values are mine to audition, not the designer's.
+
+**A real bug the toggle exposed:** TOK read computed style from
+`documentElement`, and body-level overrides never appear there — the toggle
+flipped the class and every token kept its dark value. TOK reads `document.body`
+now. The screen-theme mechanism would have silently half-worked forever
+otherwise.

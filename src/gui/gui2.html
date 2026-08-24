@@ -72,12 +72,27 @@
     --scr-physics:#9D6CFF;   /* the system's own state                  */
     --scr-marker:#FFB86B;    /* attention/root, as amber                */
     --scr-grid:#9D6CFF;      /* in-tube structure — painted at low alpha */
+    --scr-scan:0.22;         /* scanline strength — retuned by scr-light   */
     /* geometry */
     --r-card:10px; --r-well:8px; --stroke:1.5px;
     --shadow:1.5px 1.5px 0 var(--line);
     --shadow-hover:2.5px 2.5px 0 var(--line);
     --focus:0 0 0 2.5px rgba(245,22,156,.45); }     /* a measured cost worth flagging (vibrato loss)   */
   * { box-sizing:border-box; margin:0; }
+  /* ADR-119 A2: every canvas is a phosphor tube, and a tube gets the same ink
+     border language as the cards — that shared border IS the congruity element
+     (human: "these new phosphor panels need an element that makes them more
+     congruous with the surrounding aesthetic, like some sort of border").
+     No shadow: §3 says shadows are for interactive elements, never wells. */
+  canvas { border:var(--stroke) solid var(--line); border-radius:var(--r-well);
+           background:var(--scr-tube); }
+  /* LIGHT SCREEN — an AUDITION, not a ruling (human asked to "try an alternate
+     color scheme with a light screen"). Same roles, hexes re-tuned for a pale
+     LCD; toggled by the SCR chip in the tab bar. Values are mine to audition,
+     not the designer's — replace freely. */
+  body.scr-light { --scr-tube:#F2EEFF; --scr-value:#C40E86; --scr-meter:#00776E;
+    --scr-physics:#5527D0; --scr-marker:#B36A00; --scr-grid:#5527D0;
+    --scr-scan:0.07; }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
   .tabs { display:flex; gap:4px; margin-bottom:10px; }
@@ -286,6 +301,11 @@
   #carpetC, #stripC, #vmapC { width:100%; background:var(--panel2);
                               border:1px solid var(--line); display:block; }
   .vlabel { color:var(--t2); font-size:10px; margin:6px 0 3px; }
+  /* the phase-circle readout: FIXED format, tabular digits, reserved height —
+     it must not grow and shrink with what happens to be measurable (human). */
+  .vizline { color:var(--t2); font-size:10px; text-align:center; min-height:14px;
+             font-variant-numeric:tabular-nums; }
+  .vizline b { color:var(--text); font-weight:600; }
   .oscbar h2 { display:flex; align-items:center; gap:8px; }
   .oscbar { border-color:var(--pull); }
   /* [hidden] IS NOT ENOUGH when the element sets its own display. `.row` is
@@ -330,7 +350,7 @@
   </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
-    <div class="note" style="text-align:center;margin:2px 0 6px">R <b id="rOut">—</b></div>
+    <div class="vizline vRead">R —</div>
     <div class="vlabel gravline" style="min-height:14px"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
     <div class="note">Waveform &middot; <span class="whoOsc">OSC 1</span> &middot; L over R &middot; click to freeze</div>
@@ -545,6 +565,7 @@
   <div class="vizcol">
 <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <div class="vizline vRead">R —</div>
     <div class="vlabel gravline" style="min-height:14px"></div>
     <div class="vlabel">Log spectrum · MASTER bus</div>
     <canvas id="specC2" class="spec" width="256" height="58"></canvas>
@@ -696,6 +717,7 @@ const _tok = {};
 /* Phosphor helpers (ADR-119). Glow is ALWAYS an underlay stroke or disc at low
    alpha, never a blur filter — the same no-blur rule the chrome follows, and
    the recipe stays portable to a native painter. */
+function scanA() { return parseFloat(TOK('--scr-scan', '0.22')) || 0.22; }
 function scan(g, w, h, a) {
   // CRT scanlines: 1px dark line every 3px. On trail-fade canvases the caller
   // scales `a` by its fade alpha, so the repeated overlay CONVERGES to ~0.22
@@ -711,16 +733,26 @@ function sunset(v) {
   const a = stops[t < 1 ? 0 : 1], b = stops[t < 1 ? 1 : 2], f = t < 1 ? t : t - 1;
   return `rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`;
 }
-function TOKA(name, a, fallback) {
-  const h = TOK(name, fallback);
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h.trim());
-  if (!m) return h;
+function RGBA(hex, a) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex).trim());
+  if (!m) return hex;
   return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
+}
+function TOKA(name, a, fallback) { return RGBA(TOK(name, fallback), a); }
+function mixHex(a, b, t) {
+  const pa = /^#?(..)(..)(..)$/.exec(a), pb = /^#?(..)(..)(..)$/.exec(b);
+  if (!pa || !pb) return a;
+  const c = i => Math.round(parseInt(pa[i],16) + (parseInt(pb[i],16) - parseInt(pa[i],16)) * t)
+                   .toString(16).padStart(2,'0');
+  return '#' + c(1) + c(2) + c(3);
 }
 function TOK(name, fallback) {
   if (_tok[name] === undefined) {
     let v = '';
-    try { v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    // Read from BODY, not documentElement: the scr-light audition overrides
+    // tokens at body level, and html's computed style never sees those.
+    try { v = getComputedStyle(document.body || document.documentElement)
+                .getPropertyValue(name).trim(); }
     catch (_) { v = ''; }
     _tok[name] = v || fallback || '#000';
   }
@@ -850,6 +882,20 @@ document.addEventListener('click', hzMaybeRelease, true);
       wrap.appendChild(b);
     }
     tabs.appendChild(wrap);
+    // SCREEN THEME AUDITION (ADR-119 A2): flips the phosphor between the dark
+    // tube and the light-LCD candidate. Clears the token cache and re-bakes
+    // the pad field; trail-fade canvases converge to the new ground within a
+    // few frames on their own. Session-only on purpose — it is an audition.
+    const scr = document.createElement('button');
+    scr.type = 'button'; scr.className = 'tab'; scr.textContent = 'SCR';
+    scr.title = 'audition: dark phosphor \u2194 light LCD screens';
+    scr.style.marginLeft = '6px';
+    scr.addEventListener('click', () => {
+      document.body.classList.toggle('scr-light');
+      for (const k in _tok) delete _tok[k];
+      if (window._padInvalidate) window._padInvalidate();
+    });
+    tabs.appendChild(scr);
   }
 }
 function paintArm(v) {
@@ -1151,7 +1197,7 @@ const presetStore = {
         gr.addColorStop(0, MCOLORS[k] + '55'); gr.addColorStop(0.7, 'transparent');
         fx.fillStyle = gr; fx.fillRect(0, 0, padW, padH);
       }
-      scan(fx, padW, padH, 0.22);   // baked into the field, not per frame
+      scan(fx, padW, padH, scanA());   // baked into the field, not per frame
     };
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -1162,6 +1208,7 @@ const presetStore = {
       padH = pad.height = field.height = h;
       drawField();
     };
+    window._padInvalidate = () => { padW = -1; padH = -1; };
     // NOT a ResizeObserver: measured in the embedded preview browser, RO simply
     // never delivered — not on attach, not on a real 333->326px change — and a
     // resize path that depends on an event that may not exist is the hidden-row
@@ -1612,7 +1659,7 @@ function drawXY() {
     const xyctx = cv.getContext('2d');
     const w = cv.width, h = cv.height;
     xyctx.fillStyle = TOK('--scr-tube'); xyctx.fillRect(0, 0, w, h);
-  scan(xyctx, w, h, 0.22);
+  scan(xyctx, w, h, scanA());
     const x = curX * w, y = (1 - (curK + 1) / 2) * h;
     xyctx.strokeStyle = TOKA('--scr-grid', 0.30);
     xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
@@ -1644,7 +1691,7 @@ function _drawPhaseOne(s) {
   const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
   pctx.fillStyle = TOKA('--scr-tube', 0.32);
   pctx.fillRect(0, 0, w, h);
-  scan(pctx, w, h, 0.22 * 0.32);   // scaled by the fade alpha so it converges
+  scan(pctx, w, h, scanA() * 0.32);   // scaled by the fade alpha so it converges
   /* ADR-119: "the ring itself dims to grid-violet — on a CRT, chrome is dark
      and only DATA emits". */
   pctx.strokeStyle = TOKA('--scr-grid', 0.55); pctx.lineWidth = 1.5;
@@ -1704,8 +1751,8 @@ function _drawPhaseOne(s) {
     pctx.arc(cx, cy, rad + 5, -Math.PI / 2, -Math.PI / 2 + kSmR * (Math.PI / 2));
     pctx.stroke(); pctx.lineCap = 'butt';
   }
-  const ro = document.getElementById('rOut');
-  if (ro) ro.textContent = s.R.toFixed(3);
+  // readout moved to drawViz (.vRead): it needs topo/RA/RB, which this
+  // per-frame painter does not carry.
 }
 // Meters decay slowly and rise instantly: a peak meter that falls as fast as
 // the signal is unreadable at frame rate. Scale is amplitude, not dB, with a
@@ -1751,7 +1798,7 @@ async function vizFrame() {
         if (!cv || !cv.offsetWidth) continue;
         const g = cv.getContext('2d');
         g.fillStyle = TOK('--scr-tube'); g.fillRect(0, 0, cv.width, cv.height);
-      scan(g, cv.width, cv.height, 0.22);
+      scan(g, cv.width, cv.height, scanA());
         g.fillStyle = TOKA('--scr-grid', 0.75); g.font = '10px monospace'; g.textAlign = 'center';
         g.fillText('osc off', cv.width / 2, cv.height / 2);
         g.textAlign = 'start';
@@ -1763,10 +1810,21 @@ async function vizFrame() {
       // (ratio name, octave fold, live cents). Class, not id: both swarm
       // panels carry the line, same rule as .whoOsc.
       const RATIO_NAMES = ['1/1','16/15','9/8','6/5','5/4','4/3','7/5','3/2','8/5','5/3','16/9','15/8','2/1'];
-      const txt = (s && s.grav && s.grav.length)
-        ? 'gravity: ' + s.grav.map(p => RATIO_NAMES[p[0]] + (p[1] ? '+' + p[1] + 'oct' : '')
+      // FIXED FORMAT (human 2026-08-24): every segment always present, absent
+      // values print an em dash — the line never appears/disappears, so the
+      // layout under the circle stops breathing with the patch.
+      const rt = (s && s.active)
+        ? 'R <b>' + s.R.toFixed(3) + '</b>'
+          + (s.topo === 2
+              ? ' \u00b7 A <b>' + (s.RA ?? 0).toFixed(2) + '</b> \u00b7 B <b>' + (s.RB ?? 0).toFixed(2) + '</b>'
+              : ' \u00b7 A \u2014 \u00b7 B \u2014')
+        : 'R \u2014 \u00b7 A \u2014 \u00b7 B \u2014';
+      for (const el of document.querySelectorAll('.vRead'))
+        if (el.innerHTML !== rt) el.innerHTML = rt;
+      const txt = 'gravity ' + ((s && s.grav && s.grav.length)
+        ? s.grav.map(p => RATIO_NAMES[p[0]] + (p[1] ? '+' + p[1] + 'oct' : '')
             + ' ' + (p[2] >= 0 ? '+' : '') + p[2].toFixed(1) + 'c').join(' \u00b7 ')
-        : '';
+        : '\u2014');
       for (const el of document.querySelectorAll('.gravline'))
         if (el.textContent !== txt) el.textContent = txt;
     }
@@ -1830,7 +1888,7 @@ async function drawScope() {
     // story) are readable as a fixed offset between the two traces.
     wvx.fillStyle = TOK('--scr-tube');
     wvx.fillRect(0, 0, w, h);
-    scan(wvx, w, h, 0.22);
+    scan(wvx, w, h, scanA());
     wvx.strokeStyle = TOKA('--scr-grid', 0.40);
     wvx.beginPath(); wvx.moveTo(0, h / 2); wvx.lineTo(w, h / 2); wvx.stroke();
     if (s && s.l && s.l.length) {
@@ -1884,11 +1942,16 @@ async function drawScope() {
       // data dimension (channel), NOT corner identity. ADR-119: the L trace
       // is a BEAM (wide 22%-alpha underlay + core); R is the phosphor etch —
       // dotted cyan, the screen recipe for a reference trace.
+      // ADR-119 A2 (human): the beam's HUE rides the order parameter — pink
+      // when the swarm drifts, warming toward marker amber as it locks, so
+      // coherence is visible in the waveform itself, not only on the circle.
+      const wet = mixHex(TOK('--scr-value'), TOK('--scr-marker'),
+                         Math.max(0, Math.min(1, kSmR)));
       for (const [arr, col, beam] of [[s.r, TOKA('--scr-meter', 0.65), false],
-                                      [s.l, TOK('--scr-value'), true]]) {
+                                      [s.l, wet, true]]) {
         wvx.setLineDash(beam ? [] : [2, 3]);
         for (const pass of beam ? [0, 1] : [1]) {
-          wvx.strokeStyle = pass === 0 ? TOKA('--scr-value', 0.22) : col;
+          wvx.strokeStyle = pass === 0 ? RGBA(wet, 0.22) : col;
           wvx.lineWidth = pass === 0 ? 8 : (beam ? 2.2 : 1.4);
         wvx.beginPath();
         for (let i = 0; i < span; i++) {
@@ -1953,7 +2016,7 @@ const specPeakAt = new Float64Array(SPEC_BANDS.length - 1);
 function _drawSpecOne(specSm) {
     const w = sc2.width, h = sc2.height, n = specSm.length;
     sctx2.fillStyle = TOK('--scr-tube'); sctx2.fillRect(0, 0, w, h);
-    scan(sctx2, w, h, 0.22);
+    scan(sctx2, w, h, scanA());
     // bin index for a frequency, inverting the engine's log mapping
     const idxOf = f => Math.round(Math.log(f / 30) / Math.log(16000 / 30) * (n - 1));
     const nb = SPEC_BANDS.length - 1, slot = w / nb;
@@ -2036,7 +2099,7 @@ function drawCarpet(s) {
   const w = cc2.width, h = cc2.height;
   cctx2.fillStyle = TOKA('--scr-tube', 0.25);
   cctx2.fillRect(0, 0, w, h);
-  scan(cctx2, w, h, 0.22 * 0.25);
+  scan(cctx2, w, h, scanA() * 0.25);
   if (!s || !s.active) return;
   const n = s.n, twoClu = s.topo === 2, half = n >> 1;
   const colW = w / n;
@@ -2052,7 +2115,7 @@ function drawStrips(s) {
   const w = stC.width, h = stC.height;
   stx.fillStyle = TOKA('--scr-tube', 0.35);
   stx.fillRect(0, 0, w, h);
-  scan(stx, w, h, 0.22 * 0.35);
+  scan(stx, w, h, scanA() * 0.35);
   if (!s || !s.active || !s.spectra || !s.partials) return;
   const P = s.partials, M = s.cloud;
   const colW = w / P;
@@ -2082,7 +2145,7 @@ function drawVmap(s) {
   const w = vmC.width, h = vmC.height;
   vmx.fillStyle = TOKA('--scr-tube', 0.35);
   vmx.fillRect(0, 0, w, h);
-  scan(vmx, w, h, 0.22 * 0.35);
+  scan(vmx, w, h, scanA() * 0.35);
   if (!s || !s.active || s.spectra || !s.vmVf || !s.vmVf.length || !(s.vmF0 > 0)) return;
   let dev = 1e-6;
   for (let i = 0; i < s.vmVf.length; i++) {
@@ -2269,7 +2332,7 @@ function gvizCtx(kind) {
   /* ADR-119: these canvases were transparent-on-panel; as data wells they are
      phosphor tubes now, and this shared clear is the ONE place that decides. */
   ctx.fillStyle = TOK('--scr-tube'); ctx.fillRect(0, 0, w, h);
-  scan(ctx, w, h, 0.22);
+  scan(ctx, w, h, scanA());
   return { ctx, w, h };
 }
 const rdp = id => { const el = document.querySelector(`[data-p="${id}"]:not([data-fixed])`);
