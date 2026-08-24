@@ -2997,3 +2997,61 @@ unruled engineering — but worth noting they exist:
 It is explicit about what it does NOT settle, mirroring the repo's own open
 list: routing law, module order semantics, per-module internals, bass-mono
 ordering (B23).
+
+
+## ADR-118 — re-skin increment 0: one palette, and a bridge to the canvas (2026-08-24)
+
+**Status:** shipped. **Deliberately invisible.**
+
+The human asked to start the re-skin. The first increment paints nothing: it
+removes the two obstacles that would have made a recolour produce wrong results
+for reasons nobody could see.
+
+### 1. The corner palette existed twice, holding different colours
+
+`--cA…--cD` in CSS said `#f2b134 #ff4d6d #4cc9f0 #7ae582`. `MCOLORS` in the
+script said `#5ff2e0 #ffc24b #b18cff #ff7d9c`. The CSS set had **zero
+references**, which is the only reason nobody ever saw it — the first
+`var(--cA)` written during a re-skin would have split corner identity across the
+five surfaces that carry it (pad washes, arm boxes, row ownership stripes,
+corner labels, ghost rows). Now declared once; `MCOLORS` reads it.
+
+### 2. A canvas cannot read a CSS variable
+
+Every painted colour in this file is a string literal — 17 distinct ones across
+35 paint sites, and three of those pairs are the same intended colour typed
+twice: `#e8ecf4`/`#e8ecf2`, `#0b0e13`/`#0b0e14`, `#7f8899`/`#7c8698`. That is a
+palette rotting by hand, and it is why "change :root and everything follows"
+would have been false for exactly the surfaces the spec cares most about.
+
+`TOK()` reads a custom property once and caches it, so the stylesheet can become
+the source for painted colour too. It falls back to a literal when there is no
+computed style, because the headless lab-load gate runs this script without a
+layout engine and a bridge that throws there would take the file down.
+
+### THE FINDING THAT MATTERS MOST FOR THE RE-SKIN
+
+**`--cA` is byte-identical to `--pull`, and `--cB` to `--amber`.** Corner A and
+the interface's accent colour are the same string; so are corner B and the
+warning amber. Nothing in the file distinguishes "this is corner A" from "this
+is the accent", so moving corner A to the spec's `#FFD702` by find-and-replace
+would silently drag the accent with it — or, done via the token, would move
+corner A while leaving accent-coloured things behind, and only some of the
+surfaces would follow.
+
+**Increment 1 must separate the two roles BEFORE changing either value.** This
+is the same class of failure as the two palettes above: one string doing two
+jobs is indistinguishable from one string doing one job, right up until you
+change it.
+
+### Verified as a no-op, after fixing the oracle
+
+First attempt hashed every canvas and reported a difference — but four of them
+(`xy`, `phase`, `spec`, `carpetC`) **animate**, so their pixels differ between
+page loads regardless of any change. Hashing them across loads was measuring the
+clock. Re-run against the five stable canvases plus computed styles:
+
+- computed styles on 12 representative selectors: **no differences**
+- `wavscope`, `gviz`, `morphPad`, `stripC`, `vmapC`: **byte-identical hashes** —
+  `morphPad` being the one that paints corner colours
+- `MCOLORS` still reads `#5ff2e0 #ffc24b #b18cff #ff7d9c`, now from the stylesheet

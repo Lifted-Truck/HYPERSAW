@@ -17,8 +17,18 @@
 <html><head><meta charset="utf-8"><title>HYPERSAW</title><style>
   :root { --bg:#0b0e13; --panel:#11151f; --panel2:#161b28; --line:#2a3040;
     --dim:#7f8899; --text:#cdd6e4; --pull:#5ff2e0; --amber:#ffc24b;
-    /* corner vocabulary — identical to mod-lab CORNERS (standing convention) */
-    --cA:#f2b134; --cB:#ff4d6d; --cC:#4cc9f0; --cD:#7ae582; }
+    /* CORNER PALETTE — THE ONLY DECLARATION. It used to exist twice: these four
+       vars, and a separate MCOLORS array in the script, holding DIFFERENT
+       colours. The vars were dead (0 references), which is the only reason
+       nobody hit it; the first `var(--cA)` in a stylesheet would have split
+       corner identity across the five surfaces that carry it (pad washes, arm
+       boxes, row ownership stripes, corner labels, ghost rows). MCOLORS now
+       READS these, so there is one source. (ADR-118)
+       KNOWN COLLISION, deliberately left for the re-skin to resolve: --cA is
+       byte-identical to --pull and --cB to --amber, so nothing in this file
+       distinguishes "corner A" from "the accent". Any recolour must separate
+       them BEFORE moving either, or the accent follows the corner by accident. */
+    --cA:#5ff2e0; --cB:#ffc24b; --cC:#b18cff; --cD:#ff7d9c; }
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
@@ -924,7 +934,29 @@ const presetStore = {
   }
 }
 /* ============ MORPH PAD + CORNERS (ADR-104) ============ */
-const MCOLORS = ['#5ff2e0', '#ffc24b', '#b18cff', '#ff7d9c'];
+/* TOKEN BRIDGE (ADR-118). A <canvas> takes strings, not CSS variables, so every
+   painted colour in this file has been a literal — 17 distinct ones, including
+   three pairs that are the same intended colour typed twice (#e8ecf4/#e8ecf2,
+   #0b0e13/#0b0e14, #7f8899/#7c8698). That is a palette rotting by hand. TOK()
+   reads a custom property once and caches it, so the stylesheet can become the
+   single source for painted colour too, and a re-skin is a :root edit.
+   Falls back to the literal when there is no computed style — the headless
+   lab-load gate runs this script without a layout engine, and a token bridge
+   that throws there would take the whole file down. */
+const _tok = {};
+function TOK(name, fallback) {
+  if (_tok[name] === undefined) {
+    let v = '';
+    try { v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    catch (_) { v = ''; }
+    _tok[name] = v || fallback || '#000';
+  }
+  return _tok[name];
+}
+// Corner colours come from the stylesheet now. The literals stay ONLY as the
+// headless fallback, and must equal the :root values above.
+const MCOLORS = [TOK('--cA', '#5ff2e0'), TOK('--cB', '#ffc24b'),
+                 TOK('--cC', '#b18cff'), TOK('--cD', '#ff7d9c')];
 {
   const pad = document.getElementById('morphPad');
   if (pad) {
