@@ -2874,7 +2874,8 @@ function tdWarp(seed) {
   const next = () => { a = (a * 9301 + 49297) % 233280; return a / 233280; };
   const ph1 = next() * TD_TAU, ph2 = next() * TD_TAU, ph3 = next() * TD_TAU;
   const P = { waveAmp: 26, waveFreq: 1.4, tremor: 3.5,
-              smearAngle: 0, angleJitter: 12, waveJitter: 0.5 };
+              smearAngle: 0, angleJitter: 12, waveJitter: 0.5,
+              pxScale: 1 };
   const strokes = [], fields = [], corners = [];
   return {
     params: P,
@@ -2907,11 +2908,11 @@ function tdWarp(seed) {
           x0 = W * (0.15 + tdHash2(st.bph, k) * 0.7);
           y0 = H * (0.25 + tdHash2(st.bph + 9.7, k) * 0.5);
         }
-        if (Math.abs(amp) <= 2) continue;
+        if (Math.abs(amp) <= 2 * P.pxScale) continue;
         const th = (P.smearAngle + (st.r1 * 2 - 1) * P.angleJitter) * TD_TAU / 360;
         sts.push({ amp, x0, y0, tanT: Math.tan(th), cosT: Math.cos(th),
                    sinT: Math.sin(th), rad: st.rad + Math.abs(amp) * 0.25,
-                   wf: 0.11 * Math.pow(2.5, (st.r2 * 2 - 1) * P.waveJitter) });
+                   wf: (0.11 / P.pxScale) * Math.pow(2.5, (st.r2 * 2 - 1) * P.waveJitter) });
       }
       const flds = [];
       /* Four invisible corners the word presses itself into. Same per-pixel
@@ -2956,12 +2957,12 @@ function tdWarp(seed) {
             if (env <= 0) continue;
             const ad = Math.abs(q.amp), sg = q.amp > 0 ? 1 : -1;
             const dl = (y - q.y0) * sg;
-            if (dl > -40) {
-              const rise = 1 - Math.exp(-Math.max(0, dl) / (ad * 0.5 + 10));
+            if (dl > -40 * P.pxScale) {
+              const rise = 1 - Math.exp(-Math.max(0, dl) / (ad * 0.5 + 10 * P.pxScale));
               const over = Math.max(0, dl - ad * 1.6);
-              const fall = Math.exp(-(over * over) / (2 * (ad + 60) * (ad + 60)));
+              const fall = Math.exp(-(over * over) / (2 * (ad + 60 * P.pxScale) * (ad + 60 * P.pxScale)));
               const shift = q.amp * env * rise * fall
-                + sg * env * Math.min(ad * 0.45, 70) * Math.sin(dl * q.wf) * rise * fall;
+                + sg * env * Math.min(ad * 0.45, 70 * P.pxScale) * Math.sin(dl * q.wf) * rise * fall;
               sy -= shift * q.cosT;
               sx -= shift * q.sinT;
             }
@@ -3031,13 +3032,15 @@ function tdWarp(seed) {
        and the vertical extent is what legibility runs out of first. */
     const TD_AUTHORED_H = 288, K = H / TD_AUTHORED_H;
     const warp = tdWarp(7);
-    /* Base wriggle retuned for a RIPPLE rather than a heave: more cycles
-       across the width at a smaller throw. The old single slow wave at full
-       amplitude read as the whole word sliding, which is what left the blobs
-       carrying all the visible motion. */
-    warp.params.waveAmp  *= K * 0.55;
-    warp.params.tremor   *= K * 1.6;
-    warp.params.waveFreq  = 2.6;
+    /* The engine now behaves as if on the authored canvas via pxScale, so the
+       params take the plain K scaling the README prescribes. waveAmp is eased
+       a little below strict scale (0.8) so the base wave carries less of the
+       motion and the blob ripple -- the part that was invisible before -- is
+       what reads. */
+    warp.params.pxScale  = K;
+    warp.params.waveAmp *= K * 0.8;
+    warp.params.tremor  *= K;
+    warp.params.waveFreq = 1.8;
     /* FOUR CORNERS, no blobs (human 2026-08-24: "the words wriggle around and
        press themselves into four invisible corners as they expand unevenly").
        The corners sit just outside the glyphs, so the word is pulled toward
@@ -3049,15 +3052,18 @@ function tdWarp(seed) {
        presses drift in and out of phase forever -- that is where "unevenly"
        comes from, rather than from randomness, which would reintroduce the
        jerk the blobs had. */
-    /* Strengths kept low on purpose. At sc ~0.3 with this reach the four
-       corners tear the word apart -- "horde" stopped being readable, which is
-       a logo failing at its one job. These press and release visibly while the
-       word stays itself; the motion should be felt more than watched. */
-    const R = 0.62 * W;                       // reach: each corner covers the word
-    warp.addCorner(0.06, 0.10, R, 0.15,  0.075, 2.00, 0.0);
-    warp.addCorner(0.94, 0.10, R, 0.13, -0.065, 2.74, 1.9);
-    warp.addCorner(0.06, 0.90, R, 0.14, -0.070, 1.58, 3.6);
-    warp.addCorner(0.94, 0.90, R, 0.12,  0.080, 3.26, 5.2);
+    /* BACK TO THE INITIAL CONCEPT (human 2026-08-24: "run another attempt at
+       adapting the initial concept, but fix the numbers so the ripple effect
+       is smaller and therefore more visible"). The swirl + blobs from the
+       README's own VST sketch, at plain K scaling -- with pxScale now carrying
+       the engine's internal constants, the activation cutoff is back to 5% of
+       peak (no pop) and the smear ripple completes its authored ~3 cycles
+       across the blob instead of half a cycle (visible ripple, smaller
+       wavelength). The corner-press experiment is retired; addCorner stays in
+       the engine, inert, for whoever wants it later. */
+    warp.addSwirl(140 * K, 0.30, 0.45, 1, 2.6);
+    warp.addBlob(38 * K, 26 * K, 0.31, 0.62, 1, 0.0);
+    warp.addBlob(-30 * K, 22 * K, 0.74, 0.28, 2, 3.1);
 
     /* ---- corner-colour drift (human: "unevenly shift between the four morph
        colors") ------------------------------------------------------------
