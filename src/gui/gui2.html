@@ -1494,9 +1494,27 @@ const lsGet = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{
 const lsPut = (key, obj) => { try { localStorage.setItem(key, JSON.stringify(obj)); } catch (_) {} };
 const hostStore = () => !!window.hzPresetSave;
 const presetStore = {
+  /* Returns null on FAILURE and [] only for a genuinely empty store. The two
+     used to be the same value, and that is the bug behind "something made all
+     the loaded corner presets disappear but I can't replicate it": one
+     transient throw from the host bridge returned [], every dropdown rendered
+     itself empty, and the presets looked deleted. Nothing was ever deleted --
+     the store still had them -- but a UI that cannot tell "I failed to ask"
+     from "the answer is none" will report data loss that did not happen, and
+     it will do it unreproducibly, because it depends on a momentary failure
+     rather than on anything the human did. Callers must treat null as "keep
+     what you are showing". */
   async list(kind) {
-    if (hostStore()) { try { return JSON.parse(await window.hzPresetList())[kind] || []; } catch (_) { return []; } }
-    return Object.keys(lsGet(kind === 'presets' ? PRESET_KEY : CORNER_KEY)).sort();
+    if (hostStore()) {
+      try {
+        const raw = await window.hzPresetList();
+        const o = JSON.parse(raw);
+        if (!o || typeof o !== 'object') return null;
+        return o[kind] || [];
+      } catch (_) { return null; }
+    }
+    try { return Object.keys(lsGet(kind === 'presets' ? PRESET_KEY : CORNER_KEY)).sort(); }
+    catch (_) { return null; }
   },
   async save(kind, name, json) {
     if (hostStore()) return !!(await window.hzPresetSave(kind, name, json));
@@ -1519,6 +1537,9 @@ const presetStore = {
   const refresh = async () => {
     if (!list) return;
     const names = await presetStore.list('presets');
+    /* null = the store could not be read. Keep the options already on screen:
+       blanking them here is what made a transient failure look like deletion. */
+    if (names === null) return;
     /* The first real preset must not LOOK loaded when nothing is (human,
        2026-08-22). The placeholder is disabled so it can be departed from but
        never chosen; save/load re-select the real name explicitly. */
@@ -1713,6 +1734,7 @@ const cornerFills = [];
       const ld = document.createElement('select');
       ld.title = 'load a corner preset into this corner';
       const fill = async () => { const names = await presetStore.list('corners');
+        if (names === null) return;          // read failed: keep the last good list
         ld.innerHTML = '<option value="">load\u2026</option>' +
           names.map(n => `<option>${n}</option>`).join(''); };
       fill();
