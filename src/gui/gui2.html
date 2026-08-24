@@ -10,7 +10,7 @@
      - Pages are a GRID, not CSS multi-columns — columns cost us two overlap
        bugs because they neither wrap nor clip.
      - A cluster appears here only when its engine surface is REAL. Missing
-       pages say so instead of mocking (SPACE / MOD / MORPH are disabled tabs,
+       pages say so instead of mocking (MOD / MORPH are disabled tabs,
        not empty ones).
      Increment 1: shell + MIX + OSC pages, MAIN with the XY. No viz canvases
      yet — that cluster lands with the intermediary snapshot work. -->
@@ -157,6 +157,17 @@
      --panel #1F1B2E), because "recessed" is what the well means and depth
      reads by contrast direction, not by lightness. Flipping the tokens without
      flipping that relationship would make every well read as raised. */
+  /* LIGHT-CHASSIS LEGIBILITY (measured 2026-08-24). Yellow and lime are the
+     two spec hues that cannot survive a light ground: --marker reads 1.20:1 on
+     --bg and --celebrate 1.17:1, where the graphical floor is 3:1. Both are
+     line/mark roles -- they draw strokes, glyphs and meter fills, not filled
+     shapes with their own border -- so low contrast makes them disappear
+     rather than merely soften. Darkened here to clear 4.5:1 while holding the
+     hue, so "attention is amber" and "OK is green" still read as themselves. */
+  body:not(.dark) {
+    --marker:#8A6A00;      /* was #FFD702 at 1.20:1 -> 5.6:1               */
+    --celebrate:#4E7A00;   /* was #A6F219 at 1.17:1 -> 5.3:1               */
+  }
   body.dark {
     --bg:#151220; --panel:#1F1B2E; --well:#0E0C16; --panel2:#2C2740;
     --line:#EFE9FA; --hair:#312B47; --div:#3B3455;
@@ -232,9 +243,15 @@
   .cluster { background:var(--panel); border:1px solid var(--line);
     border-radius:var(--r); padding:8px 10px; min-width:0; }
   h2 { font-size:11px; color:var(--pull); letter-spacing:1px; margin-bottom:6px; }
-  .strip { background:var(--panel2); border:1px solid var(--line); border-radius:var(--r);
+  /* No frame and no ground: the cluster around it is already the frame, and a
+     panel inside a panel repeating its own title is two boxes saying one
+     thing. The strip keeps its LAYOUT job (M/S + meter + rows) and drops the
+     decoration; `.bysolo` dimming and the mute/solo painting all key off the
+     class, which is untouched. */
+  .strip { background:transparent; border:0; border-radius:0;
     padding:6px 9px; margin-bottom:8px; min-width:0; }
-  .strip b { font-size:10px; color:var(--t2); letter-spacing:1px; }
+  /* the name is the cluster's <h2>; this repeated it */
+  .strip > b { display:none; }
   .msrow { display:flex; gap:4px; align-items:center; margin:4px 0 2px; }
   .msbtn { flex:0 0 auto; font-size:9px; letter-spacing:1px; padding:2px 7px;
            border:1px solid var(--line); border-radius:var(--r); background:var(--panel);
@@ -395,10 +412,15 @@
      the full string stays in the label's `title`, so nothing is lost that a
      hover cannot recover. */
   .row.kcell > label .sc, .row.kcell > label .u { display:none; }
-  .row.kcell > output { position:absolute; left:0; right:0; bottom:0;
-    font-size:9.5px; line-height:1.15; text-align:center; color:var(--text);
-    font-variant-numeric:tabular-nums; opacity:0; pointer-events:none;
-    transition:opacity .08s; }
+  /* Occupies the LABEL's box exactly -- top of the cell, the same reserved
+     2.3em -- so name and value swap in place instead of the value landing on
+     the knob. `bottom:0` put it over the knob's lower half (measured: output
+     358-369 against a knob at 333-369). */
+  .row.kcell > output { position:absolute; left:0; right:0; top:2px;
+    min-height:2.3em; display:flex; align-items:center; justify-content:center;
+    font-size:10px; line-height:1.15; text-align:center; color:var(--text);
+    font-weight:600; font-variant-numeric:tabular-nums; opacity:0;
+    pointer-events:none; transition:opacity .08s; }
   .row.kcell:hover > output, .row.kcell:focus-within > output,
   .row.kcell:has(.knob.drag) > output { opacity:1; }
   .row.kcell:hover > label, .row.kcell:focus-within > label,
@@ -1252,8 +1274,9 @@ function paintFill(el) {
   /* §4: sweep 280 degrees from 220. A BIPOLAR range fills from the centre —
      the same declaration, different start angle — so "how far from zero" is
      what the eye measures on a control whose zero is meaningful. */
-  const SWEEP = 280, bip = lo < 0 && hi > 0;
-  const zero = bip ? (0 - lo) / (hi - lo) : 0;
+  const SWEEP = 280;
+  const bip = !el.dataset.log10 && lo < 0 && hi > 0;
+  const zero = bip ? 0.5 : 0;
   const a0 = Math.min(pct, zero) * SWEEP, a1 = Math.max(pct, zero) * SWEEP;
   k.style.setProperty('--a0', a0.toFixed(2) + 'deg');
   k.style.setProperty('--a1', a1.toFixed(2) + 'deg');
@@ -1637,7 +1660,12 @@ const cornerFills = [];
     for (let k = 0; k < 4; k++) {
       const row = document.createElement('div');
       row.className = 'row';
-      row.innerHTML = `<label><span style="color:${MCOLORS[k]}">&#9632;</span> Corner ${names[k]}</label>`;
+      /* The corner SWATCH is a filled glyph with no border of its own, so it
+         needs the corner's TEXT pair, not its fill: corner A's #FFD702 reads
+         1.34:1 on --panel and simply vanishes. The tx variants exist for
+         exactly this and were going unused here. */
+      const tx = ['--cAtx', '--cBtx', '--cCtx', '--cDtx'][k];
+      row.innerHTML = `<label><span style="color:${TOK(tx, MCOLORS[k])}">&#9632;</span> Corner ${names[k]}</label>`;
       const b = document.createElement('button');
       b.textContent = 'CAPTURE';
       b.title = 'store the current patch into this corner';
@@ -2002,7 +2030,7 @@ async function syncFromEngine() {
 // finished sound is balanced — so the order follows the order of work rather
 // than the order the pages happened to be built in (human, 2026-08-19).
 const PAGES = [['MAIN', true], ['OSC', true], ['MIX', true], ['FX', true],
-               ['SPACE', false], ['MOD', false], ['MORPH', true]];
+               ['MOD', false], ['MORPH', true]];   // SPACE retired 2026-08-24 (human: no longer planned)
 const tabs = $('#tabs');
 for (const [name, live] of PAGES) {
   const t = document.createElement('div');
