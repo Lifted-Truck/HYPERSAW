@@ -3091,3 +3091,46 @@ the script, where a palette belongs. Verified no-op afterwards: computed styles
 unchanged on 7 selectors, the five non-animated canvases byte-identical, and the
 arm boxes measurably painting `rgb(95,242,224) / (255,194,75) / (177,140,255) /
 (255,125,156)` — the same four colours, now from the shared source.
+
+
+### ADR-118 A2 — increment 1b: the canvas paints from tokens; and a correction (2026-08-24)
+
+All **33 remaining canvas colour literals** now read from `TOK()`. Six colours
+the stylesheet had never named got tokens (`--text-hi`, `--dim2`, `--grid`,
+`--grid2`, `--hot`, `--bad`), and three drifted near-duplicates were absorbed
+into the token they meant (`#0b0e14`→`--bg`, `#7c8698`→`--dim`,
+`#e8ecf2`→`--text-hi`). The two surviving ad-hoc `getComputedStyle` readers went
+the way of the four in A1. Values unchanged; `:root` is now the single source
+for painted colour, which is what makes increment 1c a stylesheet edit.
+
+### CORRECTION: the canvas-hash oracle proved less than I said it did
+
+ADR-118 and A1 both reported "the five non-animated canvases byte-identical,
+`morphPad` among them" and offered `morphPad` as the evidence that corner
+colours were untouched. **`morphPad` is blank in the standalone page** — 38 400
+transparent pixels — because it skips painting while its page is hidden. So were
+`wavscope`, `stripC`, and three of the five `gviz` canvases. A blank canvas
+matching a blank canvas proves nothing, and I presented it as the strongest
+evidence in the set.
+
+Measured this time before trusting it: of 17 canvases, **7 have content**
+(`xy`, `phase`, `spec`, `carpetC`, two `gviz`, `vmapC`), **6 are blank**, and
+four of the painted ones animate and cannot be compared across page loads at
+all. That leaves exactly **two** genuinely load-bearing canvas comparisons
+(`gviz` 542×144), not five.
+
+What actually carries the no-op claim, in order of strength:
+
+1. **`TOK()` resolves to the exact previous literals** — direct, not inferential.
+2. **Computed styles** on representative selectors — real DOM, unchanged.
+3. **The morph pad, forced to paint** by switching to its page, then sampled at
+   its four corners: each corner's dominant-channel ordering matches its
+   `MCOLORS` entry (`#275956` / `#5b4925` / `#413760` / `#5a323f` — the corner
+   colours at wash alpha over the dark ground). This is the check `morphPad`'s
+   hash was pretending to be.
+4. `gviz` — two painted canvases, byte-identical.
+
+Same lesson as ADR-091 A4, in a new costume: **ask whether the instrument can
+see the thing before believing what it reports.** A hash that is stable because
+nothing is drawn looks exactly like a hash that is stable because nothing
+changed.
