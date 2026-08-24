@@ -3012,7 +3012,9 @@ function tdWarp(seed) {
       const ink = TOK('--text', '#191521');
       sctx.clearRect(0, 0, W, H);
       sctx.fillStyle = ink;
-      sctx.font = '700 34px ui-monospace,Menlo,monospace';
+      /* Helvetica per the session JSON ("font": "Helvetica") -- the mark had
+         been borrowing the UI's monospace, which was never art-directed. */
+      sctx.font = '700 34px Helvetica,"Helvetica Neue",Arial,sans-serif';
       sctx.textBaseline = 'middle';
       sctx.fillText('horde', 6, H / 2);
       SRC = sctx.getImageData(0, 0, W, H);
@@ -3030,40 +3032,29 @@ function tdWarp(seed) {
        half the height and the word becomes unreadable -- which is exactly what
        it did. Scaled on HEIGHT, because wave and tremor displace vertically
        and the vertical extent is what legibility runs out of first. */
-    const TD_AUTHORED_H = 288, K = H / TD_AUTHORED_H;
+    /* K comes from the FONT ratio, not the canvas ratio. The human's actual
+       tool session (settings JSON, 2026-08-24) authored at fontSize 200 on a
+       1600x640 canvas -- the type is 31% of canvas height there and 71% of it
+       here, so canvas-height scaling would overdrive every strength relative
+       to the glyphs. Displacement relative to the TYPE is what preserves the
+       authored look. (The old 288 reference was the README's example canvas,
+       which was never the session the human actually tuned.) */
+    const TD_AUTHORED_FONT = 200, OUR_FONT = 34, K = OUR_FONT / TD_AUTHORED_FONT;
     const warp = tdWarp(7);
-    /* The engine now behaves as if on the authored canvas via pxScale, so the
-       params take the plain K scaling the README prescribes. waveAmp is eased
-       a little below strict scale (0.8) so the base wave carries less of the
-       motion and the blob ripple -- the part that was invisible before -- is
-       what reads. */
+    /* The tool settings verbatim: waveAmp 26, waveFreq 1.4, tremor 3.5 are
+       already the engine defaults, so only the scale is applied -- no easing
+       factors this time, because the JSON IS the art direction and nudging it
+       was how the last two attempts drifted off it. */
     warp.params.pxScale  = K;
-    warp.params.waveAmp *= K * 0.8;
+    warp.params.waveAmp *= K;
     warp.params.tremor  *= K;
-    warp.params.waveFreq = 1.8;
-    /* FOUR CORNERS, no blobs (human 2026-08-24: "the words wriggle around and
-       press themselves into four invisible corners as they expand unevenly").
-       The corners sit just outside the glyphs, so the word is pulled toward
-       them rather than orbiting a point inside itself. sc > 0 is a local
-       expansion, which is what reads as "pressing into"; the small alternating
-       rot is the wriggle, and alternating its sign keeps the four from
-       agreeing on a direction of spin.
-       Periods 2.0 / 2.74 / 1.58 / 3.26 share no common multiple, so the four
-       presses drift in and out of phase forever -- that is where "unevenly"
-       comes from, rather than from randomness, which would reintroduce the
-       jerk the blobs had. */
-    /* BACK TO THE INITIAL CONCEPT (human 2026-08-24: "run another attempt at
-       adapting the initial concept, but fix the numbers so the ripple effect
-       is smaller and therefore more visible"). The swirl + blobs from the
-       README's own VST sketch, at plain K scaling -- with pxScale now carrying
-       the engine's internal constants, the activation cutoff is back to 5% of
-       peak (no pop) and the smear ripple completes its authored ~3 cycles
-       across the blob instead of half a cycle (visible ripple, smaller
-       wavelength). The corner-press experiment is retired; addCorner stays in
-       the engine, inert, for whoever wants it later. */
-    warp.addSwirl(140 * K, 0.30, 0.45, 1, 2.6);
-    warp.addBlob(38 * K, 26 * K, 0.31, 0.62, 1, 0.0);
-    warp.addBlob(-30 * K, 22 * K, 0.74, 0.28, 2, 3.1);
+    const BASE_WAVE = warp.params.waveAmp, BASE_TREM = warp.params.tremor;
+    /* NO strokes, NO fields: the human's session JSON has both empty. The
+       look they tuned is wave + tremor alone -- the blobs and swirl I kept
+       carrying forward were the README's example, not their art direction,
+       and they were also the only elements that could seam (see the unbounded
+       clock below). What varies at runtime now comes from the LEXICON: the
+       synth plays the logo. */
 
     /* ---- corner-colour drift (human: "unevenly shift between the four morph
        colors") ------------------------------------------------------------
@@ -3088,7 +3079,23 @@ function tdWarp(seed) {
       return '#' + c(1) + c(2) + c(3);
     };
     let cu = 0, ctime = 0;                       // ring position, and its own clock
+    let smD = 0.28, smX = 0.5, smY = 0.5;        // lexicon smoothers
     const tint = (dt) => {
+      /* MORPH POSITION -> COLOUR when an engine is present: the same bilinear
+         blend the pad's field uses (A top-left, B top-right, C bottom-left,
+         D bottom-right -- the gradient corners in drawField), so the logo IS
+         the morph cursor. Standalone, the uneven drift below remains. */
+      const mx = lastParams[152], my = lastParams[153];
+      if (mx !== undefined && my !== undefined) {
+        smX += (+mx - smX) * 0.1; smY += (+my - smY) * 0.1;
+        const top = mix(TOK(LG[0], '#FF2E88'), TOK(LG[1], '#00D5C8'), smX);
+        const bot = mix(TOK(LG[2], '#FF2E88'), TOK(LG[3], '#00D5C8'), smX);
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = mix(top, bot, smY);
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
+        return;
+      }
       const i = Math.floor(cu) % 4, j = (i + 1) % 4;
       /* The wobble reads an INDEPENDENT clock, not `cu`. Driving it from the
          ring position looked uneven and was not: cu retraces the same
@@ -3124,7 +3131,33 @@ function tdWarp(seed) {
       const dt = last ? Math.min(0.25, (nowMs - last) / 1000) : 0;
       last = nowMs;
       if (TOK('--text', '#191521') !== bakedInk) bake();
-      tSec = (tSec + dt * SPEED) % TD_CYCLE;          // seamless: loops at 8.0
+      /* LEXICON (human 2026-08-24: "a lexicon of transformations that get
+         applied dynamically as the synth is played. R causes ripples, detune
+         causes wiggling, color changes based on the morph position").
+           R      -> tremor (the ripple): a locked swarm makes the word shimmer.
+                     kSmR is the viz loop's already-smoothed R; it sits at 0
+                     with no engine, which honestly reads as a calm logo.
+           detune -> waveAmp (the wiggle), one-pole smoothed here because
+                     lastParams only refreshes at the 500 ms poll and a step
+                     in amplitude would read as a twitch. The mapping is
+                     centred so the default patch (detune 0.28) lands exactly
+                     on the authored waveAmp -- the JSON stays the identity.
+           morph  -> colour, in tint() below.
+         Both factors multiply the AUTHORED base, so the tool session remains
+         the fixed point of the whole system. */
+      smD += ((+(lastParams[4] ?? 0.28)) - smD) * 0.06;
+      warp.params.waveAmp = BASE_WAVE * (0.61 + 1.4 * smD);
+      warp.params.tremor  = BASE_TREM * (0.5 + 2.2 * kSmR);
+      /* UNBOUNDED, deliberately -- the wrap was the seam. The header's claim
+         that fmod(t, 8) loops seamlessly holds only for bph = 0: relocation
+         happens where the envelope is zero (ph crossing a multiple of tau),
+         but t = 8 is not a tau-boundary for a nonzero phase offset, so the
+         swirl (bph 2.6) and second blob (bph 3.1) teleported at 89% and
+         99.96% envelope once per wrap. The human's tool never wraps t, which
+         is why the seam existed only here. With no relocating elements and
+         the lexicon varying the params, unbounded t is both seam-free and
+         non-repeating; float64 sin() is exact for any t a session can reach. */
+      tSec += dt * SPEED;
       warp.render(SRC.data, DST.data, W, H, tSec);
       ctx.putImageData(DST, 0, 0);              // ignores compositing, so tint after
       tint(dt);
