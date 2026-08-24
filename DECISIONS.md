@@ -3183,3 +3183,44 @@ below 3:1 rather than the default for every label on the page.
 
 `./verify full` EXIT=0, parity 156/156 — the interface changed, the instrument
 did not.
+
+
+### ADR-118 A4 — increment 2: §4 widget states (2026-08-24)
+
+The controls were essentially native — `input[type=range]` carried
+`accent-color` and nothing else, so the browser drew every slider, toggle and
+dropdown. §4 gives each a geometry and four states; this implements the ones
+this interface actually has. Knob, fader, mod halo and census bar wait for the
+widgets and features they describe, which is why they are absent rather than
+approximated.
+
+- **Slider** — track 6/r3/well-alt with an ink border, handle 13×13 r4 with the
+  hard offset shadow, hover lifts to 2.5, active fills the handle with value
+  and drops the shadow flat. A native range cannot paint its own fill, so §4's
+  "fill from left" rides a `--pct` custom property set by the same function
+  that already repaints readouts. It is computed from the SLIDER's min/max, not
+  the parameter's, because on a log-scaled control the knob position is what
+  the eye is measuring.
+- **Toggle** — 32×17 r999, value fill and thumb right when on.
+- **Enum / text** — pill geometry, ink border, secondary text, a drawn caret.
+- **Chips** — radius 999 per §3.
+- **Focus** — the spec's magenta ring, on every focusable thing.
+
+### The §3 hit floor, and not faking it
+
+§3 requires ≥28×28 for every control. Measured: **33 visible controls under
+it** — toggles at 17, selects at 24, chips at 27, ranges at 18, colour swatches
+at 14.
+
+The naive fix inflates the widgets, which would break the spec in the other
+direction: a toggle is 32×17 *by specification*, and the four `.armBox`
+swatches are 14×14 because they are colour chips, not labels. So controls whose
+size is incidental simply grow (`min-height:28px`), while the two whose size is
+deliberate keep their painted face and extend a transparent hit area around it.
+
+**Verified rather than assumed.** I claimed a pseudo-element takes clicks, then
+tested it: hit-testing 5px and 10px outside the toggle's painted box lands on
+the toggle, and a click there flips it. Final sweep over 188 controls:
+**none fail the floor**, `.armBox` still measures 14×14 and the toggle 32×17.
+
+`./verify full` EXIT=0, parity 156/156.
