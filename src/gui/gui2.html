@@ -437,7 +437,7 @@
   .row.kcell:has(.knob.drag) > label { opacity:0; }
   .row.kcell.owned { box-shadow:none; border-top:3px solid var(--own);
     padding-top:3px; }                      /* a column cell wears its stripe on top */
-  .row.kcell.ghost { box-shadow:none; border-top:3px dotted var(--armc, var(--line)); }
+  .row.kcell.ghost { box-shadow:none; opacity:.5; }
   .knobs { display:grid; grid-template-columns:repeat(auto-fill, minmax(52px, 1fr));
     gap:7px 4px; margin:5px 0 2px; align-items:start; }
 
@@ -461,10 +461,21 @@
   /* the owning corner, as a stripe down the row's leading edge — readable at a
      glance across a dense panel without recolouring anything load-bearing */
   .row.owned { box-shadow:inset 3px 0 0 var(--own); padding-left:5px; }
-  /* armed view: this corner's value, not currently voiced — provisional */
-  .row.ghost { box-shadow:none; border-left:3px dotted var(--armc, var(--line));
-               padding-left:2px; }
-  .row.ghost > label { color:var(--armc, var(--text)); opacity:.65; }
+  /* ARMED VIEW: rows this corner does not own show its STORED value, which is
+     not what you are hearing — provisional, so it recedes.
+     It used to draw a 3px dotted BORDER while `.owned` drew a quiet inset
+     stripe, and that asymmetry was the bug (human 2026-08-24: "puts dotted
+     lines around all the bounding boxes"): ghost is the MAJORITY state, so 74
+     adjacent knob cells each grew a dotted top edge and the segments lined up
+     into what read as boxes around everything. Marking the common case and
+     whispering the exceptional one is backwards. Now the owned rows keep their
+     solid stripe and everything else simply FADES, which is also the truer
+     signal — "not live" reads as recessive, not as outlined.
+     The label colour went with it: it was var(--armc), i.e. the corner's FILL,
+     and corner A's #FFD702 measures 1.34:1 on --panel — the same invisible
+     yellow already fixed elsewhere. Secondary text is legible in both modes. */
+  .row.ghost { box-shadow:none; opacity:.5; }
+  .row.ghost > label { color:var(--t2); }
   .row.owned > label { color:var(--own); }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
            background:var(--panel,#FCFAF4); border:1px solid var(--line);
