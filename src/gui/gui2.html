@@ -198,6 +198,9 @@
            overflow:visible; cursor:default; user-select:none; }
   .brand text { font:700 19px/1 ui-monospace,Menlo,monospace; letter-spacing:.04em;
                 fill:var(--text); }
+  /* the lit mass is tinted by a flood, and flood-color IS settable from CSS --
+     which is the only reason the lighting chain can follow a token at all */
+  #brandInk { flood-color:var(--text); flood-opacity:1; }
   /* The filter is the expensive part, so it is attached only while the mark is
      actually warping. `.brand.still` drops it entirely, which is what makes an
      idle logo cost the same as static text. */
@@ -552,8 +555,38 @@
   <feGaussianBlur in="w" stdDeviation="1.1" result="b"/>
   <feColorMatrix in="b" mode="matrix" result="goo"
      values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 17 -7"/>
-  <!-- 4. keep the crisp warped glyph on top so it stays legible at 19px -->
-  <feComposite in="w" in2="goo" operator="over"/>
+  <!-- 4. HEIGHT MAP: a rounded core plus a wider "skirt", so the surface rises
+          toward the middle of each stroke instead of ending at a hard edge.
+          This is the half of the human's GoopBox that was deferred last round
+          pending a cost measurement; measured at this size it is cheap, so it
+          lands. -->
+  <feGaussianBlur in="goo" stdDeviation="1.2" result="core"/>
+  <feGaussianBlur in="core" stdDeviation="2.4" result="foot"/>
+  <feComposite in="core" in2="foot" operator="arithmetic"
+              k1="0" k2="0.55" k3="0.45" k4="0" result="bump0"/>
+  <feComponentTransfer in="bump0" result="bump">
+    <feFuncA type="gamma" amplitude="1" exponent="0.75" offset="0"/>
+  </feComponentTransfer>
+  <!-- 5. light that height map as one continuous surface -->
+  <feDiffuseLighting in="bump" surfaceScale="2.4" diffuseConstant="1"
+                     lighting-color="#ffffff" result="diff">
+    <feDistantLight azimuth="235" elevation="55"/>
+  </feDiffuseLighting>
+  <feSpecularLighting in="bump" surfaceScale="2.4" specularConstant="0.7"
+                      specularExponent="22" lighting-color="#ffffff" result="spec">
+    <feDistantLight azimuth="235" elevation="55"/>
+  </feSpecularLighting>
+  <!-- 6. tint the lit mass with the CHASSIS text token, so the mark follows
+          both modes; flood-color is set from CSS, which is why it can be a var -->
+  <feFlood id="brandInk" result="ink"/>
+  <feComposite in="ink" in2="goo" operator="in" result="mass"/>
+  <feComposite in="mass" in2="diff" operator="arithmetic"
+              k1="1" k2="0" k3="0" k4="0" result="litMass"/>
+  <feComposite in="spec" in2="goo" operator="in" result="specIn"/>
+  <feComposite in="specIn" in2="litMass" operator="arithmetic"
+              k1="0" k2="0.55" k3="1" k4="0" result="lit"/>
+  <!-- 7. keep the crisp warped glyph on top so it stays legible at 19px -->
+  <feComposite in="w" in2="lit" operator="over"/>
 </filter></defs><text x="0" y="19">horde</text></svg><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
