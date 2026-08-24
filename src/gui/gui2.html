@@ -70,7 +70,7 @@
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
   .tabs { display:flex; gap:4px; margin-bottom:10px; }
-  .tab { padding:4px 14px; border:1px solid var(--line); border-radius:3px;
+  .tab { padding:4px 14px; border:var(--stroke) solid var(--line); border-radius:999px; min-height:28px;
     cursor:pointer; color:var(--dim); background:var(--panel); font-size:11px;
     letter-spacing:1px; }
   .tab.on { color:var(--bg); background:var(--line); font-weight:600; }
@@ -142,7 +142,89 @@
     align-items:center; gap:6px; margin:5px 0; }
   .row label { color:var(--t2); font-size:10px; }
   .row output { font-size:10px; text-align:right; color:var(--text); }
-  input[type=range] { width:100%; accent-color:var(--pull); min-width:0; }
+  /* ============ §4 WIDGET STATES — horde UI spec ============
+     The controls were native (accent-color and nothing else), so the browser
+     drew them. §4 gives every one a geometry and four states; this implements
+     the ones this interface actually has — slider, toggle, enum, chip. Knob,
+     fader, mod halo and census wait for the widgets/features they describe. */
+
+  /* SLIDER — track 6, r3, well-alt, ink border; fill from left in value.
+     A native range cannot paint its own fill, so --pct carries the position
+     and the JS that already repaints values sets it. Anything that never sets
+     it renders an empty track rather than a wrong one. */
+  input[type=range] {
+    -webkit-appearance:none; appearance:none; width:100%; min-width:0;
+    height:28px; background:transparent; cursor:pointer; }   /* §3 hit floor */
+  input[type=range]::-webkit-slider-runnable-track {
+    height:6px; border-radius:3px; border:var(--stroke) solid var(--line);
+    background:linear-gradient(to right,
+      var(--value) 0 calc(var(--pct, 0) * 100%),
+      var(--panel2) calc(var(--pct, 0) * 100%) 100%); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; appearance:none;
+    width:13px; height:13px; border-radius:4px; margin-top:-3.5px;  /* centre on a 6+3 track */
+    background:var(--panel); border:var(--stroke) solid var(--line);
+    box-shadow:var(--shadow); }
+  input[type=range]:hover::-webkit-slider-thumb { box-shadow:var(--shadow-hover); }
+  input[type=range]:active::-webkit-slider-thumb {
+    background:var(--value); box-shadow:none; }
+  input[type=range]:disabled { opacity:.55; cursor:default; }
+  input[type=range]:disabled::-webkit-slider-thumb { box-shadow:none; }
+
+  /* TOGGLE — 32x17 r999; on = value fill, thumb right; off = well-alt, left */
+  input[type=checkbox] {
+    -webkit-appearance:none; appearance:none; margin:0;
+    width:32px; height:17px; border-radius:999px; cursor:pointer;
+    background:var(--panel2); border:var(--stroke) solid var(--line);
+    position:relative; transition:background .12s linear; }
+  /* §3 hit floor WITHOUT inflating the 32x17 face the spec asks for */
+  input[type=checkbox]::before {
+    content:''; position:absolute; left:0; right:0; top:50%;
+    height:28px; transform:translateY(-50%); }
+  input[type=checkbox]::after {
+    content:''; position:absolute; top:1px; left:1px;
+    width:11px; height:11px; border-radius:999px;
+    background:var(--panel); border:1px solid var(--line);
+    transition:transform .12s ease; }
+  input[type=checkbox]:checked { background:var(--value); }
+  input[type=checkbox]:checked::after { transform:translateX(15px); }
+  input[type=checkbox]:disabled { opacity:.55; cursor:default; }
+
+  /* ENUM — pill geometry, panel fill, ink border, secondary text */
+  select {
+    -webkit-appearance:none; appearance:none;
+    font:inherit; font-size:10px; padding:3px 18px 3px 9px; min-width:0;
+    border-radius:999px; border:var(--stroke) solid var(--line);
+    background:var(--panel); color:var(--t2); cursor:pointer;
+    background-image:linear-gradient(45deg,transparent 50%,var(--t2) 50%),
+                     linear-gradient(135deg,var(--t2) 50%,transparent 50%);
+    background-position:calc(100% - 11px) 50%, calc(100% - 7px) 50%;
+    background-size:4px 4px, 4px 4px; background-repeat:no-repeat; }
+  select { min-height:28px; }            /* §3 hit floor */
+  select:hover { box-shadow:var(--shadow); }
+  select:disabled { opacity:.55; cursor:default; box-shadow:none; }
+
+  /* text inputs take the same chrome */
+  input[type=text] {
+    font:inherit; font-size:10px; padding:3px 8px; border-radius:999px; min-height:28px;
+    border:var(--stroke) solid var(--line); background:var(--panel);
+    color:var(--text); min-width:0; }
+
+  /* §3 hit floor for the rest. Buttons whose size is incidental simply grow;
+     the four .armBox swatches are 14x14 BY DESIGN (they are colour chips, not
+     labels), so they keep their face and extend a transparent hit area the
+     way the toggle does. Verified by hit-testing 5px and 10px outside the
+     painted box, not by assuming a pseudo-element takes clicks. */
+  button:not(.armBox) { min-height:28px; }
+  .armBox { position:relative; }
+  .armBox::before {
+    content:''; position:absolute; left:50%; top:50%;
+    width:28px; height:28px; transform:translate(-50%,-50%); }
+
+  /* §3 focus — one visible ring outside the ink border, on everything */
+  input:focus-visible, select:focus-visible, button:focus-visible,
+  .tab:focus-visible, [tabindex]:focus-visible {
+    outline:none; box-shadow:var(--focus); }
   #xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
     cursor:crosshair; width:100%; }
   .oscSel { display:inline-flex; gap:3px; margin-left:8px; }
@@ -807,6 +889,16 @@ const paramToCtl = (el, v) => el.dataset.log10 ? Math.log10(Math.max(v, 1e-6)) :
 function displayValue(el, v) {
   const out = el.closest('.row') ? el.closest('.row').querySelector('output') : null;
   if (out) out.textContent = (+v).toFixed(el.step && +el.step >= 1 ? 0 : 2);
+  paintFill(el);
+}
+/* A native range paints no fill of its own, so §4's "fill from left" rides a
+   custom property. Driven from the SLIDER's own min/max — not the parameter's —
+   because a log-scaled control's knob position is what the eye is measuring. */
+function paintFill(el) {
+  if (!el || el.type !== 'range') return;
+  const lo = +el.min, hi = +el.max, v = +el.value;
+  const pct = (hi > lo) ? Math.min(1, Math.max(0, (v - lo) / (hi - lo))) : 0;
+  el.style.setProperty('--pct', pct.toFixed(4));
 }
 function paintControl(el, v) {
   // M/S are divs, not inputs: they have no .value and emit no 'input', so they
@@ -1960,6 +2052,7 @@ function applyGates() {
   });
 }
 bridge.getDefaults().then(j => { SHELL_DEFAULTS = JSON.parse(j || '{}'); }).catch(() => {});
+document.querySelectorAll('input[type=range]').forEach(paintFill);
 learnGateKeys();
 document.addEventListener('input', e => { if (e.target.closest('[data-p]')) applyGates(); });
 applyGates();
