@@ -1655,7 +1655,13 @@ function _drawPhaseOne(s) {
     const a = s.phase[i] * Math.PI * 2;
     px.push(cx + rad * Math.cos(a)); py.push(cy - rad * Math.sin(a));
   }
-  pctx.strokeStyle = TOKA('--scr-grid', 0.30); pctx.lineWidth = 1;
+  /* The voice NETTING (human, 2026-08-24: "return the netting"). It was never
+     removed — A5 restyled it to a hairline and ADR-119 mapped that to
+     grid-violet at 0.30, which on a violet-black tube is invisible: right by
+     the letter of "in-well line", wrong by the eye. On the phosphor it takes
+     the ETCH treatment (the document's cyan for faint reference geometry) —
+     the same family as the original teal web this look descends from. */
+  pctx.strokeStyle = TOKA('--scr-meter', 0.38); pctx.lineWidth = 1;
   pctx.beginPath(); pctx.moveTo(px[0], py[0]);
   for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
   pctx.closePath(); pctx.stroke();
