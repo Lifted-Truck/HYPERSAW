@@ -3055,3 +3055,39 @@ clock. Re-run against the five stable canvases plus computed styles:
 - `wavscope`, `gviz`, `morphPad`, `stripC`, `vmapC`: **byte-identical hashes** —
   `morphPad` being the one that paints corner colours
 - `MCOLORS` still reads `#5ff2e0 #ffc24b #b18cff #ff7d9c`, now from the stylesheet
+
+
+### ADR-118 A1 — increment 1a: corner colour and accent colour become distinguishable (2026-08-24)
+
+Increment 0 found that `--cA` is byte-identical to `--pull` and `--cB` to
+`--amber`, which made a recolour impossible to do correctly: nothing in the file
+said whether a given `#5ff2e0` meant "corner A" or "the accent". This increment
+classifies every one of them. Still deliberately invisible — values unchanged.
+
+**A THIRD copy of the corner palette turned up.** The arm-box builder held its
+own inline array `['#5ff2e0','#ffc24b','#b18cff','#ff7d9c']`. ADR-118 found two
+copies; this is the third, and it is the one whose drift would have been most
+visible — the arm boxes sit next to the pad they must agree with. Now `MCOLORS[k]`.
+
+The rest are **not** corner identity, and saying so in the code is the point:
+
+- two-cluster colouring in the phase circle and the carpet — a *data dimension*
+  (which cluster a voice is in)
+- L/R in the scope — a data dimension (channel)
+- root-vs-other in the scale strip — *marker* semantics, which the new spec gives
+  its own token (`marker #FFD702`)
+
+All now read `TOK('--pull')` / `TOK('--amber')`, so when the re-skin moves corner
+A to yellow these stay put — which is exactly the failure increment 0 predicted.
+
+**Four ad-hoc token readers folded into TOK.** Draw paths were calling
+`getComputedStyle(document.body).getPropertyValue('--pull')` — inside animation
+loops. That is a forced style recalc per frame, and it was a hand-rolled TOK
+without the cache. Correctness and cost, one edit.
+
+**The lab-load gate caught a TDZ.** Pointing the arm boxes at `MCOLORS` created a
+use ~300 lines before the declaration. The bridge is now hoisted to the top of
+the script, where a palette belongs. Verified no-op afterwards: computed styles
+unchanged on 7 selectors, the five non-animated canvases byte-identical, and the
+arm boxes measurably painting `rgb(95,242,224) / (255,194,75) / (177,140,255) /
+(255,125,156)` — the same four colours, now from the shared source.

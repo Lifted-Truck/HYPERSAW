@@ -548,6 +548,30 @@
 </div>
 
 <script>
+/* TOKEN BRIDGE (ADR-118). A <canvas> takes strings, not CSS variables, so every
+   painted colour in this file has been a literal — 17 distinct ones, including
+   three pairs that are the same intended colour typed twice (#e8ecf4/#e8ecf2,
+   #0b0e13/#0b0e14, #7f8899/#7c8698). That is a palette rotting by hand. TOK()
+   reads a custom property once and caches it, so the stylesheet can become the
+   single source for painted colour too, and a re-skin is a :root edit.
+   Falls back to the literal when there is no computed style — the headless
+   lab-load gate runs this script without a layout engine, and a token bridge
+   that throws there would take the whole file down. */
+const _tok = {};
+function TOK(name, fallback) {
+  if (_tok[name] === undefined) {
+    let v = '';
+    try { v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    catch (_) { v = ''; }
+    _tok[name] = v || fallback || '#000';
+  }
+  return _tok[name];
+}
+// Corner colours come from the stylesheet now. The literals stay ONLY as the
+// headless fallback, and must equal the :root values above.
+const MCOLORS = [TOK('--cA', '#5ff2e0'), TOK('--cB', '#ffc24b'),
+                 TOK('--cC', '#b18cff'), TOK('--cD', '#ff7d9c')];
+
 "use strict";
 /* ============ PLUMBING (ported from gui.html — proven, do not fork) ======= */
 const $ = s => document.querySelector(s);
@@ -651,7 +675,10 @@ document.addEventListener('click', hzMaybeRelease, true);
     for (let k = 0; k < 4; k++) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'armBox'; b.dataset.corner = k;
-      b.style.background = ['#5ff2e0','#ffc24b','#b18cff','#ff7d9c'][k];
+      // CORNER semantics — this was a THIRD copy of the palette (ADR-118 found
+      // two). The arm boxes must always agree with the pad and the ownership
+      // stripes, so they share MCOLORS with them now.
+      b.style.background = MCOLORS[k];
       b.title = 'author corner ' + 'ABCD'[k] + ' — click again to release';
       b.addEventListener('click', () => {
         const cur = +(lastParams[159] ?? 0);
@@ -934,29 +961,6 @@ const presetStore = {
   }
 }
 /* ============ MORPH PAD + CORNERS (ADR-104) ============ */
-/* TOKEN BRIDGE (ADR-118). A <canvas> takes strings, not CSS variables, so every
-   painted colour in this file has been a literal — 17 distinct ones, including
-   three pairs that are the same intended colour typed twice (#e8ecf4/#e8ecf2,
-   #0b0e13/#0b0e14, #7f8899/#7c8698). That is a palette rotting by hand. TOK()
-   reads a custom property once and caches it, so the stylesheet can become the
-   single source for painted colour too, and a re-skin is a :root edit.
-   Falls back to the literal when there is no computed style — the headless
-   lab-load gate runs this script without a layout engine, and a token bridge
-   that throws there would take the whole file down. */
-const _tok = {};
-function TOK(name, fallback) {
-  if (_tok[name] === undefined) {
-    let v = '';
-    try { v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-    catch (_) { v = ''; }
-    _tok[name] = v || fallback || '#000';
-  }
-  return _tok[name];
-}
-// Corner colours come from the stylesheet now. The literals stay ONLY as the
-// headless fallback, and must equal the :root values above.
-const MCOLORS = [TOK('--cA', '#5ff2e0'), TOK('--cB', '#ffc24b'),
-                 TOK('--cC', '#b18cff'), TOK('--cD', '#ff7d9c')];
 {
   const pad = document.getElementById('morphPad');
   if (pad) {
@@ -1483,7 +1487,8 @@ function _drawPhaseOne(s) {
   pctx.closePath(); pctx.stroke();
   const twoClu = s.topo === 2, halfN = n >> 1;
   for (let i = 0; i < n; i++) {
-    pctx.fillStyle = (twoClu && i >= halfN) ? '#ffc24b' : '#5ff2e0';
+    // data dimension (cluster membership), NOT corner identity
+    pctx.fillStyle = (twoClu && i >= halfN) ? TOK('--amber') : TOK('--pull');
     pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
   }
   // K-vector: Cartesian-smoothed direction, separately-smoothed scalar length
@@ -1671,7 +1676,8 @@ async function drawScope() {
           if (lp[i - 1] <= 0 && lp[i] > 0) { trig = i; break; }
       }
       const g = (h / 2 - 3) / pk;
-      for (const [arr, col] of [[s.r, '#ffc24b'], [s.l, '#5ff2e0']]) {
+      // data dimension (channel), NOT corner identity
+      for (const [arr, col] of [[s.r, TOK('--amber')], [s.l, TOK('--pull')]]) {
         wvx.strokeStyle = col; wvx.lineWidth = 1.2; wvx.beginPath();
         for (let i = 0; i < span; i++) {
           const x = i / (span - 1) * w, y = h / 2 - arr[trig + i] * g;
@@ -1711,7 +1717,7 @@ async function specFrame() {
 function _drawSpecOne(specSm) {
     const w = sc2.width, h = sc2.height;
     sctx2.fillStyle = '#0b0e14'; sctx2.fillRect(0, 0, w, h);
-    sctx2.strokeStyle = '#5ff2e0'; sctx2.lineWidth = 1.2;
+    sctx2.strokeStyle = TOK('--pull'); sctx2.lineWidth = 1.2;
     sctx2.lineJoin = 'round';
     sctx2.beginPath();
     const n = specSm.length;
@@ -1783,7 +1789,8 @@ function drawCarpet(s) {
   const colW = w / n;
   for (let i = 0; i < n; i++) {
     const y = 4 + s.phase[i] * (h - 8);
-    cctx2.fillStyle = (twoClu && i >= half) ? '#ffc24b' : '#5ff2e0';
+    // data dimension (cluster membership), NOT corner identity
+    cctx2.fillStyle = (twoClu && i >= half) ? TOK('--amber') : TOK('--pull');
     cctx2.beginPath(); cctx2.arc(i * colW + colW / 2, y, 2.6, 0, Math.PI * 2); cctx2.fill();
   }
 }
@@ -1850,7 +1857,8 @@ function drawVmap(s) {
   for (let i = 1; i < s.vmPan.length; i++) if (Math.abs(s.vmPan[i]) < Math.abs(s.vmPan[root])) root = i;
   for (let i = 0; i < s.vmVf.length; i++) {
     const x = X(s.vmPan[i]);
-    const col = i === root ? '#ffc24b' : '#5ff2e0';
+    // marker semantics (root note), NOT corner identity
+    const col = i === root ? TOK('--amber') : TOK('--pull');
     vmx.strokeStyle = col;
     vmx.beginPath(); vmx.arc(x, Y(s.vmVf[i]), 3.4, 0, Math.PI * 2); vmx.stroke();
     vmx.fillStyle = col;
@@ -1992,7 +2000,7 @@ function drawEnvelope(s) {
   const S = rdp(21) ?? 1.0, R = rdp(22) ?? 0.16;
   const gate = (A + D) * 1000 * 1.3 + 120, span = gate + R * 1000 * 2.2;
   const X = ms => ms / span * (w - 2) + 1, Y = v => h - 3 - v * (h - 8);
-  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0';
+  ctx.strokeStyle = TOK('--pull');
   ctx.lineWidth = 1.5; ctx.beginPath();
   for (let px = 0; px < w; px++) {
     const t = px / (w - 2) * span;
@@ -2021,7 +2029,7 @@ function drawScatter(s) {
   const X = ms => 4 + ms / maxT * (w - 8);
   ctx.strokeStyle = '#2a3040'; ctx.beginPath();
   ctx.moveTo(4, h - 10); ctx.lineTo(w - 4, h - 10); ctx.stroke();
-  const acc = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0';
+  const acc = TOK('--pull');
   for (let i = 0; i < ons.length; i++) {
     const y = 6 + (h - 22) * (ons.length === 1 ? 0.5 : i / (ons.length - 1));
     ctx.strokeStyle = acc; ctx.globalAlpha = 0.5; ctx.lineWidth = 1;
@@ -2170,7 +2178,7 @@ function drawBendStep() {
     ctx.stroke(); ctx.setLineDash([]);
   };
   line(tgt, '#7f8899', 1, [3, 3]);                       // what the wheel asked for
-  line(traj, getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0', 1.6);
+  line(traj, TOK('--pull'), 1.6);
   ctx.fillStyle = '#7f8899'; ctx.font = '9px ui-monospace,Menlo,monospace';
   const st = bendCurve.settle < 0 ? 'never' : bendCurve.settle.toFixed(0) + ' ms';
   ctx.fillText(`lag50 ${bendCurve.lag50.toFixed(0)} ms · over ${bendCurve.over.toFixed(1)} ¢ · settle ${st} · rings ${bendCurve.rings}`, 5, 10);
@@ -2180,7 +2188,7 @@ function drawBendVib() {
   const { ctx, w, h } = g;
   if (!bendCurve || bendCurve.depth === undefined) return noCurve(g, 'no engine — open in the plugin');
   const pct = Math.max(0, Math.min(100, bendCurve.depth));
-  const acc = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#5ff2e0';
+  const acc = TOK('--pull');
   ctx.fillStyle = '#2a3040'; ctx.fillRect(6, h - 26, w - 12, 10);
   ctx.fillStyle = pct < 60 ? '#ff4d6d' : acc;            // losing 40% of a wobble is a real cost
   ctx.fillRect(6, h - 26, (w - 12) * pct / 100, 10);
