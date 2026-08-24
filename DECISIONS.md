@@ -3224,3 +3224,47 @@ the toggle, and a click there flips it. Final sweep over 188 controls:
 **none fail the floor**, `.armBox` still measures 14×14 and the toggle 32×17.
 
 `./verify full` EXIT=0, parity 156/156.
+
+
+### ADR-118 A5 — increment 3: §6 visualizer semantics, and a regression A2 could not see (2026-08-24)
+
+**The regression first, because it was already shipped.** A2 swept the canvas
+for `#hex` literals and reported zero remaining. There were six more in
+`rgba(...)` form, which that search structurally could not match — and four of
+them were **trail-fade overlays** compositing toward `#0b0e14`. Painting a
+translucent near-black rectangle each frame is how a trail decays on a dark
+theme; on 1c's white wells it fades every trail toward BLACK instead of toward
+the ground. The phase circle, the carpet, the SPECTRA strips and the voice map
+all shipped that way in 1c.
+
+The fix is not "use white": it is `TOKA(token, alpha)`, so a fade names the
+**surface it fades into** rather than a colour that happens to match it today.
+That is the same failure as `--cA` being byte-identical to `--pull` — a value
+that is right by coincidence is indistinguishable from one that is right by
+construction, until the coincidence ends.
+
+Lesson for the remaining increments: **a colour search that only knows one
+notation is not a colour search.** `rgba()`, `hsl()`, gradient stops and
+`box-shadow` all carry colour past a `#`-shaped grep.
+
+### §6 Kuramoto
+
+The phase circle now says what the spec says it should:
+
+- ring is **ink** 1.5 (was a grid tint)
+- the voice web is a **hairline** — an in-well line, per §1
+- the order vector is **physics violet**, 3px, with a ⌀7.5 head. It was magenta,
+  which claims it is the user's authored value; it is the system's own state.
+  This is the exact distinction §1 means by "one job each — never borrowed".
+- **the R rim arc did not exist.** Now teal, round caps, from 12 o'clock CW at
+  R·90°, so sync literally wraps the dial instead of being a printed number.
+
+Also killed: a `0 0 6px` glow that survived every earlier pass. §3 bans blur
+outright — "hard, no blur" — so it is the 1.5px offset.
+
+Verified by driving the painter with a synthetic frame and reading the pixels
+back: **334 magenta** (voices), **243 violet** (order vector), **146 teal**
+(R arc), ink ring present, and the dominant colour is now the white well —
+i.e. the fades composite toward the ground, which is the regression's own test.
+
+`./verify full` EXIT=0, parity 156/156.

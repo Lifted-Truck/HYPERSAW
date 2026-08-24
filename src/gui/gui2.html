@@ -268,7 +268,7 @@
      a performer would expect. Cheap tint rather than a modal. */
   body.arming .ctlcol .cluster, body.arming .page .cluster { border-style:dashed; }
   .oscPow.on { color:var(--bg); background:var(--text); border-color:var(--text);
-               opacity:1; box-shadow:0 0 6px rgba(232,236,244,.55); }
+               opacity:1; box-shadow:var(--shadow); }   /* §3 bans blur — hard offset only */
   .note { color:var(--dim); font-size:10.5px; }
   canvas.xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
               width:100%; touch-action:none; }
@@ -677,6 +677,17 @@
    lab-load gate runs this script without a layout engine, and a token bridge
    that throws there would take the whole file down. */
 const _tok = {};
+/* TOK at an alpha. The hex sweep in A2 could not see `rgba(...)` literals, and
+   four of them were TRAIL FADES compositing toward #0b0e14 — correct on a dark
+   theme, and on a white well they fade every trail toward black instead of
+   toward the ground. Fades must name the surface they fade INTO, so this takes
+   a token and an alpha rather than a colour. */
+function TOKA(name, a, fallback) {
+  const h = TOK(name, fallback);
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h.trim());
+  if (!m) return h;
+  return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
+}
 function TOK(name, fallback) {
   if (_tok[name] === undefined) {
     let v = '';
@@ -1600,9 +1611,9 @@ function drawPhase(s) {
 }
 function _drawPhaseOne(s) {
   const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
-  pctx.fillStyle = 'rgba(11,14,20,0.32)';
+  pctx.fillStyle = TOKA('--well', 0.32);
   pctx.fillRect(0, 0, w, h);
-  pctx.strokeStyle = TOK('--grid'); pctx.lineWidth = 1;
+  pctx.strokeStyle = TOK('--line'); pctx.lineWidth = 1.5;   // §6: ink circle
   pctx.beginPath(); pctx.arc(cx, cy, rad, 0, Math.PI * 2); pctx.stroke();
   if (!s || !s.active) return;
   const n = s.n, px = [], py = [];
@@ -1610,7 +1621,7 @@ function _drawPhaseOne(s) {
     const a = s.phase[i] * Math.PI * 2;
     px.push(cx + rad * Math.cos(a)); py.push(cy - rad * Math.sin(a));
   }
-  pctx.strokeStyle = 'rgba(95,242,224,0.28)'; pctx.lineWidth = 1;
+  pctx.strokeStyle = TOK('--hair'); pctx.lineWidth = 1;   // in-well line, §1
   pctx.beginPath(); pctx.moveTo(px[0], py[0]);
   for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
   pctx.closePath(); pctx.stroke();
@@ -1627,9 +1638,22 @@ function _drawPhaseOne(s) {
   kSmR += (s.R - kSmR) * 0.35;
   const kLen = Math.hypot(kSmX, kSmY);
   const ux = kLen > 1e-6 ? kSmX / kLen : 0, uy = kLen > 1e-6 ? kSmY / kLen : 0;
-  pctx.strokeStyle = TOK('--hot'); pctx.lineWidth = 2;
-  pctx.beginPath(); pctx.moveTo(cx, cy);
-  pctx.lineTo(cx + rad * kSmR * ux, cy - rad * kSmR * uy); pctx.stroke();
+  /* §6: the order vector is PHYSICS (violet), 3px, with a head — it is not the
+     user's value, so it must not wear the value colour. */
+  const vx = cx + rad * kSmR * ux, vy = cy - rad * kSmR * uy;
+  pctx.strokeStyle = TOK('--physics'); pctx.lineWidth = 3;
+  pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(vx, vy); pctx.stroke();
+  pctx.fillStyle = TOK('--physics');
+  pctx.beginPath(); pctx.arc(vx, vy, 3.75, 0, Math.PI * 2); pctx.fill();
+  /* §6: R rim arc — METER teal, round caps, from 12 o'clock CW, length R*90
+     degrees. Sync literally wraps the dial, which is the point of drawing the
+     order parameter on the rim rather than printing it. */
+  if (kSmR > 0.001) {
+    pctx.strokeStyle = TOK('--meter'); pctx.lineWidth = 5; pctx.lineCap = 'round';
+    pctx.beginPath();
+    pctx.arc(cx, cy, rad + 5, -Math.PI / 2, -Math.PI / 2 + kSmR * (Math.PI / 2));
+    pctx.stroke(); pctx.lineCap = 'butt';
+  }
   const ro = document.getElementById('rOut');
   if (ro) ro.textContent = s.R.toFixed(3);
 }
@@ -1911,7 +1935,7 @@ let vmZoom = 4, vmShrink = 0;
 
 function drawCarpet(s) {
   const w = cc2.width, h = cc2.height;
-  cctx2.fillStyle = 'rgba(11,14,20,0.25)';
+  cctx2.fillStyle = TOKA('--well', 0.25);
   cctx2.fillRect(0, 0, w, h);
   if (!s || !s.active) return;
   const n = s.n, twoClu = s.topo === 2, half = n >> 1;
@@ -1926,7 +1950,7 @@ function drawCarpet(s) {
 
 function drawStrips(s) {
   const w = stC.width, h = stC.height;
-  stx.fillStyle = 'rgba(11,14,20,0.35)';
+  stx.fillStyle = TOKA('--well', 0.35);
   stx.fillRect(0, 0, w, h);
   if (!s || !s.active || !s.spectra || !s.partials) return;
   const P = s.partials, M = s.cloud;
@@ -1938,7 +1962,7 @@ function drawStrips(s) {
     stx.beginPath(); stx.moveTo(cx, topPad); stx.lineTo(cx, topPad + stripH); stx.stroke();
     const amp = (s.partAmp && s.partAmp[k]) || 0;
     const alpha = 0.35 + 0.65 * Math.min(1, amp * 2.2);
-    stx.fillStyle = 'rgba(95,242,224,' + alpha.toFixed(2) + ')';
+    stx.fillStyle = TOKA('--value', alpha.toFixed(2));
     for (let m = 0; m < M; m++) {
       const ph = s.partPhase[k * M + m];
       stx.beginPath(); stx.arc(cx, topPad + ph * stripH, 2.6, 0, Math.PI * 2); stx.fill();
@@ -1955,7 +1979,7 @@ function drawStrips(s) {
 
 function drawVmap(s) {
   const w = vmC.width, h = vmC.height;
-  vmx.fillStyle = 'rgba(11,14,20,0.35)';
+  vmx.fillStyle = TOKA('--well', 0.35);
   vmx.fillRect(0, 0, w, h);
   if (!s || !s.active || s.spectra || !s.vmVf || !s.vmVf.length || !(s.vmF0 > 0)) return;
   let dev = 1e-6;
