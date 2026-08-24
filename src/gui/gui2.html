@@ -28,7 +28,18 @@
        byte-identical to --pull and --cB to --amber, so nothing in this file
        distinguishes "corner A" from "the accent". Any recolour must separate
        them BEFORE moving either, or the accent follows the corner by accident. */
-    --cA:#5ff2e0; --cB:#ffc24b; --cC:#b18cff; --cD:#ff7d9c; }
+    --cA:#5ff2e0; --cB:#ffc24b; --cC:#b18cff; --cD:#ff7d9c;
+    /* Canvas-only colours, named here so the stylesheet is the single source
+       for PAINTED colour too (ADR-118). Values are exactly what the literals
+       held, so this declaration changes nothing — the re-skin edits them next.
+       Three of them absorb a near-duplicate that had drifted by a digit:
+       --bg absorbs #0b0e14, --dim absorbs #7c8698, --text-hi absorbs #e8ecf2. */
+    --text-hi:#e8ecf4;   /* brighter than --text: pad puck, XY dot          */
+    --dim2:#3a4152;      /* canvas axis labels, dimmer than --dim           */
+    --grid:#232a3a;      /* in-well gridlines (phase circle)                */
+    --grid2:#1a2030;     /* in-well gridlines (strip) — dimmer variant      */
+    --hot:#ff4fa3;       /* live-value marks on canvas                      */
+    --bad:#ff4d6d; }     /* a measured cost worth flagging (vibrato loss)   */
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
@@ -834,9 +845,9 @@ function drawShapeWave() {
   g.clearRect(0, 0, w, h);
   bridge.getShapeWave().then(j => {
     const d = JSON.parse(j || '{}');
-    if (!d.wave) { g.fillStyle = getComputedStyle(document.body).getPropertyValue('--dim').trim() || '#7f8899';
+    if (!d.wave) { g.fillStyle = TOK('--dim');
       g.font = '10px monospace'; g.fillText('no engine — open in the plugin', 8, h / 2); return; }
-    g.strokeStyle = getComputedStyle(document.body).getPropertyValue('--pull').trim() || '#59e0c8';
+    g.strokeStyle = getComputedStyle(document.body).getPropertyValue('--pull').trim() || TOK('--pull');
     g.lineWidth = 1.5; g.beginPath();
     const n = d.wave.length;
     for (let i = 0; i < n; i++) {
@@ -975,7 +986,7 @@ const presetStore = {
     let padW = 0, padH = 0;
     const drawField = () => {
       const fx = field.getContext('2d');
-      fx.fillStyle = '#0b0e13'; fx.fillRect(0, 0, padW, padH);
+      fx.fillStyle = TOK('--bg'); fx.fillRect(0, 0, padW, padH);
       for (let k = 0; k < 4; k++) {
         const gx = (k % 2) ? padW : 0, gy = (k > 1) ? padH : 0;
         const gr = fx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(padW, padH));
@@ -1014,7 +1025,7 @@ const presetStore = {
       if (x === lastX && y === lastY) return;
       lastX = x; lastY = y;
       px.drawImage(field, 0, 0);
-      px.strokeStyle = '#e8ecf4'; px.lineWidth = 1.5 * (window.devicePixelRatio || 1);
+      px.strokeStyle = TOK('--text-hi'); px.lineWidth = 1.5 * (window.devicePixelRatio || 1);
       px.beginPath(); px.arc(x * padW, y * padH, 7 * (window.devicePixelRatio || 1), 0, 6.2832);
       px.stroke();
     };
@@ -1441,12 +1452,12 @@ function drawXY() {
   for (const cv of XYS()) {
     const xyctx = cv.getContext('2d');
     const w = cv.width, h = cv.height;
-    xyctx.fillStyle = '#161b28'; xyctx.fillRect(0, 0, w, h);
+    xyctx.fillStyle = TOK('--panel2'); xyctx.fillRect(0, 0, w, h);
     const x = curX * w, y = (1 - (curK + 1) / 2) * h;
-    xyctx.strokeStyle = '#2a3040';
+    xyctx.strokeStyle = TOK('--line');
     xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
     xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();
-    xyctx.fillStyle = '#e8ecf2';
+    xyctx.fillStyle = TOK('--text-hi');
     xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
   }
 }
@@ -1473,7 +1484,7 @@ function _drawPhaseOne(s) {
   const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
   pctx.fillStyle = 'rgba(11,14,20,0.32)';
   pctx.fillRect(0, 0, w, h);
-  pctx.strokeStyle = '#232a3a'; pctx.lineWidth = 1;
+  pctx.strokeStyle = TOK('--grid'); pctx.lineWidth = 1;
   pctx.beginPath(); pctx.arc(cx, cy, rad, 0, Math.PI * 2); pctx.stroke();
   if (!s || !s.active) return;
   const n = s.n, px = [], py = [];
@@ -1498,7 +1509,7 @@ function _drawPhaseOne(s) {
   kSmR += (s.R - kSmR) * 0.35;
   const kLen = Math.hypot(kSmX, kSmY);
   const ux = kLen > 1e-6 ? kSmX / kLen : 0, uy = kLen > 1e-6 ? kSmY / kLen : 0;
-  pctx.strokeStyle = '#ff4fa3'; pctx.lineWidth = 2;
+  pctx.strokeStyle = TOK('--hot'); pctx.lineWidth = 2;
   pctx.beginPath(); pctx.moveTo(cx, cy);
   pctx.lineTo(cx + rad * kSmR * ux, cy - rad * kSmR * uy); pctx.stroke();
   const ro = document.getElementById('rOut');
@@ -1547,8 +1558,8 @@ async function vizFrame() {
       for (const cv of [document.getElementById('phaseC'), document.getElementById('phaseC2')]) {
         if (!cv || !cv.offsetWidth) continue;
         const g = cv.getContext('2d');
-        g.fillStyle = '#0b0e13'; g.fillRect(0, 0, cv.width, cv.height);
-        g.fillStyle = '#3a4152'; g.font = '10px monospace'; g.textAlign = 'center';
+        g.fillStyle = TOK('--bg'); g.fillRect(0, 0, cv.width, cv.height);
+        g.fillStyle = TOK('--dim2'); g.font = '10px monospace'; g.textAlign = 'center';
         g.fillText('osc off', cv.width / 2, cv.height / 2);
         g.textAlign = 'start';
       }
@@ -1595,7 +1606,7 @@ for (const c of document.querySelectorAll('canvas.wavscope')) {
   c.onclick = () => {
     scopeFrozen = !scopeFrozen;
     if (scopeFrozen && wvx) { wvx.fillStyle = 'rgba(255,194,75,0.9)'; wvx.fillRect(wvC.width - 34, 3, 31, 11);
-      wvx.fillStyle = '#0b0e13'; wvx.font = '9px monospace';
+      wvx.fillStyle = TOK('--bg'); wvx.font = '9px monospace';
       wvx.fillText('HOLD', wvC.width - 31, 12); blitScope(); }
   };
 }
@@ -1606,8 +1617,8 @@ async function drawScope() {
   // so the ring is stale — show the OFF state instead of a frozen wave.
   if (lastVizOscEnabled === false) {
     const w2 = wvC.width, h2 = wvC.height;
-    wvx.fillStyle = '#0b0e13'; wvx.fillRect(0, 0, w2, h2);
-    wvx.fillStyle = '#3a4152'; wvx.font = '10px monospace';
+    wvx.fillStyle = TOK('--bg'); wvx.fillRect(0, 0, w2, h2);
+    wvx.fillStyle = TOK('--dim2'); wvx.font = '10px monospace';
     wvx.fillText('osc off', 8, h2 / 2);
     blitScope();
     return;
@@ -1624,9 +1635,9 @@ async function drawScope() {
     // rising zero-crossing in L and draw forward from there, so a periodic
     // waveform stands still and L/R phase differences (super-width's whole
     // story) are readable as a fixed offset between the two traces.
-    wvx.fillStyle = '#0b0e13';
+    wvx.fillStyle = TOK('--bg');
     wvx.fillRect(0, 0, w, h);
-    wvx.strokeStyle = '#2a3040';
+    wvx.strokeStyle = TOK('--line');
     wvx.beginPath(); wvx.moveTo(0, h / 2); wvx.lineTo(w, h / 2); wvx.stroke();
     if (s && s.l && s.l.length) {
       const N = s.l.length;
@@ -1716,7 +1727,7 @@ async function specFrame() {
 // try and its catch, which the lab-load gate rejected as a syntax error.
 function _drawSpecOne(specSm) {
     const w = sc2.width, h = sc2.height;
-    sctx2.fillStyle = '#0b0e14'; sctx2.fillRect(0, 0, w, h);
+    sctx2.fillStyle = TOK('--bg'); sctx2.fillRect(0, 0, w, h);
     sctx2.strokeStyle = TOK('--pull'); sctx2.lineWidth = 1.2;
     sctx2.lineJoin = 'round';
     sctx2.beginPath();
@@ -1805,7 +1816,7 @@ function drawStrips(s) {
   const topPad = 6, barH = 26, stripH = h - barH - topPad - 4;
   for (let k = 0; k < P; k++) {
     const cx = k * colW + colW / 2;
-    stx.strokeStyle = '#1a2030';
+    stx.strokeStyle = TOK('--grid2');
     stx.beginPath(); stx.moveTo(cx, topPad); stx.lineTo(cx, topPad + stripH); stx.stroke();
     const amp = (s.partAmp && s.partAmp[k]) || 0;
     const alpha = 0.35 + 0.65 * Math.min(1, amp * 2.2);
@@ -1815,10 +1826,10 @@ function drawStrips(s) {
       stx.beginPath(); stx.arc(cx, topPad + ph * stripH, 2.6, 0, Math.PI * 2); stx.fill();
     }
     const rH = (s.partR[k] || 0) * barH;
-    stx.fillStyle = '#ff4fa3';
+    stx.fillStyle = TOK('--hot');
     stx.fillRect(k * colW + 3, h - 4 - rH, colW - 6, rH);
     if (k === 0 || (k + 1) % 4 === 0) {
-      stx.fillStyle = '#7c8698'; stx.font = '9px monospace';
+      stx.fillStyle = TOK('--dim'); stx.font = '9px monospace';
       stx.fillText(String(k + 1), cx - 3, h - 4);
     }
   }
@@ -1840,10 +1851,10 @@ function drawVmap(s) {
   else if (want < vmZoom && dev * 1.6 <= VM_RANGES[want] && ++vmShrink > 30) { vmZoom = want; vmShrink = 0; }
   else if (want >= vmZoom) vmShrink = 0;
   const oct = VM_RANGES[vmZoom], mid = h / 2;
-  vmx.strokeStyle = '#2a3040';
+  vmx.strokeStyle = TOK('--line');
   vmx.beginPath(); vmx.moveTo(0, mid); vmx.lineTo(w, mid); vmx.stroke();
   vmx.beginPath(); vmx.moveTo(w / 2, 0); vmx.lineTo(w / 2, h); vmx.stroke();
-  vmx.fillStyle = '#7f8899'; vmx.font = '9px ui-monospace,Menlo,monospace';
+  vmx.fillStyle = TOK('--dim'); vmx.font = '9px ui-monospace,Menlo,monospace';
   vmx.textAlign = 'left'; vmx.fillText(VM_LABELS[vmZoom], 4, 10);
   const X = p => (Math.max(-1, Math.min(1, p)) * 0.5 + 0.5) * (w - 10) + 5;
   const Y = f => mid - (Math.log2(Math.max(1e-6, f) / s.vmF0) / oct) * (mid - 4);
@@ -2011,14 +2022,14 @@ function drawEnvelope(s) {
     px ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v));
   }
   ctx.stroke();
-  ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+  ctx.strokeStyle = TOK('--line'); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(X(gate), 0); ctx.lineTo(X(gate), h); ctx.stroke();
 }
 function drawScatter(s) {
   const g = gvizCtx('scatter'); if (!g) return;
   const { ctx, w, h } = g;
   const ons = (s && s.envOnset) || [], atk = (s && s.envAtk) || [];
-  const dim = getComputedStyle(document.body).getPropertyValue('--dim').trim() || '#7f8899';
+  const dim = TOK('--dim');
   if (!ons.length) {                                     // no engine data: say so
     ctx.fillStyle = dim; ctx.font = '10px ui-monospace,Menlo,monospace';
     ctx.fillText('play a note to see voice spread', 8, h / 2);
@@ -2027,7 +2038,7 @@ function drawScatter(s) {
   let maxT = 1;
   for (let i = 0; i < ons.length; i++) maxT = Math.max(maxT, ons[i] + (atk[i] || 0));
   const X = ms => 4 + ms / maxT * (w - 8);
-  ctx.strokeStyle = '#2a3040'; ctx.beginPath();
+  ctx.strokeStyle = TOK('--line'); ctx.beginPath();
   ctx.moveTo(4, h - 10); ctx.lineTo(w - 4, h - 10); ctx.stroke();
   const acc = TOK('--pull');
   for (let i = 0; i < ons.length; i++) {
@@ -2158,7 +2169,7 @@ function refreshBendCurve() {
 }
 function noCurve(g, why) {
   const { ctx, w, h } = g;
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--dim').trim() || '#7f8899';
+  ctx.fillStyle = TOK('--dim');
   ctx.font = '10px ui-monospace,Menlo,monospace';
   ctx.fillText(why, 8, h / 2);
 }
@@ -2169,7 +2180,7 @@ function drawBendStep() {
   const { traj, tgt, amp } = bendCurve;
   const Y = v => h - 4 - (v / (amp * 1.35) * 0.5 + 0.25) * (h - 8);
   const X = i => i / (traj.length - 1) * (w - 2) + 1;
-  ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+  ctx.strokeStyle = TOK('--line'); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(1, Y(0)); ctx.lineTo(w - 1, Y(0)); ctx.stroke();
   const line = (arr, col, lw, dash) => {
     ctx.setLineDash(dash || []); ctx.strokeStyle = col; ctx.lineWidth = lw;
@@ -2177,9 +2188,9 @@ function drawBendStep() {
     arr.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
     ctx.stroke(); ctx.setLineDash([]);
   };
-  line(tgt, '#7f8899', 1, [3, 3]);                       // what the wheel asked for
+  line(tgt, TOK('--dim'), 1, [3, 3]);                       // what the wheel asked for
   line(traj, TOK('--pull'), 1.6);
-  ctx.fillStyle = '#7f8899'; ctx.font = '9px ui-monospace,Menlo,monospace';
+  ctx.fillStyle = TOK('--dim'); ctx.font = '9px ui-monospace,Menlo,monospace';
   const st = bendCurve.settle < 0 ? 'never' : bendCurve.settle.toFixed(0) + ' ms';
   ctx.fillText(`lag50 ${bendCurve.lag50.toFixed(0)} ms · over ${bendCurve.over.toFixed(1)} ¢ · settle ${st} · rings ${bendCurve.rings}`, 5, 10);
 }
@@ -2189,13 +2200,13 @@ function drawBendVib() {
   if (!bendCurve || bendCurve.depth === undefined) return noCurve(g, 'no engine — open in the plugin');
   const pct = Math.max(0, Math.min(100, bendCurve.depth));
   const acc = TOK('--pull');
-  ctx.fillStyle = '#2a3040'; ctx.fillRect(6, h - 26, w - 12, 10);
-  ctx.fillStyle = pct < 60 ? '#ff4d6d' : acc;            // losing 40% of a wobble is a real cost
+  ctx.fillStyle = TOK('--line'); ctx.fillRect(6, h - 26, w - 12, 10);
+  ctx.fillStyle = pct < 60 ? TOK('--bad') : acc;            // losing 40% of a wobble is a real cost
   ctx.fillRect(6, h - 26, (w - 12) * pct / 100, 10);
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--fg').trim() || '#cdd6e4';
+  ctx.fillStyle = TOK('--text');
   ctx.font = '11px ui-monospace,Menlo,monospace';
   ctx.fillText(`${pct.toFixed(0)}% of a 5 Hz wobble kept`, 6, 16);
-  ctx.fillStyle = '#7f8899'; ctx.font = '9px ui-monospace,Menlo,monospace';
+  ctx.fillStyle = TOK('--dim'); ctx.font = '9px ui-monospace,Menlo,monospace';
   ctx.fillText(`arrives ${Math.abs(bendCurve.wlag).toFixed(0)} ms late`, 6, 30);
   ctx.fillText('the bill inertia charges for a slow bend', 6, h - 6);
 }
