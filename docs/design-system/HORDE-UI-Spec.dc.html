@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; background: #f2ede2; }
+  a { color: #00b3a8; text-decoration: none; border-bottom: 1px solid currentColor; }
+  a:hover { color: #191521; }
+</style>
+</helmet>
+
+<div style="max-width:1040px; margin:0 auto; padding:44px 32px 80px; font-family:Archivo, system-ui, sans-serif; color:#191521; display:flex; flex-direction:column; gap:26px;">
+
+  <div style="display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;">
+    <svg viewBox="0 0 300 74" style="width:190px; height:47px; display:block;">
+      <defs><filter id="warpspec" x="-15%" y="-35%" width="130%" height="170%"><feTurbulence type="fractalNoise" baseFrequency="0.014 0.02" numOctaves="2" seed="11" result="n"></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="28" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap></filter></defs>
+      <text x="8" y="54" font-family="Archivo, sans-serif" font-weight="800" font-size="52" letter-spacing="-1" fill="#191521" filter="url(#warpspec)">horde</text>
+    </svg>
+    <div style="font-size:24px; font-weight:800;">UI IMPLEMENTATION SPEC · v1</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; color:#6e6878;">2026-08-23 · sources: Design Directions turns 2–10 · repo gui2</div>
+  </div>
+  <div style="font-size:13.5px; line-height:1.65; color:#494356; max-width:860px; text-wrap:pretty;">Two audiences, one document. <b>§1–7 are format-neutral values</b> — every hex, px, radius, angle and timing, normative for both stacks. <b>§8 is the webview build</b> (the current and possibly permanent format — CSS verbatim). <b>§9 is the native port appendix</b> for a later C++ painter. Where they conflict, §1–7 win.</div>
+
+  <!-- 1 TOKENS -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§1 COLOUR TOKENS</div>
+    <div style="display:flex; gap:4px; margin-bottom:12px;">
+      <span style="width:30px; height:30px; border-radius:6px; background:#f2ede2; border:1.5px solid #191521;"></span><span style="width:30px; height:30px; border-radius:6px; background:#fcfaf4; border:1.5px solid #191521;"></span><span style="width:30px; height:30px; border-radius:6px; background:#ffffff; border:1.5px solid #191521;"></span><span style="width:30px; height:30px; border-radius:6px; background:#e9e3d4; border:1.5px solid #191521;"></span><span style="width:30px; height:30px; border-radius:6px; background:#191521;"></span><span style="width:10px;"></span><span style="width:30px; height:30px; border-radius:6px; background:#f5169c;"></span><span style="width:30px; height:30px; border-radius:6px; background:#6431f0;"></span><span style="width:30px; height:30px; border-radius:6px; background:#00d5c8;"></span><span style="width:30px; height:30px; border-radius:6px; background:#ffd702;"></span><span style="width:30px; height:30px; border-radius:6px; background:#a6f219;"></span><span style="width:30px; height:30px; border-radius:6px; background:#f5a300;"></span><span style="width:30px; height:30px; border-radius:6px; background:#c2261a;"></span><span style="width:30px; height:30px; border-radius:6px; background:#c9c2ff;"></span>
+    </div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; color:#191521; white-space:pre-wrap;">GROUND
+  bg          #F2EDE2   window/page ground (cream)
+  panel       #FCFAF4   module cards
+  well        #FFFFFF   data surfaces (viz, pads, keyboards)
+  well-alt    #E9E3D4   control tracks, empty meter wells
+  ink         #191521   ALL outlines, primary text, pointers
+  hairline    #E5DFD0   in-well gridlines only (never card borders)
+  divider     #D8D1C0   dashed intra-card separators
+TEXT
+  primary #191521 · secondary #494356 · hint #9A93A3 · disabled #B6AFA0
+SIGNAL  (one job each — never borrowed)
+  value       #F5169C   the user's authored value: fills, curves, puck, played-note
+  physics     #6431F0   order parameter, K vector, rotor lead, R bars
+  meter       #00D5C8   analyzers, R rim arc, honesty bars, capture button
+  marker      #FFD702   attention: root ★, overshoot dot, lock front, ✶ spark
+  celebrate   #A6F219   OK/meters-in-the-green, active state dots, locking ✶
+  caution     #F5A300   banner bg #FBE9BD · banner text #6D570B
+  alarm       #C2261A   PANIC, clip, mute stamp — NOTHING else, ever
+  dry-ghost   #C9C2FF   dry/reference traces behind magenta wet
+CORNERS (preset identity; fill / dark-text pair / 10% tint bg)
+  A  #FFD702 / #D4A900 / #FFF9DB      B  #FF2E88 / #FF2E88 / #FFE3F0  (text on B fill: #FFFFFF)
+  C  #00D5C8 / #00B3A8 / #D9F6F3      D  #A6F219 / #6FB200 / #EEFADD
+RULES
+  · full spectrum ONLY where hue encodes a dimension: phase carpet, temperature wheel
+  · corner colours never re-theme; no glyphs (one selector); absence of tint = frozen/exempt
+  · red appears at most twice on any page (PANIC + clip) or it stops meaning danger</div>
+  </div>
+
+  <!-- 2 TYPE -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§2 TYPE</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap;">faces      Archivo (OFL) + Roboto Mono (OFL) — bundled TTF, webview is offline
+cluster    Archivo 800 · 11px · +0.10em · UPPERCASE · ink
+option     Archivo 800 · 20px (canvas cards only)
+label      Archivo 500 · 10–11px · secondary
+value      Roboto Mono 400 · 9.5–11px · ink, right-aligned in its 34–58px column
+hint       Roboto Mono 400 · 9–9.5px · hint colour · line-height 1.5–1.65
+sticker    Roboto Mono 400 · 8.5–10px inside pills
+floors     never below 8px anywhere; readouts never below 9.5px</div>
+  </div>
+
+  <!-- 3 GEOMETRY -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§3 GEOMETRY &amp; DENSITY</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap;">window     1180 × 820 logical px · min 1000 × 700 · content designed at 1×, scale by integer DPI
+radii      card 10 · well 8 · matrix cell 3 · key/domino 0 (inside 8 clip) · chip/pill 999
+strokes    ink 1.5 on cards/wells/chips · 1.0 on sub-elements (badges, matrix cells) · 2.0 page dividers
+shadow     interactive elements only: 1.5px 1.5px 0 ink (hard, no blur)
+           hover 2.5px 2.5px 0 · active 0 (pressed flat) · never on wells or text
+focus      ring 0 0 0 2.5px rgba(245,22,156,0.45) outside the ink border
+rows       28px baseline · grows to 31 when a slider's mod band is shown · gap 8–12
+grid       page = 3 or 4 columns, 12px gaps, 16px page padding, panel padding 12/14
+hit        ≥ 28 × 28 every control · fader caps 26×15 (30×16 master)
+tilt       decorative stickers only: ±2–4°, NEVER on controls or readouts</div>
+  </div>
+
+  <!-- 4 WIDGETS -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§4 WIDGET STATE TABLES</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap;">KNOB  ⌀36 outer arc ring, cap ⌀27
+  arc        conic from 220° (7 o'clock), sweep 280°; unipolar fills from min;
+             bipolar fills from centre (340°→) with zero tick 2×6 ink at 12 o'clock, −3px
+  track      unfilled arc = well-alt; filled = value #F5169C (or semantic owner)
+  cap        panel fill, ink 1.5 border, pointer 2.5×9 ink at r-top, rotates −140°…+140°
+  states     default: shadow 1.5 offset   hover: shadow 2.5 (cap "lifts")
+             active(drag): cap fill #F5169C, pointer cream, shadow 0
+             focus: magenta ring         disabled: 0.55 α, greys, no shadow
+  input      vertical drag 200px = full range · shift ×0.25 · dbl-click = default
+MOD HALO (knob)   ring ⌀48, band 4px
+  band       conic centred on base-value angle, span = Σ|routing depths| (clamped),
+             value colour @ 30% α (45% on hover) · minimum drawn span 2°
+  live dot   ⌀5 · ink on cream grounds, #FFF on dark/white wells · updates per audio block
+  corner     morph-owned: DASHED corner-colour ring 1.5px at ⌀51 (outside halo — never collide)
+SLIDER  track h 5–6, radius 3, well-alt fill, ink border
+  fill       from left (bipolar: from centre tick 1.5×track+4 ink)
+  handle     13×13 r4 panel/ink/shadow (states as knob)
+  mod band   3px, 3px BELOW track, value 30% α + 1px ink 25% border; live tick 2×6 ink
+  clamp      DSP-clamped zones (saw↔square &gt;0.5): 45° hatch rgba(ink,0.12) + 1.5 ink wall
+FADER (vertical)  track w 8 (master 10), cap 26×15 r5 (master 30×16)
+METER  well-alt ground, ink border, radius 4
+  fill       #A6F219 from bottom · peak-hold 2px #F5169C, 1.5s hold then 20dB/s fall
+  clip       top 8% zone tints red 25% α always; SOLID #C2261A only while clipping
+ENUM PILL  radius 999, mono 9.5–10, pad 3–4 / 9–12
+  active     semantic-colour fill + ink border + shadow 1.5 (text ink; white on B-pink/alarm)
+  idle       panel fill, secondary text  ·  morph-owned: 3px left rule in corner colour
+TOGGLE  32×17 r999 · on: #F5169C fill, cream thumb ⌀11 ink-bordered right · off: well-alt, thumb left
+M / S  M idle #FADADD/#8E1620 · engaged solid #C2261A/#FCF0EE + shadow
+       S idle #FBE9BD/#6D570B · engaged solid #F5A300/#191521 + shadow
+CENSUS BAR  h16–20 pill, ink border, 1.5px ink dividers, share % ≥10% shows number
+FLIP EVENT  one param at a time: full border flashes incoming corner colour 220ms,
+            enum sticker tilts −2° for 220ms, ✶ marker stamps 400ms then gone
+MUTED/BYPASSED  region at 0.45 α + tilted red "muted" sticker; disabled ≠ muted (no sticker)</div>
+  </div>
+
+  <!-- 5 WORDMARK -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§5 WORDMARK — GENERATIVE WARP + MORPH LETTER-FLIP</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap;">glyphs     "horde" · Archivo 800 · letter-spacing −0.02em
+field      2-octave fractal noise · base frequency 0.010 x / 0.016 y (per CSS px at 76pt)
+displace   52px at 76pt — scale strictly ∝ point size (22px header mark ⇒ scale 22/76·52 ≈ 15)
+reseed     per plugin launch (NOT per frame, NOT per render) · seed is uint32, logged to state
+colour     morph inactive: solid ink
+           morph active: each letter is a lottery member — fill = owning corner's DARK pair
+           (#D4A900/#FF2E88/#00B3A8/#6FB200); reassign ONLY on a real flip event,
+           one letter per event, same hysteresis as params; morph off ⇒ all ink again
+budget     warp computed ONCE per seed; letter recolour = fill swap on the cached run</div>
+  </div>
+
+  <!-- 6 VIZ -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§6 VISUALIZER RECIPES  (all on #FFF wells, ink 1.5 border, r8; gridlines #E5DFD0 1px)</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap;">KURAMOTO   ink circle r 0.78·s stroke 1.5–2 · voices ⌀6.5–7 #F5169C dots ink 1.5 border
+           order vector: #6431F0 line 3px + ⌀7–8 head · R₁ rim arc: #00D5C8 5–6px round caps,
+           arc length = R₁·90° from 12 o'clock CW · ✶ marker #FFD702 rides lock front
+SPECTRUM   ⅓-oct bars #00D5C8, gap ≈ bar/3 · peak caps 2.5px #F5169C (hold 1.5s)
+           ink floor 2px · 0dBFS dashed ceiling; caps render #C2261A above it (only red)
+WAVEFORM   wet polyline #F5169C 1.8–2.5px · dry ghost #C9C2FF 1.2–1.5px behind
+           trigger on f0 zero-cross · centre line hairline
+PHASE CARPET  x time · y voice · hue = phase via 5-STEP cycle (marker→B-pink→physics→meter→D-lime)
+           — stepped, never smooth rainbow, so bands stay countable · 128×64 cells,
+           nearest-neighbour · lock front = 2–2.5px dashed ink seam; locked zone reads
+           as 2-tone pink verticals, drifting zone as 5-colour 64° diagonals
+ENVELOPE   curve #F5169C 2–3px + 18% fill under · node handles ⌀16 hit (⌀10–16 drawn),
+           one colour each in order marker/meter/celebrate/physics · playhead ⌀6–8 ink dot
+LFO ROTOR  members keep fixed colours: physics(lead, routed)/meter/marker/celebrate ·
+           output-now puck ⌀9–11 #F5169C ink-bordered · K&gt;0 visibly reels traces to unison
+VOICE MAP  ONE map: x pan, y detune ¢ (±24 dashed rails) · target ○ ink 1.5 ⌀10 ·
+           actual ● #F5169C ⌀9 ink 1 · root ★ #FFD702 · ○→● gap IS drift+glide+pull
+MORPH PAD  #FFF well · corner washes radial from each corner: colour @ 46–55% α core
+           fading to 0 by 40–55% of diagonal · minority islands 16px r5 stickers ±8–15° tilt ·
+           puck ⌀16–18 #F5169C ink 2 + shadow 2 · corner labels = preset-name chips
+GONIOMETER L/R lissajous blob: #F5169C 25% fill + 1.5 stroke · mono-safe diamond dashed ·
+           correlation bar from centre, #00D5C8; &lt; −0.2 renders alarm red
+TEMP WHEEL ⌀44 conic gel: marker→B-pink→physics→meter→celebrate→marker + top-left
+           white radial sheen 38% · ink border · THE one legal rainbow control</div>
+  </div>
+
+  <!-- 7 MORPH PRESENTATION -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§7 MORPH PRESENTATION (system-wide)</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap;">identity   corner = colour + selected preset name (chips). NO glyphs anywhere.
+tinting    owned param: 3px left rule on its label (sliders/enums) or dashed ⌀51 ring (knobs)
+           quantum-owned value text may take corner colour; gradual = rule only
+           frozen / exempt / morph-off: NO tint — absence means "belongs to nobody"
+strips     FX module cards: 5–6px top strip, segment widths = grid share, quantum solid /
+           gradual blended; the census landing site
+ghosts     module mini-viz may draw the OTHER corner's curve as #C9C2FF ghost
+edits      edit flash on touched control = TARGET corner colour (owner/nearest/armed routing)
+exempt     master gain, tuning ref, oversample: FORBIDDEN (QM-2) — 🔒 chip, non-toggle
+events     flips are serialized one-at-a-time visually even if simultaneous in the block;
+           queue and play ≤ 1 per 90ms so the eye can follow the census move</div>
+  </div>
+
+  <!-- 8 WEBVIEW -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§8 WEBVIEW BUILD (normative for gui2 — current format)</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:10.5px; line-height:1.7; white-space:pre-wrap; background:#ffffff; border:1.5px solid #191521; border-radius:8px; padding:12px 14px;">:root {
+  --bg:#F2EDE2; --panel:#FCFAF4; --well:#FFFFFF; --well-alt:#E9E3D4;
+  --ink:#191521; --hair:#E5DFD0; --div:#D8D1C0;
+  --t2:#494356; --hint:#9A93A3; --dis:#B6AFA0;
+  --value:#F5169C; --physics:#6431F0; --meter:#00D5C8; --marker:#FFD702;
+  --celebrate:#A6F219; --caution:#F5A300; --caution-bg:#FBE9BD; --caution-tx:#6D570B;
+  --alarm:#C2261A; --ghost:#C9C2FF;
+  --cA:#FFD702; --cAtx:#D4A900; --cB:#FF2E88; --cC:#00D5C8; --cCtx:#00B3A8;
+  --cD:#A6F219; --cDtx:#6FB200;
+  --r-card:10px; --r-well:8px; --stroke:1.5px;
+  --shadow:1.5px 1.5px 0 var(--ink); --shadow-hover:2.5px 2.5px 0 var(--ink);
+  --focus:0 0 0 2.5px rgba(245,22,156,.45);
+}
+/* knob arc: one conic-gradient, pointer a rotated 2.5×9 div */
+.knob-arc { background: conic-gradient(from 220deg,
+  var(--value) 0deg var(--fill-deg), var(--well-alt) var(--fill-deg) 280deg,
+  transparent 280deg); border-radius:50%; }
+.knob-halo { background: conic-gradient(from var(--halo-from),
+  rgba(245,22,156,.30) 0deg var(--halo-span), transparent var(--halo-span)); }
+/* slider */
+.track { height:6px; border-radius:3px; background:var(--well-alt);
+  border:var(--stroke) solid var(--ink); position:relative; }
+.track .fill { position:absolute; inset:0 auto 0 0; background:var(--value); }
+.handle { width:13px; height:13px; border-radius:4px; background:var(--panel);
+  border:var(--stroke) solid var(--ink); box-shadow:var(--shadow); }
+.handle:hover { box-shadow:var(--shadow-hover); }
+.handle:active { box-shadow:none; background:var(--value); }
+/* wordmark warp — SVG filter, wordmark ONLY */
+&lt;filter id="warp"&gt;
+  &lt;feTurbulence type="fractalNoise" baseFrequency="0.010 0.016"
+     numOctaves="2" seed="SEED"/&gt;
+  &lt;feDisplacementMap in="SourceGraphic" scale="52"
+     xChannelSelector="R" yChannelSelector="G"/&gt;
+&lt;/filter&gt;</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap; margin-top:10px;">perf rules
+  · the feTurbulence filter touches the WORDMARK only — never controls, never per frame;
+    reseed = set seed attr once, let it re-render once
+  · phase carpet + goniometer + spectrum + waveform: &lt;canvas&gt;, one rAF loop,
+    image-rendering:pixelated for the carpet; everything else is DOM + conic-gradient
+  · meters/halos update via inline style transform/background on existing nodes —
+    zero layout: never touch width/height, only scaleY()/background-position/--vars
+  · flip flash = one class add + 220ms timeout; queue flips ≤1 per 90ms
+  · fonts loaded from bundled TTF via @font-face; no network at runtime
+accessibility
+  · every control keyboard-focusable; arrows adjust (shift = fine ×0.25); visible focus ring
+  · corner identity readable without colour: preset-name chips label everything tinted</div>
+  </div>
+
+  <!-- 9 NATIVE -->
+  <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:18px 22px;">
+    <div style="font-size:14px; font-weight:800; letter-spacing:0.08em; margin-bottom:10px;">§9 NATIVE PORT APPENDIX (C++ / JUCE-or-VSTGUI painter)</div>
+    <div style="font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.75; white-space:pre-wrap;">colours    pack §1 as constexpr ARGB: 0xFFF2EDE2 … lone alpha users:
+           halo rgba(value,.30/.45), focus rgba(value,.45), clip-zone rgba(alarm,.25),
+           env fill rgba(value,.18), hatch rgba(ink,.12), pad washes §6
+shadow     hard offset shadow = draw the SAME rounded rect filled ink at +1.5,+1.5 first,
+           then the element on top (no blur anywhere in the system)
+knob arc   fillArc(centre, r18, start 220°, sweep fill·280°, value) over
+           fillArc(..., well-alt, remaining) · pointer = rotated round-capped 2.5×9 line
+halo       strokeArc r24 w4, from angle(base) span Σdepths · dot: filled circle ⌀5 on arc
+warp       stb_perlin fBm, 2 octaves, freq (0.010,0.016)/px at 76pt equivalent;
+           displace glyph-path points (or a 24×8 mesh) once per seed; cache the path;
+           letter-flip = per-glyph fill colour swap, no re-warp
+carpet     128×64 uint8 phase buffer → 5-entry LUT → nearest-neighbour blit
+text       Archivo/Roboto Mono TTF from binary data; hinting off, snap baselines to px
+timing     flip flash 220ms · sticker/✶ life 400ms · flip queue ≥90ms spacing ·
+           peak-hold 1.5s + 20dB/s · halo dot per audio block · knob press-in 60ms
+           discrete wordmark reseed: launch only
+dpi        integer scale of the 1× design; 1.5px strokes render as 2px at 1× snap —
+           acceptable; at 2× they are exact 3px
+layers     static card chrome in a cached layer; dynamic = fills, dots, meters, flashes;
+           viz wells own their own dirty rects — nothing else repaints per frame</div>
+  </div>
+
+  <div style="font-family:'Roboto Mono',monospace; font-size:11px; color:#6e6878; line-height:1.7;">Open items intentionally NOT specced (unruled in repo): routing law BLEND vs ARGMAX (both views specced, law pending) · bass-mono vs per-osc source ordering (B23) · reverb "own swarm" mode · per-corner aesthetic collapse (3b — needs its own lab). Page compositions live in the <a href="HYPERSAW Design Directions.dc.html">Design Directions</a> file, turns <a href="HYPERSAW Design Directions.dc.html#6a">6a</a>–<a href="HYPERSAW Design Directions.dc.html#10a">10a</a>.</div>
+</div>
+</x-dc>
+</body>
+</html>
