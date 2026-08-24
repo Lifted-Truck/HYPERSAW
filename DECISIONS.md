@@ -3409,3 +3409,36 @@ level-mapped, not decorative), 427 cyan cap px, **15 alarm px on the pinned band
 only**, and scanline rows measurably darker than their neighbours.
 
 `./verify full` pending below; fast EXIT=0 at time of writing.
+
+
+### ADR-114 A1 — session safety under the rename, proven rather than asserted (2026-08-24)
+
+Human: "what will happen to existing projects that call hypersaw?" ADR-114
+asserted the frozen id protects them; this verifies it per format, from source
+and logs rather than intent.
+
+**VST3 (what Ableton matches projects against).** clap-wrapper derives the
+class ID as an RFC 4122 v5 UUID — SHA-1 over the DNS namespace plus
+`clapdescr->id` (`wrapasvst3_entry.cpp:275`, `sha1.cpp:311`). The display name
+is NOT an input to the hash. Reproduced independently:
+`uuid5(NAMESPACE_DNS, "com.lifted-truck.hypersaw")` =
+`F730E1CE-68C6-57DB-87D2-452E272BD28F` — byte-for-byte the CID Ableton's own
+log recorded when restoring projects before the rename. The CID is a pure
+function of the frozen id; the rename cannot move it, mathematically.
+
+**AU.** Empirical: the log shows `Audio Unit v2: Created: HYPERSAW` at
+2026-08-24T02:05 — an instance successfully created from the RENAMED binary,
+so the component codes projects match on did not move either.
+
+**CLAP.** Hosts match the id string itself, which is the thing that is frozen.
+
+**What existing projects therefore experience:** they reload exactly as saved —
+same engine, same state (the chunk format and even its `"plugin":"HYPERSAW"`
+marker are untouched, ADR-115), same automation (parameter ids are append-only).
+The only change is cosmetic: after a rescan the device label reads **horde**.
+Track and clip names the user typed stay whatever they typed.
+
+**The corollary this proof cuts both ways on:** since the CID is derived from
+the id, changing `com.lifted-truck.hypersaw` by even one character would mint a
+new CID and orphan every project ever saved. The comment at the descriptor
+already says never to touch it; now the mechanism is on record too.
