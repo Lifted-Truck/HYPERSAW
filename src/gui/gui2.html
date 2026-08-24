@@ -192,7 +192,17 @@
     --focus:0 0 0 2.5px rgba(255,61,173,.45); }
   body { background:var(--bg); color:var(--text);
     font:12px/1.45 ui-monospace,Menlo,monospace; padding:10px 12px; }
-  .tabs { display:flex; gap:4px; margin-bottom:10px; }
+  .tabs { display:flex; gap:4px; margin-bottom:10px; align-items:center; }
+  /* ---- warping wordmark (ADR-122, ported from the human's GoopBox) ---- */
+  .brand { flex:0 0 auto; width:86px; height:26px; margin-right:6px;
+           overflow:visible; cursor:default; user-select:none; }
+  .brand text { font:700 19px/1 ui-monospace,Menlo,monospace; letter-spacing:.04em;
+                fill:var(--text); }
+  /* The filter is the expensive part, so it is attached only while the mark is
+     actually warping. `.brand.still` drops it entirely, which is what makes an
+     idle logo cost the same as static text. */
+  .brand.warp text { filter:url(#brandWarp); }
+  @media (prefers-reduced-motion:reduce) { .brand.warp text { filter:none; } }
   .tab { padding:4px 14px; border:var(--stroke) solid var(--line); border-radius:999px; min-height:28px;
     cursor:pointer; color:var(--dim); background:var(--panel); font-size:11px;
     letter-spacing:1px; }
@@ -487,6 +497,15 @@
   .vlabel { color:var(--t2); font-size:10px; margin:6px 0 3px; }
   /* the phase-circle readout: FIXED format, tabular digits, reserved height —
      it must not grow and shrink with what happens to be measurable (human). */
+  /* The gravity readout lists a variable number of ratio offsets, so it was
+     one line when quiet and two or more when the swarm found gravity -- and the
+     box under the phase circle resized on every transition (human 2026-08-24:
+     "always given at least two lines so it doesn't constantly re-size"). Two
+     lines are RESERVED rather than the content clamped: clamping would hide
+     partials, and the resizing people notice is the 1<->2 flip, not 2<->3.
+     line-height is pinned here so the reservation cannot drift with the
+     inherited 1.45 body value. */
+  .gravline { min-height:2.8em; line-height:1.4; }
   .vizline { color:var(--t2); font-size:10px; text-align:center; min-height:14px;
              font-variant-numeric:tabular-nums; }
   .vizline b { color:var(--text); font-weight:600; }
@@ -518,7 +537,24 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="tabs" id="tabs"><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
+<div class="tabs" id="tabs"><svg class="brand still" id="brand" viewBox="0 0 86 26"
+     aria-label="horde" role="img"><defs><filter id="brandWarp"
+     x="-25%" y="-45%" width="150%" height="190%" color-interpolation-filters="sRGB">
+  <!-- 1. noise -->
+  <feTurbulence id="brandNoise" type="fractalNoise" baseFrequency="0.022 0.03"
+                numOctaves="2" seed="7" result="n"/>
+  <!-- 2. warp the glyphs by it -->
+  <feDisplacementMap id="brandDisp" in="SourceGraphic" in2="n" scale="0"
+                     xChannelSelector="R" yChannelSelector="G" result="w"/>
+  <!-- 3. FUSE: blur then threshold the alpha, so adjacent strokes melt into one
+          mass instead of each wobbling on its own. This is the step that makes
+          it read as goo rather than as shaky text. -->
+  <feGaussianBlur in="w" stdDeviation="1.1" result="b"/>
+  <feColorMatrix in="b" mode="matrix" result="goo"
+     values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 17 -7"/>
+  <!-- 4. keep the crisp warped glyph on top so it stays legible at 19px -->
+  <feComposite in="w" in2="goo" operator="over"/>
+</filter></defs><text x="0" y="19">horde</text></svg><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -535,7 +571,7 @@
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
-    <div class="vlabel gravline" style="min-height:14px"></div>
+    <div class="vlabel gravline"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
     <div class="note">Waveform &middot; <span class="whoOsc">OSC 1</span> &middot; L over R &middot; click to freeze</div>
     <canvas id="wavC2" class="wavscope" width="330" height="80" style="width:100%"></canvas>
@@ -758,7 +794,7 @@
 <div class="cluster"><h2>The swarm, seen — <span class="whoOsc">OSC 1</span></h2>
     <canvas id="phaseC2" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
-    <div class="vlabel gravline" style="min-height:14px"></div>
+    <div class="vlabel gravline"></div>
     <div class="vlabel">Log spectrum · MASTER bus</div>
     <canvas id="specC2" class="spec" width="256" height="58"></canvas>
     <div class="vlabel">Waveform · <span class="whoOsc">OSC 1</span> · L over R · click to freeze</div>
@@ -2771,6 +2807,48 @@ document.querySelectorAll('.row.kcell > label').forEach(l => {
     if (t) n.nodeValue = t; else n.remove();
   }
 });
+/* ---- wordmark: warp on load and on hover, static otherwise (ADR-122) ----
+   `scale` on the displacement map is the whole animation; baseFrequency stays
+   put because changing it per frame forces the noise itself to regenerate,
+   which is the costly half. Ramping only the displacement re-uses one noise
+   tile and still reads as the letters breathing. */
+{
+  const brand = document.getElementById('brand');
+  const disp  = document.getElementById('brandDisp');
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (brand && disp && !reduce) {
+    let raf = 0, t0 = 0, running = false;
+    const MAXW = 7;                                  // px of displacement at peak
+    const stop = () => { running = false; if (raf) cancelAnimationFrame(raf); raf = 0;
+                         disp.setAttribute('scale', '0');
+                         brand.classList.remove('warp'); brand.classList.add('still'); };
+    const run = (ms, hold) => {
+      brand.classList.add('warp'); brand.classList.remove('still');
+      running = true; t0 = 0;
+      const tick = (now) => {
+        if (!running) return;
+        if (!t0) t0 = now;
+        const k = (now - t0) / ms;
+        if (k >= 1 && !hold) return stop();
+        /* settle: a decaying wobble, so it arrives rather than stopping dead */
+        const env = hold ? 1 : (1 - k);
+        disp.setAttribute('scale', (MAXW * env * (0.55 + 0.45 * Math.sin((now - t0) / 90))).toFixed(2));
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    };
+    /* A timer backstops the settle. rAF is NOT guaranteed in every host -- the
+       measured preview browser fires none at all, and this file already carries
+       that finding twice -- and without this the settle would stop mid-flight
+       with the filter still attached, leaving a permanently warped mark AND
+       permanently paying the filter cost the design exists to avoid. The timer
+       cannot leave it running; rAF only makes it smooth. */
+    run(900, false);                                 // settle once on load
+    setTimeout(stop, 1100);
+    brand.addEventListener('mouseenter', () => { if (raf) cancelAnimationFrame(raf); run(0, true); });
+    brand.addEventListener('mouseleave', stop);
+  }
+}
 document.querySelectorAll('canvas.spec').forEach(wireSpecHover);
 document.querySelectorAll('.knob').forEach(wireKnob);
 /* Knob cells flow in one grid per cluster. Done at runtime rather than in the
