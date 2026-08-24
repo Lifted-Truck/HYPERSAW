@@ -3268,3 +3268,49 @@ back: **334 magenta** (voices), **243 violet** (order vector), **146 teal**
 i.e. the fades composite toward the ground, which is the regression's own test.
 
 `./verify full` EXIT=0, parity 156/156.
+
+
+### ADR-118 A6 — increment 3b: the voice map, and caution stops being borrowed (2026-08-24)
+
+**§1 was being violated in three places.** "SIGNAL (one job each — never
+borrowed)" — and `--amber` (caution) was carrying the R channel in the scope and
+the second cluster in both the phase circle and the carpet. The spec's own
+argument about red ("appears at most twice on any page or it stops meaning
+danger") applies to caution for identical reasons: a warning colour spent on
+ordinary data is no longer a warning.
+
+**A genuine gap in the spec, recorded rather than papered over.** §6 never
+contemplates two-cluster topology or an L/R scope, so it names no colour for
+"the second of two PEER series". `--ghost` is the closest unborrowed role it
+does define ("dry/reference traces behind magenta wet") and is what these use
+now — but ghost implies *secondary*, and the two clusters are peers, so this is
+the least-wrong option rather than the right one. **A designer question, not an
+implementation one.**
+
+**§6 VOICE MAP.** The old drawing coloured *both* the target ring and the actual
+dot by root-vs-other, so one colour carried two dimensions at once — you could
+not tell "this is the target" from "this is the root" without counting. Now:
+
+- **target** is an ink ring — structure, the pitch you asked for
+- **actual** is a value-magenta dot with an ink hairline, so the **gap between
+  ring and dot IS drift + glide + pull**, which is the whole reason the map has
+  two marks
+- **root** is a marker star on its own channel, ink-outlined because marker
+  yellow is 1.4:1 against white unaided (§1 pairs every fill with an ink border)
+
+Scope line weights moved to §6's range: 2.0 for the primary trace, 1.4 for the
+one behind it.
+
+Verified by driving the painter with a synthetic frame where actual deliberately
+differs from target, then counting pixels: **182 ink** (target rings), **62
+value** (actual dots), **19 marker** (root star) — all three roles present and
+distinguishable.
+
+**Not done, and deliberately:** the repo's `drawCarpet` is x = voice, y = phase.
+§6's carpet is x = time, y = voice, hue = phase on a 5-step cycle. Those are
+*different pictures*, not different paint, so forcing the 5-step hue onto this
+one would encode phase twice (it is already the y axis) and destroy the cluster
+distinction the colour currently carries. The real carpet lands with the page
+compositions.
+
+`./verify full` EXIT=0, parity 156/156.
