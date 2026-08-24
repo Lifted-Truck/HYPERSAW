@@ -1490,6 +1490,9 @@ const presetStore = {
     await refresh(); flash(e.target, 'GONE');
   });
 }
+/* Every corner dropdown's refresh function, so a save can push to all four
+   rather than each of them pulling on focus and losing the race. */
+const cornerFills = [];
 {
   const b = document.getElementById('cornerSaveLive');
   if (b) b.addEventListener('click', async () => {
@@ -1499,6 +1502,7 @@ const presetStore = {
     if (!window.hzMorphLiveJson) { flashB('NO ENGINE'); return; }
     const j = await window.hzMorphLiveJson();
     const ok = await presetStore.save('corners', n, j);
+    await Promise.all(cornerFills.map(f => f().catch(() => {})));
     flashB(ok ? 'SAVED' : 'FAIL');
   });
 }
@@ -1648,6 +1652,14 @@ const presetStore = {
         ld.innerHTML = '<option value="">load\u2026</option>' +
           names.map(n => `<option>${n}</option>`).join(''); };
       fill();
+      /* PUSH, not pull. `fill` is async, so refreshing on focus loses a race it
+         cannot win: the browser paints the open dropdown with whatever options
+         are in the DOM at that instant, and the await resolves afterwards --
+         so a just-saved preset appeared only on the SECOND open (human
+         2026-08-24). The focus refresh stays as a backstop for changes made
+         outside this GUI, but the save path now updates every dropdown
+         directly, which is what makes it correct on the first open. */
+      cornerFills.push(fill);
       ld.addEventListener('focus', () => { fill().catch(() => {}); });
       ld.addEventListener('change', async () => {
         const n = ld.value; if (!n) return;
@@ -1922,6 +1934,18 @@ function buildOscSelectors() {
         try { bridge.setVizOsc(k); } catch (e) {}
         const ps = JSON.parse(await bridge.getParams());
         paintLive(ps);
+        /* The per-oscillator visualizers redraw when a VALUE changes -- see the
+           shapeVizSeen / bendVizSeen latches in paintLive. Switching which
+           oscillator you are LOOKING AT changes no value, so none of them
+           fired and the canvases kept showing the other oscillator until you
+           happened to touch one of its knobs (human 2026-08-24: "the saw shape
+           visualizer doesn't update until one of the shape knobs is itself
+           updated"). A context change needs an explicit redraw; the same shape
+           of bug as the scheme switch, where a recolour moved no value either.
+           The seen-latches are cleared too, or the first REAL edit after the
+           switch would be swallowed as "unchanged". */
+        for (const key in shapeVizSeen) delete shapeVizSeen[key];
+        if (canPaint()) { drawShapeWave(); drawEnvelope(null); drawScatter(lastViz); }
       });
       host.appendChild(b);
       host.appendChild(pw);
