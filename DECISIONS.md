@@ -2925,3 +2925,75 @@ The spec's last line points at page compositions living in a **Design Directions
 file, and the human also named `HORDE Design System.dc.html`. Neither arrived. So
 we hold tokens and widget behaviour but not page layouts — the better half to
 have first, since layouts can be re-derived from tokens and not the reverse.
+
+
+## ADR-117 — the design system's second half, and where the two documents fight (2026-08-24)
+
+**Status:** ingested; two questions escalated to the human.
+
+`HORDE Design System.dc.html` arrived, completing the pair. Filed beside the UI
+spec. Also delivered: `hp-support.js`, which the human flagged as possibly
+needing reconnection — it is **byte-identical** to the `support.js` already
+vendored (same SHA-256, and all three `.dc.html` files reference `./support.js`),
+so there was nothing to reconnect and there is one copy, not two.
+
+### The division of authority is clean, and self-declared
+
+- **UI Spec** owns VALUES: "§1–7 … normative for both stacks."
+- **Design System** owns COMPOSITIONS — MAIN, OSC, FX, MIX, bend+scale — and
+  defers on values in its own header: "Values are normative in HORDE UI Spec."
+
+So the layout half of B37 is unblocked, and a hex is never argued about twice.
+
+### Value conflicts — settled by that rule, recorded so nobody "fixes" them backwards
+
+| | UI Spec (wins) | Design System |
+|---|---|---|
+| window | 1180 × 820, min 1000 × 700 | 1180 × 780, min 1000 × 660 |
+| shadow | 1.5px offset | 2px offset |
+| meter fill | `#A6F219` | acid `#9BE514` |
+| `well` | `#FFFFFF`, `well-alt` `#E9E3D4` | `well` `#E9E3D4` |
+
+Corner colours, reassuringly, **agree** across both: A `#FFD702`, B `#FF2E88`,
+C `#00D5C8`, D `#A6F219`.
+
+### Two conflicts the precedence rule CANNOT settle — human ruling needed
+
+These are not values, so "UI Spec wins" does not apply:
+
+1. **Glyphs.** UI Spec is explicit twice — "no glyphs (one selector)" and
+   "NO glyphs anywhere"; corner identity is colour + preset-name chip. The
+   Design System gives every corner one (GLASS ◆ / GRIT ▲ / HOLLOW ● / BLOOM ■)
+   and states "glyph always rides with colour". Worth deciding on the merits
+   rather than by document precedence, because it is an **accessibility**
+   question first: a glyph is how corner identity survives colour-blindness.
+   The UI Spec is aware of this and answers it differently — its §8
+   accessibility note assigns that job to the preset-name chips. So both
+   documents solved the same problem; they just picked different solutions, and
+   shipping both would be redundant rather than harmless.
+2. **Re-theming.** UI Spec: "corner colours never re-theme." Design System:
+   "corner identity becomes per-direction, not global." Only matters if a second
+   visual direction ever ships — but it decides whether corner colour is a
+   constant of the instrument or a property of a skin, which is a much larger
+   claim than it looks.
+
+### What the Design System settles that the repo had open
+
+Not decisions we can adopt unilaterally — they are design proposals against
+unruled engineering — but worth noting they exist:
+
+- **The scale panel's two skins** (GLOBAL piano / OFFSET dominoes, one control,
+  the skin *is* the mode indicator, root selector greys out in OFFSET). A direct
+  answer to a UI question the repo has carried since the scale work.
+- **Routing BLEND vs ARGMAX as a VIEW toggle**, both laws reading the same dense
+  table — "switching is a view change, not a patch change". That reframes B23's
+  unruled law as something a user can audition rather than something we must
+  decide before building.
+- **FX module anatomy** — one card every future module inherits, with the corner
+  strip as the census landing site.
+- **MASTER as the morph-exempt zone** with a permanent lock, matching the
+  exemption feature already shipped (ADR-109).
+
+It is explicit about what it does NOT settle, mirroring the repo's own open
+list: routing law, module order semantics, per-module internals, bass-mono
+ordering (B23).
