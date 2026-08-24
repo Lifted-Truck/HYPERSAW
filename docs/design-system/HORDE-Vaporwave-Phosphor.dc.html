@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; background: #1a1c20; }
+  a { color: #59f6e8; text-decoration: none; border-bottom: 1px solid currentColor; }
+  a:hover { color: #ffffff; }
+</style>
+</helmet>
+
+<section style="padding:40px; display:flex; flex-direction:column; gap:24px; font-family:Archivo, system-ui, sans-serif;">
+  <div style="display:flex; align-items:baseline; gap:16px; color:#e6ebf2; max-width:1100px;">
+    <div style="font-size:26px; font-weight:700; letter-spacing:-0.01em;">Vaporwave phosphor — visualizer audition</div>
+    <div style="font-family:'Roboto Mono', ui-monospace, monospace; font-size:12px; color:#8a94a4;">turn 1 · <a href="#1a">1a</a> CRT WELLS — dark phosphor screens inside the horde chrome</div>
+  </div>
+  <div style="color:#9aa3b2; font-size:14px; line-height:1.6; max-width:1100px; text-wrap:pretty;">
+    The chrome stays horde (cream, ink, stickers) — only the DATA WELLS switch: white paper becomes a deep-violet phosphor tube with scanlines, a horizon grid, and glowing traces. Semantics carry over 1:1 — magenta stays your value (now hot pink phosphor), teal stays the meter (now cyan), violet stays physics. This deliberately breaks the current "no glow" rule, which is the whole audition.
+  </div>
+
+  <div style="display:flex; flex-wrap:nowrap; width:max-content; gap:32px; align-items:flex-start;">
+    <div id="1a" style="width:1180px; flex:0 0 1180px; box-sizing:border-box; background:#f2ede2; border:1.5px solid #191521; border-radius:12px; padding:26px 26px 30px; display:flex; flex-direction:column; gap:20px;">
+      <div style="display:flex; align-items:baseline; gap:14px;">
+        <div style="font-family:'Roboto Mono', monospace; font-size:11px; font-weight:500; color:#f2ede2; background:#9d6cff; padding:3px 8px; border-radius:3px; letter-spacing:0.08em; border:1.5px solid #191521;">1a</div>
+        <div style="font-size:20px; font-weight:800; color:#191521; letter-spacing:0.02em;">CRT WELLS</div>
+        <div style="font-family:'Roboto Mono', monospace; font-size:11.5px; color:#6e6878;">sticker chassis · phosphor screens — the instrument grows a memory of 1986</div>
+      </div>
+
+      <!-- phosphor tokens -->
+      <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 16px; display:flex; gap:22px; align-items:center; flex-wrap:wrap;">
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:0.16em; color:#9a93a3;">SCREEN TOKENS</span>
+        <span style="display:inline-flex; align-items:center; gap:6px; font-family:'Roboto Mono',monospace; font-size:10px; color:#494356;"><span style="width:22px; height:22px; border-radius:6px; background:#180a26; border:1.5px solid #191521;"></span>tube · #180A26</span>
+        <span style="display:inline-flex; align-items:center; gap:6px; font-family:'Roboto Mono',monospace; font-size:10px; color:#494356;"><span style="width:22px; height:22px; border-radius:6px; background:#ff5ecf;"></span>value · #FF5ECF</span>
+        <span style="display:inline-flex; align-items:center; gap:6px; font-family:'Roboto Mono',monospace; font-size:10px; color:#494356;"><span style="width:22px; height:22px; border-radius:6px; background:#59f6e8;"></span>meter · #59F6E8</span>
+        <span style="display:inline-flex; align-items:center; gap:6px; font-family:'Roboto Mono',monospace; font-size:10px; color:#494356;"><span style="width:22px; height:22px; border-radius:6px; background:#9d6cff;"></span>physics · #9D6CFF</span>
+        <span style="display:inline-flex; align-items:center; gap:6px; font-family:'Roboto Mono',monospace; font-size:10px; color:#494356;"><span style="width:22px; height:22px; border-radius:6px; background:#ffb86b;"></span>marker · #FFB86B</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3;">grid rgba(157,108,255,.30) · scanlines 1px/3px @ .22 · glow = wide 25% underlay stroke, no blur filters</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px;">
+
+        <!-- kuramoto -->
+        <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:9px;"><span style="font-size:11px; font-weight:800; letter-spacing:0.10em; color:#191521;">KURAMOTO</span><span style="margin-left:auto; font-family:'Roboto Mono',monospace; font-size:9.5px; padding:2px 8px; border-radius:999px; border:1.5px solid #191521; background:#a6f219; color:#191521; transform:rotate(2deg); display:inline-block;">R₁ 0.61 ✶</span></div>
+          <div style="aspect-ratio:1; background:radial-gradient(circle at 50% 42%, #241038 0%, #180a26 62%, #0e0518 100%); border:1.5px solid #191521; border-radius:10px; position:relative; overflow:hidden;">
+            <svg viewBox="0 0 200 200" style="width:100%; height:100%; display:block;">
+              <circle cx="100" cy="100" r="78" fill="none" stroke="rgba(157,108,255,0.35)" stroke-width="1.5"></circle>
+              <path d="M 100 22 A 78 78 0 0 1 175 78" fill="none" stroke="rgba(89,246,232,0.25)" stroke-width="12" stroke-linecap="round"></path>
+              <path d="M 100 22 A 78 78 0 0 1 175 78" fill="none" stroke="#59f6e8" stroke-width="4" stroke-linecap="round"></path>
+              <line x1="100" y1="100" x2="138" y2="46" stroke="rgba(157,108,255,0.3)" stroke-width="9" stroke-linecap="round"></line>
+              <line x1="100" y1="100" x2="138" y2="46" stroke="#9d6cff" stroke-width="3" stroke-linecap="round"></line>
+              <circle cx="138" cy="46" r="10" fill="rgba(157,108,255,0.3)"></circle><circle cx="138" cy="46" r="6" fill="#9d6cff"></circle>
+              <circle cx="168" cy="72" r="10" fill="rgba(255,94,207,0.3)"></circle><circle cx="168" cy="72" r="5.5" fill="#ff5ecf"></circle>
+              <circle cx="156" cy="52" r="10" fill="rgba(255,94,207,0.3)"></circle><circle cx="156" cy="52" r="5.5" fill="#ff5ecf"></circle>
+              <circle cx="128" cy="28" r="10" fill="rgba(255,94,207,0.3)"></circle><circle cx="128" cy="28" r="5.5" fill="#ff5ecf"></circle>
+              <circle cx="96" cy="22" r="10" fill="rgba(255,94,207,0.3)"></circle><circle cx="96" cy="22" r="5.5" fill="#ff5ecf"></circle>
+              <circle cx="58" cy="36" r="10" fill="rgba(255,94,207,0.3)"></circle><circle cx="58" cy="36" r="5.5" fill="#ff5ecf"></circle>
+              <circle cx="28" cy="92" r="10" fill="rgba(255,94,207,0.3)"></circle><circle cx="28" cy="92" r="5.5" fill="#ff5ecf"></circle>
+              <circle cx="64" cy="164" r="10" fill="rgba(255,94,207,0.3)"></circle><circle cx="64" cy="164" r="5.5" fill="#ff5ecf"></circle>
+            </svg>
+            <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); display:block; pointer-events:none;"></span>
+            <span style="position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, transparent 55%, rgba(8,2,14,0.55) 100%); display:block; pointer-events:none;"></span>
+          </div>
+          <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3; margin-top:8px; line-height:1.6;">Voices burn pink with a phosphor bloom (wide 30%-α disc under each dot); the R arc becomes a lit tube segment. The ring itself dims to grid-violet — on a CRT, chrome is dark and only DATA emits.</div>
+        </div>
+
+        <!-- spectrum -->
+        <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:9px;"><span style="font-size:11px; font-weight:800; letter-spacing:0.10em; color:#191521;">SPECTRUM</span><span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3;">sunset bars · peak-hold embers</span></div>
+          <div style="aspect-ratio:1; background:linear-gradient(#1d0c30, #180a26 55%, #23103a); border:1.5px solid #191521; border-radius:10px; position:relative; overflow:hidden;">
+            <svg viewBox="0 0 200 200" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+              <defs><linearGradient id="vpbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb86b"></stop><stop offset="0.45" stop-color="#ff5ecf"></stop><stop offset="1" stop-color="#9d6cff"></stop></linearGradient></defs>
+              <rect x="10" y="118" width="10" height="74" fill="url(#vpbar)" opacity="0.9"></rect><rect x="24" y="72" width="10" height="120" fill="url(#vpbar)" opacity="0.9"></rect><rect x="38" y="48" width="10" height="144" fill="url(#vpbar)" opacity="0.9"></rect><rect x="52" y="86" width="10" height="106" fill="url(#vpbar)" opacity="0.9"></rect><rect x="66" y="60" width="10" height="132" fill="url(#vpbar)" opacity="0.9"></rect><rect x="80" y="96" width="10" height="96" fill="url(#vpbar)" opacity="0.9"></rect><rect x="94" y="78" width="10" height="114" fill="url(#vpbar)" opacity="0.9"></rect><rect x="108" y="112" width="10" height="80" fill="url(#vpbar)" opacity="0.9"></rect><rect x="122" y="98" width="10" height="94" fill="url(#vpbar)" opacity="0.9"></rect><rect x="136" y="128" width="10" height="64" fill="url(#vpbar)" opacity="0.9"></rect><rect x="150" y="118" width="10" height="74" fill="url(#vpbar)" opacity="0.9"></rect><rect x="164" y="146" width="10" height="46" fill="url(#vpbar)" opacity="0.9"></rect><rect x="178" y="160" width="10" height="32" fill="url(#vpbar)" opacity="0.9"></rect>
+              <rect x="10" y="110" width="10" height="3" fill="#59f6e8"></rect><rect x="24" y="58" width="10" height="3" fill="#59f6e8"></rect><rect x="38" y="38" width="10" height="3" fill="#59f6e8"></rect><rect x="52" y="74" width="10" height="3" fill="#59f6e8"></rect><rect x="66" y="48" width="10" height="3" fill="#59f6e8"></rect><rect x="80" y="86" width="10" height="3" fill="#59f6e8"></rect><rect x="94" y="64" width="10" height="3" fill="#59f6e8"></rect><rect x="108" y="100" width="10" height="3" fill="#59f6e8"></rect><rect x="122" y="88" width="10" height="3" fill="#59f6e8"></rect><rect x="136" y="116" width="10" height="3" fill="#59f6e8"></rect><rect x="150" y="104" width="10" height="3" fill="#59f6e8"></rect><rect x="164" y="132" width="10" height="3" fill="#59f6e8"></rect><rect x="178" y="148" width="10" height="3" fill="#59f6e8"></rect>
+              <line x1="0" y1="192" x2="200" y2="192" stroke="rgba(157,108,255,0.5)" stroke-width="2"></line>
+            </svg>
+            <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); display:block;"></span>
+            <span style="position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, transparent 55%, rgba(8,2,14,0.55) 100%); display:block;"></span>
+          </div>
+          <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3; margin-top:8px; line-height:1.6;">Bars take the ONE gradient in the theme — the vaporwave sunset (amber→pink→violet, mapped to level so it means something). Peak-holds go cyan; clip still reads solid red above the ceiling.</div>
+        </div>
+
+        <!-- waveform -->
+        <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:9px;"><span style="font-size:11px; font-weight:800; letter-spacing:0.10em; color:#191521;">WAVEFORM</span><span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3;">beam + afterglow</span></div>
+          <div style="aspect-ratio:1; background:#180a26; border:1.5px solid #191521; border-radius:10px; position:relative; overflow:hidden;">
+            <svg viewBox="0 0 200 200" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+              <line x1="0" y1="100" x2="200" y2="100" stroke="rgba(157,108,255,0.3)" stroke-width="1"></line>
+              <polyline points="0,150 10,132 18,140 30,116 42,124 54,96 66,104 78,74 90,84 98,56 100,158 112,138 122,146 134,118 146,126 158,96 168,106 180,76 190,86 198,58 200,152" fill="none" stroke="rgba(255,94,207,0.22)" stroke-width="8" stroke-linejoin="round"></polyline>
+              <polyline points="0,150 10,132 18,140 30,116 42,124 54,96 66,104 78,74 90,84 98,56 100,158 112,138 122,146 134,118 146,126 158,96 168,106 180,76 190,86 198,58 200,152" fill="none" stroke="#ff5ecf" stroke-width="2.5" stroke-linejoin="round"></polyline>
+              <polyline points="0,140 20,128 40,114 60,98 80,80 96,62 100,148 120,134 140,118 160,100 180,80 196,60 200,146" fill="none" stroke="rgba(89,246,232,0.5)" stroke-width="1.5" stroke-dasharray="1 3"></polyline>
+            </svg>
+            <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); display:block;"></span>
+            <span style="position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, transparent 55%, rgba(8,2,14,0.55) 100%); display:block;"></span>
+          </div>
+          <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3; margin-top:8px; line-height:1.6;">The wet trace is a beam: 8px 22%-α underlay + 2.5px core (the no-blur glow recipe, portable to any painter). Dry ghost becomes a dotted cyan reference — phosphor etch, not ink.</div>
+        </div>
+
+        <!-- carpet -->
+        <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:9px;"><span style="font-size:11px; font-weight:800; letter-spacing:0.10em; color:#191521;">PHASE CARPET</span><span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3;">neon weave on the tube</span></div>
+          <div style="aspect-ratio:1; border:1.5px solid #191521; border-radius:10px; position:relative; overflow:hidden; display:flex; background:#180a26;">
+            <span style="flex:1.2; background:repeating-linear-gradient(64deg, #ffb86b 0 7px, #ff5ecf 7px 14px, #9d6cff 14px 21px, #59f6e8 21px 28px, #2a1542 28px 35px); opacity:0.85; display:block;"></span>
+            <span style="width:0; border-left:2.5px dashed #59f6e8; display:block;"></span>
+            <span style="flex:1; background:repeating-linear-gradient(90deg, #ff5ecf 0 9px, #7a2a66 9px 18px); opacity:0.9; display:block;"></span>
+            <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.25) 0 1px, transparent 1px 3px); display:block;"></span>
+            <span style="position:absolute; left:8px; bottom:6px; font-family:'Roboto Mono',monospace; font-size:9px; color:#f2ede2; background:rgba(24,10,38,0.8); border:1px solid #9d6cff; border-radius:999px; padding:1px 7px;">drifting</span>
+            <span style="position:absolute; right:8px; bottom:6px; font-family:'Roboto Mono',monospace; font-size:9px; color:#f2ede2; background:rgba(24,10,38,0.8); border:1px solid #9d6cff; border-radius:999px; padding:1px 7px;">locked</span>
+          </div>
+          <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3; margin-top:8px; line-height:1.6;">Same 5-step hue-is-phase cycle, remapped to the phosphor set with one dark slot — so the weave flickers like a signboard instead of reading as print. Lock front becomes a cyan seam.</div>
+        </div>
+
+        <!-- envelope -->
+        <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:9px;"><span style="font-size:11px; font-weight:800; letter-spacing:0.10em; color:#191521;">ENVELOPE</span><span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3;">horizon grid · sun node</span></div>
+          <div style="aspect-ratio:1; background:linear-gradient(#1d0c30 0%, #180a26 58%, #2a1542 100%); border:1.5px solid #191521; border-radius:10px; position:relative; overflow:hidden;">
+            <svg viewBox="0 0 200 200" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+              <line x1="0" y1="186" x2="200" y2="186" stroke="rgba(157,108,255,0.5)" stroke-width="1.5"></line>
+              <line x1="0" y1="160" x2="200" y2="164" stroke="rgba(157,108,255,0.28)" stroke-width="1"></line>
+              <line x1="0" y1="130" x2="200" y2="138" stroke="rgba(157,108,255,0.2)" stroke-width="1"></line>
+              <line x1="100" y1="186" x2="84" y2="60" stroke="rgba(157,108,255,0.16)" stroke-width="1"></line>
+              <line x1="40" y1="186" x2="60" y2="60" stroke="rgba(157,108,255,0.16)" stroke-width="1"></line>
+              <line x1="160" y1="186" x2="120" y2="60" stroke="rgba(157,108,255,0.16)" stroke-width="1"></line>
+              <path d="M14 186 L58 34 C 74 58, 84 74, 96 82 L146 82 C 162 120, 176 160, 190 186" fill="rgba(255,94,207,0.14)"></path>
+              <path d="M14 186 L58 34 C 74 58, 84 74, 96 82 L146 82 C 162 120, 176 160, 190 186" fill="none" stroke="rgba(255,94,207,0.25)" stroke-width="8" stroke-linejoin="round"></path>
+              <path d="M14 186 L58 34 C 74 58, 84 74, 96 82 L146 82 C 162 120, 176 160, 190 186" fill="none" stroke="#ff5ecf" stroke-width="2.5" stroke-linejoin="round"></path>
+              <circle cx="58" cy="34" r="12" fill="rgba(255,184,107,0.3)"></circle><circle cx="58" cy="34" r="7" fill="#ffb86b" stroke="#180a26" stroke-width="1.5"></circle>
+              <circle cx="96" cy="82" r="7" fill="#59f6e8" stroke="#180a26" stroke-width="1.5"></circle>
+              <circle cx="146" cy="82" r="7" fill="#a6f219" stroke="#180a26" stroke-width="1.5"></circle>
+              <circle cx="190" cy="186" r="7" fill="#9d6cff" stroke="#180a26" stroke-width="1.5"></circle>
+            </svg>
+            <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); display:block;"></span>
+          </div>
+          <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3; margin-top:8px; line-height:1.6;">The curve rides a receding vaporwave floor grid; the attack node is the setting sun (amber bloom). Handle colours unchanged from the system — grab-the-cyan-one still works in the dark.</div>
+        </div>
+
+        <!-- lfo -->
+        <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:9px;"><span style="font-size:11px; font-weight:800; letter-spacing:0.10em; color:#191521;">LFO ROTOR</span><span style="margin-left:auto; font-family:'Roboto Mono',monospace; font-size:9.5px; padding:2px 8px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356;">2.4 Hz ▾</span></div>
+          <div style="aspect-ratio:1; background:#180a26; border:1.5px solid #191521; border-radius:10px; position:relative; overflow:hidden;">
+            <svg viewBox="0 0 200 200" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+              <line x1="0" y1="100" x2="200" y2="100" stroke="rgba(157,108,255,0.3)" stroke-width="1"></line>
+              <path d="M0 100 C 16 40, 34 40, 50 100 C 66 160, 84 160, 100 100 C 116 40, 134 40, 150 100 C 166 160, 184 160, 200 100" fill="none" stroke="rgba(157,108,255,0.3)" stroke-width="9"></path>
+              <path d="M0 100 C 16 40, 34 40, 50 100 C 66 160, 84 160, 100 100 C 116 40, 134 40, 150 100 C 166 160, 184 160, 200 100" fill="none" stroke="#9d6cff" stroke-width="2.5"></path>
+              <path d="M0 116 C 16 56, 34 56, 50 116 C 66 176, 84 176, 100 116 C 116 56, 134 56, 150 116" fill="none" stroke="#59f6e8" stroke-width="1.8" opacity="0.85"></path>
+              <path d="M0 84 C 16 24, 34 24, 50 84 C 66 144, 84 144, 100 84 C 116 24, 134 24, 150 84" fill="none" stroke="#ffb86b" stroke-width="1.8" opacity="0.85"></path>
+              <circle cx="100" cy="100" r="11" fill="rgba(255,94,207,0.3)"></circle>
+              <circle cx="100" cy="100" r="6.5" fill="#ff5ecf" stroke="#180a26" stroke-width="1.5"></circle>
+            </svg>
+            <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); display:block;"></span>
+            <span style="position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, transparent 55%, rgba(8,2,14,0.55) 100%); display:block;"></span>
+          </div>
+          <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#9a93a3; margin-top:8px; line-height:1.6;">Lead rotor gets the beam treatment; followers stay thin. Output puck blooms pink. K reeling the traces together reads even better in the dark — convergence is literally brightness stacking.</div>
+        </div>
+      </div>
+
+      <!-- integration strip -->
+      <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:12px 16px; display:flex; gap:14px; align-items:center;">
+        <span style="font-size:11px; font-weight:800; letter-spacing:0.10em; color:#191521; flex:0 0 auto;">IN CONTEXT</span>
+        <div style="flex:1; height:64px; background:#180a26; border:1.5px solid #191521; border-radius:8px; position:relative; overflow:hidden;">
+          <svg viewBox="0 0 640 64" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+            <line x1="0" y1="32" x2="640" y2="32" stroke="rgba(157,108,255,0.3)" stroke-width="1"></line>
+            <polyline points="0,50 40,42 80,34 120,24 160,15 192,9 200,52 240,44 280,35 320,26 360,17 392,10 400,51 440,43 480,35 520,26 560,18 592,11 600,50 640,44" fill="none" stroke="rgba(255,94,207,0.22)" stroke-width="7"></polyline>
+            <polyline points="0,50 40,42 80,34 120,24 160,15 192,9 200,52 240,44 280,35 320,26 360,17 392,10 400,51 440,43 480,35 520,26 560,18 592,11 600,50 640,44" fill="none" stroke="#ff5ecf" stroke-width="2"></polyline>
+          </svg>
+          <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); display:block;"></span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; flex:0 0 auto;">
+          <div style="display:grid; grid-template-columns:44px 110px 34px; gap:6px; align-items:center;">
+            <span style="font-size:10px; font-weight:500; color:#494356;">cutoff</span>
+            <span style="height:5px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; inset:0 40% 0 0; background:#f5169c; border-radius:3px 0 0 3px; display:block;"></span><span style="position:absolute; left:60%; top:-5px; width:12px; height:12px; margin-left:-6px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+            <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#191521; text-align:right;">2.4k</span>
+          </div>
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; color:#9a93a3;">controls stay cream stickers — only screens go dark</span>
+        </div>
+      </div>
+
+      <div style="font-family:'Roboto Mono',monospace; font-size:10px; color:#9a93a3; line-height:1.6;">Trade-offs, honestly: contrast between cream chrome and dark tubes makes data pop hard and gives every well a bezel for free — but the page gains a second world (two grounds to balance), the sunset gradient breaks the flat-fills-only rule (one gradient, level-mapped, quarantined to spectrum bars), and glow costs an underlay stroke per trace in the native painter (cheap — still no blur). Interop: value/meter/physics/marker keep their MEANINGS, only their hexes re-tune for emission (#FF5ECF/#59F6E8/#9D6CFF/#FFB86B). If adopted, this ships as a WELL-ONLY token swap: 5 screen tokens + a trace-rendering mode, zero layout change — and it composes with the aesthetic-collapse idea as a corner skin.</div>
+    </div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

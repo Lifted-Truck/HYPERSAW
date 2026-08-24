@@ -3347,3 +3347,65 @@ else.
 
 `./verify full` EXIT=0, parity 156/156. §6 is now complete except the true phase
 carpet, which is a different picture rather than different paint (A6).
+
+
+## ADR-119 — vaporwave phosphor: the wells become tubes (2026-08-24)
+
+**Status:** adopted and shipped, on the human's call ("I've decided I want to go
+in a slightly different direction for the displays").
+
+`HORDE Vaporwave Phosphor.dc.html` (filed at `docs/design-system/`) re-themes
+the DATA WELLS only: "the chrome stays horde (cream, ink, stickers) — only the
+data wells switch." White paper becomes a deep-violet phosphor tube (#180A26)
+with 1px/3px scanlines at 0.22, a grid-violet for in-tube structure, and glowing
+traces. **Semantics carry 1:1** — value/meter/physics/marker keep their meanings
+and only re-tune for emission: value #FF5ECF, meter #59F6E8, physics #9D6CFF,
+marker #FFB86B.
+
+### Why this was cheap, and what that proves
+
+The document predicted "a WELL-ONLY token swap: 5 screen tokens + a trace-
+rendering mode, zero layout change" — and that is what it was, because
+increments 0–3 made every canvas paint site token-driven. The screen set lives
+beside the chrome set in `:root`; canvases read `--scr-*`, CSS controls keep the
+chrome tokens, and no layout moved. The token bridge paid for itself in one
+direction change.
+
+### The rules this direction deliberately breaks, quarantined as specified
+
+- **Glow.** §3 bans blur, and still does: every glow is an UNDERLAY at low alpha
+  (8px 22% stroke under the scope beam, 30% discs under voice dots, a 12px 25%
+  stroke under the R arc) — "the no-blur glow recipe, portable to any painter".
+- **The sunset gradient.** The one gradient in the theme, quarantined to
+  spectrum bars and mapped to LEVEL (violet floor → pink → amber sun), so it
+  encodes something rather than decorating.
+
+### Judgment calls the document did not spell out
+
+- **gvizCtx became the tube in one place.** The envelope/scatter/bend canvases
+  were TRANSPARENT over the cream panel; as data wells they are tubes now, and
+  the shared clear is the single site that decides.
+- **Scanlines on trail-fade canvases are scaled by the fade alpha** (0.22·α per
+  frame), so the repeated overlay converges to ~0.22 instead of accumulating
+  toward solid black. Full-clear canvases draw them at 0.22 directly; the morph
+  pad bakes them into its cached field.
+- **The pad cursor was about to become invisible.** It wore `--text-hi`, which
+  1c re-pointed to ink — ink on a tube is black on near-black. It is the user's
+  hand, so it is now screen-value pink.
+- **Two-cluster and L/R "peer series"** (the §6 gap A6 recorded) render on
+  screens as the etch recipe: dotted cyan for the reference/second series, per
+  the document's own dry-ghost treatment. Still the least-wrong choice; the
+  designer question stands.
+- **Corner colours were NOT re-tuned** — the document does not touch them, so
+  the open re-theming ruling (ADR-117) is not decided by accident. Corner
+  washes on the morph pad now sit on tube and read as glow for free.
+
+### Verified by pixels
+
+Phase circle on a synthetic frame: tube ground dominant, 362 pink voice px (with
+blooms), 433 violet vector px, 157 cyan arc px. Spectrum with one band pinned at
+0 dBFS: all three sunset stops present (violet 1181 / pink 752 / amber 1365 —
+level-mapped, not decorative), 427 cyan cap px, **15 alarm px on the pinned band
+only**, and scanline rows measurably darker than their neighbours.
+
+`./verify full` pending below; fast EXIT=0 at time of writing.

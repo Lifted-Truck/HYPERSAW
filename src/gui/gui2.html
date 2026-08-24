@@ -61,6 +61,17 @@
     --hot:#F5169C;       /* live-value marks = value                */
     --bad:#C2261A;       /* a measured cost worth flagging = alarm   */
     --badge-bg:rgba(245,163,0,.9);   /* caution at badge alpha      */
+    /* SCREEN TOKENS — vaporwave phosphor (ADR-119, docs/design-system/
+       HORDE-Vaporwave-Phosphor.dc.html). The chrome stays cream; only the DATA
+       WELLS become phosphor tubes, so canvases read these while every CSS
+       control keeps the chrome set. Semantics carry 1:1 — value/meter/physics/
+       marker keep their MEANINGS, the hexes re-tune for emission. */
+    --scr-tube:#180A26;      /* the tube ground                         */
+    --scr-value:#FF5ECF;     /* your value, as hot-pink phosphor        */
+    --scr-meter:#59F6E8;     /* meter/measure, as cyan                  */
+    --scr-physics:#9D6CFF;   /* the system's own state                  */
+    --scr-marker:#FFB86B;    /* attention/root, as amber                */
+    --scr-grid:#9D6CFF;      /* in-tube structure — painted at low alpha */
     /* geometry */
     --r-card:10px; --r-well:8px; --stroke:1.5px;
     --shadow:1.5px 1.5px 0 var(--line);
@@ -682,6 +693,24 @@ const _tok = {};
    theme, and on a white well they fade every trail toward black instead of
    toward the ground. Fades must name the surface they fade INTO, so this takes
    a token and an alpha rather than a colour. */
+/* Phosphor helpers (ADR-119). Glow is ALWAYS an underlay stroke or disc at low
+   alpha, never a blur filter — the same no-blur rule the chrome follows, and
+   the recipe stays portable to a native painter. */
+function scan(g, w, h, a) {
+  // CRT scanlines: 1px dark line every 3px. On trail-fade canvases the caller
+  // scales `a` by its fade alpha, so the repeated overlay CONVERGES to ~0.22
+  // instead of accumulating toward solid black.
+  g.fillStyle = `rgba(0,0,0,${a})`;
+  for (let y = 1; y < h; y += 3) g.fillRect(0, y, w, 1);
+}
+function sunset(v) {
+  // The ONE gradient in the theme, quarantined to spectrum bars and mapped to
+  // LEVEL so it means something: violet floor -> pink -> amber sun.
+  const stops = [[157,108,255],[255,94,207],[255,184,107]];
+  const t = Math.min(1, Math.max(0, v)) * 2;
+  const a = stops[t < 1 ? 0 : 1], b = stops[t < 1 ? 1 : 2], f = t < 1 ? t : t - 1;
+  return `rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`;
+}
 function TOKA(name, a, fallback) {
   const h = TOK(name, fallback);
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h.trim());
@@ -974,9 +1003,9 @@ function drawShapeWave() {
   g.clearRect(0, 0, w, h);
   bridge.getShapeWave().then(j => {
     const d = JSON.parse(j || '{}');
-    if (!d.wave) { g.fillStyle = TOK('--dim');
+    if (!d.wave) { g.fillStyle = TOKA('--scr-grid', 0.75);
       g.font = '10px monospace'; g.fillText('no engine — open in the plugin', 8, h / 2); return; }
-    g.strokeStyle = getComputedStyle(document.body).getPropertyValue('--pull').trim() || TOK('--pull');
+    g.strokeStyle = TOK('--scr-value');
     g.lineWidth = 1.5; g.beginPath();
     const n = d.wave.length;
     for (let i = 0; i < n; i++) {
@@ -1115,13 +1144,14 @@ const presetStore = {
     let padW = 0, padH = 0;
     const drawField = () => {
       const fx = field.getContext('2d');
-      fx.fillStyle = TOK('--well'); fx.fillRect(0, 0, padW, padH);
+      fx.fillStyle = TOK('--scr-tube'); fx.fillRect(0, 0, padW, padH);
       for (let k = 0; k < 4; k++) {
         const gx = (k % 2) ? padW : 0, gy = (k > 1) ? padH : 0;
         const gr = fx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(padW, padH));
         gr.addColorStop(0, MCOLORS[k] + '55'); gr.addColorStop(0.7, 'transparent');
         fx.fillStyle = gr; fx.fillRect(0, 0, padW, padH);
       }
+      scan(fx, padW, padH, 0.22);   // baked into the field, not per frame
     };
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -1154,7 +1184,7 @@ const presetStore = {
       if (x === lastX && y === lastY) return;
       lastX = x; lastY = y;
       px.drawImage(field, 0, 0);
-      px.strokeStyle = TOK('--text-hi'); px.lineWidth = 1.5 * (window.devicePixelRatio || 1);
+      px.strokeStyle = TOK('--scr-value'); px.lineWidth = 1.5 * (window.devicePixelRatio || 1);
       px.beginPath(); px.arc(x * padW, y * padH, 7 * (window.devicePixelRatio || 1), 0, 6.2832);
       px.stroke();
     };
@@ -1581,12 +1611,13 @@ function drawXY() {
   for (const cv of XYS()) {
     const xyctx = cv.getContext('2d');
     const w = cv.width, h = cv.height;
-    xyctx.fillStyle = TOK('--well'); xyctx.fillRect(0, 0, w, h);
+    xyctx.fillStyle = TOK('--scr-tube'); xyctx.fillRect(0, 0, w, h);
+  scan(xyctx, w, h, 0.22);
     const x = curX * w, y = (1 - (curK + 1) / 2) * h;
-    xyctx.strokeStyle = TOK('--line');
+    xyctx.strokeStyle = TOKA('--scr-grid', 0.30);
     xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
     xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();
-    xyctx.fillStyle = TOK('--text-hi');
+    xyctx.fillStyle = TOK('--scr-value');
     xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
   }
 }
@@ -1611,9 +1642,12 @@ function drawPhase(s) {
 }
 function _drawPhaseOne(s) {
   const w = pc.width, h = pc.height, cx = w / 2, cy = h / 2, rad = w * 0.4;
-  pctx.fillStyle = TOKA('--well', 0.32);
+  pctx.fillStyle = TOKA('--scr-tube', 0.32);
   pctx.fillRect(0, 0, w, h);
-  pctx.strokeStyle = TOK('--line'); pctx.lineWidth = 1.5;   // §6: ink circle
+  scan(pctx, w, h, 0.22 * 0.32);   // scaled by the fade alpha so it converges
+  /* ADR-119: "the ring itself dims to grid-violet — on a CRT, chrome is dark
+     and only DATA emits". */
+  pctx.strokeStyle = TOKA('--scr-grid', 0.55); pctx.lineWidth = 1.5;
   pctx.beginPath(); pctx.arc(cx, cy, rad, 0, Math.PI * 2); pctx.stroke();
   if (!s || !s.active) return;
   const n = s.n, px = [], py = [];
@@ -1621,14 +1655,18 @@ function _drawPhaseOne(s) {
     const a = s.phase[i] * Math.PI * 2;
     px.push(cx + rad * Math.cos(a)); py.push(cy - rad * Math.sin(a));
   }
-  pctx.strokeStyle = TOK('--hair'); pctx.lineWidth = 1;   // in-well line, §1
+  pctx.strokeStyle = TOKA('--scr-grid', 0.30); pctx.lineWidth = 1;
   pctx.beginPath(); pctx.moveTo(px[0], py[0]);
   for (let i = 1; i < n; i++) pctx.lineTo(px[i], py[i]);
   pctx.closePath(); pctx.stroke();
   const twoClu = s.topo === 2, halfN = n >> 1;
   for (let i = 0; i < n; i++) {
     // data dimension (cluster membership), NOT corner identity
-    pctx.fillStyle = (twoClu && i >= halfN) ? TOK('--ghost') : TOK('--value');
+    const dotCol = (twoClu && i >= halfN) ? TOK('--scr-meter') : TOK('--scr-value');
+    // phosphor bloom: a wide 30%-alpha disc UNDER the dot — glow with no blur
+    pctx.fillStyle = dotCol === TOK('--scr-value') ? TOKA('--scr-value', 0.30) : TOKA('--scr-meter', 0.30);
+    pctx.beginPath(); pctx.arc(px[i], py[i], 9, 0, Math.PI * 2); pctx.fill();
+    pctx.fillStyle = dotCol;
     pctx.beginPath(); pctx.arc(px[i], py[i], 4, 0, Math.PI * 2); pctx.fill();
   }
   // K-vector: Cartesian-smoothed direction, separately-smoothed scalar length
@@ -1641,15 +1679,21 @@ function _drawPhaseOne(s) {
   /* §6: the order vector is PHYSICS (violet), 3px, with a head — it is not the
      user's value, so it must not wear the value colour. */
   const vx = cx + rad * kSmR * ux, vy = cy - rad * kSmR * uy;
-  pctx.strokeStyle = TOK('--physics'); pctx.lineWidth = 3;
+  pctx.strokeStyle = TOK('--scr-physics'); pctx.lineWidth = 3;
   pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(vx, vy); pctx.stroke();
-  pctx.fillStyle = TOK('--physics');
+  pctx.fillStyle = TOK('--scr-physics');
   pctx.beginPath(); pctx.arc(vx, vy, 3.75, 0, Math.PI * 2); pctx.fill();
   /* §6: R rim arc — METER teal, round caps, from 12 o'clock CW, length R*90
      degrees. Sync literally wraps the dial, which is the point of drawing the
      order parameter on the rim rather than printing it. */
   if (kSmR > 0.001) {
-    pctx.strokeStyle = TOK('--meter'); pctx.lineWidth = 5; pctx.lineCap = 'round';
+    // "the R arc becomes a lit tube segment": wide 25% underlay + core
+    pctx.lineCap = 'round';
+    pctx.strokeStyle = TOKA('--scr-meter', 0.25); pctx.lineWidth = 12;
+    pctx.beginPath();
+    pctx.arc(cx, cy, rad + 5, -Math.PI / 2, -Math.PI / 2 + kSmR * (Math.PI / 2));
+    pctx.stroke();
+    pctx.strokeStyle = TOK('--scr-meter'); pctx.lineWidth = 5;
     pctx.beginPath();
     pctx.arc(cx, cy, rad + 5, -Math.PI / 2, -Math.PI / 2 + kSmR * (Math.PI / 2));
     pctx.stroke(); pctx.lineCap = 'butt';
@@ -1700,8 +1744,9 @@ async function vizFrame() {
       for (const cv of [document.getElementById('phaseC'), document.getElementById('phaseC2')]) {
         if (!cv || !cv.offsetWidth) continue;
         const g = cv.getContext('2d');
-        g.fillStyle = TOK('--well'); g.fillRect(0, 0, cv.width, cv.height);
-        g.fillStyle = TOK('--dim2'); g.font = '10px monospace'; g.textAlign = 'center';
+        g.fillStyle = TOK('--scr-tube'); g.fillRect(0, 0, cv.width, cv.height);
+      scan(g, cv.width, cv.height, 0.22);
+        g.fillStyle = TOKA('--scr-grid', 0.75); g.font = '10px monospace'; g.textAlign = 'center';
         g.fillText('osc off', cv.width / 2, cv.height / 2);
         g.textAlign = 'start';
       }
@@ -1759,8 +1804,8 @@ async function drawScope() {
   // so the ring is stale — show the OFF state instead of a frozen wave.
   if (lastVizOscEnabled === false) {
     const w2 = wvC.width, h2 = wvC.height;
-    wvx.fillStyle = TOK('--well'); wvx.fillRect(0, 0, w2, h2);
-    wvx.fillStyle = TOK('--dim2'); wvx.font = '10px monospace';
+    wvx.fillStyle = TOK('--scr-tube'); wvx.fillRect(0, 0, w2, h2);
+    wvx.fillStyle = TOKA('--scr-grid', 0.75); wvx.font = '10px monospace';
     wvx.fillText('osc off', 8, h2 / 2);
     blitScope();
     return;
@@ -1777,9 +1822,10 @@ async function drawScope() {
     // rising zero-crossing in L and draw forward from there, so a periodic
     // waveform stands still and L/R phase differences (super-width's whole
     // story) are readable as a fixed offset between the two traces.
-    wvx.fillStyle = TOK('--well');
+    wvx.fillStyle = TOK('--scr-tube');
     wvx.fillRect(0, 0, w, h);
-    wvx.strokeStyle = TOK('--line');
+    scan(wvx, w, h, 0.22);
+    wvx.strokeStyle = TOKA('--scr-grid', 0.40);
     wvx.beginPath(); wvx.moveTo(0, h / 2); wvx.lineTo(w, h / 2); wvx.stroke();
     if (s && s.l && s.l.length) {
       const N = s.l.length;
@@ -1829,16 +1875,23 @@ async function drawScope() {
           if (lp[i - 1] <= 0 && lp[i] > 0) { trig = i; break; }
       }
       const g = (h / 2 - 3) / pk;
-      // data dimension (channel), NOT corner identity
-      for (const [arr, col] of [[s.r, TOK('--ghost')], [s.l, TOK('--value')]]) {
-        wvx.strokeStyle = col;
-        wvx.lineWidth = (col === TOK('--value')) ? 2.0 : 1.4;   // §6 weights
+      // data dimension (channel), NOT corner identity. ADR-119: the L trace
+      // is a BEAM (wide 22%-alpha underlay + core); R is the phosphor etch —
+      // dotted cyan, the screen recipe for a reference trace.
+      for (const [arr, col, beam] of [[s.r, TOKA('--scr-meter', 0.65), false],
+                                      [s.l, TOK('--scr-value'), true]]) {
+        wvx.setLineDash(beam ? [] : [2, 3]);
+        for (const pass of beam ? [0, 1] : [1]) {
+          wvx.strokeStyle = pass === 0 ? TOKA('--scr-value', 0.22) : col;
+          wvx.lineWidth = pass === 0 ? 8 : (beam ? 2.2 : 1.4);
         wvx.beginPath();
         for (let i = 0; i < span; i++) {
           const x = i / (span - 1) * w, y = h / 2 - arr[trig + i] * g;
           i ? wvx.lineTo(x, y) : wvx.moveTo(x, y);
         }
         wvx.stroke();
+        }
+        wvx.setLineDash([]);
       }
     }
   } catch (e) {}
@@ -1893,7 +1946,8 @@ const specPeak = new Float32Array(SPEC_BANDS.length - 1);
 const specPeakAt = new Float64Array(SPEC_BANDS.length - 1);
 function _drawSpecOne(specSm) {
     const w = sc2.width, h = sc2.height, n = specSm.length;
-    sctx2.fillStyle = TOK('--well'); sctx2.fillRect(0, 0, w, h);
+    sctx2.fillStyle = TOK('--scr-tube'); sctx2.fillRect(0, 0, w, h);
+    scan(sctx2, w, h, 0.22);
     // bin index for a frequency, inverting the engine's log mapping
     const idxOf = f => Math.round(Math.log(f / 30) / Math.log(16000 / 30) * (n - 1));
     const nb = SPEC_BANDS.length - 1, slot = w / nb;
@@ -1906,17 +1960,18 @@ function _drawSpecOne(specSm) {
       for (let i = i0; i <= i1; i++) if (specSm[i] > v) v = specSm[i];
       const x = b * slot + (slot - barW) / 2;
       const barH = v * (h - 6);
-      sctx2.fillStyle = TOK('--meter');
+      // ADR-119: the sunset — the one gradient in the theme, level-mapped
+      sctx2.fillStyle = sunset(v);
       sctx2.fillRect(x, floorY - barH, barW, barH);
       // peak cap: rises instantly, holds 1.5 s, then falls
       if (v >= specPeak[b]) { specPeak[b] = v; specPeakAt[b] = now; }
       else if (now - specPeakAt[b] > 1500) specPeak[b] = Math.max(v, specPeak[b] - 0.012);
       const py = floorY - specPeak[b] * (h - 6);
-      sctx2.fillStyle = specPeak[b] >= 0.999 ? TOK('--alarm') : TOK('--value');
+      sctx2.fillStyle = specPeak[b] >= 0.999 ? TOK('--alarm') : TOK('--scr-meter');   // caps go cyan; clip stays red
       sctx2.fillRect(x, py - 2.5, barW, 2.5);
     }
-    sctx2.fillStyle = TOK('--line'); sctx2.fillRect(0, floorY, w, 2);   // ink floor
-    sctx2.strokeStyle = TOK('--line'); sctx2.lineWidth = 1;             // 0 dBFS
+    sctx2.fillStyle = TOKA('--scr-grid', 0.55); sctx2.fillRect(0, floorY, w, 2);
+    sctx2.strokeStyle = TOKA('--scr-grid', 0.55); sctx2.lineWidth = 1;  // 0 dBFS
     sctx2.setLineDash([3, 3]);
     sctx2.beginPath(); sctx2.moveTo(0, floorY - (h - 6)); sctx2.lineTo(w, floorY - (h - 6));
     sctx2.stroke(); sctx2.setLineDash([]);
@@ -1973,43 +2028,45 @@ let vmZoom = 4, vmShrink = 0;
 
 function drawCarpet(s) {
   const w = cc2.width, h = cc2.height;
-  cctx2.fillStyle = TOKA('--well', 0.25);
+  cctx2.fillStyle = TOKA('--scr-tube', 0.25);
   cctx2.fillRect(0, 0, w, h);
+  scan(cctx2, w, h, 0.22 * 0.25);
   if (!s || !s.active) return;
   const n = s.n, twoClu = s.topo === 2, half = n >> 1;
   const colW = w / n;
   for (let i = 0; i < n; i++) {
     const y = 4 + s.phase[i] * (h - 8);
     // data dimension (cluster membership), NOT corner identity
-    cctx2.fillStyle = (twoClu && i >= half) ? TOK('--ghost') : TOK('--value');
+    cctx2.fillStyle = (twoClu && i >= half) ? TOKA('--scr-meter', 0.75) : TOK('--scr-value');
     cctx2.beginPath(); cctx2.arc(i * colW + colW / 2, y, 2.6, 0, Math.PI * 2); cctx2.fill();
   }
 }
 
 function drawStrips(s) {
   const w = stC.width, h = stC.height;
-  stx.fillStyle = TOKA('--well', 0.35);
+  stx.fillStyle = TOKA('--scr-tube', 0.35);
   stx.fillRect(0, 0, w, h);
+  scan(stx, w, h, 0.22 * 0.35);
   if (!s || !s.active || !s.spectra || !s.partials) return;
   const P = s.partials, M = s.cloud;
   const colW = w / P;
   const topPad = 6, barH = 26, stripH = h - barH - topPad - 4;
   for (let k = 0; k < P; k++) {
     const cx = k * colW + colW / 2;
-    stx.strokeStyle = TOK('--grid2');
+    stx.strokeStyle = TOKA('--scr-grid', 0.30);
     stx.beginPath(); stx.moveTo(cx, topPad); stx.lineTo(cx, topPad + stripH); stx.stroke();
     const amp = (s.partAmp && s.partAmp[k]) || 0;
     const alpha = 0.35 + 0.65 * Math.min(1, amp * 2.2);
-    stx.fillStyle = TOKA('--value', alpha.toFixed(2));
+    stx.fillStyle = TOKA('--scr-value', alpha.toFixed(2));
     for (let m = 0; m < M; m++) {
       const ph = s.partPhase[k * M + m];
       stx.beginPath(); stx.arc(cx, topPad + ph * stripH, 2.6, 0, Math.PI * 2); stx.fill();
     }
     const rH = (s.partR[k] || 0) * barH;
-    stx.fillStyle = TOK('--hot');
+    stx.fillStyle = TOK('--scr-value');
     stx.fillRect(k * colW + 3, h - 4 - rH, colW - 6, rH);
     if (k === 0 || (k + 1) % 4 === 0) {
-      stx.fillStyle = TOK('--dim'); stx.font = '9px monospace';
+      stx.fillStyle = TOKA('--scr-grid', 0.75); stx.font = '9px monospace';
       stx.fillText(String(k + 1), cx - 3, h - 4);
     }
   }
@@ -2017,8 +2074,9 @@ function drawStrips(s) {
 
 function drawVmap(s) {
   const w = vmC.width, h = vmC.height;
-  vmx.fillStyle = TOKA('--well', 0.35);
+  vmx.fillStyle = TOKA('--scr-tube', 0.35);
   vmx.fillRect(0, 0, w, h);
+  scan(vmx, w, h, 0.22 * 0.35);
   if (!s || !s.active || s.spectra || !s.vmVf || !s.vmVf.length || !(s.vmF0 > 0)) return;
   let dev = 1e-6;
   for (let i = 0; i < s.vmVf.length; i++) {
@@ -2031,10 +2089,10 @@ function drawVmap(s) {
   else if (want < vmZoom && dev * 1.6 <= VM_RANGES[want] && ++vmShrink > 30) { vmZoom = want; vmShrink = 0; }
   else if (want >= vmZoom) vmShrink = 0;
   const oct = VM_RANGES[vmZoom], mid = h / 2;
-  vmx.strokeStyle = TOK('--line');
+  vmx.strokeStyle = TOKA('--scr-grid', 0.45);
   vmx.beginPath(); vmx.moveTo(0, mid); vmx.lineTo(w, mid); vmx.stroke();
   vmx.beginPath(); vmx.moveTo(w / 2, 0); vmx.lineTo(w / 2, h); vmx.stroke();
-  vmx.fillStyle = TOK('--dim'); vmx.font = '9px ui-monospace,Menlo,monospace';
+  vmx.fillStyle = TOKA('--scr-grid', 0.75); vmx.font = '9px ui-monospace,Menlo,monospace';
   vmx.textAlign = 'left'; vmx.fillText(VM_LABELS[vmZoom], 4, 10);
   const X = p => (Math.max(-1, Math.min(1, p)) * 0.5 + 0.5) * (w - 10) + 5;
   const Y = f => mid - (Math.log2(Math.max(1e-6, f) / s.vmF0) / oct) * (mid - 4);
@@ -2050,17 +2108,20 @@ function drawVmap(s) {
     const x = X(s.vmPan[i]);
     const yT = Y(s.vmVf[i]), yA = Y(s.vmEff[i]);
     // §6: TARGET is structure — an ink ring, the pitch you asked for.
-    vmx.strokeStyle = TOK('--line'); vmx.lineWidth = 1.5;
+    // structure dims to grid-violet on the tube — only data emits
+    vmx.strokeStyle = TOKA('--scr-grid', 0.85); vmx.lineWidth = 1.5;
     vmx.beginPath(); vmx.arc(x, yT, 3.8, 0, Math.PI * 2); vmx.stroke();
     // §6: ACTUAL is the value — filled magenta with a hairline, so the gap
     // between ring and dot IS drift + glide + pull, readable at a glance.
-    vmx.fillStyle = TOK('--value');
+    // bloom under the actual dot, then the dot; the ink hairline had no job
+    // on a dark tube (ink is invisible there), so the bloom replaces it
+    vmx.fillStyle = TOKA('--scr-value', 0.30);
+    vmx.beginPath(); vmx.arc(x, yA, 6.5, 0, Math.PI * 2); vmx.fill();
+    vmx.fillStyle = TOK('--scr-value');
     vmx.beginPath(); vmx.arc(x, yA, 3.0, 0, Math.PI * 2); vmx.fill();
-    vmx.strokeStyle = TOK('--line'); vmx.lineWidth = 1;
-    vmx.beginPath(); vmx.arc(x, yA, 3.0, 0, Math.PI * 2); vmx.stroke();
     // §6: the ROOT gets a marker star — its own channel, so root-ness no longer
     // rides the same colour that distinguishes target from actual.
-    if (i === root) star(vmx, x, yT, 6.2, TOK('--marker'), TOK('--line'));
+    if (i === root) star(vmx, x, yT, 6.2, TOK('--scr-marker'), TOK('--scr-tube'));
   }
 }
 /* A five-point star, because §6 asks for one and a coloured dot is not a star.
@@ -2199,6 +2260,10 @@ function gvizCtx(kind) {
   const ctx = cv.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+  /* ADR-119: these canvases were transparent-on-panel; as data wells they are
+     phosphor tubes now, and this shared clear is the ONE place that decides. */
+  ctx.fillStyle = TOK('--scr-tube'); ctx.fillRect(0, 0, w, h);
+  scan(ctx, w, h, 0.22);
   return { ctx, w, h };
 }
 const rdp = id => { const el = document.querySelector(`[data-p="${id}"]:not([data-fixed])`);
@@ -2214,7 +2279,7 @@ function drawEnvelope(s) {
   const S = rdp(21) ?? 1.0, R = rdp(22) ?? 0.16;
   const gate = (A + D) * 1000 * 1.3 + 120, span = gate + R * 1000 * 2.2;
   const X = ms => ms / span * (w - 2) + 1, Y = v => h - 3 - v * (h - 8);
-  ctx.strokeStyle = TOK('--pull');
+  ctx.strokeStyle = TOK('--scr-value');
   ctx.lineWidth = 1.5; ctx.beginPath();
   for (let px = 0; px < w; px++) {
     const t = px / (w - 2) * span;
@@ -2225,14 +2290,14 @@ function drawEnvelope(s) {
     px ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v));
   }
   ctx.stroke();
-  ctx.strokeStyle = TOK('--line'); ctx.lineWidth = 1;
+  ctx.strokeStyle = TOKA('--scr-grid', 0.35); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(X(gate), 0); ctx.lineTo(X(gate), h); ctx.stroke();
 }
 function drawScatter(s) {
   const g = gvizCtx('scatter'); if (!g) return;
   const { ctx, w, h } = g;
   const ons = (s && s.envOnset) || [], atk = (s && s.envAtk) || [];
-  const dim = TOK('--dim');
+  const dim = TOKA('--scr-grid', 0.75);
   if (!ons.length) {                                     // no engine data: say so
     ctx.fillStyle = dim; ctx.font = '10px ui-monospace,Menlo,monospace';
     ctx.fillText('play a note to see voice spread', 8, h / 2);
@@ -2241,9 +2306,9 @@ function drawScatter(s) {
   let maxT = 1;
   for (let i = 0; i < ons.length; i++) maxT = Math.max(maxT, ons[i] + (atk[i] || 0));
   const X = ms => 4 + ms / maxT * (w - 8);
-  ctx.strokeStyle = TOK('--line'); ctx.beginPath();
+  ctx.strokeStyle = TOKA('--scr-grid', 0.35); ctx.beginPath();
   ctx.moveTo(4, h - 10); ctx.lineTo(w - 4, h - 10); ctx.stroke();
-  const acc = TOK('--pull');
+  const acc = TOK('--scr-value');
   for (let i = 0; i < ons.length; i++) {
     const y = 6 + (h - 22) * (ons.length === 1 ? 0.5 : i / (ons.length - 1));
     ctx.strokeStyle = acc; ctx.globalAlpha = 0.5; ctx.lineWidth = 1;
@@ -2372,7 +2437,7 @@ function refreshBendCurve() {
 }
 function noCurve(g, why) {
   const { ctx, w, h } = g;
-  ctx.fillStyle = TOK('--dim');
+  ctx.fillStyle = TOKA('--scr-grid', 0.75);
   ctx.font = '10px ui-monospace,Menlo,monospace';
   ctx.fillText(why, 8, h / 2);
 }
@@ -2383,7 +2448,7 @@ function drawBendStep() {
   const { traj, tgt, amp } = bendCurve;
   const Y = v => h - 4 - (v / (amp * 1.35) * 0.5 + 0.25) * (h - 8);
   const X = i => i / (traj.length - 1) * (w - 2) + 1;
-  ctx.strokeStyle = TOK('--line'); ctx.lineWidth = 1;
+  ctx.strokeStyle = TOKA('--scr-grid', 0.35); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(1, Y(0)); ctx.lineTo(w - 1, Y(0)); ctx.stroke();
   const line = (arr, col, lw, dash) => {
     ctx.setLineDash(dash || []); ctx.strokeStyle = col; ctx.lineWidth = lw;
@@ -2391,9 +2456,9 @@ function drawBendStep() {
     arr.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
     ctx.stroke(); ctx.setLineDash([]);
   };
-  line(tgt, TOK('--dim'), 1, [3, 3]);                       // what the wheel asked for
-  line(traj, TOK('--pull'), 1.6);
-  ctx.fillStyle = TOK('--dim'); ctx.font = '9px ui-monospace,Menlo,monospace';
+  line(tgt, TOKA('--scr-grid', 0.8), 1, [3, 3]);            // what the wheel asked for
+  line(traj, TOK('--scr-value'), 1.6);
+  ctx.fillStyle = TOKA('--scr-grid', 0.75); ctx.font = '9px ui-monospace,Menlo,monospace';
   const st = bendCurve.settle < 0 ? 'never' : bendCurve.settle.toFixed(0) + ' ms';
   ctx.fillText(`lag50 ${bendCurve.lag50.toFixed(0)} ms · over ${bendCurve.over.toFixed(1)} ¢ · settle ${st} · rings ${bendCurve.rings}`, 5, 10);
 }
@@ -2402,14 +2467,14 @@ function drawBendVib() {
   const { ctx, w, h } = g;
   if (!bendCurve || bendCurve.depth === undefined) return noCurve(g, 'no engine — open in the plugin');
   const pct = Math.max(0, Math.min(100, bendCurve.depth));
-  const acc = TOK('--pull');
-  ctx.fillStyle = TOK('--line'); ctx.fillRect(6, h - 26, w - 12, 10);
+  const acc = TOK('--scr-value');
+  ctx.fillStyle = TOKA('--scr-grid', 0.30); ctx.fillRect(6, h - 26, w - 12, 10);
   ctx.fillStyle = pct < 60 ? TOK('--bad') : acc;            // losing 40% of a wobble is a real cost
   ctx.fillRect(6, h - 26, (w - 12) * pct / 100, 10);
-  ctx.fillStyle = TOK('--text');
+  ctx.fillStyle = TOKA('--scr-meter', 0.95);   // the honesty verdict, cyan on the tube
   ctx.font = '11px ui-monospace,Menlo,monospace';
   ctx.fillText(`${pct.toFixed(0)}% of a 5 Hz wobble kept`, 6, 16);
-  ctx.fillStyle = TOK('--dim'); ctx.font = '9px ui-monospace,Menlo,monospace';
+  ctx.fillStyle = TOKA('--scr-grid', 0.75); ctx.font = '9px ui-monospace,Menlo,monospace';
   ctx.fillText(`arrives ${Math.abs(bendCurve.wlag).toFixed(0)} ms late`, 6, 30);
   ctx.fillText('the bill inertia charges for a slow bend', 6, h - 6);
 }
