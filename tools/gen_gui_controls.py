@@ -230,13 +230,29 @@ def main():
                     ctrl = (f'<input type="range" data-p="{p["id"]}"{df}'
                             f' min="{p["min"]:g}" max="{p["max"]:g}"'
                             f' step="{step}" value="{p["default"]:g}">')
+                # KNOB (ADR-120). The table's `widget` hint decides PRESENTATION
+                # for a control whose KIND the shell already settled — which is
+                # the same split the rule above draws, applied one level down: a
+                # knob is still a continuous control over the same range, so
+                # honouring the hint here cannot render a dropdown over a
+                # continuum. The knob is a SKIN over the range input, not a
+                # replacement: the input stays in the DOM as the value, the
+                # focus target and the thing every existing handler already
+                # wires, so gating, morph ownership, exempt marks, the context
+                # menu and double-click reset all keep working untouched.
+                knob = widget == "knob" and ctrl.startswith('<input type="range"')
+                if knob:
+                    ctrl = ('<span class="knob"><span class="karc"></span>'
+                            '<span class="kcap"></span><span class="kptr"></span>'
+                            + ctrl + '</span>')
                 # data-when carries the GATING declaration to the runtime: the base
                 # key of the controlling param and the values under which this row
                 # has any effect. A control the engine cannot read in the current
                 # mode is furniture that lies, so it is hidden rather than greyed.
                 dw = f' data-when="{when}"' if when else ""
+                cls = "row kcell" if knob else "row"
                 out.append(
-                    f'    <div class="row" data-addr="{addr}"{dw}><label>{label}{sfx}{u}</label>'
+                    f'    <div class="{cls}" data-addr="{addr}"{dw}><label>{label}{sfx}{u}</label>'
                     f'{ctrl}<output></output></div>')
                 total += 1
             out.append("  </div>")
