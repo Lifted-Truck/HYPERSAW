@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; background: #f2ede2; }
+  a { color: #b0107a; text-decoration: none; border-bottom: 1px solid currentColor; }
+  a:hover { color: #191521; }
+</style>
+</helmet>
+
+<div style="width:1760px; box-sizing:border-box; margin:0 auto; padding:26px 28px 30px; display:flex; flex-direction:column; gap:18px; font-family:Archivo, system-ui, sans-serif; color:#191521;">
+
+  <!-- header -->
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:24px;">
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <svg viewBox="0 0 560 96" style="width:400px; height:68px; display:block; overflow:visible;">
+        <defs>
+          <filter id="stw" x="-12%" y="-25%" width="124%" height="150%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.010 0.016" numOctaves="2" seed="11" result="n"></feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="26"></feDisplacementMap>
+          </filter>
+        </defs>
+        <sc-if value="{{ flipOff }}" hint-placeholder-val="{{ true }}">
+          <text x="8" y="66" font-family="Archivo, sans-serif" font-weight="800" font-size="62" letter-spacing="-1.5" filter="url(#stw)" fill="#a6f219" stroke="#191521" stroke-width="2" paint-order="stroke">station</text>
+        </sc-if>
+        <sc-if value="{{ flipOn }}" hint-placeholder-val="{{ false }}">
+          <text x="8" y="66" font-family="Archivo, sans-serif" font-weight="800" font-size="62" letter-spacing="-1.5" filter="url(#stw)"><tspan fill="#d4a900">s</tspan><tspan fill="#f5169c">t</tspan><tspan fill="#00b5aa">a</tspan><tspan fill="#191521">t</tspan><tspan fill="#7ab000">i</tspan><tspan fill="#6431f0">o</tspan><tspan fill="#f5169c">n</tspan></text>
+        </sc-if>
+      </svg>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; font-weight:500; color:#191521; background:#ffd702; padding:2px 7px; border-radius:3px; letter-spacing:0.1em; border:1.5px solid #191521;">ENGINE 02</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:0.14em; color:#6e6878;">PM · SUBTRACTIVE · CHIP — HORDE ENGINE PROTOTYPE</span>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:26px; padding-bottom:6px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:11px; font-weight:800; letter-spacing:0.1em;">ALG</span>
+        <div style="display:flex; gap:4px;">
+          <sc-for list="{{ algs }}" as="a" hint-placeholder-count="6">
+            <span onClick="{{ a.click }}" style="font-family:'Roboto Mono',monospace; font-size:10px; padding:4px 10px; border-radius:999px; border:1.5px solid #191521; background:{{ a.bg }}; color:{{ a.fg }}; box-shadow:{{ a.sh }}; cursor:pointer; user-select:none;" style-hover="transform:translate(-0.5px,-0.5px);">{{ a.n }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:auto 150px 40px; gap:8px; align-items:center;">
+        <span style="font-size:11px; font-weight:800; letter-spacing:0.1em;">MASTER</span>
+        <span style="height:6px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; top:0; bottom:0; left:0; width:72%; background:#f5169c; border-radius:3px; display:block;"></span><span style="position:absolute; left:72%; top:-5px; width:13px; height:13px; margin-left:-7px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:11px; text-align:right;">−6dB</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:7px;">
+        <span style="width:10px; height:10px; border-radius:50%; background:#00d5c8; border:1.5px solid #191521; display:block;"></span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:0.1em; color:#494356;">LIVE @ 48k</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- operator row -->
+  <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px;">
+    <sc-for list="{{ ops }}" as="op" hint-placeholder-count="3">
+      <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:14px 16px 16px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:12px; font-weight:800; letter-spacing:0.1em;">{{ op.name }}</span>
+          <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#9a93a3;">operator</span>
+          <span style="flex:1;"></span>
+          <sc-if value="{{ op.sync }}" hint-placeholder-val="{{ false }}">
+            <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356; letter-spacing:0.08em;">SYNC</span>
+          </sc-if>
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#f5169c; color:#fcfaf4; letter-spacing:0.08em; box-shadow:1.5px 1.5px 0 #191521;">ON</span>
+        </div>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          <sc-for list="{{ op.waves }}" as="w" hint-placeholder-count="6">
+            <span onClick="{{ w.click }}" style="font-family:'Roboto Mono',monospace; font-size:10px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:{{ w.bg }}; color:{{ w.fg }}; box-shadow:{{ w.sh }}; cursor:pointer; user-select:none;" style-hover="transform:translate(-0.5px,-0.5px);">{{ w.n }}</span>
+          </sc-for>
+        </div>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#f5169c; color:#fcfaf4; letter-spacing:0.08em; box-shadow:1.5px 1.5px 0 #191521;">RATIO</span>
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356; letter-spacing:0.08em;">FIXED</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <sc-for list="{{ op.rows }}" as="r" hint-placeholder-count="5">
+            <div style="display:grid; grid-template-columns:46px minmax(0,1fr) 56px; gap:8px; align-items:center;">
+              <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:#6e6878;">{{ r.l }}</span>
+              <span style="height:6px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; top:0; bottom:0; left:0; width:{{ r.p }}%; background:#f5169c; border-radius:3px; display:block;"></span><span style="position:absolute; left:{{ r.p }}%; top:-5px; width:13px; height:13px; margin-left:-7px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+              <span style="font-family:'Roboto Mono',monospace; font-size:10.5px; text-align:right; white-space:nowrap;">{{ r.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex; gap:4px;">
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 8px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356;">12.5%</span>
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 8px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356;">25%</span>
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 8px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356;">50%</span>
+        </div>
+        <div style="border-top:1.5px dashed #c4bdad; margin:2px 0;"></div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <sc-for list="{{ op.env }}" as="r" hint-placeholder-count="4">
+            <div style="display:grid; grid-template-columns:46px minmax(0,1fr) 56px; gap:8px; align-items:center;">
+              <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:#6e6878;">{{ r.l }}</span>
+              <span style="height:6px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; top:0; bottom:0; left:0; width:{{ r.p }}%; background:#f5169c; border-radius:3px; display:block;"></span><span style="position:absolute; left:{{ r.p }}%; top:-5px; width:13px; height:13px; margin-left:-7px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+              <span style="font-family:'Roboto Mono',monospace; font-size:10.5px; text-align:right; white-space:nowrap;">{{ r.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;">
+          <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 10px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356; letter-spacing:0.08em;">LOOP ENV</span>
+        </div>
+      </div>
+    </sc-for>
+
+    <!-- noise / LFSR -->
+    <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:14px 16px 16px; display:flex; flex-direction:column; gap:10px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12px; font-weight:800; letter-spacing:0.1em;">NOISE</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#9a93a3;">LFSR channel</span>
+        <span style="flex:1;"></span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#f5169c; color:#fcfaf4; letter-spacing:0.08em; box-shadow:1.5px 1.5px 0 #191521;">ON</span>
+      </div>
+      <div style="display:flex; gap:4px;">
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#f5169c; color:#fcfaf4; box-shadow:1.5px 1.5px 0 #191521;">LONG</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356;">SHORT</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#f5169c; color:#fcfaf4; box-shadow:1.5px 1.5px 0 #191521;">KEYTRK</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <sc-for list="{{ noiseRows }}" as="r" hint-placeholder-count="3">
+          <div style="display:grid; grid-template-columns:46px minmax(0,1fr) 56px; gap:8px; align-items:center;">
+            <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:#6e6878;">{{ r.l }}</span>
+            <span style="height:6px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; top:0; bottom:0; left:0; width:{{ r.p }}%; background:#f5169c; border-radius:3px; display:block;"></span><span style="position:absolute; left:{{ r.p }}%; top:-5px; width:13px; height:13px; margin-left:-7px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+            <span style="font-family:'Roboto Mono',monospace; font-size:10.5px; text-align:right; white-space:nowrap;">{{ r.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top:1.5px dashed #c4bdad; margin:2px 0;"></div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <sc-for list="{{ noiseEnv }}" as="r" hint-placeholder-count="4">
+          <div style="display:grid; grid-template-columns:46px minmax(0,1fr) 56px; gap:8px; align-items:center;">
+            <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:#6e6878;">{{ r.l }}</span>
+            <span style="height:6px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; top:0; bottom:0; left:0; width:{{ r.p }}%; background:#f5169c; border-radius:3px; display:block;"></span><span style="position:absolute; left:{{ r.p }}%; top:-5px; width:13px; height:13px; margin-left:-7px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+            <span style="font-family:'Roboto Mono',monospace; font-size:10.5px; text-align:right; white-space:nowrap;">{{ r.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;">
+        <span style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 10px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356; letter-spacing:0.08em;">LOOP ENV</span>
+      </div>
+      <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.1em; color:#9a93a3; margin-top:auto;">PM SOURCE VIA MATRIX ROW NS</div>
+    </div>
+  </div>
+
+  <!-- bottom row -->
+  <div style="display:grid; grid-template-columns:420px 340px minmax(0,1fr) 360px; gap:16px; align-items:stretch;">
+
+    <!-- PM matrix -->
+    <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:12px; font-weight:800; letter-spacing:0.1em;">PM MATRIX</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#9a93a3;">follows ALG · drag ↕ · dbl-click clears</span>
+      </div>
+      <div style="display:grid; grid-template-columns:34px repeat(3, 1fr); gap:6px; align-items:center;">
+        <span></span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#6e6878; text-align:center;">→O1</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#6e6878; text-align:center;">→O2</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#6e6878; text-align:center;">→O3</span>
+        <sc-for list="{{ matrixCells }}" as="c" hint-placeholder-count="16">
+          <sc-if value="{{ c.isLabel }}" hint-placeholder-val="{{ false }}">
+            <span style="font-family:'Roboto Mono',monospace; font-size:10.5px; color:#494356;">{{ c.t }}</span>
+          </sc-if>
+          <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}">
+            <span style="height:40px; border-radius:8px; border:1.5px solid {{ c.bd }}; background:{{ c.bg }}; color:{{ c.fg }}; box-shadow:{{ c.sh }}; display:grid; place-items:center; position:relative; font-family:'Roboto Mono',monospace; font-size:11.5px;">{{ c.t }}<sc-if value="{{ c.fb }}" hint-placeholder-val="{{ false }}"><span style="position:absolute; right:5px; top:4px; font-size:7px; letter-spacing:0.08em; color:{{ c.fbc }};">FB</span></sc-if></span>
+          </sc-if>
+        </sc-for>
+      </div>
+      <div style="border-top:1.5px dashed #c4bdad;"></div>
+      <div style="display:grid; grid-template-columns:46px minmax(0,1fr) 56px; gap:8px; align-items:center;">
+        <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:#6e6878;">P.ENV</span>
+        <span style="height:6px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; left:50%; top:-4px; bottom:-4px; width:1.5px; background:#191521; display:block;"></span><span style="position:absolute; left:50%; top:-5px; width:13px; height:13px; margin-left:-7px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10.5px; text-align:right;">0st</span>
+      </div>
+      <div style="display:grid; grid-template-columns:46px minmax(0,1fr) 56px; gap:8px; align-items:center;">
+        <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:#6e6878;">P.DEC</span>
+        <span style="height:6px; border-radius:3px; background:#e9e3d4; border:1.5px solid #191521; position:relative; display:block;"><span style="position:absolute; top:0; bottom:0; left:0; width:12%; background:#f5169c; border-radius:3px; display:block;"></span><span style="position:absolute; left:12%; top:-5px; width:13px; height:13px; margin-left:-7px; border-radius:4px; background:#fcfaf4; border:1.5px solid #191521; box-shadow:1.5px 1.5px 0 #191521; display:block;"></span></span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10.5px; text-align:right;">80ms</span>
+      </div>
+    </div>
+
+    <!-- pm geometry -->
+    <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:12px; font-weight:800; letter-spacing:0.1em;">GEOMETRY</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#9a93a3;">op-pair lissajous · follows ALG</span>
+      </div>
+      <div style="flex:1; min-height:220px; border:1.5px solid #191521; border-radius:8px; background:radial-gradient(circle at 50% 42%, #241038 0%, #180a26 62%, #0e0518 100%); position:relative; overflow:hidden;">
+        <canvas ref="{{ geoRef }}" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></canvas>
+        <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); pointer-events:none; display:block;"></span>
+        <span style="position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, transparent 55%, rgba(8,2,14,0.55) 100%); pointer-events:none; display:block;"></span>
+      </div>
+      <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <sc-for list="{{ geoPairs }}" as="g" hint-placeholder-count="2">
+          <span style="display:inline-flex; align-items:center; gap:5px; font-family:'Roboto Mono',monospace; font-size:9.5px; color:#494356;"><span style="width:8px; height:8px; border-radius:50%; background:{{ g.color }}; border:1px solid #191521; display:block;"></span>{{ g.label }}</span>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- wave RAM -->
+    <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12px; font-weight:800; letter-spacing:0.1em;">WAVE RAM</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#9a93a3;">32 × 4-bit · shared by ops on DRW</span>
+        <span style="flex:1;"></span>
+        <div style="display:flex; gap:4px;">
+          <sc-for list="{{ wavePresets }}" as="p" hint-placeholder-count="5">
+            <span onClick="{{ p.click }}" style="font-family:'Roboto Mono',monospace; font-size:9px; padding:3px 9px; border-radius:999px; border:1.5px solid #191521; background:#fcfaf4; color:#494356; letter-spacing:0.08em; cursor:pointer; user-select:none;" style-hover="background:#f5169c; color:#fcfaf4; box-shadow:1.5px 1.5px 0 #191521;">{{ p.n }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <div onPointerDown="{{ drawWave }}" onPointerMove="{{ drawWave }}" style="flex:1; min-height:220px; border:1.5px solid #191521; border-radius:8px; position:relative; background:radial-gradient(circle at 50% 42%, #241038 0%, #180a26 62%, #0e0518 100%); background-image:repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px), rgba(157,108,255,0.28) calc(25% - 1px), rgba(157,108,255,0.28) 25%), radial-gradient(circle at 50% 42%, #241038 0%, #180a26 62%, #0e0518 100%); padding:8px 8px 0; display:flex; align-items:flex-end; gap:3px; cursor:crosshair; touch-action:none; overflow:hidden;">
+        <sc-for list="{{ bars }}" as="b" hint-placeholder-count="32">
+          <div style="flex:1; height:{{ b.h }}%; min-height:3px; background:{{ barFill }}; box-shadow:{{ barGlow }}; border-radius:2px 2px 0 0;"></div>
+        </sc-for>
+        <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); pointer-events:none; display:block;"></span>
+        <span style="position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, transparent 55%, rgba(8,2,14,0.55) 100%); pointer-events:none; display:block;"></span>
+      </div>
+      <div style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.14em; color:#9a93a3; text-align:center;">DRAW WITH POINTER — QUANTISED TO 4-BIT</div>
+    </div>
+
+    <!-- scope -->
+    <div style="background:#fcfaf4; border:1.5px solid #191521; border-radius:10px; padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:12px; font-weight:800; letter-spacing:0.1em;">SCOPE</span>
+        <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#9a93a3;">master out</span>
+      </div>
+      <div style="flex:1; border:1.5px solid #191521; border-radius:8px; background:radial-gradient(circle at 50% 42%, #241038 0%, #180a26 62%, #0e0518 100%); position:relative; overflow:hidden; min-height:180px;">
+        <svg viewBox="0 0 360 180" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%; display:block;">
+          <line x1="0" y1="45" x2="360" y2="45" stroke="rgba(157,108,255,0.22)" stroke-width="1"></line>
+          <line x1="0" y1="90" x2="360" y2="90" stroke="rgba(157,108,255,0.45)" stroke-width="1" stroke-dasharray="3 4"></line>
+          <line x1="0" y1="135" x2="360" y2="135" stroke="rgba(157,108,255,0.22)" stroke-width="1"></line>
+          <path d="M0,90 L14,90 L14,38 L52,38 L52,122 L74,122 L74,64 L108,64 L108,132 L128,132 L128,44 L166,44 L166,102 L188,102 L188,56 L218,56 L218,138 L240,138 L240,70 L272,70 L272,118 L296,118 L296,48 L330,48 L330,96 L360,96" fill="none" stroke="#59f6e8" stroke-width="8" opacity="0.22" stroke-linejoin="miter"></path>
+          <path d="M0,90 L14,90 L14,38 L52,38 L52,122 L74,122 L74,64 L108,64 L108,132 L128,132 L128,44 L166,44 L166,102 L188,102 L188,56 L218,56 L218,138 L240,138 L240,70 L272,70 L272,118 L296,118 L296,48 L330,48 L330,96 L360,96" fill="none" stroke="#59f6e8" stroke-width="2.5" stroke-linejoin="miter"></path>
+        </svg>
+        <span style="position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px); pointer-events:none; display:block;"></span>
+        <span style="position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, transparent 55%, rgba(8,2,14,0.55) 100%); pointer-events:none; display:block;"></span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="display:grid; grid-template-columns:14px minmax(0,1fr) 44px; gap:8px; align-items:center;">
+          <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#6e6878;">L</span>
+          <span style="height:8px; border-radius:4px; background:#e9e3d4; border:1.5px solid #191521; overflow:hidden; display:block;"><span style="display:block; height:100%; width:64%; background:#9be514;"></span></span>
+          <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#494356; text-align:right;">−8.2</span>
+        </div>
+        <div style="display:grid; grid-template-columns:14px minmax(0,1fr) 44px; gap:8px; align-items:center;">
+          <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; color:#6e6878;">R</span>
+          <span style="height:8px; border-radius:4px; background:#e9e3d4; border:1.5px solid #191521; overflow:hidden; display:block;"><span style="display:block; height:100%; width:58%; background:#9be514;"></span></span>
+          <span style="font-family:'Roboto Mono',monospace; font-size:10px; color:#494356; text-align:right;">−9.0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:10px;">
+    <span style="font-family:'Roboto Mono',monospace; font-size:9.5px; letter-spacing:0.12em; color:#9a93a3;">HORDE CHROME — MAGENTA = YOUR VALUE · TEAL = METER · YELLOW = MARKER · LIME = CELEBRATE · RED = CLIP ONLY</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;flip&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Wordmark&quot;}, &quot;waveColor&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;sunset&quot;, &quot;pink&quot;, &quot;violet&quot;, &quot;teal&quot;], &quot;default&quot;: &quot;sunset&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Wave RAM&quot;}}">
+class Component extends DCLogic {
+  state = {
+    alg: '2+3→1',
+    waves: ['PLS', 'SIN', 'SIN'],
+    ram: [7,10,13,14,14,12,11,10,9,10,13,14,14,12,10,8,5,2,1,1,2,3,3,2,4,5,6,5,4,3,3,6],
+  };
+  ALGS = {
+    'STACK':  {},
+    '2→1':    {'1_0': 2.31},
+    '3→2→1':  {'2_1': 1.42, '1_0': 2.31},
+    '2+3→1':  {'1_0': 2.31, '2_0': 1.10},
+    '3→1+2':  {'2_0': 1.10, '2_1': 1.42},
+    'FB CH':  {'2_2': 0.85, '2_1': 1.42, '1_0': 2.31},
+  };
+  presets = {
+    SIN:  (i) => Math.round((Math.sin(i / 32 * Math.PI * 2 - Math.PI / 2) * 0.5 + 0.5) * 15),
+    SAW:  (i) => Math.round(i / 31 * 15),
+    SQR:  (i) => (i < 16 ? 15 : 0),
+    BELL: (i) => Math.round(Math.exp(-Math.pow((i - 15.5) / 7, 2)) * 15),
+    RND:  () => Math.floor(Math.random() * 16),
+  };
+  geoRef = React.createRef();
+  componentDidMount() {
+    this._t = 0;
+    const loop = () => {
+      this._raf = requestAnimationFrame(loop);
+      const cv = this.geoRef.current; if (!cv) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = cv.clientWidth, h = cv.clientHeight;
+      if (!w || !h) return;
+      if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); this._geoInit = false; }
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!this._geoInit) { ctx.fillStyle = 'rgba(24,10,38,0)'; ctx.clearRect(0, 0, w, h); this._geoInit = true; }
+      ctx.fillStyle = 'rgba(20,8,32,0.30)'; ctx.fillRect(0, 0, w, h);
+      this._t += 0.006;
+      const R = [1, 5, 14], colors = ['#ff5ecf', '#59f6e8', '#ffb86b'];
+      const active = this.ALGS[this.state.alg] || {};
+      let pairs = Object.keys(active).map((k) => k.split('_').map(Number));
+      if (!pairs.length) pairs = [[0, 0]];
+      const cx = w / 2, cy = h / 2, rx = w * 0.38, ry = h * 0.36;
+      pairs.slice(0, 3).forEach((p, i) => {
+        const a = R[p[1]] || 1, b = R[p[0]] || 1, ph = this._t * (1 + i * 0.35);
+        const fb = p[0] === p[1];
+        const N = 420;
+        ctx.beginPath();
+        for (let s = 0; s <= N; s++) {
+          const u = s / N * Math.PI * 2;
+          const x = cx + Math.sin(a * u + ph) * rx;
+          const y = cy + Math.sin(b * u + (fb ? Math.PI / 2 + 0.6 * Math.sin(ph * 2) : 0)) * ry;
+          s ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.strokeStyle = colors[i];
+        ctx.globalAlpha = 0.18; ctx.lineWidth = 6; ctx.stroke();
+        ctx.globalAlpha = 0.95; ctx.lineWidth = 1.6; ctx.stroke();
+        ctx.globalAlpha = 1;
+      });
+    };
+    loop();
+  }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); }
+  drawWave = (e) => {
+    if (e.type === 'pointermove' && e.buttons !== 1) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const i = Math.max(0, Math.min(31, Math.floor((e.clientX - r.left) / r.width * 32)));
+    const v = Math.max(0, Math.min(15, Math.round((1 - (e.clientY - r.top) / r.height) * 15)));
+    this.setState((s) => { const ram = s.ram.slice(); ram[i] = v; return { ram }; });
+  };
+  renderVals() {
+    const P = this.props, S = this.state;
+    const flip = P.flip ?? false;
+    const scheme = P.waveColor ?? 'sunset';
+    const barFill = {
+      sunset: 'linear-gradient(to top, #ff5ecf, #ffb86b)',
+      pink: '#ff5ecf', violet: '#9d6cff', teal: '#59f6e8',
+    }[scheme];
+    const barGlow = {
+      sunset: '0 0 12px rgba(255,94,207,0.45)',
+      pink: '0 0 12px rgba(255,94,207,0.45)',
+      violet: '0 0 12px rgba(157,108,255,0.5)',
+      teal: '0 0 12px rgba(89,246,232,0.45)',
+    }[scheme];
+    const pill = (active) => active
+      ? { bg: '#f5169c', fg: '#fcfaf4', sh: '1.5px 1.5px 0 #191521' }
+      : { bg: '#fcfaf4', fg: '#494356', sh: 'none' };
+    const algs = Object.keys(this.ALGS).map((n) => ({ n, ...pill(S.alg === n), click: () => this.setState({ alg: n }) }));
+    const WAVES = ['SIN', 'TRI', 'SAW', 'PLS', 'QTR', 'DRW'];
+    const opData = [
+      { name: 'OP 1', sync: false, ratio: ['×1', 8], lvl: ['85%', 85], pw: ['13%', 13], env: [['3ms', 6], ['420ms', 18], ['55%', 55], ['260ms', 10]] },
+      { name: 'OP 2', sync: true, ratio: ['×5', 35], lvl: ['0%', 2], pw: ['50%', 50], env: [['2ms', 4], ['180ms', 9], ['0%', 2], ['120ms', 5]] },
+      { name: 'OP 3', sync: true, ratio: ['×14', 92], lvl: ['0%', 2], pw: ['50%', 50], env: [['2ms', 4], ['60ms', 4], ['0%', 2], ['60ms', 3]] },
+    ];
+    const ops = opData.map((o, oi) => ({
+      name: o.name, sync: o.sync,
+      waves: WAVES.map((w) => ({ n: w, ...pill(S.waves[oi] === w), click: () => this.setState((s) => { const waves = s.waves.slice(); waves[oi] = w; return { waves }; }) })),
+      rows: [
+        { l: 'RATIO', v: o.ratio[0], p: o.ratio[1] },
+        { l: 'FINE', v: '0c', p: 50 },
+        { l: 'LVL', v: o.lvl[0], p: o.lvl[1] },
+        { l: 'PAN', v: 'C', p: 50 },
+        { l: 'PW', v: o.pw[0], p: o.pw[1] },
+        { l: 'PURE', v: '100%', p: 100 },
+        { l: 'QNT', v: 'OFF', p: 2 },
+      ],
+      env: [
+        { l: 'ATK', v: o.env[0][0], p: o.env[0][1] },
+        { l: 'DEC', v: o.env[1][0], p: o.env[1][1] },
+        { l: 'SUS', v: o.env[2][0], p: o.env[2][1] },
+        { l: 'REL', v: o.env[3][0], p: o.env[3][1] },
+      ],
+    }));
+    const active = this.ALGS[S.alg] || {};
+    const rowLabels = ['O1', 'O2', 'O3', 'NS'];
+    const matrixCells = [];
+    rowLabels.forEach((rl, ri) => {
+      matrixCells.push({ isLabel: true, isCell: false, t: rl });
+      for (let ci = 0; ci < 3; ci++) {
+        const key = ri + '_' + ci;
+        const v = active[key] || 0;
+        const on = v > 0;
+        matrixCells.push({
+          isLabel: false, isCell: true, fb: ri === ci && ri < 3,
+          t: v.toFixed(2),
+          bg: on ? '#f5169c' : '#fcfaf4', fg: on ? '#fcfaf4' : '#9a93a3',
+          bd: on ? '#191521' : '#c4bdad', sh: on ? '1.5px 1.5px 0 #191521' : 'none',
+          fbc: on ? '#ffd702' : '#c4bdad',
+        });
+      }
+    });
+    const wavePresets = Object.keys(this.presets).map((n) => ({ n, click: () => this.setState({ ram: Array.from({ length: 32 }, (_, i) => this.presets[n](i)) }) }));
+    const bars = S.ram.map((v) => ({ h: Math.round(v / 15 * 100) }));
+    const geoColors = ['#ff5ecf', '#59f6e8', '#ffb86b'];
+    const geoKeys = Object.keys(active);
+    const RL = ['×1', '×5', '×14'];
+    const geoPairs = geoKeys.length
+      ? geoKeys.slice(0, 3).map((k, i) => {
+          const [m, c] = k.split('_').map(Number);
+          return { label: m === c ? 'O' + (m + 1) + ' FB' : 'O' + (m + 1) + '→O' + (c + 1) + ' · ' + RL[m] + ':' + RL[c], color: geoColors[i] };
+        })
+      : [{ label: 'NO PM · CARRIER RING', color: '#ff5ecf' }];
+    return {
+      flipOff: !flip, flipOn: flip, barFill, barGlow,
+      geoRef: this.geoRef, geoPairs,
+      algs, ops, matrixCells, wavePresets, bars,
+      drawWave: this.drawWave,
+      noiseRows: [{ l: 'RATE', v: '35%', p: 35 }, { l: 'LVL', v: '50%', p: 50 }, { l: 'PAN', v: 'C', p: 50 }],
+      noiseEnv: [{ l: 'ATK', v: '1ms', p: 3 }, { l: 'DEC', v: '120ms', p: 6 }, { l: 'SUS', v: '0%', p: 2 }, { l: 'REL', v: '80ms', p: 4 }],
+    };
+  }
+}
+</script>
+</body>
+</html>
