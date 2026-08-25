@@ -1602,6 +1602,19 @@ function drawShapeWave() {
     if (!d.wave) { g.fillStyle = TOK('--scr-tube'); g.fillRect(0, 0, w, h);
       g.fillStyle = TOKA('--scr-grid', 0.75);
       g.font = '10px monospace'; g.fillText('no engine — open in the plugin', 8, h / 2); return; }
+    /* Round x Pitch silhouettes (human 2026-08-25): the engine sends the
+       shape at BOTH extremes of the per-voice roundness spread when roundHi is
+       live. Ghost strokes under the main wave, so "what does this knob spread
+       between" is visible instead of documented. */
+    const sil = (arr, col) => { if (!arr) return;
+      g.strokeStyle = col; g.lineWidth = 1; g.beginPath();
+      for (let i = 0; i < arr.length; i++) {
+        const x = i / (arr.length - 1) * (w - 8) + 4;
+        const y = h / 2 - arr[i] * (h / 2 - 6);
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      } g.stroke(); };
+    sil(d.lo, TOKA('--scr-grid', 0.55));
+    sil(d.hi, TOKA('--scr-marker', 0.6));
     g.strokeStyle = TOK('--scr-value');
     g.lineWidth = 1.5; g.beginPath();
     const n = d.wave.length;
@@ -3437,21 +3450,46 @@ function drawEnvelope(s) {
   // in rather than assuming; `rdp` now returns the parameter value either way.
   const A = rdp(19) ?? 0.003, D = rdp(20) ?? 0.16;
   const S = rdp(21) ?? 1.0, R = rdp(22) ?? 0.16;
-  const gate = (A + D) * 1000 * 1.3 + 120, span = gate + R * 1000 * 2.2;
-  const X = ms => ms / span * (w - 2) + 1, Y = v => h - 3 - v * (h - 8);
+  /* PER-STAGE BANDS, not a shared time axis (human 2026-08-25: "the
+     proportions are messed up"). Time-linear layout collapses at real
+     settings: a 3 ms attack got 0.6% of the width while a fixed 120 ms hold
+     plateau ate half the picture. Each stage now owns a band sized by
+     sqrt(seconds) -- perceptual-ish, and stable across the 1000x range the
+     knobs allow -- with a fixed sustain shelf between decay and release. Each
+     band draws its own curve in LOCAL time (~5 time constants), which is the
+     Operator/Serum idiom: the picture answers "what SHAPE is each stage"
+     rather than "how long is it", and the knobs' readouts answer the rest. */
+  const HOLD = 0.16;
+  const rt = Math.sqrt(Math.max(1e-3, A)), rd = Math.sqrt(Math.max(1e-3, D)),
+        rr = Math.sqrt(Math.max(1e-3, R));
+  const total = rt + rd + rr, avail = 1 - HOLD;
+  const bA = rt / total * avail, bD = rd / total * avail, bR = rr / total * avail;
+  const x0 = 1, x1 = w - 2;
+  const px = f => x0 + f * (x1 - x0);
+  const Y = v => h - 3 - v * (h - 8);
+  const xAtk = px(bA), xDec = px(bA + bD), xSus = px(bA + bD + HOLD);
   ctx.strokeStyle = TOK('--scr-value');
   ctx.lineWidth = 1.5; ctx.beginPath();
-  for (let px = 0; px < w; px++) {
-    const t = px / (w - 2) * span;
-    let v;
-    if (t < gate) { const a = 1 - Math.exp(-t / Math.max(1e-3, A * 1000));
-                    const d = S + (1 - S) * Math.exp(-t / Math.max(1e-3, D * 1000)); v = Math.min(a, d); }
-    else v = S * Math.exp(-(t - gate) / Math.max(1e-3, R * 1000));
-    px ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v));
+  ctx.moveTo(x0, Y(0));
+  const N = 40;
+  for (let i = 1; i <= N; i++) {                 // attack: 1 - e^-t, ~5 tau
+    const t = i / N * 5;
+    ctx.lineTo(x0 + (xAtk - x0) * i / N, Y(1 - Math.exp(-t)));
+  }
+  for (let i = 1; i <= N; i++) {                 // decay toward S, ~5 tau
+    const t = i / N * 5;
+    ctx.lineTo(xAtk + (xDec - xAtk) * i / N, Y(S + (1 - S) * Math.exp(-t)));
+  }
+  ctx.lineTo(xSus, Y(S));                        // sustain shelf
+  for (let i = 1; i <= N; i++) {                 // release from S, ~5 tau
+    const t = i / N * 5;
+    ctx.lineTo(xSus + (x1 - xSus) * i / N, Y(S * Math.exp(-t)));
   }
   ctx.stroke();
   ctx.strokeStyle = TOKA('--scr-grid', 0.35); ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(X(gate), 0); ctx.lineTo(X(gate), h); ctx.stroke();
+  for (const gx of [xAtk, xDec, xSus]) {         // stage boundaries
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
+  }
 }
 function drawScatter(s) {
   const g = gvizCtx('scatter'); if (!g) return;
