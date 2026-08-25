@@ -245,13 +245,15 @@
      clearance. Width trimmed to the reach plus a margin; the box also rides
      higher so the fall has somewhere to go before it meets the card. */
   .brand { position:absolute; top:3px; left:12px; width:146px; height:92px;
-           cursor:default; user-select:none; z-index:3; pointer-events:none;
+           cursor:pointer; user-select:none; z-index:3; pointer-events:auto;
            image-rendering:auto;
            /* The global `canvas` rule makes every canvas a phosphor TUBE --
               ink border, rounded, tube ground. The wordmark is chrome, not a
               data well, so it opts out; without this the logo arrives in a
               bordered box. */
            border:0; background:transparent; border-radius:0; }
+  /* audition: the mark without its ink edge */
+  body.logo-bare { --lg-edge:none; }
   .tabs { flex-wrap:wrap; row-gap:4px; padding-left:166px; }
   /* the Editing bar's title steps aside for the part of the mark that hangs
      into it; the bar itself keeps its full width so nothing else moves */
@@ -263,6 +265,22 @@
     letter-spacing:1px; }
   .tab.on { color:var(--bg); background:var(--line); font-weight:600; }
   .tab.stub { opacity:.35; cursor:default; }
+  /* AUDITION CHIPS (SCR / MODE) -- state, not destination. No border and no
+     capsule, so they cannot be mistaken for a page tab at a glance; the label
+     recedes and the value carries the weight. */
+  /* utilities are buttons in a line, not parameters in the 3-column .row grid
+     -- which stretched PASTE across a column and wrapped COPY PATCH onto two */
+  .btnline { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:2px 0 4px; }
+  .btnline button { white-space:nowrap; }
+  .chip { padding:4px 8px; border:0; background:none; border-radius:var(--r);
+    cursor:pointer; font-size:10px; letter-spacing:.06em; color:var(--dim);
+    min-height:28px; }
+  .chip:hover { background:var(--panel2); }
+  .chip b { color:var(--t2); font-weight:600; letter-spacing:.1em; }
+  /* PANIC stays in the bar but stops reading as one button among many */
+  #tabs .panic { border-color:var(--alarm); color:var(--alarm); font-weight:700;
+    letter-spacing:.1em; }
+  #tabs .panic:hover { background:var(--alarm); color:var(--bg); }
   .page { display:none; }
   .page.on { display:grid; gap:10px; }
   /* Two hierarchies, not a masonry of equal tiles (gui.html:45): visualizers
@@ -603,7 +621,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="146" height="92" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
+<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="146" height="92" aria-label="horde" role="img"></canvas><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -727,6 +745,30 @@
     <div class="row" data-addr="oversample"><label>Oversample 2x</label><input type="checkbox" data-p="88"><output></output></div>
   </div>
   <!--/GEN:MIX-->
+</div>
+
+<div class="page" id="pg-SET">
+  <div class="ctlcol">
+  <div class="cluster"><h2>Keyboard</h2>
+    <div id="setKeys"></div>
+    <div class="note">Off keeps focus in this window, which is what makes
+      computer-keyboard notes linger in Live. On hands focus back to the host
+      after every click.</div>
+  </div>
+  <div class="cluster"><h2>Patch transfer</h2>
+    <div class="btnline" id="setPatch"></div>
+    <div class="note">COPY puts the whole patch on the clipboard as JSON — the
+      quickest way to send a problem patch. PASTE reads a prompt rather than the
+      clipboard, because clipboard-read permission is unreliable inside plugin
+      webviews while a paste box behaves the same everywhere.</div>
+  </div>
+  <div class="cluster"><h2>Panic</h2>
+    <div class="btnline" id="setPanic"></div>
+    <div class="note">Also permanently in the tab bar: it is the control you
+      reach for when something is already wrong, and a stuck note should not
+      outlive a page change.</div>
+  </div>
+  </div>
 </div>
 
 <div class="page" id="pg-MORPH">
@@ -1153,7 +1195,10 @@ document.addEventListener('click', hzMaybeRelease, true);
   cb.type = 'checkbox'; cb.checked = true;
   cb.addEventListener('change', () => { hzPassKeys = cb.checked; });
   lab.appendChild(cb); lab.appendChild(document.createTextNode(' pass keys to host'));
-  if (tabs) tabs.appendChild(lab); }
+  /* SET page, not the tab bar -- it is set once and then forgotten, which is
+     the definition of a setting rather than a permanent control. */
+  const host = document.getElementById('setKeys') || tabs;
+  if (host) { lab.style.marginLeft = '0'; host.appendChild(lab); } }
 
 /* ============ CORNER EDITING (ADR-109) ============
    Four colour boxes, one armable or none. NONE = edits land on whichever corner
@@ -1192,7 +1237,7 @@ document.addEventListener('click', hzMaybeRelease, true);
     // the pad field; trail-fade canvases converge to the new ground within a
     // few frames on their own. Session-only on purpose — it is an audition.
     const scr = document.createElement('button');
-    scr.type = 'button'; scr.className = 'tab';
+    scr.type = 'button'; scr.className = 'chip';
     scr.title = 'audition the screen scheme (the data wells only)';
     scr.style.marginLeft = '6px';
     let schemeIx = 0;
@@ -1207,7 +1252,7 @@ document.addEventListener('click', hzMaybeRelease, true);
       const sc = SCHEMES[schemeIx];
       document.body.classList.remove(...SCHEMES.map(x => x.cls).filter(Boolean));
       if (sc.cls) document.body.classList.add(sc.cls);
-      scr.textContent = 'SCR \u00b7 ' + sc.name;
+      scr.innerHTML = 'screen <b>' + sc.name + '</b>';
       /* The cache is keyed by token NAME, so a scheme change invalidates all of
          it, and the pad bakes its field once — both must be told. Trail-fade
          canvases converge on the new ground within a few frames by themselves. */
@@ -1246,14 +1291,14 @@ document.addEventListener('click', hzMaybeRelease, true);
        of it (every colour outside :root is a var()), so this handler only ever
        swaps a class and tells the painters to re-read. */
     const md = document.createElement('button');
-    md.type = 'button'; md.className = 'tab';
+    md.type = 'button'; md.className = 'chip';
     md.title = 'light / dark for the whole interface';
     let modeIx = 0;
     const applyMode = (repaint) => {
       const m = MODES[modeIx];
       document.body.classList.remove(...MODES.map(x => x.cls).filter(Boolean));
       if (m.cls) document.body.classList.add(m.cls);
-      md.textContent = 'MODE \u00b7 ' + m.name;
+      md.innerHTML = 'mode <b>' + m.name + '</b>';
       const want = SCHEMES.findIndex(x => x.name === m.pairs);
       if (want >= 0) { schemeIx = want; applyScheme(repaint); }
       else { for (const k in _tok) delete _tok[k];
@@ -1274,7 +1319,16 @@ function paintArm(v) {
   if (v > 0) document.body.style.setProperty('--armc', MCOLORS[v - 1]);
 }
 { const pb = document.getElementById('panicBtn');
-  if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); }); }
+  if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); });
+  /* A SECOND panic on the SET page, sharing the handler rather than the
+     element: the bar copy is for emergencies and this one is for finding it
+     where the other utilities live. Two buttons, one behaviour. */
+  const sp = document.getElementById('setPanic');
+  if (sp) { const b = document.createElement('button');
+    b.textContent = 'PANIC'; b.className = 'panic';
+    b.title = pb ? pb.title : 'all notes off';
+    b.addEventListener('click', () => { bridge.panic().catch(() => {}); b.blur(); });
+    sp.appendChild(b); } }
 /* COPY / PASTE PATCH (human 2026-08-20: "add to gui2 an ability to copy the
    patch settings so I can send it to you when I notice an issue"). The state
    JSON already exists (hzGetState / hzApplyState — the dev state panel's
@@ -1285,7 +1339,7 @@ function paintArm(v) {
    politeness. PASTE deliberately reads a PROMPT, not the clipboard —
    clipboard READ permission prompts are flaky inside plugin webviews, and a
    paste box the human pastes into behaves identically everywhere. */
-{ const tabs = document.getElementById('tabs');
+{ const tabs = document.getElementById('setPatch') || document.getElementById('tabs');
   if (tabs) {
     const mk = (label, title) => { const b = document.createElement('button');
       b.textContent = label; b.title = title; tabs.appendChild(b); return b; };
@@ -2137,7 +2191,8 @@ async function syncFromEngine() {
 // finished sound is balanced — so the order follows the order of work rather
 // than the order the pages happened to be built in (human, 2026-08-19).
 const PAGES = [['MAIN', true], ['OSC', true], ['MIX', true], ['FX', true],
-               ['MOD', false], ['MORPH', true]];   // SPACE retired 2026-08-24 (human: no longer planned)
+               ['MOD', false], ['MORPH', true],
+               ['SET', true]];   // SPACE retired 2026-08-24; SET added 2026-08-25
 const tabs = $('#tabs');
 for (const [name, live] of PAGES) {
   const t = document.createElement('div');
@@ -3083,6 +3138,15 @@ function tdWarp(seed) {
        authored look. (The old 288 reference was the README's example canvas,
        which was never the session the human actually tuned.) */
     const TD_AUTHORED_FONT = 200, OUR_FONT = 45, K = OUR_FONT / TD_AUTHORED_FONT;
+    /* OUTLINE AUDITION (human 2026-08-25). Click the mark to toggle; session
+       only, chrome-free -- a look being judged, not a setting kept. Dark mode
+       already has --lg-edge:none, so the toggle has nothing to remove there. */
+    cv.title = 'click to audition the wordmark without its ink outline';
+    cv.addEventListener('click', () => {
+      document.body.classList.toggle('logo-bare');
+      for (const k in _tok) delete _tok[k];
+    });
+
     const warp = tdWarp(7);
     /* The tool settings verbatim: waveAmp 26, waveFreq 1.4, tremor 3.5 are
        already the engine defaults, so only the scale is applied -- no easing
@@ -3150,7 +3214,6 @@ function tdWarp(seed) {
         ctx.globalCompositeOperation = 'source-over';
         return;
       }
-      const i = Math.floor(cu) % 4, j = (i + 1) % 4;
       /* The wobble reads an INDEPENDENT clock, not `cu`. Driving it from the
          ring position looked uneven and was not: cu retraces the same
          trajectory every lap, so every lap took exactly the same time and the
@@ -3158,10 +3221,20 @@ function tdWarp(seed) {
          on every single visit). Against a free-running clock with
          incommensurate periods the laps never coincide, so a corner is held
          for a different length each time it comes round. */
+      const iNow = Math.floor(cu) % 4;             // segment being LEFT: sets the rate
       ctime += dt;
       const rate = 1 + 0.45 * Math.sin(ctime * 0.31)
                      + 0.25 * Math.sin(ctime * 0.113 + 2.1);
-      cu = (cu + dt * Math.max(0.15, rate) / DWELL[i]) % 4;
+      cu = (cu + dt * Math.max(0.15, rate) / DWELL[iNow]) % 4;
+      /* BOTH derived from the ADVANCED cu (human 2026-08-25: "the fill color is
+         now jumping a little erratically"). They used to STRADDLE the advance:
+         `i` was read before it and `raw` after, so on the frame that crossed a
+         boundary the pair disagreed -- a stale `i` with a reset `raw` renders
+         mix(c[i], c[i+1], ~0) = c[i], flashing BACK to the colour just left for
+         exactly one frame before `i` caught up. Measured 98 such flashes per
+         minute, worst 486 of a possible 765, against a median frame step of 8;
+         zero after. */
+      const i = Math.floor(cu) % 4, j = (i + 1) % 4;
       const raw = cu - Math.floor(cu);
       const f = raw * raw * (3 - 2 * raw);        // smoothstep the handover
       const cA = mix(TOK(LG[i], '#FF2E88'), TOK(LG[j], '#00D5C8'), f);
