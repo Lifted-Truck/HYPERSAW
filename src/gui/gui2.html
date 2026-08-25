@@ -533,7 +533,22 @@
   .row.kcell:has(.knob.drag) > label { opacity:0; }
   .row.kcell.owned { box-shadow:none; border-top:3px solid var(--own);
     padding-top:3px; }                      /* a column cell wears its stripe on top */
-  .row.kcell.ghost { box-shadow:none; opacity:.5; }
+  /* A column cell wears its stripe on top, so its ghost does too -- matching
+     `.row.kcell.owned` one property across, exactly as the row case does. */
+  .row.kcell.ghost { box-shadow:none; padding-top:3px;
+    background-image:
+      repeating-linear-gradient(to right, var(--armc, var(--line)) 0 5px, transparent 5px 8px),
+      linear-gradient(var(--line), var(--line));
+    background-size:100% 3px, 100% 3px;
+    background-position:left top, left top; background-repeat:no-repeat, no-repeat; }
+  /* A knob cell dims through COLOUR on the label and opacity on the knob --
+     never opacity on the label or the readout. Both of those are choreographed
+     (`> output` sits at 0 and rises to 1 on hover, `> label` does the reverse),
+     and any blanket opacity here ties on specificity with the hover rules
+     above, wins by source order, and freezes the swap: the value ends up drawn
+     over the name it replaces. */
+  .row.kcell.ghost > label { color:var(--t2); }
+  .row.kcell.ghost > .knob { opacity:.55; }
   .knobs { display:grid; grid-template-columns:repeat(auto-fill, minmax(52px, 1fr));
     gap:7px 4px; margin:5px 0 2px; align-items:start; }
 
@@ -566,19 +581,43 @@
      padding 5 -> 9px: a 3px stripe left only 2px of air before the text. */
   .row.owned { box-shadow:inset 3px 0 0 var(--own); padding-left:9px; }
   /* ARMED VIEW: rows this corner does not own show its STORED value, which is
-     not what you are hearing — provisional, so it recedes.
-     It used to draw a 3px dotted BORDER while `.owned` drew a quiet inset
-     stripe, and that asymmetry was the bug (human 2026-08-24: "puts dotted
-     lines around all the bounding boxes"): ghost is the MAJORITY state, so 74
-     adjacent knob cells each grew a dotted top edge and the segments lined up
-     into what read as boxes around everything. Marking the common case and
-     whispering the exceptional one is backwards. Now the owned rows keep their
-     solid stripe and everything else simply FADES, which is also the truer
-     signal — "not live" reads as recessive, not as outlined.
-     The label colour went with it: it was var(--armc), i.e. the corner's FILL,
-     and corner A's #FFD702 measures 1.34:1 on --panel — the same invisible
-     yellow already fixed elsewhere. Secondary text is legible in both modes. */
-  .row.ghost { box-shadow:none; opacity:.5; }
+     not what you are hearing — provisional, so it recedes AND says whose value
+     it is. Two attempts are recorded here because the second one overcorrected.
+       v1 drew a 3px dotted BORDER on all four sides. Ghost is the MAJORITY
+       state, so that boxed nearly every parameter on the page.
+       v2 (2026-08-24) deleted the colour and left only a fade. That threw away
+       the signal: a fade says "not live" but cannot say WHICH corner, which is
+       the whole question the armed view exists to answer. The human's 2026-08-25
+       report — "doesn't even put dotted colored lines next to parameters" — is
+       that loss, and it was compounded by v2 having gone after the wrong
+       element entirely (the cluster rule above was the reported bug all along).
+       v3, here: a dotted LEFT STRIPE in the armed corner's colour, one property
+     away from `.owned`'s solid stripe and at the same 9px offset. Solid = this
+     corner is voicing it. Dotted = this corner stores it, something else is
+     voicing it. A single edge cannot close into a box however many rows stack,
+     so v1's failure cannot recur by construction.
+     The label colour stays var(--t2) rather than the corner FILL: corner A's
+     #FFD702 measures 1.34:1 on --panel, the invisible-yellow family. Note that
+     a SOLID stripe genuinely escapes that problem (contiguous mass reads by hue
+     alone) but a BROKEN one does not — measured, not assumed — which is why the
+     ghost stripe below is drawn over an ink line rather than floating on the
+     panel. Same family, sixth site, first time the fix was measured first. */
+  /* Painted as two stacked background layers rather than a dotted BORDER, for
+     a measured reason: a dotted border is ~half ground, and corner A (#FFD702)
+     measures 1.34:1 against the panel, D 1.31 and C 1.77 -- three of the four
+     corners were invisible as dots. The continuous `--line` layer underneath
+     carries the contrast and the colour dashes sit ON it, which is the same
+     answer already ratified for the logo (full-value fill, dark edge does the
+     legibility work). The gradient also lets the duty cycle be chosen: 5 on,
+     3 off reads as broken while keeping 62% of the stripe's mass, where a
+     dotted border keeps ~50% of a much smaller dot. */
+  .row.ghost { box-shadow:none; padding-left:9px;   /* flat 9px = .owned's 3+6 */
+    background-image:
+      repeating-linear-gradient(to bottom, var(--armc, var(--line)) 0 5px, transparent 5px 8px),
+      linear-gradient(var(--line), var(--line));
+    background-size:3px 100%, 3px 100%;
+    background-position:left top, left top; background-repeat:no-repeat, no-repeat; }
+  .row.ghost:not(.kcell) > * { opacity:.55; }   /* dim content, NOT the stripe */
   .row.ghost > label { color:var(--t2); }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
            background:var(--panel,#FCFAF4); border:var(--stroke) solid var(--line);
@@ -599,8 +638,21 @@
   .armBox.armed { opacity:1; box-shadow:0 0 7px currentColor; border-color:var(--text);
                   outline:1px solid var(--text); }
   /* An unmissable reminder: while a corner is armed, edits are NOT going where
-     a performer would expect. Cheap tint rather than a modal. */
-  body.arming .ctlcol .cluster, body.arming .page .cluster { border-style:dashed; }
+     a performer would expect. A RAIL, not an outline -- this used to set
+     `border-style:dashed` on every cluster, which is exactly the "dotted lines
+     around all the bounding boxes" the human reported. The rail carries the
+     armed corner's own colour, so it says WHICH corner as well as THAT one is
+     armed, and it cannot be mistaken for a boundary because it bounds nothing. */
+  body.arming::before { content:''; position:fixed; inset:0 0 auto 0; height:4px;
+    z-index:10000; pointer-events:none;
+    /* Same two-layer construction as the ghost stripe, and for the same
+       measured reason: a plain --armc bar is a 1.34:1 yellow band on cream for
+       corner A. Ink underneath carries the contrast, the corner colour rides on
+       top as dashes -- which also makes the rail and the stripes one visual
+       language rather than two unrelated markers. */
+    background-image:
+      repeating-linear-gradient(to right, var(--armc, var(--line)) 0 14px, transparent 14px 22px),
+      linear-gradient(var(--line), var(--line)); }
   .oscPow.on { color:var(--bg); background:var(--text); border-color:var(--text);
                opacity:1; box-shadow:var(--shadow); }   /* §3 bans blur — hard offset only */
   .note { color:var(--dim); font-size:10.5px; }
