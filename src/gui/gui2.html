@@ -244,7 +244,17 @@
      bottom landed at page-y 74 against a card starting at 80: six pixels of
      clearance. Width trimmed to the reach plus a margin; the box also rides
      higher so the fall has somewhere to go before it meets the card. */
-  .brand { position:absolute; top:3px; left:12px; width:146px; height:92px;
+  /* IN FLOW, beside the tabs -- not absolutely positioned over them (human
+     2026-08-25: "the logo covers the first module... it seems to push the
+     'editing' label over to the right"). Overlaying it needed a padding-left
+     on the tab row AND on every .oscbar title to hold content clear, and that
+     indent is what shoved "Editing" across; worse, the overlap depended on how
+     many rows the tab bar happened to wrap to, so at plugin width it landed on
+     the first card. A header row that CONTAINS both costs a little height and
+     cannot collide with anything. */
+  .hdr { display:flex; align-items:flex-start; gap:12px; margin-bottom:10px; }
+  .hdr > .tabs { flex:1 1 auto; margin-bottom:0; }
+  .brand { flex:0 0 auto; width:146px; height:96px;
            cursor:pointer; user-select:none; z-index:3; pointer-events:auto;
            image-rendering:auto;
            /* The global `canvas` rule makes every canvas a phosphor TUBE --
@@ -254,10 +264,8 @@
            border:0; background:transparent; border-radius:0; }
   /* audition: the mark without its ink edge */
   body.logo-bare { --lg-edge:none; }
-  .tabs { flex-wrap:wrap; row-gap:4px; padding-left:166px; }
-  /* the Editing bar's title steps aside for the part of the mark that hangs
-     into it; the bar itself keeps its full width so nothing else moves */
-  .oscbar > h2 { padding-left:166px; }
+  .tabs { flex-wrap:wrap; row-gap:4px; }
+
   /* the Editing bar's own content steps aside for the overhang */
 
   .tab { padding:4px 14px; border:var(--stroke) solid var(--line); border-radius:999px; min-height:28px;
@@ -621,7 +629,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="146" height="92" aria-label="horde" role="img"></canvas><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
+<div class="hdr"><canvas class="brand" id="brand" width="146" height="96" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -3114,7 +3122,7 @@ function tdWarp(seed) {
       sctx.textBaseline = 'middle';
       /* high in the box: the blobs pull DOWNWARD hardest, so the room has to
          be underneath the type rather than centred around it */
-      sctx.fillText('horde', 8, H * 0.34);
+      sctx.fillText('horde', 8, H * 0.38);
       SRC = sctx.getImageData(0, 0, W, H);
       DST = ctx.createImageData(W, H);
       bakedInk = ink;
@@ -3272,9 +3280,16 @@ function tdWarp(seed) {
            morph  -> colour, in tint() below.
          Both factors multiply the AUTHORED base, so the tool session remains
          the fixed point of the whole system. */
+      /* Ceilings lowered from x2.01 / x2.70 to x1.30 / x1.60. At the old
+         range the warp needed roughly 112px of vertical room -- more than any
+         header can give without covering a module -- so the modulation was
+         writing cheques the box could not cash. Measured: at these ceilings the
+         ink spans 5..90 inside 96px and never touches an edge, where the old
+         range clipped both top and bottom at every height tried. The mapping
+         still centres on the authored amplitude at the default patch. */
       smD += ((+(lastParams[4] ?? 0.28)) - smD) * 0.06;
-      warp.params.waveAmp = BASE_WAVE * (0.61 + 1.4 * smD);
-      warp.params.tremor  = BASE_TREM * (0.5 + 2.2 * kSmR);
+      warp.params.waveAmp = BASE_WAVE * (0.82 + 0.64 * smD);
+      warp.params.tremor  = BASE_TREM * (0.6 + 1.0 * kSmR);
       /* UNBOUNDED, deliberately -- the wrap was the seam. The header's claim
          that fmod(t, 8) loops seamlessly holds only for bph = 0: relocation
          happens where the envelope is zero (ph crossing a multiple of tau),
