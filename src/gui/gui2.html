@@ -91,6 +91,13 @@
        a second radius token is a second chance to disagree. Capsules (pills,
        toggles, chips) stay 999 — that is a shape, not a corner radius. */
     --r-card:10px; --r-well:var(--r-card); --r:var(--r-card); --stroke:1.5px;
+    /* the left gutter the wordmark occupies; one place, so the indents below
+       and the mark itself can never disagree about its size */
+    --logo-w:158px; --logo-h:56px;
+    /* how far a first-column element must start below the header to clear the
+       mark: mark height (120) + its top (0) - header min-height (56) - the
+       header's own 10px margin, rounded up */
+    --logo-clear:56px;
     --shadow:1.5px 1.5px 0 var(--line);
     --shadow-hover:2.5px 2.5px 0 var(--line);
     --focus:0 0 0 2.5px rgba(245,22,156,.45); }     /* a measured cost worth flagging (vibrato loss)   */
@@ -244,17 +251,17 @@
      bottom landed at page-y 74 against a card starting at 80: six pixels of
      clearance. Width trimmed to the reach plus a margin; the box also rides
      higher so the fall has somewhere to go before it meets the card. */
-  /* IN FLOW, beside the tabs -- not absolutely positioned over them (human
-     2026-08-25: "the logo covers the first module... it seems to push the
-     'editing' label over to the right"). Overlaying it needed a padding-left
-     on the tab row AND on every .oscbar title to hold content clear, and that
-     indent is what shoved "Editing" across; worse, the overlap depended on how
-     many rows the tab bar happened to wrap to, so at plugin width it landed on
-     the first card. A header row that CONTAINS both costs a little height and
-     cannot collide with anything. */
-  .hdr { display:flex; align-items:flex-start; gap:12px; margin-bottom:10px; }
-  .hdr > .tabs { flex:1 1 auto; margin-bottom:0; }
-  .brand { flex:0 0 auto; width:146px; height:96px;
+  /* A LEFT GUTTER, per the human's sketch (2026-08-25): the mark owns a tall
+     column at top-left while the chips and the first module start high on the
+     right, so the logo costs no vertical space at all -- the previous in-flow
+     header was a full-width 96px row that pushed every page down.
+     The gutter is reserved by INDENTING the two things that would otherwise
+     sit under the mark (the tab row, and the full-width Editing bar on the
+     pages that have one). Everything below the mark's height returns to full
+     width on its own, which is what the sketch shows. */
+  .hdr { position:relative; margin-bottom:10px; min-height:var(--logo-h); }
+  .hdr > .tabs { margin-bottom:0; margin-left:var(--logo-w); }
+  .brand { position:absolute; top:0; left:0; width:146px; height:120px;
            cursor:pointer; user-select:none; z-index:3; pointer-events:auto;
            image-rendering:auto;
            /* The global `canvas` rule makes every canvas a phosphor TUBE --
@@ -265,6 +272,20 @@
   /* audition: the mark without its ink edge */
   body.logo-bare { --lg-edge:none; }
   .tabs { flex-wrap:wrap; row-gap:4px; }
+  /* The full-width first bar steps right of the gutter; below it the page is
+     already past the mark, so nothing else needs to know the mark exists. */
+  #pg-MAIN.on > .oscbar, #pg-OSC.on > .oscbar { margin-left:var(--logo-w); }
+  /* Pages with no full-width bar clear the mark in their FIRST COLUMN only,
+     which is what the sketch shows: the left column starts below the mark
+     while the right column starts high. A page-wide padding-top would have
+     pushed every column down and given back the space this layout exists to
+     save. MORPH is a two-column grid, so its left cell simply takes the
+     padding; MIX/FX/SET are CSS multi-column, where a leading block flows into
+     column ONE and leaves the rest at the top -- same effect, different
+     mechanism. */
+  #pg-MORPH.on > .vizcol { padding-top:var(--logo-clear); }
+  #pg-MIX.on::before, #pg-FX.on::before, #pg-SET.on > .ctlcol::before {
+    content:''; display:block; height:var(--logo-clear); break-inside:avoid; }
 
   /* the Editing bar's own content steps aside for the overhang */
 
@@ -629,7 +650,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="hdr"><canvas class="brand" id="brand" width="146" height="96" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
+<div class="hdr"><canvas class="brand" id="brand" width="146" height="120" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -3122,7 +3143,7 @@ function tdWarp(seed) {
       sctx.textBaseline = 'middle';
       /* high in the box: the blobs pull DOWNWARD hardest, so the room has to
          be underneath the type rather than centred around it */
-      sctx.fillText('horde', 8, H * 0.38);
+      sctx.fillText('horde', 8, H * 0.34);
       SRC = sctx.getImageData(0, 0, W, H);
       DST = ctx.createImageData(W, H);
       bakedInk = ink;
