@@ -38,6 +38,15 @@ namespace hypersaw
 {
 
 constexpr int kMaxV = 32;
+// B38 SIZING INSTRUMENT, not a feature: the voice-retire threshold as a
+// compile-time override so the bench can measure cost-vs-threshold. The
+// default is the shipped literal, so every normal build -- and therefore every
+// golden -- is bit-identical; only a bench built with -DHZ_CULL_ENV=... moves.
+// The eventual B38 knob replaces this with a parameter; a macro is the
+// measurement's tool, never the product's.
+#ifndef HZ_CULL_ENV
+#define HZ_CULL_ENV 1e-4
+#endif
 constexpr int kPoly = 16;  // raised from 8 (2026-07-18: user hit the ceiling
                            // at ~6-7 held notes). 16 voices x 32 osc = trivial
                            // CPU; well inside the ADR-006 spike headroom.
@@ -808,7 +817,7 @@ private:
     const bool vEnvOn = p.voiceEnv > 0.5;          // ADR-078
     for (auto &s : voices)
     {
-      if (!s.gate && s.env < 1e-4)
+      if (!s.gate && s.env < HZ_CULL_ENV)
       {
         // RETIRE THE SLOT PROPERLY. The envelope is a one-pole: it asymptotes
         // toward zero and never arrives, so a skipped voice used to sit just

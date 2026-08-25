@@ -2831,12 +2831,28 @@ function drawStrips(s) {
   }
 }
 
+let vmHadData = false;
 function drawVmap(s) {
   const w = vmC.width, h = vmC.height;
+  const live = s && s.active && !s.spectra && s.vmVf && s.vmVf.length && s.vmF0 > 0;
+  /* PERSIST on silence (human 2026-08-25: "can we get the voice map visualizer
+     to persist?"). The painter used to repaint the faded ground + scanlines on
+     EVERY frame and only then bail on an inactive snapshot -- so the moment
+     the last voice retired, the 0.35-alpha ground ate the picture in ~10
+     frames and the panel went blank exactly when you wanted to study where
+     the voices had landed. Now an inactive frame touches nothing: the last
+     picture freezes until new data arrives (or a scheme change clears every
+     canvas, after which the next note repaints). The ground is painted once
+     up front so a never-played panel is still a tube, not transparency. */
+  if (!live) {
+    if (!vmHadData) { vmx.fillStyle = TOKA('--scr-tube', 0.35);
+      vmx.fillRect(0, 0, w, h); scan(vmx, w, h, scanA() * 0.35); }
+    return;
+  }
+  vmHadData = true;
   vmx.fillStyle = TOKA('--scr-tube', 0.35);
   vmx.fillRect(0, 0, w, h);
   scan(vmx, w, h, scanA() * 0.35);
-  if (!s || !s.active || s.spectra || !s.vmVf || !s.vmVf.length || !(s.vmF0 > 0)) return;
   let dev = 1e-6;
   for (let i = 0; i < s.vmVf.length; i++) {
     dev = Math.max(dev, Math.abs(Math.log2(Math.max(1e-6, s.vmVf[i]) / s.vmF0)),
