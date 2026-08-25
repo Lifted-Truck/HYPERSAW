@@ -792,6 +792,18 @@
       clipboard, because clipboard-read permission is unreliable inside plugin
       webviews while a paste box behaves the same everywhere.</div>
   </div>
+  <div class="cluster"><h2>Performance</h2>
+    <!--GEN:SET-->
+  <div class="cluster"><h2>Performance</h2>
+    <div class="row kcell" data-addr="voiceCull"><label>Voice Cull <span class="u">dB</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="160" min="-80" max="-40" step="0.005" value="-80"><span class="kmnow"></span></span><output></output></div>
+  </div>
+  <!--/GEN:SET-->
+    <div class="note">Voice Cull sets how quiet a released note gets before the
+      engine stops rendering it. Raising it frees CPU in proportion to how many
+      tails you stack up — most under fast playing with short releases — but it
+      is audible: at &minus;40&nbsp;dB a tail is still present in a quiet mix.
+      &minus;80&nbsp;dB is the shipped behaviour.</div>
+  </div>
   <div class="cluster"><h2>Panic</h2>
     <div class="btnline" id="setPanic"></div>
     <div class="note">Also permanently in the tab bar: it is the control you

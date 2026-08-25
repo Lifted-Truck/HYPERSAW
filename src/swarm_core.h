@@ -161,6 +161,10 @@ struct Params
     // ADR-094 saw shape (glass), folded from the detune lab. BOTH default to 0
     // and each stage is guarded, so an untouched patch is bit-identical.
     double sawBase = 0, sawProfile = 0, round = 0, roundHi = 0;
+    // B38: retire threshold in dB. -80 is the shipped constant expressed in the
+    // unit the player hears the trade in; see the guard at the use site for why
+    // the default must convert back EXACTLY.
+    double voiceCull = -80;
   // Two-cluster A/B balance (ADR-051): 0 = both clusters full K (bit-inert
   // default); >0 scales cluster B's intra-coupling by kB = 1-2*balance, so one
   // knob sweeps symmetric → B-uncoupled (0.5) → B-splayed (1.0, kB=-1).
@@ -812,12 +816,21 @@ private:
     // Keeping it per-call is what confines this change to what was approved.
     const double *PL = panMotionOn ? panLm : panL;
     const double *PR = panMotionOn ? panRm : panR;
+    /* B38: dB -> linear, once per tick (~2756/s; unmeasurable beside the voice
+       loop). The DEFAULT IS SPECIAL-CASED and that is not laziness: pow(10,-4)
+       is not guaranteed to return the same bits as the literal 1e-4, and a
+       one-ULP difference in the retire threshold changes which sample a voice
+       stops on -- which is a golden diff. The branch makes the shipped default
+       bit-identical by construction rather than by hoping libm agrees. */
+    const double cullEnv = (p.voiceCull <= -79.9999)
+                             ? HZ_CULL_ENV
+                             : std::pow(10.0, p.voiceCull / 20.0);
     const int osSub = p.oversample > 0.5 ? 2 : 1;   // ADR-075
     const bool ensOn = p.onsetScatter > 0;         // ADR-077
     const bool vEnvOn = p.voiceEnv > 0.5;          // ADR-078
     for (auto &s : voices)
     {
-      if (!s.gate && s.env < HZ_CULL_ENV)
+      if (!s.gate && s.env < cullEnv)
       {
         // RETIRE THE SLOT PROPERLY. The envelope is a one-pole: it asymptotes
         // toward zero and never arrives, so a skipped voice used to sit just
@@ -1173,6 +1186,7 @@ public:
     if (k == "onsetAlpha") return &p.onsetAlpha;      // ADR-077 correction gain
     if (k == "attackScatter") return &p.attackScatter;
     if (k == "voiceEnv") return &p.voiceEnv;          // ADR-078 per-voice ADSR
+    if (k == "voiceCull") return &p.voiceCull;        // B38 retire threshold (dB)
     if (k == "relScatter") return &p.relScatter;
     return nullptr;
   }
