@@ -544,8 +544,18 @@
   .row.kcell.owned { box-shadow:none; border-top:3px solid var(--own);
     padding-top:3px; }                      /* a column cell wears its stripe on top */
   /* A column cell wears its stripe on top, so its ghost does too -- matching
-     `.row.kcell.owned` one property across, exactly as the row case does. */
-  .row.kcell.ghost { box-shadow:none; padding-top:3px;
+     `.row.kcell.owned` one property across, exactly as the row case does.
+     `border-top:0` is LOAD-BEARING and was missing: a cell is normally BOTH
+     owned and ghost (owned by one corner, seen while a different one is
+     armed), so `.owned`'s 3px solid border survived underneath. Worse, it
+     survived ABOVE: background-origin is the padding box, which a 3px border
+     pushes down, so the dashes landed 3px below the solid line and the cell
+     wore two stacked stripes in two colours (human 2026-08-25: "the horizontal
+     lines are offset from the solid line"). The vertical `.row.ghost` never
+     had this only because `.owned` marks it with an inset box-shadow, which
+     `box-shadow:none` already clears -- the two cases were not actually
+     symmetrical, which is what the comment above wrongly assumed. */
+  .row.kcell.ghost { box-shadow:none; border-top:0; padding-top:3px;
     background-image:
       repeating-linear-gradient(to right, var(--armc, var(--line)) 0 5px, transparent 5px 8px),
       linear-gradient(var(--armc-deep, var(--line)), var(--armc-deep, var(--line)));
