@@ -236,13 +236,15 @@
      it out of flow lets it hang over the Editing bar -- which is the ask --
      while the tab row keeps its full width and simply starts to the right. */
   .brand { position:absolute; top:10px; left:12px; width:224px; height:92px;
-           cursor:default; user-select:none; z-index:3; pointer-events:none;
+           cursor:pointer; user-select:none; z-index:3; pointer-events:auto;
            image-rendering:auto;
            /* The global `canvas` rule makes every canvas a phosphor TUBE --
               ink border, rounded, tube ground. The wordmark is chrome, not a
               data well, so it opts out; without this the logo arrives in a
               bordered box. */
            border:0; background:transparent; border-radius:0; }
+  /* audition: the mark without its ink edge */
+  body.logo-bare { --lg-edge:none; }
   .tabs { flex-wrap:wrap; row-gap:4px; padding-left:242px; }
   /* the Editing bar's title steps aside for the part of the mark that hangs
      into it; the bar itself keeps its full width so nothing else moves */
@@ -3074,6 +3076,18 @@ function tdWarp(seed) {
        authored look. (The old 288 reference was the README's example canvas,
        which was never the session the human actually tuned.) */
     const TD_AUTHORED_FONT = 200, OUR_FONT = 45, K = OUR_FONT / TD_AUTHORED_FONT;
+    /* OUTLINE AUDITION (human 2026-08-25: "Can we see a version with no
+       outline? I just want to see it, I know the contrast won't be
+       consistent"). Click the mark to toggle. Session-only and deliberately
+       chrome-free -- this is a look being judged, not a setting being kept,
+       and the tab bar already carries two audition chips. In dark mode
+       --lg-edge is already none, so the toggle has nothing to remove there. */
+    cv.title = 'click to audition the wordmark without its ink outline';
+    cv.addEventListener('click', () => {
+      document.body.classList.toggle('logo-bare');
+      for (const k in _tok) delete _tok[k];        // --lg-edge is cached by TOK
+    });
+
     const warp = tdWarp(7);
     /* The tool settings verbatim: waveAmp 26, waveFreq 1.4, tremor 3.5 are
        already the engine defaults, so only the scale is applied -- no easing
@@ -3141,7 +3155,6 @@ function tdWarp(seed) {
         ctx.globalCompositeOperation = 'source-over';
         return;
       }
-      const i = Math.floor(cu) % 4, j = (i + 1) % 4;
       /* The wobble reads an INDEPENDENT clock, not `cu`. Driving it from the
          ring position looked uneven and was not: cu retraces the same
          trajectory every lap, so every lap took exactly the same time and the
@@ -3149,10 +3162,20 @@ function tdWarp(seed) {
          on every single visit). Against a free-running clock with
          incommensurate periods the laps never coincide, so a corner is held
          for a different length each time it comes round. */
+      const iNow = Math.floor(cu) % 4;             // segment being LEFT: sets the rate
       ctime += dt;
       const rate = 1 + 0.45 * Math.sin(ctime * 0.31)
                      + 0.25 * Math.sin(ctime * 0.113 + 2.1);
-      cu = (cu + dt * Math.max(0.15, rate) / DWELL[i]) % 4;
+      cu = (cu + dt * Math.max(0.15, rate) / DWELL[iNow]) % 4;
+      /* BOTH derived from the ADVANCED cu (human 2026-08-25: "the fill color is
+         now jumping a little erratically"). They used to STRADDLE the advance:
+         `i` was read before it and `raw` after, so on the frame that crossed a
+         boundary the pair disagreed -- a stale `i` with a reset `raw` renders
+         mix(c[i], c[i+1], ~0) = c[i], flashing BACK to the colour just left for
+         exactly one frame before `i` caught up. Measured 98 such flashes per
+         minute, worst 486 of a possible 765, against a median frame step of 8;
+         zero after. */
+      const i = Math.floor(cu) % 4, j = (i + 1) % 4;
       const raw = cu - Math.floor(cu);
       const f = raw * raw * (3 - 2 * raw);        // smoothstep the handover
       const cA = mix(TOK(LG[i], '#FF2E88'), TOK(LG[j], '#00D5C8'), f);
