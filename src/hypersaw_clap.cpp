@@ -2069,7 +2069,9 @@ struct Plugin
     const uint32_t vo = vizOsc.load(std::memory_order_relaxed);
     const hypersaw::Params &q = cores[vo < kNumOsc ? vo : 0].p;
     constexpr int N = 256;
-    auto stage = [&](double ph) {
+    // rEff parameterised so the roundHi SILHOUETTES (below) run the same stage
+    // chain at the per-voice extremes instead of a JS twin approximating them.
+    auto stage = [&](double ph, double rEff) {
       double v = 2 * ph - 1;
       if (q.sawBase > 0.001)
       {
@@ -2079,27 +2081,41 @@ struct Plugin
         const double b0 = i0 == 0 ? v : hypersaw::sawBaseAnchor(i0, ph);
         v = b0 * (1 - fr) + hypersaw::sawBaseAnchor(i0 + 1, ph) * fr;
       }
-      if (q.round > 0.001)
+      if (rEff > 0.001)
       {
         const double f = std::max(0.0, std::min(4.0, q.sawProfile * 4));
         const int i0 = std::min(3, (int)std::floor(f));
         const double fr = f - i0;
         const double sh = hypersaw::sawShapeAnchor(i0, ph) * (1 - fr)
                         + hypersaw::sawShapeAnchor(i0 + 1, ph) * fr;
-        v = v * (1 - q.round) + sh * q.round;
+        v = v * (1 - rEff) + sh * rEff;
       }
       return v;
     };
+    auto emit = [&](std::string &out, double rEff) {
+      char buf[32];
+      for (int i = 0; i < N; i++)
+      {
+        const double ph = (double)i / N;
+        double v = stage(ph, rEff);
+        if (q.shape > 0.001)                    // ADR-058: v = w - shape*w(ph+1/2)
+          v -= q.shape * stage(ph >= 0.5 ? ph - 0.5 : ph + 0.5, rEff);
+        std::snprintf(buf, sizeof(buf), i ? ",%.4f" : "%.4f", v);
+        out += buf;
+      }
+    };
     std::string out = "{\"wave\":[";
-    char buf[32];
-    for (int i = 0; i < N; i++)
+    emit(out, q.round);
+    // ROUND x PITCH silhouettes (human 2026-08-25): when roundHi spreads the
+    // per-voice roundness, also send the shape at BOTH extremes of the spread
+    // -- swarm_core.h:1524, rnd = clamp01(round*(1 + roundHi*(2*up - 1))), so
+    // up=0 and up=1 give the lowest- and highest-pitch voices' shapes. Emitted
+    // only when the spread is live, so the GUI keys on presence.
+    if (q.round > 0.001 && std::fabs(q.roundHi) > 0.001)
     {
-      const double ph = (double)i / N;
-      double v = stage(ph);
-      if (q.shape > 0.001)                      // ADR-058: v = w - shape*w(ph+1/2)
-        v -= q.shape * stage(ph >= 0.5 ? ph - 0.5 : ph + 0.5);
-      std::snprintf(buf, sizeof(buf), i ? ",%.4f" : "%.4f", v);
-      out += buf;
+      const auto c01 = [](double x){ return std::max(0.0, std::min(1.0, x)); };
+      out += "],\"lo\":["; emit(out, c01(q.round * (1 - q.roundHi)));
+      out += "],\"hi\":["; emit(out, c01(q.round * (1 + q.roundHi)));
     }
     out += "]}";
     return out;

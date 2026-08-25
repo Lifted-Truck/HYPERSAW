@@ -1,0 +1,29 @@
+# B41 findings 1 + 6: the x4 min-spec derate has never been measured on real
+# x86, and denormal cost has never been measured anywhere. This workflow is
+# both measurements on a real x86_64 runner. Trigger by hand or by pushing a
+# branch named measure/*.
+name: cpu-derate
+on:
+  workflow_dispatch:
+  push:
+    branches: ['measure/**', 'env-viz-and-measurements']
+jobs:
+  derate-x86:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: cpu_bench (core only, single TU)
+        run: |
+          g++ -O3 -std=c++20 -o cpu_bench tools/cpu_bench.cpp
+          echo "== cpu_bench on $(nproc)x $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2) =="
+          ./cpu_bench
+      - name: build user_patch_bench
+        run: |
+          cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target user_patch_bench -j"$(nproc)"
+      - name: denormal A/B (finding 1)
+        run: |
+          BIN=$(find build -name user_patch_bench -type f | head -1)
+          echo "== baseline (IEEE denormals) =="; "$BIN"
+          echo "== HZ_FTZ=1 (flush-to-zero) ==";  HZ_FTZ=1 "$BIN"

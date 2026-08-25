@@ -12,8 +12,25 @@
 namespace {
 #include "notefuzz_scaffold.inc"
 }
+#include <cfenv>
+#include <cstring>
 int main()
 {
+  // HZ_FTZ=1 enables flush-to-zero/denormals-are-zero for the whole run -- the
+  // A/B for B41's audit finding 1 (no denormal protection anywhere in src/).
+  // In the BENCH only: measure first, then decide where FTZ belongs.
+  if (const char *e = std::getenv("HZ_FTZ"); e && *e == '1')
+  {
+#if defined(FE_DFL_DISABLE_DENORMS_ENV)
+    fesetenv(FE_DFL_DISABLE_DENORMS_ENV);
+    std::printf("user_patch_bench: FTZ/DAZ ENABLED for this run\n");
+#elif defined(__SSE2__)
+    _mm_setcsr(_mm_getcsr() | 0x8040);          // FTZ | DAZ
+    std::printf("user_patch_bench: FTZ/DAZ ENABLED (SSE) for this run\n");
+#else
+    std::printf("user_patch_bench: HZ_FTZ set but no FTZ mechanism on this target\n");
+#endif
+  }
   hypersaw_entry_init("");
   auto *factory=(const clap_plugin_factory_t*)hypersaw_entry_get_factory(CLAP_PLUGIN_FACTORY_ID);
   const double sr=48000.0; const uint32_t BLK=64;   // the DAW's likely settings, not the bench's
