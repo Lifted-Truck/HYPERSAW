@@ -541,7 +541,15 @@
      default above, so an unpainted button never LOOKS on. */
   /* the owning corner, as a stripe down the row's leading edge — readable at a
      glance across a dense panel without recolouring anything load-bearing */
-  .row.owned { box-shadow:inset 3px 0 0 var(--own); padding-left:5px; }
+  /* Ownership is the BAR's job alone (human 2026-08-25: "leave the text color
+     alone and just use the colored bars"). The label used to take the corner's
+     FILL as its text colour, and corner A's #FFD702 reads 1.34:1 on the light
+     panel -- the fourth site of the same invisible-yellow family (marker,
+     corner swatch, ghost labels, now this). A stripe never has that problem:
+     it sits against whatever is beside it at full saturation and needs no
+     contrast with the ground to be identifiable.
+     padding 5 -> 9px: a 3px stripe left only 2px of air before the text. */
+  .row.owned { box-shadow:inset 3px 0 0 var(--own); padding-left:9px; }
   /* ARMED VIEW: rows this corner does not own show its STORED value, which is
      not what you are hearing — provisional, so it recedes.
      It used to draw a 3px dotted BORDER while `.owned` drew a quiet inset
@@ -557,7 +565,6 @@
      yellow already fixed elsewhere. Secondary text is legible in both modes. */
   .row.ghost { box-shadow:none; opacity:.5; }
   .row.ghost > label { color:var(--t2); }
-  .row.owned > label { color:var(--own); }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
            background:var(--panel,#FCFAF4); border:1px solid var(--line);
            border-radius:var(--r); box-shadow:var(--shadow); font-size:11px; }
