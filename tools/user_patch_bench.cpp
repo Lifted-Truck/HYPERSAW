@@ -14,6 +14,9 @@ namespace {
 }
 #include <cfenv>
 #include <cstring>
+#if defined(__SSE2__)
+#include <xmmintrin.h>   // _mm_getcsr/_mm_setcsr — not pulled in by libc on gcc
+#endif
 int main()
 {
   // HZ_FTZ=1 enables flush-to-zero/denormals-are-zero for the whole run -- the
