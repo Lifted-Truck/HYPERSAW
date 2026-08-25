@@ -452,9 +452,19 @@
     border-radius:var(--r); background:var(--panel); color:var(--text);
     font:inherit; cursor:pointer; }
   .armBox { position:relative; }
+  /* Hit extension capped at the PITCH, not the §3 floor. The chips sit 17px
+     apart (14px face + 3px gap), and a 28px extender is wider than the pitch:
+     the later sibling paints above the earlier one, so each chip's extender
+     covered the right ~4px of its left neighbour's FACE — clicking the right
+     edge of a square armed the WRONG corner, and the whole row felt offset
+     left (human 2026-08-25: "clickable boxes around the corner squares offset
+     a little"). When targets are packed tighter than the floor, the honest
+     maximum is the pitch; height keeps the full 28 because nothing is stacked
+     vertically. Verified by hit-probing the painted extents of all four chips,
+     not by assuming the arithmetic. */
   .armBox::before {
     content:''; position:absolute; left:50%; top:50%;
-    width:28px; height:28px; transform:translate(-50%,-50%); }
+    width:17px; height:28px; transform:translate(-50%,-50%); }
 
   /* ============ §4 KNOB (ADR-120) ============
      A SKIN over the range input, never a replacement — the input stays as the

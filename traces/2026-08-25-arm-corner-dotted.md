@@ -55,3 +55,24 @@ on its face — both would have been reported as passes.
 **Verify.** `./verify fast` exit 0; `gen_gui_controls` GREEN (markup current);
 plugin rebuilds with the embedded GUI. No DSP touched, so parity is untouched by
 construction.
+
+---
+
+## Follow-up, same day — "this fix didn't work at all"
+
+**The fix never reached Live.** The installed plugin was from 11:15 (pre-fix);
+the fix was built at 18:01 and never installed — installs need
+`dangerouslyDisableSandbox` and so never happen as a build side effect. Proven
+by marker grep: installed binary had 0 hits for `repeating-linear-gradient`,
+built binary had 3. (First grep read 0 on BOTH — BSD grep needs `-a` on
+binaries; caught by the `arming` control string. Blind probe number three.)
+Now installed, re-signed after copy, seals verified, AU cache reset. → L0042.
+
+**The offset corner squares were real and older.** Each 14px armBox chip
+carries a §3 hit extender that was 28px wide on a 17px pitch, so each chip's
+extender covered the right ~4px of its left neighbour's painted face — the
+right edge of every square armed the WRONG corner. Shipped with the ADR-118
+widget-state sweep, so it predates today's branch; the user noticed it now
+because arming is the feature under test. Fixed: extender width = pitch (17px),
+height stays 28. Verified by sweeping every painted pixel-column of all four
+chips (0 wrong-owner columns; must-fire control with 28px re-injected: 12).
