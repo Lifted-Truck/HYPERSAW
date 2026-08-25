@@ -214,7 +214,13 @@
      height and also go wider"). The negative bottom margin is what lets it
      overhang WITHOUT growing the tab row -- the row keeps its height and the
      mark simply hangs into the bar beneath, which is the effect asked for. */
-  /* DISPLAYED at 224x64, RENDERED at 168x48 and upscaled. That is the
+  /* RENDERED AT 224x64, 1:1 with the CSS box (human 2026-08-24: "it's
+     blurry"). The previous 168x48 store was CSS-stretched 1.33x before the
+     display's own devicePixelRatio even applied, so every glyph edge was
+     resampled twice. 1:1 removes the avoidable half; rendering at full dpr
+     would quadruple the warp's per-pixel cost on retina and stays declined
+     until someone misses it. (Superseded text follows; kept for the ratio
+     reasoning:) DISPLAYED at 224x64, RENDERED at 168x48 and upscaled. That is the
      module README's own guidance -- "render at half resolution and upscale --
      the effect is soft anyway" -- and it is the difference between 13.1% of a
      core and about 2.5%: the warp is O(W*H) with a sin per pixel, so the
@@ -583,7 +589,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="168" height="48" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
+<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="224" height="64" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -3014,9 +3020,9 @@ function tdWarp(seed) {
       sctx.fillStyle = ink;
       /* Helvetica per the session JSON ("font": "Helvetica") -- the mark had
          been borrowing the UI's monospace, which was never art-directed. */
-      sctx.font = '700 34px Helvetica,"Helvetica Neue",Arial,sans-serif';
+      sctx.font = '700 45px Helvetica,"Helvetica Neue",Arial,sans-serif';
       sctx.textBaseline = 'middle';
-      sctx.fillText('horde', 6, H / 2);
+      sctx.fillText('horde', 8, H / 2);
       SRC = sctx.getImageData(0, 0, W, H);
       DST = ctx.createImageData(W, H);
       bakedInk = ink;
@@ -3039,7 +3045,7 @@ function tdWarp(seed) {
        to the glyphs. Displacement relative to the TYPE is what preserves the
        authored look. (The old 288 reference was the README's example canvas,
        which was never the session the human actually tuned.) */
-    const TD_AUTHORED_FONT = 200, OUR_FONT = 34, K = OUR_FONT / TD_AUTHORED_FONT;
+    const TD_AUTHORED_FONT = 200, OUR_FONT = 45, K = OUR_FONT / TD_AUTHORED_FONT;
     const warp = tdWarp(7);
     /* The tool settings verbatim: waveAmp 26, waveFreq 1.4, tremor 3.5 are
        already the engine defaults, so only the scale is applied -- no easing
@@ -3049,12 +3055,23 @@ function tdWarp(seed) {
     warp.params.waveAmp *= K;
     warp.params.tremor  *= K;
     const BASE_WAVE = warp.params.waveAmp, BASE_TREM = warp.params.tremor;
-    /* NO strokes, NO fields: the human's session JSON has both empty. The
-       look they tuned is wave + tremor alone -- the blobs and swirl I kept
-       carrying forward were the README's example, not their art direction,
-       and they were also the only elements that could seam (see the unbounded
-       clock below). What varies at runtime now comes from the LEXICON: the
-       synth plays the logo. */
+    /* THE SESSION'S STROKES AND FIELDS, verbatim (corrected settings JSON,
+       2026-08-24 -- the earlier paste had both empty, which is why the blob
+       dynamics vanished; this one carries two blobs and two swirl fields).
+       amp/rad scale by K; sc/rot are unitless; r1/r2/cyc/bph are the exact
+       rolls from the tool, which is the point of hash parity -- this IS the
+       animation the human art-directed, not a homage to it. Both strokes are
+       blob:true, so their x0/y0 are hash-relocated per cycle exactly as in
+       the tool; with the UNBOUNDED clock every relocation lands where the
+       envelope is zero, so the seam class stays dead. */
+    warp.addBlob(117.67534376865139 * K, 47.87252228922112 * K,
+                 0.7035143339442531, 0.3147373015901911, 2, 3.4454990687082927);
+    warp.addBlob(71.4473354749417 * K, 79.18600416618574 * K,
+                 0.7303262990254228, 0.20458152460366485, 2, 1.1934938693140864);
+    warp.addSwirl(134.69669851752556 * K, -0.5233313135724312,
+                  -0.48917431962495467, 1, 4.827469642758654);
+    warp.addSwirl(108.93653939929409 * K, 0.532155537777295,
+                  -0.6532128975413898, 2, 0.717080792499773);
 
     /* ---- corner-colour drift (human: "unevenly shift between the four morph
        colors") ------------------------------------------------------------
