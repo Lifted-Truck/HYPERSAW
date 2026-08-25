@@ -235,7 +235,16 @@
      page tabs onto a second line and then its own overhang covered them; taking
      it out of flow lets it hang over the Editing bar -- which is the ask --
      while the tab row keeps its full width and simply starts to the right. */
-  .brand { position:absolute; top:10px; left:12px; width:224px; height:92px;
+  /* FITTED TO THE INK, measured rather than guessed (human 2026-08-25: "a
+     little too much space to the right but not quite enough space to the
+     bottom"). Over three full cycles at the LEXICON MAXIMA -- waveAmp x2.01 at
+     full detune, tremor x2.7 at full R, which is the real bound and not the
+     default-params one I first measured -- the mark spans x 11..133 and
+     y 0..64. So 224 wide carried 91px of dead air on the right, while the ink
+     bottom landed at page-y 74 against a card starting at 80: six pixels of
+     clearance. Width trimmed to the reach plus a margin; the box also rides
+     higher so the fall has somewhere to go before it meets the card. */
+  .brand { position:absolute; top:3px; left:12px; width:146px; height:92px;
            cursor:default; user-select:none; z-index:3; pointer-events:none;
            image-rendering:auto;
            /* The global `canvas` rule makes every canvas a phosphor TUBE --
@@ -243,10 +252,10 @@
               data well, so it opts out; without this the logo arrives in a
               bordered box. */
            border:0; background:transparent; border-radius:0; }
-  .tabs { flex-wrap:wrap; row-gap:4px; padding-left:242px; }
+  .tabs { flex-wrap:wrap; row-gap:4px; padding-left:166px; }
   /* the Editing bar's title steps aside for the part of the mark that hangs
      into it; the bar itself keeps its full width so nothing else moves */
-  .oscbar > h2 { padding-left:242px; }
+  .oscbar > h2 { padding-left:166px; }
   /* the Editing bar's own content steps aside for the overhang */
 
   .tab { padding:4px 14px; border:var(--stroke) solid var(--line); border-radius:999px; min-height:28px;
@@ -594,7 +603,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="224" height="92" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
+<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="146" height="92" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
