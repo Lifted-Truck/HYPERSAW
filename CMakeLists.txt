@@ -337,6 +337,15 @@ if(NOT MSVC)
   target_compile_options(steal_check PRIVATE -O2)
 endif()
 
+# gain_probe: scratch diagnostic for the 2026-08-25 "too quiet on many
+# settings" report. Measures peak/RMS dBFS out of the real plugin across voice
+# count, coupling K and normExp. Not a gate; not run by ./verify.
+add_executable(gain_probe tools/gain_probe.cpp)
+target_link_libraries(gain_probe PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(gain_probe PRIVATE -O2)
+endif()
+
 add_executable(notefuzz_check tools/notefuzz_check.cpp)
 target_link_libraries(notefuzz_check PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
