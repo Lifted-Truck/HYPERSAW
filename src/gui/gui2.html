@@ -331,7 +331,15 @@
      comment promised: MAIN now takes the same left/right split as OSC. */
   @media (max-width: 720px) { #pg-MAIN.on, #pg-OSC.on, #pg-MORPH.on { grid-template-columns: 1fr; } }
   /* superseded by the ADR-098 flow rule below */
-  .cluster { background:var(--panel); border:1px solid var(--line);
+  /* ONE ink stroke for every BOX (human 2026-08-25: "stroke width
+     inconsistency across bounding boxes"). The audit found the split running
+     through peer surfaces: the CARD was 1px while its own buttons were 1.5px,
+     and canvases disagreed with each other because per-canvas rules overrode
+     the global `canvas { border:var(--stroke) }` with 1px. Every full-box
+     border now reads var(--stroke), same move as the --r radius
+     consolidation. Single-EDGE rules (the pmenu title underline) are
+     dividers, not box strokes -- a different class, left alone like --hair. */
+  .cluster { background:var(--panel); border:var(--stroke) solid var(--line);
     border-radius:var(--r); padding:8px 10px; min-width:0; }
   h2 { font-size:11px; color:var(--pull); letter-spacing:1px; margin-bottom:6px; }
   /* No frame and no ground: the cluster around it is already the frame, and a
@@ -345,14 +353,14 @@
   .strip > b { display:none; }
   .msrow { display:flex; gap:4px; align-items:center; margin:4px 0 2px; }
   .msbtn { flex:0 0 auto; font-size:9px; letter-spacing:1px; padding:2px 7px;
-           border:1px solid var(--line); border-radius:var(--r); background:var(--panel);
+           border:var(--stroke) solid var(--line); border-radius:var(--r); background:var(--panel);
            color:var(--dim); cursor:pointer; user-select:none; }
   .msbtn.on[data-ms="m"] { background:var(--alarm); border-color:var(--line); color:#FCF0EE; }
   .msbtn.on[data-ms="s"] { background:var(--caution); border-color:var(--line); color:var(--line); }
   /* Dimmed by ANOTHER strip's solo — distinct from self-muted, or the mixer
      lies about which control silenced you. */
   .strip.bysolo { opacity:.45; }
-  .meter { flex:1 1 auto; height:6px; background:var(--panel2); border:1px solid var(--line);
+  .meter { flex:1 1 auto; height:6px; background:var(--panel2); border:var(--stroke) solid var(--line);
            border-radius:var(--r); overflow:hidden; }
   .meter i { display:block; height:100%; width:0%; background:var(--celebrate);
              transition:width .05s linear; }
@@ -404,7 +412,7 @@
   input[type=checkbox]::after {
     content:''; position:absolute; top:1px; left:1px;
     width:11px; height:11px; border-radius:999px;
-    background:var(--panel); border:1px solid var(--line);
+    background:var(--panel); border:var(--stroke) solid var(--line);
     transition:transform .12s ease; }
   input[type=checkbox]:checked { background:var(--value); }
   input[type=checkbox]:checked::after { transform:translateX(15px); }
@@ -436,6 +444,13 @@
      way the toggle does. Verified by hit-testing 5px and 10px outside the
      painted box, not by assuming a pseudo-element takes clicks. */
   button:not(.armBox) { min-height:28px; }
+  /* Buttons never had a border rule -- they rode the UA default (2px outset),
+     the one box the stroke sweep could not see because it was set nowhere.
+     :where() keeps this at ZERO specificity, so every deliberately styled
+     button (.chip's border:0, .oscTab, .msbtn, the panic red) still wins. */
+  button:where(:not(.armBox)) { border:var(--stroke) solid var(--line);
+    border-radius:var(--r); background:var(--panel); color:var(--text);
+    font:inherit; cursor:pointer; }
   .armBox { position:relative; }
   .armBox::before {
     content:''; position:absolute; left:50%; top:50%;
@@ -526,17 +541,17 @@
   input:focus-visible, select:focus-visible, button:focus-visible,
   .tab:focus-visible, [tabindex]:focus-visible {
     outline:none; box-shadow:var(--focus); }
-  #xy { aspect-ratio:1.6; background:var(--panel2); border:1px solid var(--line);
+  #xy { aspect-ratio:1.6; background:var(--panel2); border:var(--stroke) solid var(--line);
     cursor:crosshair; width:100%; }
   .oscSel { display:inline-flex; gap:3px; margin-left:8px; }
   .oscSel .oscTab { font:inherit; font-size:10px; padding:1px 7px; cursor:pointer;
-    background:var(--panel2); color:var(--dim); border:1px solid var(--line); border-radius:var(--r); }
+    background:var(--panel2); color:var(--dim); border:var(--stroke) solid var(--line); border-radius:var(--r); }
   .oscSel .oscTab.on { color:var(--bg); background:var(--line); border-color:var(--line); font-weight:600; }
   .oscSel .oscTab.silent { opacity:.62; }
   .oscSel .oscTab.on.silent { opacity:1; }
   .oscSel .oscTab.oscoff { text-decoration:line-through; opacity:.45; }
   .oscPow { font:inherit; font-size:11px; padding:1px 5px; cursor:pointer; background:none;
-            border:1px solid var(--line); border-radius:var(--r); color:var(--dim); opacity:.55; }
+            border:var(--stroke) solid var(--line); border-radius:var(--r); color:var(--dim); opacity:.55; }
   /* ON glows white like a selected osc tab (human 2026-08-21); OFF is the dim
      default above, so an unpainted button never LOOKS on. */
   /* the owning corner, as a stripe down the row's leading edge — readable at a
@@ -566,7 +581,7 @@
   .row.ghost { box-shadow:none; opacity:.5; }
   .row.ghost > label { color:var(--t2); }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
-           background:var(--panel,#FCFAF4); border:1px solid var(--line);
+           background:var(--panel,#FCFAF4); border:var(--stroke) solid var(--line);
            border-radius:var(--r); box-shadow:var(--shadow); font-size:11px; }
   .pmenuHead { display:flex; justify-content:space-between; gap:10px; padding:4px 7px 6px;
                border-bottom:1px solid var(--line); color:var(--text); font-weight:600; }
@@ -579,7 +594,7 @@
   .row.exempt > label::after { content:' \2298'; color:var(--pull); opacity:.8; }
   .row.exempt { opacity:.92; }
   .armSel { display:inline-flex; gap:3px; margin-left:10px; vertical-align:middle; }
-  .armBox { width:14px; height:14px; border:1px solid var(--line); border-radius:4px;
+  .armBox { width:14px; height:14px; border:var(--stroke) solid var(--line); border-radius:4px;
             cursor:pointer; padding:0; opacity:.45; }
   .armBox.armed { opacity:1; box-shadow:0 0 7px currentColor; border-color:var(--text);
                   outline:1px solid var(--text); }
@@ -589,10 +604,10 @@
   .oscPow.on { color:var(--bg); background:var(--text); border-color:var(--text);
                opacity:1; box-shadow:var(--shadow); }   /* §3 bans blur — hard offset only */
   .note { color:var(--dim); font-size:10.5px; }
-  canvas.xy { aspect-ratio:1.6; border:1px solid var(--line);
+  canvas.xy { aspect-ratio:1.6; border:var(--stroke) solid var(--line);
               width:100%; touch-action:none; }
   #carpetC, #stripC, #vmapC { width:100%;
-                              border:1px solid var(--line); display:block; }
+                              border:var(--stroke) solid var(--line); display:block; }
   .vlabel { color:var(--t2); font-size:10px; margin:6px 0 3px; }
   /* the phase-circle readout: FIXED format, tabular digits, reserved height —
      it must not grow and shrink with what happens to be measurable (human). */
@@ -626,7 +641,7 @@
   .cluster.folded > h2::before { transform:rotate(-90deg); }
   .cluster.folded > *:not(h2) { display:none; }
   canvas.gviz { width:100%; height:auto; display:block;
-                border:1px solid var(--line); border-radius:var(--r); margin-bottom:6px; }
+                border:var(--stroke) solid var(--line); border-radius:var(--r); margin-bottom:6px; }
 </style></head><body>
 
 <!-- PANIC. The plugin has had an all-notes-off since 2026-08-03 (it now also
