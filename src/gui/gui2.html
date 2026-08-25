@@ -548,7 +548,7 @@
   .row.kcell.ghost { box-shadow:none; padding-top:3px;
     background-image:
       repeating-linear-gradient(to right, var(--armc, var(--line)) 0 5px, transparent 5px 8px),
-      linear-gradient(var(--line), var(--line));
+      linear-gradient(var(--armc-deep, var(--line)), var(--armc-deep, var(--line)));
     background-size:100% 3px, 100% 3px;
     background-position:left top, left top; background-repeat:no-repeat, no-repeat; }
   /* A knob cell dims through COLOUR on the label and opacity on the knob --
@@ -615,16 +615,19 @@
   /* Painted as two stacked background layers rather than a dotted BORDER, for
      a measured reason: a dotted border is ~half ground, and corner A (#FFD702)
      measures 1.34:1 against the panel, D 1.31 and C 1.77 -- three of the four
-     corners were invisible as dots. The continuous `--line` layer underneath
-     carries the contrast and the colour dashes sit ON it, which is the same
-     answer already ratified for the logo (full-value fill, dark edge does the
-     legibility work). The gradient also lets the duty cycle be chosen: 5 on,
-     3 off reads as broken while keeping 62% of the stripe's mass, where a
-     dotted border keeps ~50% of a much smaller dot. */
+     corners were invisible as dots. The continuous underlay carries the
+     contrast and the colour dashes sit ON it. The underlay is --armc-deep (the
+     corner colour mixed 55% toward --line, set in paintArm) rather than --line
+     itself: an ink underlay made the stripe alternate colour/black in light
+     mode and colour/white in dark, which the human rejected on sight. The deep
+     shade keeps the whole stripe in one hue -- a two-tone ribbon -- and is
+     anchored to a fixed ink so it stays a SHADE in dark mode too (see
+     paintArm), measuring ~5:1 on the light panel where the pale corners alone
+     are ~1.3:1. Duty 5 on, 3 off: broken, but keeping 62% of the mass. */
   .row.ghost { box-shadow:none; padding-left:9px;   /* flat 9px = .owned's 3+6 */
     background-image:
       repeating-linear-gradient(to bottom, var(--armc, var(--line)) 0 5px, transparent 5px 8px),
-      linear-gradient(var(--line), var(--line));
+      linear-gradient(var(--armc-deep, var(--line)), var(--armc-deep, var(--line)));
     background-size:3px 100%, 3px 100%;
     background-position:left top, left top; background-repeat:no-repeat, no-repeat; }
   .row.ghost:not(.kcell) > * { opacity:.55; }   /* dim content, NOT the stripe */
@@ -662,7 +665,7 @@
        language rather than two unrelated markers. */
     background-image:
       repeating-linear-gradient(to right, var(--armc, var(--line)) 0 14px, transparent 14px 22px),
-      linear-gradient(var(--line), var(--line)); }
+      linear-gradient(var(--armc-deep, var(--line)), var(--armc-deep, var(--line))); }
   .oscPow.on { color:var(--bg); background:var(--text); border-color:var(--text);
                opacity:1; box-shadow:var(--shadow); }   /* §3 bans blur — hard offset only */
   .note { color:var(--dim); font-size:10.5px; }
@@ -1420,7 +1423,26 @@ function paintArm(v) {
   for (const b of document.querySelectorAll('.armBox'))
     b.classList.toggle('armed', +b.dataset.corner === v - 1);
   document.body.classList.toggle('arming', v > 0);
-  if (v > 0) document.body.style.setProperty('--armc', MCOLORS[v - 1]);
+  if (v > 0) {
+    const c = MCOLORS[v - 1];
+    document.body.style.setProperty('--armc', c);
+    /* The ghost stripes and the rail are colour dashes over a continuous
+       underlay. The underlay used to be --line, and ink gaps read as
+       colour-alternating-with-black (light) / -white (dark) -- ugly in both
+       (human 2026-08-25). The underlay is now a SHADE of the corner colour --
+       55% toward ink -- so the whole stripe stays in one hue: a two-tone
+       ribbon, not an alternation. The ink anchor is a LITERAL, not a theme
+       token, deliberately: this is a colour operation (drop the value, keep
+       the hue), and a first attempt that mixed toward --line inverted in dark
+       mode (--line is near-white there), turning the gaps pastel -- the ghost
+       stripe read brighter than owned's solid one and nearly unbroken. A fixed
+       dark anchor keeps ghost recessive in both themes and the break visible.
+       Measured: deep shades hit 4.9-8.9:1 on the light panel (where the pale
+       corners alone are ~1.3:1) and 3.5+:1 on the dark one. Computed here, not
+       in CSS: mixHex is already the project's mixer and color-mix() would be
+       its second implementation. */
+    document.body.style.setProperty('--armc-deep', mixHex(c, '#191521', 0.55));
+  }
 }
 { const pb = document.getElementById('panicBtn');
   if (pb) pb.addEventListener('click', () => { bridge.panic().catch(() => {}); pb.blur(); });

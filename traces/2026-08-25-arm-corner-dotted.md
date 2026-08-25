@@ -76,3 +76,24 @@ widget-state sweep, so it predates today's branch; the user noticed it now
 because arming is the feature under test. Fixed: extender width = pitch (17px),
 height stays 28. Verified by sweeping every painted pixel-column of all four
 chips (0 wrong-owner columns; must-fire control with 28px re-injected: 12).
+
+## Second follow-up — the ink gaps were ugly
+
+Human: *"I don't like the dotted lines alternating with white and black
+respectively. It's ugly in both modes."* Exact: the underlay was `--line`,
+which is `#191521` in light and `#EFE9FA` in dark, so the stripe alternated
+colour/black and colour/white.
+
+The underlay is now `--armc-deep` — the corner colour mixed 55% toward a FIXED
+ink anchor, computed in `paintArm` with the project's own `mixHex`. One hue,
+two values: a two-tone ribbon. The anchor is a literal, not `--line`,
+deliberately: a first attempt mixed toward `--line` and inverted in dark mode
+(near-white there), turning the gaps pastel — the ghost stripe read *brighter*
+than owned's solid stripe and nearly unbroken. A fixed dark anchor keeps ghost
+recessive in both themes.
+
+Measured: deep shades 4.88–8.93:1 on the light panel (the pale corners alone
+are ~1.3:1, so the underlay still carries the contrast), 3.5+:1 on the dark
+panel, and `lum(deep) < lum(dash)` holds in both modes. Driven through the real
+`paintArm` path, both modes screenshotted. Rebuilt, reinstalled, re-signed,
+marker `armc-deep` present in both installed binaries (grep -a).
