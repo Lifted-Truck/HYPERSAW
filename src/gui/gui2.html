@@ -178,7 +178,10 @@
        -- 4.34/5.05/5.10/4.38 became 3.30 across the board, which is as bright
        as the cream ground allows while still separating from it. Dark mode
        uses the corner colours themselves, where they measure 5.27-13.46. */
-    --lgA:#988000; --lgB:#FE006E; --lgC:#009289; --lgD:#608F08;
+    /* the TRUE corner colours, full value and saturation -- legibility is the
+       outline's job now, not theirs. --lg-edge is what turns it on. */
+    --lgA:#FFD702; --lgB:#FF2E88; --lgC:#00D5C8; --lgD:#A6F219;
+    --lg-edge:#191521;
   }
   body.dark {
     --bg:#151220; --panel:#1F1B2E; --well:#0E0C16; --panel2:#2C2740;
@@ -199,8 +202,10 @@
     --cC:#00D5C8; --cCtx:#4DEDE3;
     --cD:#A6F219; --cDtx:#C6F86A;
     /* on the dark ground the corner colours ARE legible, so the logo uses the
-       identity directly rather than a variant */
+       identity directly rather than a variant -- and needs no outline, which
+       would read as a halo rather than an edge */
     --lgA:#FFD702; --lgB:#FF2E88; --lgC:#00D5C8; --lgD:#A6F219;
+    --lg-edge:none;
     /* canvas-only names (ADR-118 A2) follow the same roles */
     --text-hi:#FFFFFF; --dim2:#9A93A8; --grid:#312B47; --grid2:#312B47;
     --hot:#FF3DAD; --bad:#FF5A4D; --badge-bg:rgba(255,182,39,.9);
@@ -230,7 +235,7 @@
      page tabs onto a second line and then its own overhang covered them; taking
      it out of flow lets it hang over the Editing bar -- which is the ask --
      while the tab row keeps its full width and simply starts to the right. */
-  .brand { position:absolute; top:10px; left:12px; width:224px; height:64px;
+  .brand { position:absolute; top:10px; left:12px; width:224px; height:92px;
            cursor:default; user-select:none; z-index:3; pointer-events:none;
            image-rendering:auto;
            /* The global `canvas` rule makes every canvas a phosphor TUBE --
@@ -589,7 +594,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="224" height="64" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
+<div class="tabs" id="tabs"><canvas class="brand" id="brand" width="224" height="92" aria-label="horde" role="img"></canvas><button id="panicBtn" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -3014,6 +3019,27 @@ function tdWarp(seed) {
     srcCv.width = W; srcCv.height = H;
     const sctx = srcCv.getContext('2d', { willReadFrequently: true });
     let SRC = null, DST = null, bakedInk = '';
+    /* two scratch surfaces for the outline pass; sized with the mark */
+    const edgeCv = document.createElement('canvas'), fillCv = document.createElement('canvas');
+    edgeCv.width = fillCv.width = W; edgeCv.height = fillCv.height = H;
+    const ectx = edgeCv.getContext('2d'), fctx = fillCv.getContext('2d');
+    /* 8 stamps at 1.4px: enough to close the ring at this weight without the
+       edge reading as a second, blurrier glyph behind the first */
+    const EDGE_R = 1.4;
+    const EDGE_OFF = [[1,0],[-1,0],[0,1],[0,-1],[0.7,0.7],[-0.7,0.7],[0.7,-0.7],[-0.7,-0.7]]
+                       .map(([x, y]) => [x * EDGE_R, y * EDGE_R]);
+    const outline = () => {
+      const edge = TOK('--lg-edge', 'none');
+      if (!edge || edge === 'none') return;      // dark mode: the fill carries itself
+      fctx.clearRect(0, 0, W, H); fctx.drawImage(cv, 0, 0);   // the tinted fill
+      ectx.clearRect(0, 0, W, H); ectx.drawImage(cv, 0, 0);
+      ectx.globalCompositeOperation = 'source-in';            // same alpha, ink colour
+      ectx.fillStyle = edge; ectx.fillRect(0, 0, W, H);
+      ectx.globalCompositeOperation = 'source-over';
+      ctx.clearRect(0, 0, W, H);
+      for (const [dx, dy] of EDGE_OFF) ctx.drawImage(edgeCv, dx, dy);
+      ctx.drawImage(fillCv, 0, 0);               // vibrant fill back on top
+    };
     const bake = () => {
       const ink = TOK('--text', '#191521');
       sctx.clearRect(0, 0, W, H);
@@ -3022,7 +3048,9 @@ function tdWarp(seed) {
          been borrowing the UI's monospace, which was never art-directed. */
       sctx.font = '700 45px Helvetica,"Helvetica Neue",Arial,sans-serif';
       sctx.textBaseline = 'middle';
-      sctx.fillText('horde', 8, H / 2);
+      /* high in the box: the blobs pull DOWNWARD hardest, so the room has to
+         be underneath the type rather than centred around it */
+      sctx.fillText('horde', 8, H * 0.34);
       SRC = sctx.getImageData(0, 0, W, H);
       DST = ctx.createImageData(W, H);
       bakedInk = ink;
@@ -3178,6 +3206,7 @@ function tdWarp(seed) {
       warp.render(SRC.data, DST.data, W, H, tSec);
       ctx.putImageData(DST, 0, 0);              // ignores compositing, so tint after
       tint(dt);
+      outline();                                 // contrast comes from here now
     };
     if (reduce) { ctx.putImageData(SRC, 0, 0); }      // static, undistorted
     else requestAnimationFrame(draw);
