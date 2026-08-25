@@ -293,3 +293,4 @@ morphGlide	global	Morph Glide	MORPH	Morph engine	knob	s	morph	morphOn=1	log10	mo
 morphX	global	Morph X	MORPH	Morph engine	knob		morph	morphOn=1		morphOn=1
 morphY	global	Morph Y	MORPH	Morph engine	knob		morph	morphOn=1		morphOn=1
 morphArm	global	Edit Corner	MORPH	Morph engine	select		morph	never		never
+voiceCull	global	Voice Cull	SET	Performance	knob	dB	voice-cull			

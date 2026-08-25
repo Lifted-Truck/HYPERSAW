@@ -475,6 +475,19 @@ static const ParamDef kParams[] = {
        deliberately NOT morphable — an edit-routing mode that morphed would
        change where your edits land as you move the pad. */
     {159, "morphArm", "Edit Corner", 0, 4, 0, true, kMorphArmLabels},
+    /* B38 (human 2026-08-24: "an optional per-voice gate that kills voices when
+       they go below a chosen threshold"). NOT a new mechanism -- swarm_core has
+       always retired a slot below a hard-coded 1e-4; this exposes the constant.
+       In dB because that is the unit the trade is heard in, and because a
+       linear readout of 0.0001 tells the player nothing.
+       DEFAULT -80 IS LOAD-BEARING: it is exactly the shipped constant, which is
+       the only reason this is a parity-safe superset and every golden is
+       untouched. Raising it is AUDIBLE (-40 dB is clearly present in a quiet
+       mix), so it is a CPU/quality trade the player makes deliberately -- the
+       label says "cull" and the unit says dB for that reason.
+       Global and non-morphable: a voice-lifecycle policy that morphed would
+       change how long notes ring as you move the pad. */
+    {160, "voiceCull", "Voice Cull", -80, -40, -80, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -569,6 +582,7 @@ constexpr clap_id kGlobalIds[] = {
     151, 152, 153, 154, 155, 156, 157, 158, 159,  // quantum morph + corner-edit arming
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
+    160,                                         // B38 voice-cull threshold (lifecycle policy)
 };
 constexpr bool isGlobalId(clap_id id)
 {
