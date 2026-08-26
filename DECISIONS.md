@@ -3610,3 +3610,85 @@ the ruling above does not depend on it either way.
 per patch, so a migrated patch's chain order flips discretely between corners
 rather than smearing into a parallel blend. That was the open question B50 said
 had to be answered *before* the migration was written. It is answered.
+
+## ADR-126 — mono held-stack overflow drops the OLDEST key (2026-08-26)
+
+**Status: ACCEPTED — human ratification.** *"I want to make sure to ratify the
+decision to replace drop-newest with drop-oldest."*
+
+**What was there.** `if (heldCount < 16) heldStack[heldCount++] = …` — on
+overflow the *newest* key was silently discarded. Not a considered choice: a
+bound written to be safe rather than musical.
+
+**Measured cost of the old behaviour** (scratch probe, real plugin, mono+legato).
+It does not hang or silence anything — the sounding note is tracked separately
+in `core.voiceAt(monoSlot).midi`, and the release path only retargets when the
+released key *is* the sounding one — and overflowing by exactly one
+self-corrects. Overflowing by **two** forgets the intermediate key entirely:
+hold 40…55, press 70, press 71, release 71 → **55 sounds, not 70, while 70 is
+still physically held.** Drop-oldest keeps the fallback chain anchored to what
+the player most recently played, which is what last-note priority means.
+
+**The accepted cost**, stated in our own 2026-08-11 answer: the evicted key's
+later note-off matches nothing. That key was not sounding — in mono only the
+top of the stack sounds — so all that is lost is its availability as a fallback
+after the newer keys release. *"A silent key press is a much larger harm than a
+stale fallback."*
+
+**This also settles the open cross-repo question.** FOUNDATIONS asked which of
+our two contradicting answers governs (Aug-11: drop-oldest, *"and we will
+change ours to match"*; Aug-25: keep drop-newest *"we would rather keep
+parity"*). **The Aug-11 round governs.** The Aug-25 answer's parity argument
+only worked because the Aug-11 promise had gone unkept for a fortnight — it was
+defending an accident, not a design. They shipped drop-oldest and quote our own
+Aug-11 reasoning in their header; we are now consistent with the record we
+made.
+
+**Reachability, so the scope is honest:** above 16 simultaneously held keys in
+mono. Hands cannot; a sustained MIDI clip, an arp feeding mono, or stacked
+chords can.
+
+**Oracles.** `parity_check` 156/156 within ε=1e-6 (worst 4.262e-09) —
+unchanged, because no golden holds 16 keys in mono. `notefuzz_check` GREEN,
+0 hangs. Test row B51-1.
+
+## ADR-125 Amendment 1 — the lab that produced the ruling had two feedback defects (2026-08-26)
+
+**Raised by the human's observation**, not by a review: *"The argmax boundary
+doesn't have a click as much as it seems almost like a struck plectrum. I
+imagine this has to do with the interaction between the comb and the drive."*
+Chasing that mechanism found two defects in the lab ADR-125 was ruled on.
+
+**1. The plectrum is real, and the mechanism is the one the human named.**
+Measured at the ARGMAX flip, transient peak over steady mean: **1.6 at comb
+feedback 0, 1.7 at 0.45, 4.3 at 0.9.** It scales with feedback because a comb
+with feedback IS Karplus-Strong — delay plus feedback plus damping is the
+plucked-string algorithm — and the flip presents it with a discontinuity. An
+impulse into Karplus-Strong is *by definition* a pluck, so "struck plectrum" is
+not a metaphor; it is the algorithm doing its defining thing. The ~1.6 floor at
+zero feedback is the topology step itself; the comb turns that step into a
+pluck. **B50-1's falsifier asked whether the flip is a CLICK. It is not — so
+the falsifier did not fire and ADR-125 stands on this point.**
+
+**2. TWO in-loop filters were resonant, and one made the lab diverge.**
+`BiquadFilterNode` defaults Q to 1.0, and the comb's damping lowpass was left at
+that default — a lowpass at Q=1 peaks *above* unity near its corner, so the
+in-loop damper was ADDING gain at ~4.2 kHz instead of removing it. At feedback
+0.9 that put the comb's own loop gain over 1 and the output reached **4.3e4
+under ARGMAX, which closes no cycle at all.** The DC blocker measured 1.0839 at
+its corner for the same reason. Both are now Butterworth (Q = 1/√2, maximally
+flat — can only remove energy). ADR-031(b) warns about precisely this class
+(*"in-loop filters compound"*); a resonant damper is its sharpest form. The lab
+also lacked ADR-031(c)'s watchdog, which a lab a human makes rulings on must
+have — a hard-knee limiter now guards the output.
+
+**The honest consequence for ADR-125, stated rather than buried.** A runaway at
+~4.2 kHz is *screechy*. The human's first reason for rejecting BLEND was
+*"untenable screechy feedback"* — and some of that screech may have been this
+defect rather than BLEND itself, since a resonant in-loop damper degrades every
+law and BLEND's cycle would amplify it worst. **ADR-125 is NOT withdrawn:** its
+second reason — that a blended topology is an averaged structure, which is the
+one thing a quantum morph exists not to do — is independent of any lab defect
+and is the reason recorded as load-bearing. But the first reason is now
+uncertain, and BLEND deserves a re-listen on the fixed lab before anyone treats
+its rejection as settled on sonic grounds.

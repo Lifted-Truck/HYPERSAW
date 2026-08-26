@@ -3167,7 +3167,31 @@ struct Plugin
             heldCount--;
           }
           const bool anotherHeld = heldCount > 0;
+          /* ADR-126: DROP-OLDEST on overflow, ratified 2026-08-26. The old
+             `if (heldCount < 16)` silently discarded the NEWEST key -- not a
+             considered choice, just a bound written to be safe rather than
+             musical, and the promise to change it (made to FOUNDATIONS
+             2026-08-11) went unkept for a fortnight.
+             Measured cost of the old behaviour: overflowing by ONE
+             self-corrects, because the sounding note is tracked separately in
+             `core.voiceAt(monoSlot).midi` and the release path only retargets
+             when the released key IS the sounding one. Overflowing by TWO
+             forgot the intermediate key entirely -- hold 40..55, press 70,
+             press 71, release 71, and 55 sounds while 70 is still physically
+             held. Drop-oldest keeps the fallback chain anchored to what the
+             player most recently played, which is what last-note priority
+             means.
+             The cost we accepted in that answer: the evicted key's later
+             note-off matches nothing. That key was NOT sounding (in mono only
+             the top of the stack sounds), so all that is lost is its
+             availability as a fallback after the newer keys release -- a much
+             smaller harm than a key press that is silently forgotten. */
           if (heldCount < 16) heldStack[heldCount++] = {n->key, freq};
+          else
+          {
+            for (int j = 0; j < 15; j++) heldStack[j] = heldStack[j + 1];
+            heldStack[15] = {n->key, freq};
+          }
           const bool voiceGated = monoSlot >= 0 && core.voiceAt(monoSlot).gate;
           if (anotherHeld && voiceGated)
           {
