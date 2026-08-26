@@ -1186,11 +1186,26 @@ struct Plugin
      decision, taken on the group's first index. Today the scale is the only
      group; the mechanism is general because the next one (a chord voicing, an
      FX slot's four params) will want it. */
-  size_t morphScaleFirst = 0, morphScaleLast = 0;
+  /* ATOMIC MORPH GROUPS (B49). Parameters that only mean something TOGETHER
+     draw one corner between them, so the field can never assemble a state no
+     corner authored. Was one hardcoded range (the scale, ADR-109 A1); now an
+     explicit lead map, identity except where a group says otherwise -- so a
+     second group is data, not another special case in the picker.
+     Members are addressed by morphIds INDEX, not id, and a group's members
+     need not be contiguous: an FX slot's type/amount/tone sit in three
+     different id blocks. */
+  std::vector<uint32_t> morphLead;   // index -> the index whose corner it follows
   size_t morphGroupLead(size_t i) const
   {
-    return (morphScaleLast > morphScaleFirst && i >= morphScaleFirst && i <= morphScaleLast)
-               ? morphScaleFirst : i;
+    return i < morphLead.size() ? (size_t)morphLead[i] : i;
+  }
+  // Every index sharing `i`'s lead — a group exempts and flips as one unit.
+  void morphGroupRange(size_t i, size_t &lo, size_t &hi) const
+  {
+    const size_t lead = morphGroupLead(i);
+    lo = hi = i;
+    for (size_t j = 0; j < morphLead.size(); j++)
+      if (morphGroupLead(j) == lead) { if (j < lo) lo = j; if (j > hi) hi = j; }
   }
 
   /* ================= QUANTUM MORPH (ADR-104) =================
@@ -1260,9 +1275,38 @@ struct Plugin
        and F# minor interleaved is not a scale, it is a bug with a musical
        name. The human said it exactly: "all the individual scale degrees would
        need to be included collectively, of course." */
-    morphScaleFirst = morphIds.size();
+    const size_t scaleFirst = morphIds.size();
     for (clap_id id = 116; id <= 128; id++) morphIds.push_back(id);
-    morphScaleLast = morphIds.size() - 1;
+    const size_t scaleLast = morphIds.size() - 1;
+
+    /* THE LEAD MAP. Identity, then the groups.
+       FX SLOTS (B49, measured 2026-08-26): type and amount were drawn
+       INDEPENDENTLY each grid tick, so a sweep between a Drive corner and a
+       Gain corner spent its middle third at type=Drive with amount=0.10 --
+       Drive at 0.10 is nearly passthrough, so the drive corner's character
+       silently evaporated mid-blend, and the state existed in neither corner
+       (3 of 9 sampled positions). `amount` is dimensionally different per type
+       (Drive pre-gain, Gain 0.5-is-unity, Comp strength, Comb wet), so pairing
+       it with another corner's type is not merely arbitrary, it is
+       meaningless. Type + amount + tone now draw ONE corner per slot -- the
+       same reasoning that already makes root + twelve scale degrees atomic. */
+    morphLead.resize(morphIds.size());
+    for (size_t i = 0; i < morphLead.size(); i++) morphLead[i] = (uint32_t)i;
+    for (size_t i = scaleFirst; i <= scaleLast; i++) morphLead[i] = (uint32_t)scaleFirst;
+    for (int slot = 0; slot < 4; slot++)
+    {
+      const clap_id ids[3] = {(clap_id)(57 + 2 * slot), (clap_id)(58 + 2 * slot),
+                              (clap_id)(96 + slot)};
+      size_t lead = morphIds.size();
+      for (clap_id want : ids)
+        for (size_t i = 0; i < morphIds.size(); i++)
+          if (morphIds[i] == want && i < lead) lead = i;
+      if (lead >= morphIds.size()) continue;
+      for (clap_id want : ids)
+        for (size_t i = 0; i < morphIds.size(); i++)
+          if (morphIds[i] == want) morphLead[i] = (uint32_t)lead;
+    }
+
     for (int k = 0; k < 4; k++) morphCorner[k].assign(morphIds.size(), 0.0);
     morphCur.assign(morphIds.size(), -1e30);
     morphExempt.assign(morphIds.size(), 0);
@@ -1289,12 +1333,12 @@ struct Plugin
       {
         const bool on = !morphExempt[i];
         // A group exempts as a unit, for the same reason it flips as one.
-        const bool grouped = (morphScaleLast > morphScaleFirst &&
-                              i >= morphScaleFirst && i <= morphScaleLast);
-        const size_t lo = grouped ? morphScaleFirst : i;
-        const size_t hi = grouped ? morphScaleLast : i;
+        size_t lo, hi;
+        morphGroupRange(i, lo, hi);
         for (size_t j = lo; j <= hi; j++)
         {
+          if (morphGroupLead(j) != morphGroupLead(i)) continue;   // gaps: FX groups
+
           morphExempt[j] = on ? 1 : 0;
           if (on)
           {

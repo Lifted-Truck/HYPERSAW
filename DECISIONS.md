@@ -3521,3 +3521,44 @@ engage the morph, and the settled-gain path is unchanged. Tests B48-1/B48-2.
 **Rejected:** writing the ramp into `vol` (17/1017) — it would fight vol's own
 morph target and corrupt corner authoring through the armed-edit router; a
 derived multiplier composes instead.
+
+## ADR-124 — atomic morph groups generalised; the FX slot becomes one of them (2026-08-26)
+
+**Trigger.** Human: *"The same rule should probably apply to FX modules, but
+we're already changing how they work so maybe we should start moving on that
+soon."* Filed as B49.
+
+**The measured defect.** Corner A = slot1 Drive @ amount 0.90, corner B =
+slot1 Gain @ amount 0.10; sweep morph X. **3 of 9 sampled positions were
+states neither corner holds** — the middle third read `type=Drive,
+amount=0.10`. Drive at 0.10 is near-passthrough, so the drive corner's whole
+character silently evaporated mid-blend while the type still claimed Drive.
+Mechanism: type (57/59/61/63) and amount (58/60/62/64) are both in the field
+and, in pick mode, are drawn **independently** each grid tick. `amount` is
+dimensionally different per type (Drive pre-gain, Gain 0.5-is-unity, Comp
+strength, Comb wet), so pairing it with another corner's type is not merely
+arbitrary — it is meaningless. Mode 1 fails differently and no better: there
+`amount` interpolates across incommensurable units.
+
+**The fix reuses a mechanism rather than adding one.** ADR-109 A1 already
+made root + twelve scale degrees draw one corner between them, for exactly
+this reason ("C major and F# minor interleaved is not a scale"). That was one
+hardcoded index range; it is now an explicit lead map — identity except where
+a group says otherwise — so a second group is *data*. Members need not be
+contiguous, which matters because a slot's type/amount/tone sit in three
+different id blocks. Type + amount + tone now draw one corner per slot.
+
+**What this does NOT do.** It does not ramp. A slot still appears and
+disappears abruptly across an on/off boundary; B49's ramp (scale `mix` by the
+on-weight, exactly ADR-123's shape with `fx_rack.h:272`'s guaranteed bypass as
+the zero) and the type-swap ruling (dip-through-zero vs two instances) are
+still open. Atomicity fixes *what* you hear being a real authored state;
+the ramp fixes *when* it becomes audible.
+
+**Evidence.** Chimera probe 3/9 → **0/9**. Parity **156/156** within ε=1e-6
+(worst 4.262e-09) — groups only bind when the morph is on, and at a pure
+corner every member drew that corner anyway. Scale-group non-regression shown
+by A/B: the pre-change and post-change builds produce byte-identical probe
+output. (That probe never successfully authored the scale corners — both read
+the default major scale — so it proves non-regression, **not** atomicity;
+recorded as such rather than counted as a passing check it is not.)
