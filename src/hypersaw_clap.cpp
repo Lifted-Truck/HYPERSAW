@@ -999,6 +999,13 @@ struct Plugin
   // one-pole the master fader uses.
   double oscMute[kMaxOsc] = {0}, oscSolo[kMaxOsc] = {0};
   double oscGainSm[kMaxOsc] = {1.0, 1.0};
+  /* B48: morph-derived osc on-weight. Partway between a corner with the osc
+     ON and one with it OFF, the audible transition is this RAMP, not the
+     stepped enable flip -- the flip still happens, but only at the weight
+     floor where this gain has already faded the osc inaudible. 1.0 whenever
+     the morph is off, the osc's enable is exempt, or every relevant corner
+     agrees -- all of which keep oscGainTarget() on its old values exactly. */
+  double oscOnW[kMaxOsc] = {1.0, 1.0};
   double oscPeakViz[kMaxOsc] = {0};   // per-oscillator meter, drained by publishViz
 
   // Mute wins over solo; any solo anywhere silences every non-soloed
@@ -1060,7 +1067,8 @@ struct Plugin
     bool anySolo = false;
     for (uint32_t i = 0; i < kNumOsc; i++)
       if (oscSolo[i] != 0) { anySolo = true; break; }
-    return (!anySolo || oscSolo[k] != 0) ? 1.0 : 0.0;
+    if (anySolo && oscSolo[k] == 0) return 0.0;
+    return oscOnW[k];   // B48: 1.0 except partway across an enable boundary
   }
   double pitchBend = 0, gSemi = 0, gFine = 0, gOct = 0;   // global transpose (101/102/103)
   int lastNoteKey = 69;   // quantise anchor for the GLOBAL wheel lane (A4 until a note arrives)
@@ -1473,8 +1481,45 @@ struct Plugin
       if (!d) continue;
       // ADR-109: an exempt parameter is not in the field at all — it holds
       // whatever it is set to, and no corner owns it.
-      if (i < morphExempt.size() && morphExempt[i]) continue;
+      if (i < morphExempt.size() && morphExempt[i])
+      {
+        // B48: an exempt enable is fully live, so its ramp must not linger.
+        if (baseIdOf(morphIds[i]) == 150)
+        {
+          const uint32_t o = oscOfId(morphIds[i]);
+          if (o < kMaxOsc) oscOnW[o] = 1.0;
+        }
+        continue;
+      }
       double target;
+      /* B48 SPECIAL CASE — osc on/off morphs as a LEVEL RAMP, not a pick
+         (human 2026-08-26). The stepped pick drew enable from one corner while
+         vol came from another, and ADR-100's off transition hard-kills voices,
+         so the boundary was a click and the partway state a chimera. Here the
+         BILINEAR weight of the corners that hold the osc ON becomes a gain
+         ramp (applied in applyOscGainAndMeter through the existing ~8 ms
+         smoother), and the stepped flip is deferred to the weight floor,
+         where the osc is already ~-60 dB: the kill/re-strike still runs, but
+         inaudibly. Plain w[], not the Gumbel draw -- the ramp is deterministic
+         in the pad position, both modes. At a pure corner the weight equals
+         that corner's stored enable, so corners stay bit-identical. */
+      if (baseIdOf(morphIds[i]) == 150)
+      {
+        double onW = 0;
+        for (int k = 0; k < 4; k++) onW += w[k] * morphCorner[k][i];
+        onW = onW < 0 ? 0 : (onW > 1 ? 1 : onW);
+        const uint32_t o = oscOfId(morphIds[i]);
+        if (o < kMaxOsc) oscOnW[o] = onW;
+        const double next = onW > 1e-3 ? 1.0 : 0.0;
+        if (std::fabs(next - morphCur[i]) > 1e-9)
+        {
+          morphCur[i] = next;
+          morphFromField = true;
+          applyParam(morphIds[i], next);
+          morphFromField = false;
+        }
+        continue;
+      }
       if ((int)morphMode == 1 && !d->stepped)
       {
         target = 0;
@@ -2646,8 +2691,13 @@ struct Plugin
            2026-08-21, morph engaged). This is the recorded exempt-lean design
            (live value into every corner) applied to the one control where a
            revert is indistinguishable from a defect. Full per-edit routing is
-           the corner-editing phase; the SWITCH cannot wait for it. */
-        if (morphOn > 0.5)
+           the corner-editing phase; the SWITCH cannot wait for it.
+           `!morphFromField` is LOAD-BEARING (B48): the FIELD's own flips come
+           through this same handler, and unguarded they overwrote all four
+           corners on the first boundary crossing -- the stored on/off
+           boundary silently ceased to exist the first time the morph crossed
+           it. Only a HUMAN edit rewrites the corners. */
+        if (morphOn > 0.5 && !morphFromField)
           for (size_t i = 0; i < morphIds.size(); i++)
             if (morphIds[i] == (clap_id)id)
               for (int k = 0; k < 4; k++) morphCorner[k][i] = on ? 1.0 : 0.0;
@@ -2689,6 +2739,10 @@ struct Plugin
                     // fill, not assign: this runs on the AUDIO thread and the
                     // vector is pre-sized at activate — no allocation here.
                     if (morphOn > 0.5) std::fill(morphCur.begin(), morphCur.end(), -1e30);
+                    // B48: morph off releases the on-weight ramp, else the
+                    // last partway value would keep scaling a morph-free patch.
+                    if (morphOn <= 0.5)
+                      for (uint32_t k2 = 0; k2 < kMaxOsc; k2++) oscOnW[k2] = 1.0;
                     break;
           case 152: morphX = applied; break;
           case 153: morphY = applied; break;
