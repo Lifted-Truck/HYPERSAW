@@ -2,41 +2,66 @@
 
 Drop PNGs here; the top-level README wires them in.
 
-## Wanted (post-aesthetic, 2026-08-26)
+## THE SHOT LIST (2026-08-26 — for the public README)
 
-**All five current shots are stale.** They were taken 2026-08-23, before the knob
-pass, the light/dark chassis, the five screen schemes, the warping wordmark, the
-SET page and the corner-ownership stripes. The README now says so in a note under
-the hero image rather than pretending otherwise — but retaking them is the fix.
+**Context: this README is about to be linked publicly**, so the set has a job
+beyond documentation — a stranger scrolling for fifteen seconds should come away
+knowing this is an instrument with a real idea in it. Every current image is
+dated 2026-08-23 and predates the whole aesthetic pass, so **all of them are
+retakes, not edits.**
 
-**Two extra slots the new aesthetic earns**, because the design's central claim is
-that chassis and screen are *independent* axes and a single-mode screenshot set
-cannot show that:
+**Capture once, at one size, in one session.** The plugin's own default is
+**980 × 720** (`kGuiWidth`/`kGuiHeight`) — use it. The GUI is responsive, so a
+differently-sized window reflows the columns and the set stops reading as one
+instrument. Capture at 2× (Retina) — GitHub downscales cleanly and the thin ink
+lines survive it.
 
-| file | what it must show |
-|---|---|
-| `gui-dark.png` | any page on the **dark chassis** — the same page as one of the light shots, so the pair reads as one instrument in two modes rather than two instruments |
-| `gui-schemes.png` | one well under two different **screen schemes** (e.g. TUBE vs FROST) on the *same* chassis, which is the only way to show the axes are separate |
+**Hold a note while you shoot.** Every visualiser falls back to *"no engine —
+open in the plugin"* or an empty well when nothing is sounding, and a set full
+of empty wells makes a live instrument look like a mockup. Sustain a chord, or
+run an arp, so the phase circle, spectrum, carpet and voice map are all alive.
 
-Keep the conventions below. The build hash matters more than ever now that the
-interface is moving weekly.
+**Leave the build hash visible** (bottom-right). It is what lets a caption name
+a build, and it is the difference between a screenshot and a claim.
 
-## Wanted (GUI2, 2026-08-23 — superseded, kept for the record)
+---
 
-The existing `gui-overview.png` shows **GUI1**, which became the legacy interface
-on 2026-08-23 — so it now illustrates the wrong instrument. Replacing it is the
-one blocking shot; the rest are wanted but the README does not reference them
-until they exist (a broken image is worse than a missing one).
+### Tier 1 — the README should not go public without these
 
-| file | page | why it earns a slot |
+| # | file | page & state | what it has to show |
+|---|---|---|---|
+| 1 | `gui-hero.png` | **MAIN**, **dark** chassis, note held | The first image anyone sees. The swarm's phase circle with a live R, the spectrum lit, the wordmark at full colour. Dark because the corner hues run at full emission there and the instrument reads as an instrument. **This one replaces `gui-overview.png` as the hero.** |
+| 2 | `gui-morph.png` | **MORPH**, cursor parked **off-centre** | The thing nothing else on the market has. Four corner colours on the pad, and — critically — the ownership stripes visible down the panel beside it, so a viewer sees that *parameters belong to corners*. Centre the cursor and the story disappears (every corner weighs 0.25 and nothing reads). |
+| 3 | `gui-osc.png` | **OSC**, note held | Density and depth: the swarm ring, the saw-shape viewer, the knob grid. This is the "there is a lot here" shot; it answers the reflex that a one-idea plugin is a toy. |
+| 4 | `gui-light.png` | **the same page as #1**, **light** chassis | The pair is the argument. Two shots of one page in two chassis prove the design is a system rather than a colour scheme — and the light/cream ground is the more unusual look for a synth, which is exactly why it is worth showing. |
+
+### Tier 2 — strongly wanted, in this order
+
+| # | file | page & state | what it has to show |
+|---|---|---|---|
+| 5 | `labs-index.png` | `docs/design/index.html` | **The strongest single image for a technical audience, and the README currently has nothing like it.** Twenty-four browser labs in one gallery says the claims were prototyped before they were built — it is the visual form of "spec-in-code". |
+| 6 | `gui-schemes.png` | one well, **two screen schemes**, same chassis | Side by side or as a two-panel crop (e.g. TUBE vs FROST). The only way to show chassis and screen are *independent* axes; a single-mode set cannot say it. |
+| 7 | `gui-fx.png` | **FX**, a slot doing something audible | The rack and its slot types. Worth taking now knowing B50 will replace it — caption it as the current rack. |
+| 8 | `gui-mix.png` | **MIX**, both oscillators on, meters moving | The two-oscillator story and the master stage. Meters at rest look broken; hold a note. |
+
+### Tier 3 — optional, high value for the audience you are posting to
+
+| # | file | what it has to show |
 |---|---|---|
-| `gui-overview.png` | **MAIN** | the hero image — replaces the GUI1 shot the README currently carries |
-| `gui-osc.png` | OSC | where the instrument is shaped: swarm, detune law, drift, saw shape |
-| `gui-mix.png` | MIX | per-oscillator strips, meters, master — the two-oscillator story |
-| `gui-fx.png` | FX | the rack and its slot types |
-| `gui-morph.png` | MORPH | the XY pad with corner colours; the one page nothing else in the repo shows |
+| 9 | `verify-green.png` | A terminal running `./verify fast` with every gate GREEN. Not pretty, and unusually persuasive to engineers: the README claims oracle discipline and this is the claim being true on screen. |
+| 10 | `logo.gif` | 3–4 s of the wordmark warping, ideally with the morph pad being moved so the colour follows. The only *moving* thing in the set, and the one that demonstrates "the synth plays the logo" rather than asserting it. Keep it under ~2 MB; GitHub will autoplay it inline. |
+
+### If you want one image for the LinkedIn post itself
+
+Post **#1 (the dark hero)** or **#5 (the labs gallery)** — they argue different
+things. The hero says *this is a finished-looking instrument*; the gallery says
+*this was engineered*. For a professional network the gallery is the less
+expected of the two, and the more defensible.
+
+---
 
 ## Conventions
+
 
 - **Leave the build hash visible** in the corner. It is what lets a reader say
   which code drew the picture, and it is why the caption can name a build at all.
@@ -49,10 +74,11 @@ until they exist (a broken image is worse than a missing one).
   A dated, admitted-stale screenshot beats a confident one that quietly lies —
   the same rule the README's status line follows.
 
-## Note on the current file
+## Note on the current files
 
-`gui-overview.png` is still the GUI1 image at time of writing, and the README's
-caption already describes it as GUI2's MAIN page. That mismatch is deliberate
-and short-lived: the caption describes what the slot is *for*, and the file is
-being replaced. If you are reading this and the image still looks like a single
-long column, the replacement has not landed yet.
+All five PNGs here are **GUI2 shots dated 2026-08-23** — they are the right
+interface, taken before the aesthetic pass. What they predate: the knob geometry,
+the light/dark chassis, the five screen schemes, the warping wordmark, the SET
+page and the corner-ownership stripes. The top-level README says so under the
+hero image rather than pretending otherwise. Replacing them is the shot list
+above.
