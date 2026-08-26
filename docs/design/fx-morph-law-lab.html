@@ -268,11 +268,23 @@ function buildGraph(){
   const delay  = ac.createDelay(0.05);
   const fb     = ac.createGain();
   const damp   = ac.createBiquadFilter(); damp.type = 'lowpass'; damp.frequency.value = 4200;
+  /* Q EXPLICITLY BUTTERWORTH. BiquadFilterNode defaults Q to 1.0, and a
+     lowpass at Q=1 peaks ABOVE unity near its corner -- so an in-loop damper
+     left at the default ADDS gain at ~4.2 kHz instead of removing it. At
+     feedback 0.9 that put the comb's own loop gain over 1 and the lab diverged
+     (measured: output reached 4.3e4 under ARGMAX, which closes no cycle at
+     all). ADR-031's clause (b) warns about exactly this class -- in-loop
+     filters compound -- and a resonant damper is the sharpest version of it.
+     0.7071 is maximally flat: it can only ever remove energy. */
+  damp.Q.value = Math.SQRT1_2;
   /* ADR-031 (b): DC-BLOCK INSIDE EVERY FEEDBACK LOOP, corner well clear of the
      lowest musical comb. The comb reaches 60 Hz, so 8 Hz keeps a wide margin --
      the ADR records that a 15 Hz blocker gutted a 26 Hz comb (16.3 -> 2.6 dB)
      because in-loop filters compound per pass. */
-  const dcb = ac.createBiquadFilter(); dcb.type = 'highpass'; dcb.frequency.value = 8; dcb.Q.value = 0.7;
+  const dcb = ac.createBiquadFilter(); dcb.type = 'highpass'; dcb.frequency.value = 8;
+  /* Same reasoning: measured 1.0839 at its own corner with Q = 0.7. Small, but
+     it is INSIDE the loop, so it compounds every pass. Butterworth here too. */
+  dcb.Q.value = Math.SQRT1_2;
   const combOutNode = ac.createGain();
   const combMk = ac.createGain();
   combIn.connect(delay); delay.connect(damp).connect(dcb).connect(fb).connect(delay);
@@ -298,7 +310,14 @@ function buildGraph(){
   driveMk.connect(xp.driveOut).connect(out);
   combMk.connect(xp.combOut ).connect(out);
 
-  const scope = ac.createAnalyser(); scope.fftSize = 2048; out.connect(scope);
+  /* ADR-031 (c): every feedback engine ships a watchdog. A lab the human uses
+     to make rulings must not be able to deafen them when a slider goes high --
+     and rev 3 could. Hard-knee limiter, inaudible until something is wrong. */
+  const guard = ac.createDynamicsCompressor();
+  guard.threshold.value = -3; guard.knee.value = 0; guard.ratio.value = 20;
+  guard.attack.value = 0.002; guard.release.value = 0.15;
+  out.disconnect(); out.connect(guard).connect(ac.destination);
+  const scope = ac.createAnalyser(); scope.fftSize = 2048; guard.connect(scope);
   return { out, srcAmp, oscs, drivePre, drivePost, driveIn, driveMk, combIn, delay, fb, dcb,
            combOutNode, combMk, xp, scope, dcDelay, cdDelay, dInA, dOutA, cInA, cOutA };
 }
