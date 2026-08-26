@@ -12,28 +12,32 @@ as its per-partial sibling. "HYPERSAW" is now only the repository's name and the
 id hosts use to re-find saved sessions — so that id will keep saying `hypersaw` long after
 nothing on screen does.*
 
-![horde — the MAIN page](docs/img/gui-overview.png)
-*MAIN: the XY pad, the bend laws with their step-response and vibrato-retention meters, patch
-storage, and the swarm's phase circle with its live order parameter R. Build hash is in the
-bottom-right corner of every screenshot — that is which code drew it.*
+![horde — MAIN, dark chassis](docs/img/gui-hero.png)
+*MAIN on the **dark** chassis with the **TUBE** screen: the XY pad, patch storage, the bend
+laws with their step-response and vibrato-retention meters, the scale mask, and the swarm's
+phase circle mid-note — the ring is the swarm, the violet vector is the order parameter, and
+the green arc is where the voices have collected. The wordmark is not a graphic; it is being
+warped live by the engine. Build hash sits bottom-right of every shot — that is which code
+drew it.*
 
-> **These five shots are dated 2026-08-23 and the interface has moved since.** They predate
-> the knob pass, the light/dark chassis, the five screen schemes, the warping wordmark, the
-> SET page and the corner-ownership stripes — everything §The look describes. They are kept
-> rather than removed because the layout and the story they tell are still right, and this
-> repo's own screenshot convention says a dated, admitted-stale image beats a confident one
-> that quietly lies. Retake list: `docs/img/README.md`.
+![horde — the same page, light chassis](docs/img/gui-light.png)
+*The **same page** on the **light** chassis with the **EMBER** screen. Chassis and screen are
+two independent axes, which is why this is a pair rather than a variant: the layout, the
+signal colours and their meanings are identical — only the ground and the phosphor moved.*
 
 ---
 
 ## What it does today
 
 Two **oscillators**, each a full swarm, summed through a shared FX rack and a master stage.
-The interface is five live pages.
+The interface is six live pages plus a settings page.
 
 ### OSC — where the sound is built
 
 ![horde — the OSC page](docs/img/gui-osc.png)
+*OSC carries the density: nine clusters of controls against five live visualisers. The
+coloured bars above the knob labels are **corner ownership** — each one says which morph
+corner currently owns that parameter. Hovering a spectrum bar reads out its frequency band.*
 
 A swarm of up to 32 voices per oscillator with **six detune laws** and seeded distributions,
 plus the parts that make it a *dynamical* system rather than a chorus: **coupling K** (positive
@@ -45,16 +49,12 @@ decoration — the phase circle shows the swarm's coherence, the voice map shows
 
 ### MIX — balance and output
 
-![horde — the MIX page](docs/img/gui-mix.png)
-
 Per-oscillator power, level, tuning, mute/solo and meters; master volume and transposition;
 and the output stage — mono fold, bass-mono with an adjustable crossover, and 2× oversampling.
 A disabled oscillator costs **0.03% of a core**: disabled means it does not run, not that it
 runs quietly.
 
 ### FX — four slots in series
-
-![horde — the FX page](docs/img/gui-fx.png)
 
 Four slots, order fixed by slot index, each with type / amount / tone. An `Off` slot is a
 **bit-exact passthrough** that does not touch the buffer. Comp and Comb are real cores; Drive,
@@ -73,6 +73,10 @@ sources, mono/legato, and MPE per-note bend live here too.
 ## The morph grid
 
 ![horde — the MORPH page](docs/img/gui-morph.png)
+*The morph field, with the cursor parked off-centre. The four corner colours in the gradient
+are the same four that mark parameter ownership everywhere else in the interface — that is the
+whole idea in one picture: a patch is a position in a field, and every parameter belongs to
+whichever corner won it.*
 
 The feature that makes horde a *patch explorer* rather than a synth with a lot of knobs.
 
