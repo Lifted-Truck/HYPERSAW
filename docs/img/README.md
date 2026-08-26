@@ -2,6 +2,27 @@
 
 Drop PNGs here; the top-level README wires them in.
 
+## STATUS (2026-08-26)
+
+**Tier 1 is DONE and wired into the README** — `gui-hero.png` (MAIN, dark, TUBE),
+`gui-light.png` (MAIN, light, EMBER), `gui-osc.png`, `gui-morph.png`. The old
+2026-08-23 set was deleted with them, and the README's dead references to
+`gui-overview.png`, `gui-mix.png` and `gui-fx.png` were removed in the same
+change — a broken image is worse than a missing one, and three of them were
+live for a moment.
+
+**Still open, in value order:** `labs-index.png`, `gui-schemes.png`,
+`verify-green.png`, `gui-fx.png`, `gui-mix.png`. The MIX and FX *sections* still
+read fine without an image, so those two are the least urgent; the labs gallery
+is the most valuable thing not yet shot.
+
+**Two notes from the shots that came in**, for whoever takes the rest:
+the four Tier-1 shots were captured at slightly different window widths, so MAIN
+shows four columns in the dark shot and three in the light one. It still reads
+as one instrument, but a fixed width would have made the pair exact. And none of
+the four has the build stamp in frame — the footer sat below the capture. Both
+are worth getting right on the remaining five.
+
 ## THE SHOT LIST (2026-08-26 — for the public README)
 
 **Context: this README is about to be linked publicly**, so the set has a job
