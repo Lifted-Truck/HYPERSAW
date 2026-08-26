@@ -2,7 +2,26 @@
 
 Drop PNGs here; the top-level README wires them in.
 
-## Wanted (GUI2, 2026-08-23)
+## Wanted (post-aesthetic, 2026-08-26)
+
+**All five current shots are stale.** They were taken 2026-08-23, before the knob
+pass, the light/dark chassis, the five screen schemes, the warping wordmark, the
+SET page and the corner-ownership stripes. The README now says so in a note under
+the hero image rather than pretending otherwise — but retaking them is the fix.
+
+**Two extra slots the new aesthetic earns**, because the design's central claim is
+that chassis and screen are *independent* axes and a single-mode screenshot set
+cannot show that:
+
+| file | what it must show |
+|---|---|
+| `gui-dark.png` | any page on the **dark chassis** — the same page as one of the light shots, so the pair reads as one instrument in two modes rather than two instruments |
+| `gui-schemes.png` | one well under two different **screen schemes** (e.g. TUBE vs FROST) on the *same* chassis, which is the only way to show the axes are separate |
+
+Keep the conventions below. The build hash matters more than ever now that the
+interface is moving weekly.
+
+## Wanted (GUI2, 2026-08-23 — superseded, kept for the record)
 
 The existing `gui-overview.png` shows **GUI1**, which became the legacy interface
 on 2026-08-23 — so it now illustrates the wrong instrument. Replacing it is the
