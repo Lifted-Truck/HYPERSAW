@@ -17,6 +17,13 @@ nothing on screen does.*
 storage, and the swarm's phase circle with its live order parameter R. Build hash is in the
 bottom-right corner of every screenshot — that is which code drew it.*
 
+> **These five shots are dated 2026-08-23 and the interface has moved since.** They predate
+> the knob pass, the light/dark chassis, the five screen schemes, the warping wordmark, the
+> SET page and the corner-ownership stripes — everything §The look describes. They are kept
+> rather than removed because the layout and the story they tell are still right, and this
+> repo's own screenshot convention says a dated, admitted-stale image beats a confident one
+> that quietly lies. Retake list: `docs/img/README.md`.
+
 ---
 
 ## What it does today
@@ -104,9 +111,59 @@ And the authoring side:
 | | |
 |---|---|
 | **Modulation** | The instrument has no LFOs yet — nothing moves unless you move the morph pad. The modulator lab is built and the routing matrix is ruled with two increments already in the audio path. The largest musical gap. |
-| **Filters** | A filter page with routing owned at both ends (each oscillator chooses its destination, each filter chooses series/parallel/out), plus a simplified filter in the FX rack. |
+| **The FX rework** | The live workstream. Variable slots become *set modules* behind a crosspoint routing matrix with feedback and bypass — which dissolves two open problems rather than patching them, since a module's presence becomes a coefficient and a coefficient of zero *is* "not connected". Existing patches port non-destructively. `docs/proposals/fx-matrix-rework.md`. |
+| **Filters** | A filter page with routing owned at both ends (each oscillator chooses its destination, each filter chooses series/parallel/out), plus a simplified filter in the FX rack. The consolidated roster is settled; the external design gate lifted on 2026-08-11. |
 | **Corner randomize** | A randomize button drawing on a bell curve around each parameter's default, with an initialize-corner inverse, so a corner is somewhere you can explore and get back from. |
 | **The engine roster** | Which engines ship is an open decision — SPECTRA is finished but unreachable in the current interface, the swarmalator is ported and gated but never wired in, and the formant engine's future is genuinely undecided. Evidence: `docs/research/2026-08-23-engine-roster-decision.md`. |
+
+---
+
+## The look
+
+The interface is a designed object, not a control dump, and its rules are small enough to
+state.
+
+**One ink, one accent, and signals that are never borrowed.** Every outline on the page is
+the same ink (`#191521`); every colour beyond that has exactly one job and is never reused
+for a second one:
+
+| token | value | its one job |
+|---|---|---|
+| `--value` | `#F5169C` | the value **you** authored — nothing the machine decided |
+| `--physics` | `#6431F0` | the system acting: order parameter, K vector, rotor lead |
+| `--meter` | `#00D5C8` | analysers and the R rim arc |
+| `--marker` | `#FFD702` | attention: root note, overshoot, lock front |
+| `--celebrate` | `#A6F219` | meters in the green |
+
+That discipline is why the panels stay readable at density: if a mark is pink you know a
+human put it there, and if it is violet you know the swarm did.
+
+**Two independent axes, not one theme switch.** The *chassis* is light (cream `#F2EDE2`) or
+dark (`#151220`) and carries the whole page. The *screens* — the phosphor wells where data
+lives — are themed separately, because a data surface and a control surface want different
+grounds: **TUBE**, **ORCHID**, **FROST**, **EMBER**, **DUSK**. You can run a dark screen on a
+light chassis, which is the combination the design actually favours.
+
+Signal hues survive the chassis flip; only their *emission* moves (`--value` becomes
+`#FF3DAD` on the dark ground). A hue that changed meaning between modes would make the
+"one job each" rule a lie in half the product.
+
+**Alpha is ground-dependent, and the tokens know it.** Low-alpha glow is a dark-ground
+technique — it disappears on cream. A `--scr-alpha` multiplier lets a painter ask for
+"faint" and lets the scheme decide what faint costs on its own ground, so no painter carries
+per-theme special cases.
+
+**The wordmark is played, not drawn.** `horde` is rendered live through a backward-remap
+warp field — wave, tremor, blobs and swirls sampled per pixel — and when an engine is
+running the synth drives it: the order parameter **R** becomes ripple, detune becomes wiggle,
+and the morph position becomes colour, blended bilinearly from the same four corner hues the
+pad uses. In light mode an ink outline carries the contrast so the fill can stay at full
+saturation, which is the only way corner A's `#FFD702` is legible on cream at all
+(measured 1.34:1 as a fill, which is why the outline exists).
+
+Design sources: `docs/design-system/`, the labs in `docs/design/`, and the tokens themselves
+at the top of `src/gui/gui2.html` — which is the authority, since the interface generates
+its controls from them.
 
 ---
 
