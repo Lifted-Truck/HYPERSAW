@@ -31,8 +31,20 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
-#include <mach/mach.h>
 #include <clap/clap.h>
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+/* PSAPI_VERSION 2 routes GetProcessMemoryInfo to K32GetProcessMemoryInfo in
+   kernel32, which MSVC links by default -- no psapi.lib needed on CI. */
+#define PSAPI_VERSION 2
+#include <windows.h>
+#include <psapi.h>
+#elif defined(__linux__)
+#include <cstdio>
+#include <unistd.h>
+#endif
 
 #include "../src/hypersaw_clap_entry.h"
 
@@ -40,13 +52,32 @@ namespace
 {
 #include "notefuzz_scaffold.inc"
 
+/* Per-platform because CI builds this on Windows too (first version shipped
+   the mach path bare and broke build-windows). RSS is a diagnostic column, so
+   an unsupported platform returns -1 rather than failing the build. */
 double rssMB()
 {
+#if defined(__APPLE__)
   mach_task_basic_info info{};
   mach_msg_type_number_t cnt = MACH_TASK_BASIC_INFO_COUNT;
   if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &cnt) != KERN_SUCCESS)
     return -1;
   return (double)info.resident_size / (1024.0 * 1024.0);
+#elif defined(_WIN32)
+  PROCESS_MEMORY_COUNTERS pmc{};
+  if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) return -1;
+  return (double)pmc.WorkingSetSize / (1024.0 * 1024.0);
+#elif defined(__linux__)
+  long pages = 0;
+  if (FILE *f = std::fopen("/proc/self/statm", "r"))
+  {
+    if (std::fscanf(f, "%*ld %ld", &pages) != 1) pages = 0;
+    std::fclose(f);
+  }
+  return pages > 0 ? (double)pages * sysconf(_SC_PAGESIZE) / (1024.0 * 1024.0) : -1;
+#else
+  return -1;
+#endif
 }
 
 struct Probe
