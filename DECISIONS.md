@@ -3483,3 +3483,41 @@ design. The values are mine to audition, not the designer's.
 flipped the class and every token kept its dark value. TOK reads `document.body`
 now. The screen-theme mechanism would have silently half-worked forever
 otherwise.
+
+## ADR-123 — osc on/off morphs as a level ramp; the A3 corner-write gets its field guard (2026-08-26)
+
+**Trigger.** Human: *"on blend, it should jump to on and gradually bring the
+volume of the osc up to max instead of picking an on/off value from one patch
+and a volume value from another."* Filed as B48; implemented same day.
+
+**The two defects.** (1) `enable` (150/1150) is stepped, so pick-mode drew it
+from one corner while `vol` came from another — the partway state was a
+chimera neither corner contains. (2) ADR-100's OFF hard-kills voices by
+design; correct for a human flipping a switch, a click generator when the
+field flips it at a blend boundary.
+
+**The design.** `morphStep` special-cases 150-ids: the bilinear corner weight
+of the "on" corners becomes a per-osc **on-weight** (`oscOnW[]`), applied as
+one more factor in `oscGainTarget()` — through the existing ~8 ms smoother and
+its skip-if-1.0 guard, so the settled path is byte-identical to today. Plain
+`w[]`, not the Gumbel draw: the ramp is deterministic in pad position, both
+modes. The stepped flip (with its kill/re-strike) still happens, but only at
+the 1e-3 weight floor, where the osc is already ~−60 dB — inaudible by
+construction. Exempt enables and morph-off both pin the weight to 1.0.
+
+**The latent bug this exposed, and its control.** ADR-100 A3 writes a switch
+edit into all four corners so the field cannot revert it — but the handler ran
+for the FIELD's own flips too, so the first boundary crossing overwrote every
+corner's enable and the stored on/off boundary silently ceased to exist.
+Guarded with `!morphFromField`. Proven by A/B: with the guard removed, a sweep
+across the boundary and back reads corner A's enable as 1 (destroyed); with
+it, 0 (survived).
+
+**Evidence.** Osc2-solo sweep across the boundary: silence at the off corner,
+−41 dB at first blend step, monotone rise to −14 dB at the on corner — no
+step, no click window. Parity 156/156 (worst 4.262e-09) — the goldens never
+engage the morph, and the settled-gain path is unchanged. Tests B48-1/B48-2.
+
+**Rejected:** writing the ramp into `vol` (17/1017) — it would fight vol's own
+morph target and corrupt corner authoring through the armed-edit router; a
+derived multiplier composes instead.
