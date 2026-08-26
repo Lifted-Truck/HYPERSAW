@@ -100,6 +100,23 @@ and transient material disagree about this.
   </div>
 
   <div class="panel">
+    <h2>ADR-031 — the feedback law</h2>
+    <div class="row">
+      <button id="lawfulBtn" class="ghost on">obeying ADR-031</button>
+      <button id="lawlessBtn" class="ghost">ignoring it (the control)</button>
+    </div>
+    <p class="verdict" id="loopv">—</p>
+    <p class="note"><b>Our decided audio feedback law</b> (ADR-031, promoted from two measured
+    bug post-mortems): <b>(a)</b> feedback paths normalise <b>/N</b> assuming worst-case
+    correlation — a &radic;N norm was measured unstable above regen&nbsp;0.35 — while output paths
+    take <b>/&radic;N</b>; <b>(b)</b> a <b>DC blocker inside every loop</b>, corner well clear of
+    the lowest musical comb. Both are Layer-0 guarded (L0-19/L0-21) so they cannot silently
+    regress. Rev&nbsp;1 of this lab obeyed <i>neither</i>, which is why BLEND howled. Flip the
+    control to hear the difference — and note the runaway-then-squash is the exact phenomenology
+    ADR-031 already documents.</p>
+  </div>
+
+  <div class="panel">
     <h2>Level, live</h2>
     <p class="verdict" id="lvl">—</p>
     <p class="note">Watch this while you sweep. A law whose middle is far louder than either
@@ -126,12 +143,16 @@ and transient material disagree about this.
     <h2>Output</h2>
     <canvas id="scope"></canvas>
     <p class="verdict" id="verdict">—</p>
-    <p class="note warn" id="finding"><b>Measured before you got here, so you are not ruling
-    blind.</b> With these defaults, BLEND's midpoint runs <b>+9.0&nbsp;dB louder than corner&nbsp;A
-    and clips</b> (peak 1.17) — both paths sum <i>and</i> the live cycle adds loop gain. ARGMAX's
-    midpoint is just corner&nbsp;B's level; DIP's is silence, exactly 0. So BLEND is not merely a
-    taste question: as written it needs gain compensation before it could ship at all. Judge
-    whether it is worth compensating.</p>
+    <p class="note warn" id="finding"><b>Rev 1 of this panel claimed BLEND ran +9&nbsp;dB hot
+    and clipped. That measurement is RETRACTED</b> — it was measuring a runaway cycle, not
+    blending, because rev&nbsp;1 obeyed none of ADR-031's feedback law. With the law applied the
+    loop is bounded (loop gain ≈&nbsp;0.06 at the defaults) and BLEND's midpoint sits a few dB
+    above corner&nbsp;A, which is the honest parallel-sum figure. Two further cautions, both
+    learned here: a single analyser buffer is 46&nbsp;ms and this source is seven detuned saws
+    whose beat period is <i>seconds</i>, so short-window level readings drifted 9.4&nbsp;dB on
+    identical states (2.5&nbsp;s averaging brings it to 1.2); and the coefficient normalisation is
+    verified at the matrix (outputs ×0.707, feedback ×0.500, exactly as the law says) rather than
+    inferred from a level difference.</p>
     <p class="note"><b>The scope is orientation, not evidence.</b> A meter cannot tell you whether
     the middle of the sweep is musical; only listening can. Judge with your ears and use the trace
     only to confirm something is actually reaching the output.</p>
@@ -162,6 +183,7 @@ const $ = s => document.querySelector(s);
 let ctx=null, nodes=null, started=false;
 let law='blend', t=0, source='drone';
 let sweepFrom=null, sweepDur=6, sweepStart=0, sweeping=false;
+let lawful=true;   // obey ADR-031's feedback laws (the A/B the human asked for)
 
 /* --- THE TWO CORNERS ----------------------------------------------------
    Coefficients are [from][to] over nodes: 0=src, 1=drive, 2=comb; to: drive,
@@ -229,17 +251,29 @@ function buildGraph(){
   { const n = 2048, cur = new Float32Array(n);
     for (let i = 0; i < n; i++){ const x = (i / (n - 1)) * 2 - 1; cur[i] = Math.tanh(x * 3); }
     shaper.curve = cur; shaper.oversample = '4x'; }
-  const drivePost = ac.createGain(); drivePost.gain.value = 0.7;
-  drivePre.connect(shaper).connect(drivePost);
+  const drivePost = ac.createGain(); drivePost.gain.value = 1;
+  const driveIn = ac.createGain();          // the module's input bus (for metering)
+  const driveMk = ac.createGain();          // measured makeup, driven in frame()
+  driveIn.connect(drivePre); drivePre.connect(shaper).connect(drivePost).connect(driveMk);
+  const dInA = ac.createAnalyser(); dInA.fftSize = 1024; driveIn.connect(dInA);
+  const dOutA = ac.createAnalyser(); dOutA.fftSize = 1024; driveMk.connect(dOutA);
 
   /* COMB: delay + feedback with a damping lowpass in the loop. */
   const combIn = ac.createGain();
   const delay  = ac.createDelay(0.05);
   const fb     = ac.createGain();
   const damp   = ac.createBiquadFilter(); damp.type = 'lowpass'; damp.frequency.value = 4200;
+  /* ADR-031 (b): DC-BLOCK INSIDE EVERY FEEDBACK LOOP, corner well clear of the
+     lowest musical comb. The comb reaches 60 Hz, so 8 Hz keeps a wide margin --
+     the ADR records that a 15 Hz blocker gutted a 26 Hz comb (16.3 -> 2.6 dB)
+     because in-loop filters compound per pass. */
+  const dcb = ac.createBiquadFilter(); dcb.type = 'highpass'; dcb.frequency.value = 8; dcb.Q.value = 0.7;
   const combOutNode = ac.createGain();
-  combIn.connect(delay); delay.connect(damp).connect(fb).connect(delay);
-  delay.connect(combOutNode);
+  const combMk = ac.createGain();
+  combIn.connect(delay); delay.connect(damp).connect(dcb).connect(fb).connect(delay);
+  delay.connect(combOutNode).connect(combMk);
+  const cInA = ac.createAnalyser(); cInA.fftSize = 1024; combIn.connect(cInA);
+  const cOutA = ac.createAnalyser(); cOutA.fftSize = 1024; combMk.connect(cOutA);
 
   /* CROSSPOINTS. One gain per edge — these ARE the matrix coefficients.
      The two module→module edges each carry a DelayNode: Web Audio refuses a
@@ -252,29 +286,101 @@ function buildGraph(){
   const dcDelay = ac.createDelay(0.05); dcDelay.delayTime.value = 0;
   const cdDelay = ac.createDelay(0.05); cdDelay.delayTime.value = 0;
 
-  srcAmp.connect(xp.srcDrive).connect(drivePre);
+  srcAmp.connect(xp.srcDrive).connect(driveIn);
   srcAmp.connect(xp.srcComb ).connect(combIn);
-  drivePost.connect(xp.driveComb).connect(dcDelay).connect(combIn);
-  combOutNode.connect(xp.combDrive).connect(cdDelay).connect(drivePre);
-  drivePost.connect(xp.driveOut).connect(out);
-  combOutNode.connect(xp.combOut ).connect(out);
+  driveMk.connect(xp.driveComb).connect(dcDelay).connect(combIn);
+  combMk.connect(xp.combDrive).connect(cdDelay).connect(driveIn);
+  driveMk.connect(xp.driveOut).connect(out);
+  combMk.connect(xp.combOut ).connect(out);
 
   const scope = ac.createAnalyser(); scope.fftSize = 2048; out.connect(scope);
-  return { out, srcAmp, oscs, drivePre, drivePost, combIn, delay, fb, xp, scope };
+  return { out, srcAmp, oscs, drivePre, drivePost, driveIn, driveMk, combIn, delay, fb, dcb,
+           combOutNode, combMk, xp, scope, dcDelay, cdDelay, dInA, dOutA, cInA, cOutA };
 }
 
+/* MODULE GAIN DISCIPLINE. Both modules are normalised to ~unity at small
+   signal, so a module changes TIMBRE and not level. Without this the drive ran
+   at small-signal gain ~6.7x (pre 7 x tanh slope 3 x post 0.318) and the comb
+   at ~1/(1-fb) = 5x, which is what made the cycle diverge -- and made the
+   first measurement of BLEND a measurement of runaway rather than of blending.
+   This is also the FX slot contract's point (docs/proposals/fx-slot-contract.md):
+   a module with no identity point is a module you cannot route. */
+/* MODULE GAIN DISCIPLINE — DETERMINISTIC, computed from the curve itself.
+   A module must change TIMBRE and not level, or every law measures gain staging
+   instead of blending. Two rejected attempts are recorded because each looked
+   reasonable and each produced a differently-wrong lab:
+     rev 2 normalised for SMALL-SIGNAL unity — but tanh's effective gain depends
+       on the operating level, so a saturating drive landed ~30 dB down;
+     rev 3 measured the makeup with analysers and slewed toward in/out unity —
+       correct in principle, but it is a feedback loop that interacts with the
+       crosspoints, so the level WANDERED while you listened. A lab whose gain
+       moves under you is worse for ruling than one that is slightly off.
+   So: integrate the actual shaper numerically over the actual source level,
+   once per parameter change. Deterministic, no loop, no settling time. */
+const SRC_RMS = 0.30;                    // the saw bank's own RMS at amp 0.5
+function driveMakeup(pre){
+  /* RMS gain of tanh(3·pre·x) for a full-cycle saw at SRC_RMS, by quadrature. */
+  let e = 0; const N = 512;
+  for (let i = 0; i < N; i++){
+    const x = (i / N) * 2 - 1;           // one saw period, unit amplitude
+    const y = Math.tanh(3 * pre * x * SRC_RMS * Math.sqrt(3));
+    e += y * y;
+  }
+  const outRms = Math.sqrt(e / N);
+  return outRms > 1e-6 ? SRC_RMS / outRms : 1;
+}
+let mkDrive = 1, mkComb = 1;
 function applyModules(){
   if (!nodes) return;
-  const amt = +$('#drv').value;
-  nodes.drivePre.gain.value  = 1 + amt * 8;
-  nodes.drivePost.gain.value = 0.7 / (1 + amt * 1.6);
+  const amt = +$('#drv').value, fbv = +$('#combFb').value;
+  const pre = 1 + amt * 8;
+  mkDrive = driveMakeup(pre);
+  mkComb  = 1 - fbv * 0.92;              // comb's resonant peak is ~1/(1-fb)
+  nodes.drivePre.gain.value  = pre;
+  nodes.drivePost.gain.value = 1;
+  nodes.driveMk.gain.value   = mkDrive;
   nodes.delay.delayTime.value = 1 / +$('#combHz').value;
-  nodes.fb.gain.value = +$('#combFb').value;
+  nodes.fb.gain.value = fbv;
+  nodes.combOutNode.gain.value = 1;
+  nodes.combMk.gain.value = mkComb;
   nodes.out.gain.value = +$('#vol').value;
+  applyLaw();
 }
 
+/* ADR-031 (a) APPLIED TO THE MATRIX. Two clauses, and they are different:
+     OUTPUT paths /sqrt(N)  — N paths summing into one bus are decorrelated at
+       worst, so constant power is the right normalisation. This is what stops
+       BLEND's midpoint being louder than either endpoint.
+     FEEDBACK paths /N      — the ADR's harder clause, promoted from a measured
+       bug: assume WORST-CASE CORRELATION around a loop. A sqrt(N) feedback norm
+       was unstable above regen 0.35 and produced exactly the runaway-then-
+       tanh-squash this lab produced before the law was applied.
+   Then an explicit loop-gain ceiling, because normalising the coefficients is
+   not sufficient on its own: the modules contribute their own gain around the
+   loop, and only a measurement of the whole loop can bound it. */
+const LOOP_CEIL = 0.85;
+let loopGainRaw = 0, loopTrim = 1;
+function normalise(c){
+  const n = { ...c };
+  const outN = (c.driveOut > 0.001 ? 1 : 0) + (c.combOut > 0.001 ? 1 : 0);
+  if (outN > 1) { const k = 1 / Math.sqrt(outN); n.driveOut *= k; n.combOut *= k; }
+  const fbN = (c.driveComb > 0.001 ? 1 : 0) + (c.combDrive > 0.001 ? 1 : 0);
+  if (fbN > 1) { n.driveComb /= fbN; n.combDrive /= fbN; }
+  /* Loop gain from the MEASURED module makeups: each module is trimmed toward
+     unity, so what is left around the loop is the crosspoint product times
+     whatever the trim has not caught up with yet. */
+  /* Loop gain around drive->comb->drive: the two crosspoints, each module's
+     normalised through-gain (~1 by the makeups above), and the comb's own
+     resonant build-up, which the makeup has deliberately NOT flattened away. */
+  loopGainRaw = n.driveComb * n.combDrive * mkComb
+                / Math.max(1e-6, 1 - +$('#combFb').value * 0.92);
+  loopTrim = loopGainRaw > LOOP_CEIL ? LOOP_CEIL / loopGainRaw : 1;
+  if (loopTrim < 1) { n.driveComb *= loopTrim; n.combDrive *= loopTrim; }
+  return n;
+}
 function applyLaw(){
-  const c = LAWS[law](t);
+  const raw = LAWS[law](t);
+  const c = lawful ? normalise(raw) : raw;
   if (nodes) for (const k of KEYS)
     nodes.xp[k].gain.setTargetAtTime(c[k], ctx.currentTime, 0.004);
   paintMatrix(c);
@@ -292,6 +398,16 @@ function paintMatrix(c){
   + `<tr><th>source</th>${cell(c.srcDrive)}${cell(c.srcComb)}<td>—</td></tr>`
   + `<tr><th>DRIVE</th><td>—</td>${cell(c.driveComb, true)}${cell(c.driveOut)}</tr>`
   + `<tr><th>COMB</th>${cell(c.combDrive, true)}<td>—</td>${cell(c.combOut)}</tr>`;
+  $('#loopv').innerHTML = cyc
+    ? `loop gain ${loopGainRaw.toFixed(2)}`
+      + (lawful
+          ? (loopTrim < 1
+              ? ` → trimmed to ${LOOP_CEIL.toFixed(2)} <span style="color:var(--ok)">(law holding it)</span>`
+              : ` <span style="color:var(--ok)">(under the ceiling on its own)</span>`)
+          : (loopGainRaw >= 1
+              ? ` <span style="color:var(--hot)">— DIVERGING, no law applied</span>`
+              : ` (no law applied)`))
+    : 'no cycle — the feedback law is not engaged here';
   $('#cycNote').innerHTML = cyc
     ? '<b style="color:var(--gold)">A CYCLE IS LIVE.</b> drive→comb→drive is closed, so this state '
     + 'only exists at all because both module→module edges carry a delay. Web Audio’s minimum '
@@ -357,6 +473,10 @@ document.querySelectorAll('[data-law]').forEach(b => b.addEventListener('click',
   $('#lawNote').innerHTML = LAW_NOTE[law];
   applyLaw();
 }));
+$('#lawfulBtn').addEventListener('click', () => { lawful = true;
+  $('#lawfulBtn').classList.add('on'); $('#lawlessBtn').classList.remove('on'); applyLaw(); });
+$('#lawlessBtn').addEventListener('click', () => { lawful = false;
+  $('#lawlessBtn').classList.add('on'); $('#lawfulBtn').classList.remove('on'); applyLaw(); });
 $('#hearA').addEventListener('click', () => setT(0));
 $('#hearB').addEventListener('click', () => setT(1));
 
