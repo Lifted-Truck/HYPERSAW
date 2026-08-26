@@ -52,3 +52,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - L0040 meeting every acceptance criterion is not evidence the change did its job — measure the RESOURCE against an extracted baseline (the knobs that passed SS4 and bought 2%)
 - L0041 `typeof x` does NOT guard a let/const — it throws in the TDZ, so the guard crashes in exactly the ordering it was written for
 - L0042 "the fix didn't work" -> first prove the fix reached what was tested (install vs build mtime + `grep -a` marker in the installed binary)
+- L0043 a subagent's summary is a claim about the tree, not the tree — read the primary source before ACTING on it (the seam answer filed from a scout's report)
