@@ -340,6 +340,15 @@ endif()
 # gain_probe: scratch diagnostic for the 2026-08-25 "too quiet on many
 # settings" report. Measures peak/RMS dBFS out of the real plugin across voice
 # count, coupling K and normExp. Not a gate; not run by ./verify.
+# ratchet_probe: scratch diagnostic for the B47 second report ("more the
+# longer I play... moreso when I morph partway"). Cost trajectory + occupancy
+# + RSS under a seeded stream, static and morphing. Not a gate.
+add_executable(ratchet_probe tools/ratchet_probe.cpp)
+target_link_libraries(ratchet_probe PRIVATE ${PROJECT_NAME}-impl)
+if(NOT MSVC)
+  target_compile_options(ratchet_probe PRIVATE -O2)
+endif()
+
 add_executable(gain_probe tools/gain_probe.cpp)
 target_link_libraries(gain_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
