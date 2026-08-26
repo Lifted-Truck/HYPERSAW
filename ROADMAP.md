@@ -345,7 +345,7 @@ gate written against defaults would have shipped the bug.
 **(2) The second loop (RN) has NO audio consumer at any K** — `s.RN` goes only to
 the viz snapshot, `gui.html` and `trajectory_check`, never to the DSP. So half
 this cost is unconditionally non-audio and needs no K or rtone condition at all.
-Net: the K=0 half is a narrower win than recorded, the RN half a wider one.
+Net: the K=0 half is a narrower win than recorded, the RN half a wider one. **AND A TENSION WITH OUR OWN FILED LESSON, found 2026-08-26 while checking FOUNDATIONS' tree before a merge.** `notice-post-round-lessons.md` is `from: HYPERSAW`, filed 2026-08-15, and its lesson 2 reads: *"any gain law written on K is wrong the moment other coherence-movers shift. Compensate on the measured order parameter instead."* We told a sibling to compensate on the measured order parameter and eleven days later proposed not measuring it. Both can hold -- the skip is gated where no gain law reads R -- but they cannot both be ratified without deciding which yields. **B46's K-sweep reproduced the lesson's non-monotonicity without recognising it** (RMS -21.39 at K=0, -21.24 at K=0.30, **-21.81 at K=0.50**, below K=0), which is a second unprompted measurement of the same phenomenon. **It also kills the reconciliation B46 floated**: substituting an analytic R ~ 1/sqrt(n) at K=0 IS a gain law written on K, which is precisely what the lesson forbids -- detune, dist, onset and drift all move coherence without moving K.
 
 ## OPEN — GUI2 COLUMN MARGIN LANDS ABOVE, NOT BELOW (2026-08-20, parked by the human)
 
