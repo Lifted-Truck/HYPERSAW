@@ -70,6 +70,108 @@ sources, mono/legato, and MPE per-note bend live here too.
 
 ---
 
+## What is actually new here
+
+Written against `PRIOR-ART.md`, which exists to stop this section overclaiming — it already
+retracted one of my earlier claims as false. Where a mature category exists, it is named.
+
+### Coupled oscillators as the timbre engine
+
+The voices of a supersaw are usually a fixed detune recipe. Here they are **Kuramoto-coupled
+oscillators**, and the coupling constant K is a performance control that moves the swarm
+through phase transitions: free cloud → herding → shimmer-lock → comb → effectively one
+oscillator. Negative K **splays** the voices apart instead, which multiplies harmonics and, at
+the extreme, erases partials by interference.
+
+*Honest positioning:* Kuramoto in audio is not unheard of — **Chiral Audio's Foxfire** ships a
+Kuramoto-based chorus/ensemble effect (coupled LFOs moving delay taps), and there is a real
+research lineage. What has no shipping analogue found is coupled-oscillator dynamics as the
+**synthesis engine** — the phase transition as the instrument's voice, rather than as a
+modulation effect.
+
+### Inertia: the swarm is second-order
+
+Give the oscillators **momentum** and first-order Kuramoto becomes second-order. The swarm
+stops tracking coupling instantly and starts *arriving* at it — overshoot, hysteresis, a lock
+that has to be earned and can be lost. It is the difference between a parameter and a physical
+system, and it is one knob.
+
+### Detune factored into two orthogonal menus
+
+Everyone ships a detune recipe. horde splits the decision that other instruments conflate:
+
+- **Distribution** — the statistical *shape* of where voices sit: even, the JP-8000 curve,
+  seeded Gaussian, seeded Cauchy (a Lorentzian lineshape), golden-ratio irrational.
+- **Law** — how an offset becomes Hz: cents-constant, Hz-constant, **ERB-flat** (perceptually
+  even, not mathematically even), **tempo-grid** (detune quantised to the session's beat),
+  harmonic, stretch.
+
+Serum 2's unison tuning modes prove the *idiom* is one players already read; the statistical,
+perceptual and metrical axes are the extension.
+
+### Consonance gravity — adaptive tuning as a force, not a rule
+
+Adaptive just intonation is a mature category (Hermode, Pivotuner, Alt-tuner, and others), and
+every one of them is a **MIDI-domain rule engine**: compute target pitches, rewrite notes
+upstream of the synth. Consonance gravity is a force *inside the audio engine* — a basin, a
+strength, a settling time, with beats visibly decelerating as an audible event. The novelty is
+not adaptive JI; it is that it falls out of **the same `sin(error)` coupling law that runs the
+unison swarm**, operating one level up.
+
+### Pitch bend as physics, with five travel laws
+
+A bend is not a ramp. The travel lane runs one of five laws — *off (instant)*, *constant time*,
+*constant rate*, *lag (one-pole)*, and **mass-spring**, which overshoots and settles with real
+spring/damping/return controls. The same five laws drive the **note** lane, so legato travel
+and wheel travel are one mechanism rather than two.
+
+### Scale-quantised bend that lands where you started
+
+Quantising a bend to a scale is easy to get subtly wrong, and horde got it wrong first: a note
+resolved to a *different pitch* after a bend than when it was played. The fix is that the
+quantiser is **anchored** — base + offset rather than absolute — and that **ties resolve toward
+the previously emitted step**, so a bend sitting exactly between two degrees does not chatter
+between them.
+
+### The quantum morph — flips, not crossfades
+
+A morph pad is not new (NI Super*Saw ships X/Y state morphing). What is different is what
+happens between the corners: horde does **not** interpolate. Each parameter independently
+**draws** a corner, weighted by where you are, so the in-between is a *patchwork* of four
+sounds rather than an average of them — averages of synth parameters are usually mush.
+A temperature control loosens the borders, coupling makes parameters flip in blocs, and a seed
+makes the patchwork an identity you can return to. Structural parameters draw as a unit, so the
+field can never assemble a state no corner authored. **The mechanics are in
+§The morph grid below.**
+
+### Humanization that is correction, not jitter
+
+Conventional humanize adds independent random offsets per voice. The research it is imitating
+says listeners judge ensemble togetherness from the **serial structure** of asynchrony, not its
+variance — so horde implements the Vorberg/Wing **mutual error correction** model:
+`off_i ← off_i − α·(off_i − mean_off) + motorNoise_i`.
+
+Measured from the shipped core, and this is why the distinction is real rather than rhetorical:
+
+| α | onset SD | lag-1 autocorrelation | what it is |
+|---|---|---|---|
+| 0 | 202 ms | +0.985 | a random walk — drifts without bound |
+| **0.25** | **35.8 ms** | **+0.679** | bounded, *with structure* — real quartets |
+| 1.0 | 26.4 ms | −0.072 | i.i.d. — **exactly what conventional humanize produces** |
+| 1.5 | — | −0.550 | over-correction: alternating early/late |
+
+Conventional humanize is not a different setting of this control; it is one specific value of
+it, and not the musical one.
+
+### Topology as a continuous surface
+
+The FX routing is a dense crosspoint matrix rather than an edge list, for one reason: a
+coefficient of zero **is** "not connected", so connecting and disconnecting are one continuous
+motion. Every sparse representation makes an edge add/remove a hard cut — which matters
+enormously once a morph field is writing the topology.
+
+---
+
 ## The morph grid
 
 ![horde — the MORPH page](docs/img/gui-morph.png)
@@ -107,6 +209,19 @@ And the authoring side:
 - Corners save and load as presets, and the whole field rides the DAW session.
 
 ---
+
+## Coming through the pipeline
+
+Ported and oracle-covered, but not yet reachable in the shipped interface, or still in design:
+
+| | |
+|---|---|
+| **SPECTRA** | The per-partial sibling: a coupled *cloud on every partial*, so lock can cascade up the harmonic series and splay can erase partials by interference. Finished and parity-covered; gated behind the engine-roster decision. |
+| **Swarmalator** | Oscillators whose phase and *position* are coupled to each other — synchronisation and spatialisation as one system. Ported, gated, deliberately parked. |
+| **CANTO** | A formant engine (FOF/pulsar grains) where the formants are **masses on springs** rather than filter settings. |
+| **WARP** | A morphing waveshaper with **hysteresis** — the shape depends on where the signal has been, not only where it is. Destined for the shared post-stage. |
+| **STATION** | The dependable one: 3-operator phase modulation with an LFSR noise channel. Explicitly maximal coverage per CPU cycle. |
+| **The FX rework** | Set modules behind a crosspoint matrix with feedback, ruled to carry a **one-sample** delay rather than a block-rate one, so a patch cannot sound different at a different buffer size. |
 
 ## Where it is going
 
