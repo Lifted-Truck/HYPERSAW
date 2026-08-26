@@ -3692,3 +3692,79 @@ one thing a quantum morph exists not to do — is independent of any lab defect
 and is the reason recorded as load-bearing. But the first reason is now
 uncertain, and BLEND deserves a re-listen on the fixed lab before anyone treats
 its rejection as settled on sonic grounds.
+
+## ADR-127 — switching morph ON adopts the live patch instead of overwriting it (2026-08-26)
+
+**Status: ACCEPTED.** Human report: *"switching morph on when you've edited the
+patch can be destructive; it replaces the sound with default inits."*
+
+**Reproduced, 5 of 5 edited parameters destroyed.** Edit voices→16, detune→0.75,
+K→0.80, release→2.50, width→1.30; switch morph on; let the 5.8 ms grid tick.
+Every one snaps back to its default.
+
+**Mechanism.** `morphInit()` seeds all four corners with `defaultFor(...)` and
+reasons that this is *"silence-safe: every corner agrees"*. That is true of a
+**fresh instance**, where live == default. But `morphInit()` is guarded by
+`if (!morphIds.empty()) return;` and is called from readParam and state paths —
+so it runs at startup, long before any editing. The corners then hold stale
+defaults, and the first grid tick after morph-on writes them over the player's
+sound. The comment was correct about the case it was written for and silently
+wrong about every other case.
+
+**The fix.** When morph is switched on and the corners have never been
+**authored**, adopt the live value into all four. All four, not one, so
+morphInit's silence-safe property is preserved exactly — every corner still
+agrees, so the field stays inert until something is captured. `morphCornersAuthored`
+is set by every path that gives a corner meaning: capture, an armed edit, an
+exempt write, a corner-preset apply, and a state chunk that carried corners.
+That guard matters as much as the fix: a loaded preset's corners must never be
+clobbered either, so the destructive direction is closed **both** ways.
+
+**Why not the pop-up.** The human offered two designs — a warning recommending
+"capture to the yellow corner", or normalising a corner to what is set. A
+warning that says *"you are about to lose your sound"* is worse than not losing
+it; the dialog exists only because the underlying behaviour is wrong. And the
+adopt-live lean is already recorded in this codebase, at `morphToggleExempt`:
+*"the corners honestly record what was playing."* This applies the same rule one
+level up.
+
+**Parity.** 156/156 within ε=1e-6, unchanged — `morphOn` ships off and no golden
+enables it, so the new branch is unreachable from the goldens by construction.
+Test rows B54-1 / B54-2.
+
+## ADR-128 — audio feedback carries a ONE-SAMPLE delay, not a block-rate one (2026-08-26)
+
+**Status: ACCEPTED — human ruling.** *"I'll take your per-sample rec."* Closes
+B50's first fork.
+
+**What was decided.** When the FX routing matrix gains feedback, a backwards
+edge carries **one sample** of delay and the crosspoint sum runs inside the
+sample loop. It does **not** carry a block-rate unit delay.
+
+**Why block-rate was rejected**, in one number: at 128 samples / 44.1 kHz a
+block-rate loop is **2.9 ms**, which is a flanger rather than a routing
+primitive — and it **changes with the host's buffer size**, so the same patch
+would sound different at 64 and 512 samples. That is a direct violation of our
+own determinism rule (SPEC §5.7: same seed + note order → identical output);
+buffer-size-dependent output is the same class of defect as a wall-clock read
+in the core. One sample is 22.7 µs and buffer-independent.
+
+**FOUNDATIONS' OQ-23 is not overruled — it does not apply.** Their ruling
+(*"a cycle is legal, every feedback edge carries a unit delay at block rate"*,
+`notice-oq23-ruled.md`) was made for the **modulation** graph, where control
+rate is the natural rate and 2.9 ms is inaudible. Inheriting it for audio would
+be a category error. **This divergence should be filed to them**, not because
+they require it, but because their register is watching for exactly this: a
+second consumer discovering that a doorframe's rate assumption does not
+transfer across domains.
+
+**Cost, stated so it is not discovered later.** Per-sample crosspoint summing is
+O(live edges) per sample instead of per block. At today's six modules with a
+handful of live edges that is negligible; it stops being negligible if B45's
+roster lands and every crosspoint is opened, which is why the implementation
+must sum over the **live** edge set, recomputed per block, rather than the full
+N² table.
+
+**Not implemented yet.** Routing coefficients are not in the audio path's
+feedback form; this ruling constrains B50's build rather than describing shipped
+behaviour.

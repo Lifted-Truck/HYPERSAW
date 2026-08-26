@@ -54,7 +54,7 @@ static const clap_plugin_descriptor_t s_desc = {
     "com.lifted-truck.hypersaw",   // FROZEN — see above; not a display string
     "horde",
     "Lifted Truck",
-    "https://github.com/Lifted-Truck/HYPERSAW",
+    "https://github.com/Lifted-Truck/horde",
     "",
     "",
     "0.1.0",
@@ -1194,6 +1194,22 @@ struct Plugin
      Members are addressed by morphIds INDEX, not id, and a group's members
      need not be contiguous: an FX slot's type/amount/tone sit in three
      different id blocks. */
+  /* Have the corners ever been AUTHORED, or are they still the seed?
+     morphInit() runs once, lazily, from whichever morph path is touched first --
+     in practice at startup, long before the player has edited anything. It seeds
+     all four corners with parameter DEFAULTS, and its comment reasons that this
+     is "silence-safe: every corner agrees". That is true of a FRESH instance,
+     where live == default, and false the moment the player edits the patch: the
+     first grid tick after morph is switched on then writes those stale defaults
+     over their sound. Reported 2026-08-26: "switching morph on when you've
+     edited the patch can be destructive; it replaces the sound with default
+     inits."
+     This flag is what lets morph-on distinguish "corners hold real content,
+     leave them alone" from "corners are still the seed, adopt what is playing".
+     Set by every path that gives a corner meaning: capture, an armed edit, an
+     exempt write, a corner-preset apply, and a state chunk that carried
+     corners. */
+  bool morphCornersAuthored = false;
   std::vector<uint32_t> morphLead;   // index -> the index whose corner it follows
   size_t morphGroupLead(size_t i) const
   {
@@ -1344,6 +1360,7 @@ struct Plugin
           {
             const double live = readParam(morphIds[j]);
             for (int k = 0; k < 4; k++) morphCorner[k][j] = live;
+            morphCornersAuthored = true;
           }
         }
         return on;
@@ -1423,6 +1440,7 @@ struct Plugin
     morphInit();
     for (size_t i = 0; i < morphIds.size(); i++)
       morphCorner[k][i] = readParam(morphIds[i]);
+    morphCornersAuthored = true;
   }
 
   /* One morph step, on the 256-sample gravity grid (heavier than the bend grid
@@ -1477,6 +1495,7 @@ struct Plugin
     if (armed >= 1 && armed <= 4)
     {
       morphCorner[armed - 1][idx] = v;
+      morphCornersAuthored = true;
       return false;
     }
     double w[4], lw[4];
@@ -2355,6 +2374,7 @@ struct Plugin
     const char *c = std::strchr(json.c_str() + cp, '[');
     if (!c) return false;
     c++;
+    morphCornersAuthored = true;
     for (size_t i = 0; i < morphIds.size(); i++)
     {
       morphCorner[k][i] = std::atof(c);
@@ -2431,6 +2451,7 @@ struct Plugin
           for (size_t i = 0; i < morphIds.size(); i++)
           {
             morphCorner[k][i] = std::atof(c);
+            morphCornersAuthored = true;
             const char *nx = std::strchr(c, ',');
             const char *cl = std::strchr(c, ']');
             if (!nx || (cl && cl < nx)) { c = cl ? cl + 1 : c; break; }
@@ -2783,6 +2804,27 @@ struct Plugin
                     // fill, not assign: this runs on the AUDIO thread and the
                     // vector is pre-sized at activate — no allocation here.
                     if (morphOn > 0.5) std::fill(morphCur.begin(), morphCur.end(), -1e30);
+                    /* NON-DESTRUCTIVE MORPH-ON. If the corners are still the
+                       seed morphInit() laid down at startup, adopt the LIVE
+                       patch into all four rather than letting the first grid
+                       tick write stale defaults over the player's sound
+                       (reported 2026-08-26: "switching morph on when you've
+                       edited the patch can be destructive; it replaces the
+                       sound with default inits").
+                       All four, not just one, so morphInit's silence-safe
+                       property is preserved exactly: every corner agrees, so
+                       the field is inert until something is captured. This is
+                       the same lean already recorded at morphToggleExempt --
+                       "the corners honestly record what was playing".
+                       Guarded on `morphCornersAuthored` so a loaded preset's
+                       corners are never clobbered: the destructive direction
+                       has to stay closed in BOTH directions. */
+                    if (morphOn > 0.5 && !morphCornersAuthored)
+                      for (size_t i = 0; i < morphIds.size(); i++)
+                      {
+                        const double live = readParam(morphIds[i]);
+                        for (int k2 = 0; k2 < 4; k2++) morphCorner[k2][i] = live;
+                      }
                     // B48: morph off releases the on-weight ramp, else the
                     // last partway value would keep scaling a morph-free patch.
                     if (morphOn <= 0.5)
