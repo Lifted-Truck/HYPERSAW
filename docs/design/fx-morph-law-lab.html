@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>horde fx morph-law lab — what a topology flip should sound like</title>
+<style>
+  :root{--bg:#0e1113;--panel:#161b1e;--ink:#e6ecee;--dim:#8b979c;--rule:#242c30;
+        --hot:#e0674a;--cool:#5fb8c4;--gold:#d9a94a;--ok:#63c48d;--vio:#9d8cf0;
+        --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+        --sans:ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);padding:20px 22px 60px}
+  h1{font-size:20px;margin:0 0 4px;letter-spacing:.01em}
+  .rev{float:right;font:11px/1.4 var(--mono);color:var(--dim)}
+  .tagline{color:var(--dim);max-width:72rem;margin:0 0 16px;font-size:13px}
+  .tagline b{color:var(--ink)}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:14px;max-width:80rem}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:13px 15px}
+  .panel h2{font:600 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--cool);
+            margin:0 0 10px;padding-bottom:7px;border-bottom:1px solid var(--rule)}
+  button{font:600 13px var(--sans);color:#0e1113;background:var(--cool);border:0;border-radius:6px;
+         padding:9px 15px;cursor:pointer}
+  button:hover{filter:brightness(1.1)}
+  button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  button.ghost{background:#1e2529;color:var(--ink);border:1px solid var(--rule)}
+  button.ghost.on{background:var(--vio);color:#0e1113;border-color:var(--vio)}
+  button.big{font-size:15px;padding:12px 22px}
+  #stopBtn{background:var(--hot);color:#fff}
+  .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+  label.k{display:grid;grid-template-columns:8.5rem 1fr 3.6rem;gap:9px;align-items:center;
+          margin:0 0 7px;font-size:12px;color:var(--dim)}
+  label.k output{font:600 12px var(--mono);color:var(--ink);text-align:right}
+  input[type=range]{width:100%;accent-color:var(--cool)}
+  .note{color:var(--dim);font-size:11.5px;margin:9px 0 0;line-height:1.55}
+  .note b{color:var(--ink)}
+  .warn{border-left:2px solid var(--gold);padding-left:10px}
+  table.mx{border-collapse:collapse;font:11px var(--mono);margin-top:4px}
+  table.mx th,table.mx td{border:1px solid var(--rule);padding:4px 8px;text-align:center;min-width:4.2rem}
+  table.mx th{color:var(--dim);font-weight:600}
+  table.mx td.live{color:#0e1113;background:var(--cool);font-weight:700}
+  table.mx td.part{color:var(--gold)}
+  table.mx td.cyc{background:#3a2a12;color:var(--gold);font-weight:700}
+  .lawbox{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .verdict{font:600 12px var(--mono);color:var(--gold);min-height:1.4em}
+  canvas{width:100%;height:96px;display:block;background:#0a0d0e;border:1px solid var(--rule);
+         border-radius:6px;margin-top:8px}
+</style></head><body>
+
+<h1>fx morph-law lab <span class="rev">rev 1 · 2026-08-26 · B50</span></h1>
+<p class="tagline">
+Corner&nbsp;A routes <b>source → DRIVE → COMB → out</b>. Corner&nbsp;B routes the same two modules the
+other way: <b>source → COMB → DRIVE → out</b>. Both corners are the same modules with the same
+settings — only the <b>order</b> differs. The question this lab exists to settle is what should
+happen <i>between</i> them, and it is a question you answer by ear, not by argument.
+<b>Rule on the law, not on the preset:</b> try it on the drone and on the pluck, because sustained
+and transient material disagree about this.
+</p>
+
+<div class="cols">
+
+  <div class="panel">
+    <h2>Transport</h2>
+    <div class="row">
+      <button id="startBtn" class="big">▶ start audio</button>
+      <button id="stopBtn" class="big">■ stop</button>
+    </div>
+    <div class="row">
+      <button id="srcDrone" class="ghost on">drone</button>
+      <button id="srcPluck" class="ghost">pluck pattern</button>
+    </div>
+    <label class="k">output level<input id="vol" type="range" min="0" max="1" step="0.01" value="0.5"><output id="vol_o">0.50</output></label>
+    <p class="note">Everything is generated here — a seeded 7-voice detuned saw bank, no samples,
+    no network. <b>Start audio first;</b> browsers will not open an AudioContext without a click.</p>
+  </div>
+
+  <div class="panel">
+    <h2>The control — do the two orders even differ?</h2>
+    <div class="row">
+      <button id="hearA" class="ghost">hear corner A (drive→comb)</button>
+      <button id="hearB" class="ghost">hear corner B (comb→drive)</button>
+    </div>
+    <p class="note warn"><b>Check this first.</b> If A and B sound the same on your material, the
+    whole question is moot and any law is fine — turn DRIVE and COMB up until the order is
+    obviously audible before judging anything below. Distorting a resonant comb and combing a
+    distorted signal are different operations; if you cannot hear that, the test is not loaded.</p>
+  </div>
+
+  <div class="panel">
+    <h2>The morph</h2>
+    <label class="k">A ←→ B<input id="t" type="range" min="0" max="1" step="0.001" value="0"><output id="t_o">0.000</output></label>
+    <div class="row">
+      <button id="sweepBtn">sweep A→B→A</button>
+      <label class="k" style="grid-template-columns:5rem 1fr 3.6rem;margin:0">
+        seconds<input id="sweepSec" type="range" min="1" max="12" step="0.5" value="6"><output id="sweepSec_o">6.0</output></label>
+    </div>
+    <div class="lawbox">
+      <button class="ghost on" data-law="blend">BLEND</button>
+      <button class="ghost" data-law="argmax">ARGMAX</button>
+      <button class="ghost" data-law="dip">DIP</button>
+    </div>
+    <p class="note" id="lawNote"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Level, live</h2>
+    <p class="verdict" id="lvl">—</p>
+    <p class="note">Watch this while you sweep. A law whose middle is far louder than either
+    endpoint is a level-management problem before it is an aesthetic one — and the clip flag is
+    the difference between "sounds wrong" and "is wrong".</p>
+  </div>
+
+  <div class="panel">
+    <h2>The crosspoint matrix, live</h2>
+    <table class="mx" id="mx"></table>
+    <p class="note" id="cycNote"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Modules</h2>
+    <label class="k">drive amount<input id="drv" type="range" min="0" max="1" step="0.01" value="0.75"><output id="drv_o">0.75</output></label>
+    <label class="k">comb pitch (Hz)<input id="combHz" type="range" min="60" max="600" step="1" value="180"><output id="combHz_o">180</output></label>
+    <label class="k">comb feedback<input id="combFb" type="range" min="0" max="0.95" step="0.01" value="0.8"><output id="combFb_o">0.80</output></label>
+    <p class="note">Deliberately strong defaults: a subtle drive and a shy comb make every law
+    sound identical, which would be a false negative rather than a result.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Output</h2>
+    <canvas id="scope"></canvas>
+    <p class="verdict" id="verdict">—</p>
+    <p class="note warn" id="finding"><b>Measured before you got here, so you are not ruling
+    blind.</b> With these defaults, BLEND's midpoint runs <b>+9.0&nbsp;dB louder than corner&nbsp;A
+    and clips</b> (peak 1.17) — both paths sum <i>and</i> the live cycle adds loop gain. ARGMAX's
+    midpoint is just corner&nbsp;B's level; DIP's is silence, exactly 0. So BLEND is not merely a
+    taste question: as written it needs gain compensation before it could ship at all. Judge
+    whether it is worth compensating.</p>
+    <p class="note"><b>The scope is orientation, not evidence.</b> A meter cannot tell you whether
+    the middle of the sweep is musical; only listening can. Judge with your ears and use the trace
+    only to confirm something is actually reaching the output.</p>
+  </div>
+
+</div>
+
+<script>
+/* ===========================================================================
+   fx morph-law lab (B50). Demonstrates the ONE ruling the FX rework needs
+   before its migration can be written: when two morph corners disagree about
+   TOPOLOGY rather than about a value, what should the in-between state be?
+
+   Faithful on purpose. The two corners share ONE Drive and ONE Comb -- exactly
+   what "set modules + a routing matrix" means -- rather than crossfading two
+   private chains, because those two things sound different and only the first
+   is the thing being ruled on. That fidelity is also what makes the cycle real:
+   with both orders partly open the graph genuinely contains drive->comb->drive,
+   and the delay in that loop is the block-rate feedback question from B50 §2,
+   not a simulation of it.
+   =========================================================================== */
+
+/* Seeded, per ADR-091: an unseeded prototype cannot become a reference. */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+const $ = s => document.querySelector(s);
+let ctx=null, nodes=null, started=false;
+let law='blend', t=0, source='drone';
+let sweepFrom=null, sweepDur=6, sweepStart=0, sweeping=false;
+
+/* --- THE TWO CORNERS ----------------------------------------------------
+   Coefficients are [from][to] over nodes: 0=src, 1=drive, 2=comb; to: drive,
+   comb, out. Corner A is src->drive->comb->out; corner B is src->comb->drive->out.
+   Nothing else differs -- same modules, same params. */
+const CORNER = {
+  A: { srcDrive:1, srcComb:0, driveComb:1, combDrive:0, driveOut:0, combOut:1 },
+  B: { srcDrive:0, srcComb:1, driveComb:0, combDrive:1, driveOut:1, combOut:0 },
+};
+const KEYS = ['srcDrive','srcComb','driveComb','combDrive','driveOut','combOut'];
+
+/* --- THE THREE LAWS -----------------------------------------------------
+   Each returns the live coefficient set for a morph position t in [0,1]. */
+const LAWS = {
+  /* Interpolate every coefficient. This is ADR-088's dense-crosspoint reading:
+     a coefficient of 0 IS "not connected", so topology change is one continuous
+     motion. Midway BOTH orders are partly open, which is a parallel blend --
+     and a live drive->comb->drive cycle. */
+  blend(t){ const c={}; for(const k of KEYS) c[k]=CORNER.A[k]+(CORNER.B[k]-CORNER.A[k])*t; return c; },
+
+  /* Snap the whole topology to the nearer corner; module PARAMETERS still blend
+     elsewhere in the engine. QM-0's QUANTUM law. No cycle ever exists, and the
+     flip is a hard cut at t=0.5. */
+  argmax(t){ const c={}; const s=t<0.5?'A':'B'; for(const k of KEYS) c[k]=CORNER[s][k]; return c; },
+
+  /* Ramp corner A's topology out to silence, flip at the floor, ramp corner B's
+     in. Click-free like BLEND and cycle-free like ARGMAX -- at the cost of the
+     effect audibly vanishing in the middle. */
+  dip(t){ const c={}; const s=t<0.5?'A':'B';
+    const g=Math.abs(t-0.5)*2;                     // 1 at the corners, 0 at the midpoint
+    for(const k of KEYS) c[k]=CORNER[s][k]*(k.endsWith('Out')?g:1);
+    return c; },
+};
+const LAW_NOTE = {
+  blend:'<b>BLEND</b> — every crosspoint interpolates. Midway both orders are partly open, so you '
+       +'hear drive and comb in PARALLEL, and the graph contains a real drive→comb→drive cycle '
+       +'(see the matrix). This is what ADR-088’s dense matrix does if nothing stops it.',
+  argmax:'<b>ARGMAX</b> — topology snaps to the nearer corner at t=0.5; module parameters would '
+        +'still blend in the full engine. No cycle, no parallel state, but the flip is a hard cut. '
+        +'Listen for whether that cut is a click or a musical event.',
+  dip:'<b>DIP</b> — corner A’s output ramps to silence, the topology flips at the floor, and '
+     +'corner B’s ramps back in. Click-free and cycle-free; the cost is that the effect '
+     +'disappears mid-sweep. Ask whether that hole is acceptable or disqualifying.',
+};
+
+function buildGraph(){
+  const ac = ctx;
+  const out = ac.createGain(); out.gain.value = +$('#vol').value; out.connect(ac.destination);
+
+  /* SOURCE: seeded 7-voice detuned saw bank + an amp the pluck pattern gates. */
+  const srcAmp = ac.createGain(); srcAmp.gain.value = 0;
+  const rnd = mulberry32(1234);
+  const oscs = [];
+  for (let i = 0; i < 7; i++){
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    const cents = (i - 3) * 9 + (rnd() * 2 - 1) * 3;
+    o.frequency.value = 110 * Math.pow(2, cents / 1200);
+    const g = ac.createGain(); g.gain.value = 0.13;
+    o.connect(g).connect(srcAmp); o.start(); oscs.push(o);
+  }
+
+  /* DRIVE: a waveshaper, pre-gain carries the amount. */
+  const drivePre = ac.createGain();
+  const shaper = ac.createWaveShaper();
+  { const n = 2048, cur = new Float32Array(n);
+    for (let i = 0; i < n; i++){ const x = (i / (n - 1)) * 2 - 1; cur[i] = Math.tanh(x * 3); }
+    shaper.curve = cur; shaper.oversample = '4x'; }
+  const drivePost = ac.createGain(); drivePost.gain.value = 0.7;
+  drivePre.connect(shaper).connect(drivePost);
+
+  /* COMB: delay + feedback with a damping lowpass in the loop. */
+  const combIn = ac.createGain();
+  const delay  = ac.createDelay(0.05);
+  const fb     = ac.createGain();
+  const damp   = ac.createBiquadFilter(); damp.type = 'lowpass'; damp.frequency.value = 4200;
+  const combOutNode = ac.createGain();
+  combIn.connect(delay); delay.connect(damp).connect(fb).connect(delay);
+  delay.connect(combOutNode);
+
+  /* CROSSPOINTS. One gain per edge — these ARE the matrix coefficients.
+     The two module→module edges each carry a DelayNode: Web Audio refuses a
+     cycle without one, which is precisely B50 §2's point made physical. Its
+     minimum is one render quantum (128 samples ≈ 2.9 ms at 44.1 kHz) — the
+     same block-rate latency the block-rate feedback option would impose. */
+  const mk = () => { const g = ac.createGain(); g.gain.value = 0; return g; };
+  const xp = { srcDrive:mk(), srcComb:mk(), driveComb:mk(), combDrive:mk(),
+               driveOut:mk(), combOut:mk() };
+  const dcDelay = ac.createDelay(0.05); dcDelay.delayTime.value = 0;
+  const cdDelay = ac.createDelay(0.05); cdDelay.delayTime.value = 0;
+
+  srcAmp.connect(xp.srcDrive).connect(drivePre);
+  srcAmp.connect(xp.srcComb ).connect(combIn);
+  drivePost.connect(xp.driveComb).connect(dcDelay).connect(combIn);
+  combOutNode.connect(xp.combDrive).connect(cdDelay).connect(drivePre);
+  drivePost.connect(xp.driveOut).connect(out);
+  combOutNode.connect(xp.combOut ).connect(out);
+
+  const scope = ac.createAnalyser(); scope.fftSize = 2048; out.connect(scope);
+  return { out, srcAmp, oscs, drivePre, drivePost, combIn, delay, fb, xp, scope };
+}
+
+function applyModules(){
+  if (!nodes) return;
+  const amt = +$('#drv').value;
+  nodes.drivePre.gain.value  = 1 + amt * 8;
+  nodes.drivePost.gain.value = 0.7 / (1 + amt * 1.6);
+  nodes.delay.delayTime.value = 1 / +$('#combHz').value;
+  nodes.fb.gain.value = +$('#combFb').value;
+  nodes.out.gain.value = +$('#vol').value;
+}
+
+function applyLaw(){
+  const c = LAWS[law](t);
+  if (nodes) for (const k of KEYS)
+    nodes.xp[k].gain.setTargetAtTime(c[k], ctx.currentTime, 0.004);
+  paintMatrix(c);
+  return c;
+}
+
+function paintMatrix(c){
+  const cyc = c.driveComb > 0.001 && c.combDrive > 0.001;
+  const cell = (v, isCycleEdge) => {
+    const cls = v > 0.999 ? 'live' : (v > 0.001 ? (isCycleEdge && cyc ? 'cyc' : 'part') : '');
+    return `<td class="${cls}">${v.toFixed(3)}</td>`;
+  };
+  $('#mx').innerHTML =
+    `<tr><th>from \\ to</th><th>DRIVE</th><th>COMB</th><th>OUT</th></tr>`
+  + `<tr><th>source</th>${cell(c.srcDrive)}${cell(c.srcComb)}<td>—</td></tr>`
+  + `<tr><th>DRIVE</th><td>—</td>${cell(c.driveComb, true)}${cell(c.driveOut)}</tr>`
+  + `<tr><th>COMB</th>${cell(c.combDrive, true)}<td>—</td>${cell(c.combOut)}</tr>`;
+  $('#cycNote').innerHTML = cyc
+    ? '<b style="color:var(--gold)">A CYCLE IS LIVE.</b> drive→comb→drive is closed, so this state '
+    + 'only exists at all because both module→module edges carry a delay. Web Audio’s minimum '
+    + 'is one render quantum — <b>2.9 ms at 44.1 kHz</b> — which is exactly the block-rate feedback '
+    + 'latency B50 §2 warns about. If this sounds like a flanger rather than a routing state, that '
+    + 'is the finding.'
+    : 'No cycle: at most one module→module direction is open, so a single forward pass is correct '
+    + 'and no delay is in the path. This is the regime today’s <code>routing_core.h</code> '
+    + 'already supports.';
+}
+
+function setT(v){ t = Math.min(1, Math.max(0, v)); $('#t').value = t; $('#t_o').textContent = t.toFixed(3);
+  applyLaw(); }
+
+/* ---- transport ---- */
+$('#startBtn').addEventListener('click', async () => {
+  if (started) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  await ctx.resume();
+  nodes = buildGraph(); started = true;
+  applyModules(); applyLaw(); setSource(source);
+  requestAnimationFrame(frame);
+  $('#verdict').textContent = 'running — check the control panel first';
+});
+$('#stopBtn').addEventListener('click', () => {
+  if (!started) return;
+  try { nodes.oscs.forEach(o => o.stop()); } catch (_) {}
+  ctx.close(); ctx = null; nodes = null; started = false; sweeping = false;
+  $('#verdict').textContent = 'stopped';
+});
+
+/* ---- source: drone vs pluck. The pattern is a gate on the same bank, so the
+   two sources differ only in envelope -- which is the axis that matters here:
+   transients expose a comb’s ring and a dip’s hole far more than a drone. */
+let pluckTimer = null;
+function setSource(s){
+  source = s;
+  $('#srcDrone').classList.toggle('on', s === 'drone');
+  $('#srcPluck').classList.toggle('on', s === 'pluck');
+  if (pluckTimer) { clearInterval(pluckTimer); pluckTimer = null; }
+  if (!started) return;
+  const g = nodes.srcAmp.gain;
+  if (s === 'drone') { g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(0.5, ctx.currentTime, 0.05); }
+  else {
+    g.cancelScheduledValues(ctx.currentTime); g.setValueAtTime(0, ctx.currentTime);
+    pluckTimer = setInterval(() => {
+      if (!started) return;
+      const now = ctx.currentTime;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(0.0001, now);
+      g.exponentialRampToValueAtTime(0.6, now + 0.006);
+      g.exponentialRampToValueAtTime(0.0001, now + 0.42);
+    }, 620);
+  }
+}
+$('#srcDrone').addEventListener('click', () => setSource('drone'));
+$('#srcPluck').addEventListener('click', () => setSource('pluck'));
+
+/* ---- law + corners ---- */
+document.querySelectorAll('[data-law]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-law]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); law = b.dataset.law;
+  $('#lawNote').innerHTML = LAW_NOTE[law];
+  applyLaw();
+}));
+$('#hearA').addEventListener('click', () => setT(0));
+$('#hearB').addEventListener('click', () => setT(1));
+
+/* ---- sweep ---- */
+$('#sweepBtn').addEventListener('click', () => {
+  if (!started) { $('#verdict').textContent = 'start audio first'; return; }
+  sweeping = true; sweepStart = ctx.currentTime; sweepDur = +$('#sweepSec').value; sweepFrom = 0;
+});
+function frame(){
+  if (!started) return;
+  if (sweeping){
+    const p = (ctx.currentTime - sweepStart) / sweepDur;
+    if (p >= 1) { sweeping = false; setT(0); }
+    else setT(p < 0.5 ? p * 2 : (1 - p) * 2);          // A -> B -> A
+  }
+  const a = nodes.scope, buf = new Float32Array(a.fftSize);
+  a.getFloatTimeDomainData(buf);
+  { let e = 0, pk = 0;
+    for (const v of buf) { e += v * v; const m = Math.abs(v); if (m > pk) pk = m; }
+    const rms = Math.sqrt(e / buf.length);
+    const dB = x => x <= 1e-9 ? '-inf' : (20 * Math.log10(x)).toFixed(1);
+    $('#lvl').innerHTML = `rms ${dB(rms)} dB · peak ${dB(pk)} dB`
+      + (pk >= 0.999 ? ' <span style="color:var(--hot)">— CLIPPING</span>' : ''); }
+  const cv = $('#scope'), g = cv.getContext('2d');
+  const w = cv.width = cv.clientWidth, h = cv.height = 96;
+  g.clearRect(0, 0, w, h);
+  g.strokeStyle = '#242c30'; g.beginPath(); g.moveTo(0, h/2); g.lineTo(w, h/2); g.stroke();
+  g.strokeStyle = sweeping ? '#d9a94a' : '#5fb8c4'; g.lineWidth = 1.4; g.beginPath();
+  for (let i = 0; i < w; i++){
+    const v = buf[Math.floor(i / w * buf.length)];
+    const y = h/2 - v * h * 0.44;
+    i ? g.lineTo(i, y) : g.moveTo(i, y);
+  }
+  g.stroke();
+  requestAnimationFrame(frame);
+}
+
+/* ---- knob readouts ---- */
+for (const [id, fmt] of [['vol', v=>(+v).toFixed(2)], ['drv', v=>(+v).toFixed(2)],
+                         ['combHz', v=>v], ['combFb', v=>(+v).toFixed(2)],
+                         ['sweepSec', v=>(+v).toFixed(1)]]) {
+  const el = $('#' + id), o = $('#' + id + '_o');
+  const sync = () => { o.textContent = fmt(el.value); applyModules(); };
+  el.addEventListener('input', sync); sync();
+}
+$('#t').addEventListener('input', e => { sweeping = false; setT(+e.target.value); });
+$('#lawNote').innerHTML = LAW_NOTE[law];
+paintMatrix(LAWS[law](0));
+</script>
+</body></html>
