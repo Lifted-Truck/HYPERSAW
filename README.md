@@ -214,7 +214,8 @@ is kept building so the escape hatch stays real.
 
 ## Status and known gaps
 
-*Last verified: **2026-08-23**. If this date is old, trust `ROADMAP.md` over this file.*
+*Last verified: **2026-08-26** — every claim below re-checked against the gates on that date.
+If this date is old, trust `ROADMAP.md` over this file.*
 
 Stated rather than omitted:
 
@@ -223,7 +224,9 @@ Stated rather than omitted:
   pending the engine-roster decision above; it is not a bug to be fixed in passing.
 - **`gui_reach` is an either-GUI check**, so it stays green while that gap exists. Recorded
   here because a green gate is exactly where a gap like this hides.
-- **Five test-table rows have no oracle yet** — counted by the gate rather than quietly carried.
+- **Six test-table rows have no oracle yet** — counted by the gate rather than quietly carried
+  (`test_table_check` prints the number every run, which is why this line can be trusted to be
+  current rather than remembered).
 - **Two probes are built but not gated** (`mixer_check`, `corner_probe`) — a pending call on
   gate scope.
 - **In-page WebAudio health readouts are untrustworthy**, and the labs deliberately show none:
