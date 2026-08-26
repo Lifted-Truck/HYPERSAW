@@ -70,88 +70,143 @@ sources, mono/legato, and MPE per-note bend live here too.
 
 ---
 
-## What is actually new here
+## Eight things that work differently
 
-Written against `PRIOR-ART.md`, which exists to stop this section overclaiming — it already
-retracted one of my earlier claims as false. Where a mature category exists, it is named.
+Where one of these resembles a category that already exists, the comparison is named in italics
+rather than skipped; `PRIOR-ART.md` carries the full accounting.
 
-### Coupled oscillators as the timbre engine
+### Voices that listen to each other
 
-The voices of a supersaw are usually a fixed detune recipe. Here they are **Kuramoto-coupled
-oscillators**, and the coupling constant K is a performance control that moves the swarm
-through phase transitions: free cloud → herding → shimmer-lock → comb → effectively one
-oscillator. Negative K **splays** the voices apart instead, which multiplies harmonics and, at
-the extreme, erases partials by interference.
+Turn one knob — **coupling** — and a stack of detuned voices stops being a stack. Low, they
+drift as a loose cloud. Raise it and they begin to herd, then shimmer, then lock into what
+sounds like a single fat oscillator; the sound thins and focuses as they agree. Turn it
+*negative* and they push apart instead, multiplying harmonics, and far enough out they start
+cancelling each other into hollow, combed shapes.
 
-*Honest positioning:* Kuramoto in audio is not unheard of — **Chiral Audio's Foxfire** ships a
-Kuramoto-based chorus/ensemble effect (coupled LFOs moving delay taps), and there is a real
-research lineage. What has no shipping analogue found is coupled-oscillator dynamics as the
-**synthesis engine** — the phase transition as the instrument's voice, rather than as a
-modulation effect.
+Nothing is being crossfaded or morphed between those states. The voices are **coupled
+oscillators**, each one nudged by what the others are doing, and the coupling knob is the
+strength of that nudge. Every texture along the way is the same physical system finding a
+different equilibrium — which is why the transitions sound continuous and slightly alive
+rather than like a blend between presets.
 
-### Inertia: the swarm is second-order
+*Coupled oscillators in audio are not unheard of — Chiral Audio's Foxfire ships a Kuramoto
+chorus built on coupled LFOs, and there is a research lineage worth reading. What has no
+shipping analogue found is using them as the synthesis engine itself.*
 
-Give the oscillators **momentum** and first-order Kuramoto becomes second-order. The swarm
-stops tracking coupling instantly and starts *arriving* at it — overshoot, hysteresis, a lock
-that has to be earned and can be lost. It is the difference between a parameter and a physical
-system, and it is one knob.
+### Inertia — the swarm has weight
 
-### Detune factored into two orthogonal menus
+Add **inertia** and the voices stop responding instantly. Reach for lock and they swing past it
+and settle back; let go and they coast before they scatter. The sound gains a lag between your
+hand and the result, and lock becomes something the swarm *arrives at* rather than something it
+is set to — earned on the way in, and lost reluctantly on the way out.
 
-Everyone ships a detune recipe. horde splits the decision that other instruments conflate:
+Technically the oscillators gain momentum, which turns the whole thing from a first-order
+system into a second-order one. Practically it is the difference between a control and a thing
+with weight.
 
-- **Distribution** — the statistical *shape* of where voices sit: even, the JP-8000 curve,
-  seeded Gaussian, seeded Cauchy (a Lorentzian lineshape), golden-ratio irrational.
-- **Law** — how an offset becomes Hz: cents-constant, Hz-constant, **ERB-flat** (perceptually
-  even, not mathematically even), **tempo-grid** (detune quantised to the session's beat),
-  harmonic, stretch.
+### Detune as two decisions instead of one
 
-Serum 2's unison tuning modes prove the *idiom* is one players already read; the statistical,
-perceptual and metrical axes are the extension.
+Most instruments give you a detune amount and one built-in idea of where the voices go. Here
+that splits into two menus you set independently, which is a much larger space than one slider.
 
-### Consonance gravity — adaptive tuning as a force, not a rule
+**Where the voices sit** — spread evenly, along the classic JP-8000 curve, or scattered by a
+seeded random shape (a gentle Gaussian bunching, or a Cauchy one with occasional far outliers)
+— or placed at golden-ratio spacings that never repeat.
 
-Adaptive just intonation is a mature category (Hermode, Pivotuner, Alt-tuner, and others), and
-every one of them is a **MIDI-domain rule engine**: compute target pitches, rewrite notes
-upstream of the synth. Consonance gravity is a force *inside the audio engine* — a basin, a
-strength, a settling time, with beats visibly decelerating as an audible event. The novelty is
-not adaptive JI; it is that it falls out of **the same `sin(error)` coupling law that runs the
-unison swarm**, operating one level up.
+**What the spacing means** — the same amount can hold constant in *cents* (musically even),
+constant in *Hz* (so low notes spread wider), even to the **ear** rather than to the maths, or
+snapped to the **session tempo**, so the beating between voices lands on the beat. The last two
+are the unusual ones: perceptually flat detune, and detune you can dial into rhythm.
 
-### Pitch bend as physics, with five travel laws
+*Serum 2's unison tuning modes prove players already read "tuning mode as a menu"; the
+statistical, perceptual and metrical axes are the extension.*
 
-A bend is not a ramp. The travel lane runs one of five laws — *off (instant)*, *constant time*,
-*constant rate*, *lag (one-pole)*, and **mass-spring**, which overshoots and settles with real
-spring/damping/return controls. The same five laws drive the **note** lane, so legato travel
-and wheel travel are one mechanism rather than two.
+### Consonance gravity — chords that settle into tune
 
-### Scale-quantised bend that lands where you started
+Play a chord and the notes **drift into just intonation** — you hear the beating slow down and
+stop, over a settling time you control. A *basin* sets how far out of tune a note can be and
+still be pulled in; a *strength* sets how hard the pull is. Turn it up and the instrument
+tunes itself as you play; turn it down and equal temperament stays exactly where you put it.
 
-Quantising a bend to a scale is easy to get subtly wrong, and horde got it wrong first: a note
-resolved to a *different pitch* after a bend than when it was played. The fix is that the
-quantiser is **anchored** — base + offset rather than absolute — and that **ties resolve toward
-the previously emitted step**, so a bend sitting exactly between two degrees does not chatter
-between them.
+The pull is not a retuning rule applied to your notes before they reach the synth — it is a
+force acting on the oscillators themselves, which is why the approach to tune is something you
+*hear happening* rather than something that has already happened.
 
-### The quantum morph — flips, not crossfades
+*Adaptive just intonation is a mature category — Hermode, Pivotuner, Alt-tuner. Those are
+MIDI-domain rule engines that rewrite notes upstream of the synth; this is the same
+`sin(error)` law that runs the unison swarm, operating one level up.*
 
-A morph pad is not new (NI Super*Saw ships X/Y state morphing). What is different is what
-happens between the corners: horde does **not** interpolate. Each parameter independently
-**draws** a corner, weighted by where you are, so the in-between is a *patchwork* of four
-sounds rather than an average of them — averages of synth parameters are usually mush.
-A temperature control loosens the borders, coupling makes parameters flip in blocs, and a seed
-makes the patchwork an identity you can return to. Structural parameters draw as a unit, so the
-field can never assemble a state no corner authored. **The mechanics are in
-§The morph grid below.**
+### A pitch wheel with weight on it
 
-### Humanization that is correction, not jitter
+Move the wheel and the pitch does not simply follow it. You choose **how** it travels: straight
+there, taking the same *time* regardless of distance, moving at a constant *speed* so far bends
+take longer, easing in like a slider with friction — or hanging off a **spring**, where the
+pitch overshoots the target, swings back, and settles, with the spring's stiffness, damping and
+return strength under your hands.
 
-Conventional humanize adds independent random offsets per voice. The research it is imitating
-says listeners judge ensemble togetherness from the **serial structure** of asynchrony, not its
-variance — so horde implements the Vorberg/Wing **mutual error correction** model:
-`off_i ← off_i − α·(off_i − mean_off) + motorNoise_i`.
+The spring setting is the one that changes how you play. A fast flick and a slow lean produce
+genuinely different gestures from the same wheel, because you are moving a thing with mass
+rather than addressing a number.
 
-Measured from the shipped core, and this is why the distinction is real rather than rhetorical:
+The same five behaviours drive **note-to-note glide**, so a legato slide and a wheel bend feel
+like the same instrument rather than two unrelated features.
+
+### Bend that stays in key
+
+Set a scale and the pitch wheel stops being continuous: bends land **on the degrees of that
+scale** instead of gliding through everything between. Bend up a tone and you arrive at the
+next note *of the key*, not at whatever pitch the wheel happened to reach — so a bend is a
+musical interval rather than a smear, and you can play expressively in a key without listening
+for the edges of it.
+
+Four modes cover the useful cases: **chromatic** (every semitone), **scale** (only the degrees
+you have enabled), **scale (drag)** — which quantises the *destination* while letting the
+journey there stay smooth — and **scale (offset)**, which keeps the interval you played rather
+than the absolute pitch, so the same gesture transposes with the note.
+
+Two details do the work that makes it feel solid rather than fussy. Quantising is **anchored to
+the note you started from**, so releasing a bend returns you to exactly the pitch you played,
+never a neighbouring degree. And a **hysteresis** control (in cents) keeps a bend parked between
+two degrees from flickering between them — it has to travel meaningfully past the boundary
+before it commits.
+
+### The quantum morph — every parameter picks a side
+
+Put four complete patches in the corners of a pad and move between them. **Each parameter is
+assigned whole to one corner patch by a deterministic Gumbel-max law rather than crossfaded**,
+so what you hear in between is a *patchwork* of the four sounds rather than an average of them.
+
+That matters most for the parameters that cannot be averaged. A filter type, a waveform, an
+oscillator being on — crossfading those means a discrete control snapping at the halfway point
+and a state that belongs to no patch at all. Here they **flip coherently** instead, and
+parameters that only make sense together flip together.
+
+Three controls shape the patchwork: **temperature** loosens the borders so a corner's influence
+reaches further, **coupling** makes parameters flip in blocs rather than independently, and the
+**seed** fixes the whole arrangement — the same seed and position give you the same patchwork
+every time, on any machine, so an accident you liked is somewhere you can return to.
+
+*Morph pads themselves are not new — NI Super\*Saw ships X/Y state morphing. The assignment law
+is what differs.* **Mechanics: §The morph grid below.**
+
+### Humanization that behaves like an ensemble
+
+Voices enter slightly apart, the way a real section does — but the interesting control is not
+*how far* apart. It is how hard the voices try to correct back toward each other.
+
+Leave them uncorrected and they wander: each entry drifts from the last, and the ensemble comes
+apart over time like players who cannot hear one another. Correct too hard and they snap onto
+the grid, which is tight but lifeless. In between there is a setting where voices pull toward
+the group without ever quite arriving — always slightly early or slightly late, always
+recovering — and that is what a real ensemble sounds like.
+
+The reason it works is that listeners judge togetherness from the *pattern* of the timing
+errors rather than their size. Each voice nudges itself toward the group's average and adds a
+little motor noise of its own, which is the model measured from actual string quartets
+(Vorberg/Wing): `offset ← offset − α·(offset − group average) + noise`.
+
+Measured from the shipped engine — the **lag-1** column is the pattern, and it is the thing
+conventional humanize cannot produce:
 
 | α | onset SD | lag-1 autocorrelation | what it is |
 |---|---|---|---|
@@ -160,15 +215,17 @@ Measured from the shipped core, and this is why the distinction is real rather t
 | 1.0 | 26.4 ms | −0.072 | i.i.d. — **exactly what conventional humanize produces** |
 | 1.5 | — | −0.550 | over-correction: alternating early/late |
 
-Conventional humanize is not a different setting of this control; it is one specific value of
-it, and not the musical one.
+Read the bottom rows: the familiar "humanize" sound is not an alternative to this control, it
+is **one specific value of it** — α = 1.0, where every voice corrects fully and the errors stop
+relating to each other at all. It is available here, and it is not the musical setting.
 
-### Topology as a continuous surface
+### Routing you can morph through
 
-The FX routing is a dense crosspoint matrix rather than an edge list, for one reason: a
-coefficient of zero **is** "not connected", so connecting and disconnecting are one continuous
-motion. Every sparse representation makes an edge add/remove a hard cut — which matters
-enormously once a morph field is writing the topology.
+Connections between modules are **amounts, not switches**. A connection at zero is simply a
+connection turned all the way down, so patching something in or out is a move you can make
+gradually — and, more to the point, a move the morph pad can make *for* you as you travel
+between corners. Signal flow becomes something that changes with the sound rather than a layout
+you set beforehand and leave alone.
 
 ---
 
