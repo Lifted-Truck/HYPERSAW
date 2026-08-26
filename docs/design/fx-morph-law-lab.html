@@ -92,8 +92,8 @@ and transient material disagree about this.
         seconds<input id="sweepSec" type="range" min="1" max="12" step="0.5" value="6"><output id="sweepSec_o">6.0</output></label>
     </div>
     <div class="lawbox">
-      <button class="ghost on" data-law="blend">BLEND</button>
-      <button class="ghost" data-law="argmax">ARGMAX</button>
+      <button class="ghost" data-law="blend">BLEND</button>
+      <button class="ghost on" data-law="argmax">ARGMAX <b>· default</b></button>
       <button class="ghost" data-law="dip">DIP</button>
     </div>
     <p class="note" id="lawNote"></p>
@@ -181,7 +181,12 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 
 const $ = s => document.querySelector(s);
 let ctx=null, nodes=null, started=false;
-let law='blend', t=0, source='drone';
+/* RULED 2026-08-26 (ADR-125): ARGMAX is the default topology-morph law. The
+   human: "it does create an untenable screechy feedback; maybe we could leave
+   it as an option but default to argmax. Argmax does in some ways better
+   capture the spirit of the quantum morph anyway." BLEND stays selectable
+   because the ruling kept it as an option, not because it is undecided. */
+let law='argmax', t=0, source='drone';
 let sweepFrom=null, sweepDur=6, sweepStart=0, sweeping=false;
 let lawful=true;   // obey ADR-031's feedback laws (the A/B the human asked for)
 

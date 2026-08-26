@@ -3562,3 +3562,51 @@ by A/B: the pre-change and post-change builds produce byte-identical probe
 output. (That probe never successfully authored the scale corners — both read
 the default major scale — so it proves non-regression, **not** atomicity;
 recorded as such rather than counted as a passing check it is not.)
+
+## ADR-125 — topology morphs by ARGMAX; BLEND stays an option (2026-08-26)
+
+**Status: ACCEPTED — human ruling, made by ear on `docs/design/fx-morph-law-lab.html`.**
+
+**The ruling, verbatim.** *"As much as part of me wants to go for the blend
+anyway, it does create an untenable screechy feedback; maybe we could leave it
+as an option but default to argmax. Argmax does in some ways better capture the
+spirit of the quantum morph anyway."*
+
+So: **route/topology coefficients draw ONE corner (ARGMAX/QUANTUM). BLEND is
+retained as a selectable law, not as the default.** Module *parameters* are
+unaffected — they continue to follow `morphMode` as they do today.
+
+**Why this is the right shape and not merely the safe one.** The second half of
+the ruling is the load-bearing half. ADR-104's whole premise is a *quantum*
+morph: the field draws a corner per parameter rather than averaging corners, and
+ADR-115 chose corner A over the centre as the opening position for the same
+reason — *"the middle is the messiest place on the grid."* A blended topology is
+an averaged structure, which is the one thing the quantum morph was built not to
+do. BLEND was the odd law out on this substrate all along; the screech is what
+made that audible.
+
+**Implementation is an existing mechanism, not a new one.** ARGMAX over topology
+means every route coefficient draws the same corner — which is exactly what
+ADR-124's `morphLead` map does. When routing joins the morph field, all route
+ids point at one lead index and the picker does the rest. No new code path.
+
+**The option, when it is built.** A global `morphTopoLaw` (ARGMAX default,
+BLEND opt-in). **Deliberately NOT added yet:** routing coefficients are not in
+`morphIds` today, so the param would be a control that changes nothing — the
+exact dead-control failure `gui_reach` exists to catch (L0023). It lands with
+the routing-morph work, in the same change.
+
+**One open thread this ruling does not close, recorded so it is not lost.** The
+screech may be partly the *cycle delay* rather than the blend: BLEND's midpoint
+is the only state that closes `drive→comb→drive`, and the lab's cycle carries a
+one-render-quantum delay (2.9 ms at 44.1 kHz) because Web Audio requires one.
+A 2.9 ms loop is intrinsically metallic. If so, that is direct evidence for
+B50's feedback fork — **block-rate feedback is unacceptable for audio, per-sample
+is required** — and it would be evidence gathered by ear rather than argued.
+What would settle it: the same A/B with a one-sample loop delay. Not run;
+the ruling above does not depend on it either way.
+
+**Consequence for B50's migration.** Ported route edges become one atomic group
+per patch, so a migrated patch's chain order flips discretely between corners
+rather than smearing into a parallel blend. That was the open question B50 said
+had to be answered *before* the migration was written. It is answered.
