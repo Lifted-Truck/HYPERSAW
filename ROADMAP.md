@@ -331,12 +331,21 @@ feature set stabilises — after morph, not before.
 
 The ADR-099 profile shows ~15-20%% of the remaining render bill is controlTick's
 order-parameter loops (sincos over every oscillator, twice, plus atan2) running at
-K = 0 — where the coupling force they feed is multiplied by exactly zero. Skipping
-them is output-identical for AUDIO but leaves `s.R` / `s.psi` stale, and the VIZ
-reads those. The honest options: (a) compute them at viz rate on the GUI thread's
-snapshot instead of the audio tick, (b) gate on `K != 0 || absK != 0 || Kenv > eps`
-and accept a frozen ring display at K = 0, (c) leave it. Needs a ruling; do not
-take it as a stealth optimisation.
+K = 0 — where the coupling force they feed is multiplied by exactly zero. The
+honest options: (a) compute them at viz rate on the GUI thread's snapshot instead
+of the audio tick, (b) gate and accept a frozen ring display at K = 0, (c) leave
+it. Needs a ruling; do not take it as a stealth optimisation.
+
+**CORRECTED 2026-08-26 (read at the code, human asked to understand it before
+ratifying).** Two details here were wrong and both change the ruling.
+**(1) "output-identical for AUDIO" is FALSE when `rtone` != 0**: R->Tone (param
+12) reads `s.R` at `swarm_core.h:1734` to set a filter cutoff and is NOT gated by
+K, so the gate condition must also carry `|rtone| > eps`. It defaults to 0, so a
+gate written against defaults would have shipped the bug.
+**(2) The second loop (RN) has NO audio consumer at any K** — `s.RN` goes only to
+the viz snapshot, `gui.html` and `trajectory_check`, never to the DSP. So half
+this cost is unconditionally non-audio and needs no K or rtone condition at all.
+Net: the K=0 half is a narrower win than recorded, the RN half a wider one. **AND A TENSION WITH OUR OWN FILED LESSON, found 2026-08-26 while checking FOUNDATIONS' tree before a merge.** `notice-post-round-lessons.md` is `from: HYPERSAW`, filed 2026-08-15, and its lesson 2 reads: *"any gain law written on K is wrong the moment other coherence-movers shift. Compensate on the measured order parameter instead."* We told a sibling to compensate on the measured order parameter and eleven days later proposed not measuring it. Both can hold -- the skip is gated where no gain law reads R -- but they cannot both be ratified without deciding which yields. **B46's K-sweep reproduced the lesson's non-monotonicity without recognising it** (RMS -21.39 at K=0, -21.24 at K=0.30, **-21.81 at K=0.50**, below K=0), which is a second unprompted measurement of the same phenomenon. **It also kills the reconciliation B46 floated**: substituting an analytic R ~ 1/sqrt(n) at K=0 IS a gain law written on K, which is precisely what the lesson forbids -- detune, dist, onset and drift all move coherence without moving K.
 
 ## OPEN — GUI2 COLUMN MARGIN LANDS ABOVE, NOT BELOW (2026-08-20, parked by the human)
 
