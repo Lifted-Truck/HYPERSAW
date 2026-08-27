@@ -104,7 +104,24 @@ make_clapfirst_plugins(
         TARGET_NAME ${PROJECT_NAME}
         IMPL_TARGET ${PROJECT_NAME}-impl
 
-        OUTPUT_NAME "HYPERSAW"
+        # The DEVICE is horde (ADR-114), and this is the name a host shows:
+        # the AU browser entry, the VST3 bundle, the plugin the player sees.
+        # Changed 2026-08-27 on the human's report that "the au is still called
+        # hypersaw".
+        #
+        # AUV2_OUTPUT_NAME does NOT work as a narrower lever here: in the
+        # target-based configuration clap-wrapper OVERWRITES it from the CLAP
+        # target's LIBRARY_OUTPUT_NAME (wrap_auv2.cmake:100-101), so setting it
+        # is inert. This is the only real control.
+        #
+        # SAFE FOR SAVED SESSIONS, because identity is not the name: the CLAP id
+        # (`com.lifted-truck.hypersaw`, frozen) and the AU triple
+        # (`aumu`/`Hsaw`/`LfTk`, frozen just above) are what a host stores, and
+        # the VST3 UID derives from the CLAP id rather than the filename.
+        # THE ONE REAL COST: this produces NEW bundles (horde.vst3,
+        # horde.component). They do not replace HYPERSAW.vst3 / .component, so
+        # the old pair must be deleted by hand or both show in the browser.
+        OUTPUT_NAME "horde"
 
         ENTRY_SOURCE "src/hypersaw_clap_entry.cpp"
 
@@ -119,6 +136,9 @@ make_clapfirst_plugins(
 
         AUV2_MANUFACTURER_NAME "Lifted Truck"
         AUV2_MANUFACTURER_CODE "LfTk"
+        # FROZEN, exactly like the CLAP id: `aumu`/`Hsaw`/`LfTk` is the triple a
+        # host stores to re-find this AU in a saved session. The DISPLAY name may
+        # change freely; these three may not.
         AUV2_SUBTYPE_CODE "Hsaw"
         AUV2_INSTRUMENT_TYPE "aumu"
 )
