@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "notch_core.h"
+#include "time_core.h"
 
 namespace hypersaw
 {
@@ -84,6 +85,9 @@ enum class FxType : int
   Gain = 3,    // level        — amount 0.5 = unity, 0 = silence, 1 = +6 dB
   Comp = 4,    // lab comp+limiter: amount = strength; 0.98 brickwall always on
   Comb = 5,    // polyphonic per-note Karplus-Strong comb: amount = wet mix
+  Echo = 7,    // tap-swarm delay (TimeCore mode 0); ADR-031's stability laws
+               // live inside that core, Layer-0 guarded by L0-19
+  Room = 8,    // FDN room swarm (TimeCore mode 1); L0-20/21
   Notch = 6,   // swarm-herded notch cascade (NotchCore): amount -> core's own
                // dry/wet `mix` param; population/topology stay at core defaults
                // until the rack grows a per-slot param page for them.
@@ -129,6 +133,15 @@ class FxRack
     // nothing itself, but rebuilding it fresh at the new sr is still an
     // allocation-shaped operation and belongs where the comb buffers are sized).
     for (auto &n : notch) n = std::make_unique<NotchCore>(sr);
+    /* TIME ENGINES (Echo/Room), same rule and same reason as Notch above:
+       TimeCore's CONSTRUCTOR allocates (~3 s echo buffer + 12 room lines,
+       ~1.75 MB each), so it is built here on the main thread and never touched
+       by processSlot. Mode changes ARE audio-thread safe: setParam("mode")
+       calls rebuild(false), which writes pre-existing arrays and allocates
+       nothing. Unconditional rather than lazy because setType() runs on the
+       AUDIO thread from param events, so lazy construction there would be
+       exactly the allocation this note exists to prevent. */
+    for (auto &t : timeFx) t = std::make_unique<TimeCore>(sr);
     // Declick constants in SECONDS, converted here (ADR-009). 6 ms is long
     // enough to be inaudible as a step and short enough that a retuned line is
     // back before the next note; 30 ms smooths the 1/activeLines normaliser,
@@ -356,6 +369,31 @@ class FxRack
           }
           break;
         }
+        case FxType::Echo:
+        case FxType::Room:
+        {
+          /* Track E2's time engines, reached at last. One core, two modes:
+             ECHO is a tap-swarm delay, ROOM an FDN room swarm. Both carry
+             ADR-031's stability laws INSIDE the core -- feedback normalised /N
+             on worst-case correlation, DC blocked in every loop -- which is why
+             a swarm of delays survives high regen without the LF runaway that
+             ruling was written after.
+
+             `amount` -> REGEN, deliberately. The slot's own `mix` already owns
+             wet/dry under the rack contract, so mapping amount to mix would be
+             a second dry/wet fighting the first. Regen is what changes the
+             effect's identity: slapback at 0.1, cavern at 0.9. The core's mix
+             is pinned fully wet so the slot mix does all blending -- which is
+             what keeps mix = 0 a bit-exact passthrough. */
+          auto &t = *timeFx[idx];
+          const double wantMode = (s.type == FxType::Room) ? 1.0 : 0.0;
+          if (t.p.mode != wantMode) t.setParam("mode", wantMode);   // no alloc
+          t.setParam("regen", s.amount);
+          t.setParam("mix", 1.0);
+          t.setParam("vol", 1.0);
+          t.processExternalStereo(L, R, L, R, n);
+          break;
+        }
         case FxType::Comb:
         {
           // Polyphonic per-note Karplus-Strong comb (ADR-071): one tuned
@@ -479,6 +517,7 @@ class FxRack
   // (a handful of doubles) and it keeps processSlot allocation-free forever,
   // rather than lazily constructing on first use from the audio thread.
   std::unique_ptr<NotchCore> notch[kRackSlots];
+  std::unique_ptr<TimeCore> timeFx[kRackSlots];
   double sr = 44100;
   // Comp state — coefficients derived from SECONDS constants in setSampleRate
   // (ADR-009); these defaults are the 44.1 kHz values so a shell that never
