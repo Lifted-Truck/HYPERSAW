@@ -58,6 +58,50 @@ def shell_addresses():
     return out
 
 
+def check_select_ranges():
+    """A hand-written <select> must offer every value its param declares.
+
+    gui2's FX type dropdowns are literal <option> lists, outside the generator's
+    markers. When ADR-129 widened the type params 0..6 -> 0..8 the engine gained
+    Echo and Room while the GUI kept offering seven options, so two slot types
+    shipped that a player could not select at all. `gui_reach` stayed green
+    throughout, and correctly: param 57 IS reachable -- it simply cannot reach
+    all of its own VALUES, which is a gap that gate was never shaped to see.
+
+    The narrow rule: for a stepped param named by a hand-written select, the
+    option values must be exactly the declared range. Generated controls are
+    exempt -- the generator derives them and cannot drift by construction.
+    """
+    src = SHELL.read_text()
+    decl = src.split("kParams[] = {", 1)[1].split("\n};", 1)[0]
+    ranges = {}
+    for m in re.finditer(
+            r'\{\s*(\d+)\s*,\s*"[^"]+"\s*,\s*"[^"]+"\s*,'
+            r'\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(true|false)', decl):
+        pid, lo, hi, _d, stepped = m.groups()
+        if stepped == "true":
+            ranges[int(pid)] = (int(float(lo)), int(float(hi)))
+    gui = (ROOT / "src/gui/gui2.html").read_text()
+    bad = 0
+    for m in re.finditer(r'<select data-p="(\d+)"[^>]*>(.*?)</select>', gui, re.S):
+        pid = int(m.group(1))
+        if pid not in ranges:
+            continue
+        vals = sorted(int(v) for v in re.findall(r'<option value="(-?\d+)"', m.group(2)))
+        lo, hi = ranges[pid]
+        want = list(range(lo, hi + 1))
+        if vals != want:
+            miss = [v for v in want if v not in vals]
+            extra = [v for v in vals if v not in want]
+            print(f"  param {pid}: select offers {vals}, declared range {lo}..{hi}"
+                  + (f" -- MISSING {miss}" if miss else "")
+                  + (f" -- EXTRA {extra}" if extra else ""))
+            bad += 1
+    if bad:
+        print(f"presentation_check: FAILED -- {bad} select(s) do not cover their param's range")
+    return bad
+
+
 def main():
     if not TSV.exists():
         print(f"presentation_check: FAILED — {TSV} missing", file=sys.stderr)
@@ -106,6 +150,8 @@ def main():
     # The undesigned count is printed every run because it IS the queue. Silence
     # would read as "the GUI is done" — which is exactly the reading that let a
     # generated-everything pass look like progress.
+    if check_select_ranges():
+        return 1
     print(f"presentation_check: GREEN ({len(body)} rows, scopes: {', '.join(scopes)}; "
           f"{undesigned} undesigned (no chunk named)"
           f"{f', {todo} page=TODO' if todo else ''}"

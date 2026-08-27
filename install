@@ -17,7 +17,7 @@ BUILD="$(pwd)/build-release"
 ASSETS="$BUILD/HYPERSAW_assets"
 VST3_DST="$HOME/Library/Audio/Plug-Ins/VST3"
 AU_DST="$HOME/Library/Audio/Plug-Ins/Components"
-INSTALLED_BIN="$VST3_DST/HYPERSAW.vst3/Contents/MacOS/HYPERSAW"
+INSTALLED_BIN="$VST3_DST/horde.vst3/Contents/MacOS/horde"
 
 # `check`: is the installed binary current? Compares the installed VST3 binary's
 # bytes to a freshly built one only if a build exists; otherwise falls back to a
@@ -25,8 +25,8 @@ INSTALLED_BIN="$VST3_DST/HYPERSAW.vst3/Contents/MacOS/HYPERSAW"
 # a build stamp would be exact; this is enough to answer "code bug vs stale install".
 if [ "${1:-}" = "check" ]; then
   if [ ! -f "$INSTALLED_BIN" ]; then echo "not installed"; exit 0; fi
-  if [ -f "$ASSETS/HYPERSAW.vst3/Contents/MacOS/HYPERSAW" ]; then
-    if cmp -s "$INSTALLED_BIN" "$ASSETS/HYPERSAW.vst3/Contents/MacOS/HYPERSAW"; then
+  if [ -f "$ASSETS/horde.vst3/Contents/MacOS/horde" ]; then
+    if cmp -s "$INSTALLED_BIN" "$ASSETS/horde.vst3/Contents/MacOS/horde"; then
       echo "installed == last build (run ./install after any source change to be sure)"
     else
       echo "installed DIFFERS from last build — run ./install"
@@ -47,12 +47,12 @@ echo "==> build Release"
 cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)" || { echo "build FAILED"; exit 1; }
 
 echo "==> codesign (JUCE/clap-wrapper can break the seal → DAW silently skips it)"
-codesign --force -s - "$ASSETS/HYPERSAW.vst3" "$ASSETS/HYPERSAW.component"
+codesign --force -s - "$ASSETS/horde.vst3" "$ASSETS/horde.component"
 
 echo "==> install into ~/Library"
-rm -rf "$VST3_DST/HYPERSAW.vst3" "$AU_DST/HYPERSAW.component"
-cp -R "$ASSETS/HYPERSAW.vst3"      "$VST3_DST/"
-cp -R "$ASSETS/HYPERSAW.component" "$AU_DST/"
+rm -rf "$VST3_DST/horde.vst3" "$AU_DST/horde.component"
+cp -R "$ASSETS/horde.vst3"      "$VST3_DST/"
+cp -R "$ASSETS/horde.component" "$AU_DST/"
 
 echo "==> reset AU scanner cache"
 killall -9 AudioComponentRegistrar 2>/dev/null || true

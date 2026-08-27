@@ -3823,3 +3823,56 @@ type above 0.
 **Append-only:** labels and the enum share numeric order, and the type params
 widen 0..6 → 0..8. An existing patch stores the integer, so appending is the
 only safe direction.
+
+## ADR-130 — the bundles are named horde; a gate now catches option-list drift (2026-08-27)
+
+**Status: ACCEPTED.** Human: *"the au is still called hypersaw, and the vst
+isn't showing these yet"* — two unrelated defects reported together.
+
+### 1. The VST was fine; the GUI could not reach the new values
+
+ADR-129 widened the FX type params 0..6 → 0..8, but gui2's four type dropdowns
+are **hand-written `<option>` lists**, outside the generator's markers, and they
+still offered seven. Echo and Room shipped as slot types **no player could
+select**.
+
+`gui_reach` stayed green throughout, and correctly: param 57 *is* reachable. It
+simply cannot reach all of its own **values** — a gap that gate was never
+shaped to see.
+
+**A new check in `presentation_check`** closes it: for any stepped param named
+by a hand-written select, the option values must be exactly the declared range.
+Generated controls are exempt, since the generator derives them and cannot
+drift. **Calibrated against the real bug** — with Echo/Room removed from one
+select it reports `param 57: select offers [0..6], declared range 0..8 —
+MISSING [7, 8]` and fails; restored, it passes.
+
+### 2. The AU name, and the lever that does not exist
+
+The AU read *"Lifted Truck: HYPERSAW"* because the AU output name defaults to
+the target's output name. **`AUV2_OUTPUT_NAME` is not a usable narrower lever**:
+in the target-based configuration clap-wrapper overwrites it from the CLAP
+target's `LIBRARY_OUTPUT_NAME` (`wrap_auv2.cmake:100-101`), so setting it is
+inert — it was set, observed to do nothing, and removed rather than left as a
+control that lies.
+
+So `OUTPUT_NAME` → `horde`, which renames every format's bundle.
+
+**Identity is untouched, which is what makes this safe:** the CLAP id
+(`com.lifted-truck.hypersaw`) is frozen, the AU triple (`aumu`/`Hsaw`/`LfTk`) is
+frozen and verified unchanged in the built plist, and the VST3 UID derives from
+the CLAP id rather than the filename. A host re-finds the plugin by those, not
+by its name.
+
+**THE ONE REAL COST, and it needs a human action:** renaming produces *new*
+bundles. `horde.vst3` and `horde.component` do not replace `HYPERSAW.vst3` and
+`HYPERSAW.component` — both pairs are now installed, and both will appear in the
+browser until the old pair is deleted by hand. Deleting installed plugins is not
+something this session will do unasked.
+
+`./install` was retargeted with them (12 references), so it maintains the new
+pair from here.
+
+**Verified:** AU plist name `Lifted Truck: horde`, subtype `Hsaw`, manufacturer
+`LfTk`; both new bundles carry the Echo/Room labels; seal verified; `auval`
+SUCCEEDED; parity 156/156; `./verify fast` exit 0.
