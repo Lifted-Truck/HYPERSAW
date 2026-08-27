@@ -3768,3 +3768,58 @@ N² table.
 **Not implemented yet.** Routing coefficients are not in the audio path's
 feedback form; this ruling constrains B50's build rather than describing shipped
 behaviour.
+
+## ADR-129 — the time engines reach the instrument: Echo and Room as rack slots (2026-08-27)
+
+**Status: ACCEPTED.** Human: *"I also want to hear the reverb and the delays
+ASAP."*
+
+**They were already built.** `src/time_core.h` — the Track E2 port of
+`swarmtime.html` — has been oracle-covered since it landed (`time_check`: L0-1
+parity plus the L0-19/20/21 stability laws, all running in `./verify`), and was
+reachable only from SWARM-FX, the standalone effect. It had **zero references**
+in the plugin. This wires it in; it does not write a reverb.
+
+**Two slot types, one core.** `Echo` (7) is the tap-swarm delay — N read taps on
+one buffer. `Room` (8) is the FDN room swarm — N lines with a negated
+Householder. They differ only by `mode`, which is why they are one core and two
+enum values rather than two implementations.
+
+**RT-safety follows the NotchCore precedent exactly.** `TimeCore`'s constructor
+allocates (~3 s echo buffer + 12 room lines ≈ 1.75 MB each, ~7 MB for the rack),
+so instances are built in `setSampleRate` on the main thread and never touched
+by `processSlot`. Mode changes **are** audio-thread safe: `setParam("mode")`
+calls `rebuild(false)`, which writes into pre-existing arrays and allocates
+nothing — verified by reading it, not assumed. Allocation is unconditional
+rather than lazy because `setType()` runs on the audio thread from param
+events, so lazy construction there would be the exact allocation this rule
+exists to prevent. An unused slot therefore holds memory it is not using; that
+is the deliberate trade.
+
+**`amount` → REGEN, not mix.** The slot's own `mix` already owns wet/dry under
+the rack's universal contract, so mapping `amount` to mix would be a second
+dry/wet fighting the first. Regen is the control that changes what the effect
+*is* — slapback at 0.1, cavern at 0.9. The core's own `mix` is pinned fully wet
+so the slot mix does all blending, which is what keeps `mix = 0` a bit-exact
+passthrough.
+
+**Measured.** Tail RMS with the note long gone (only an effect can be sounding):
+
+| | regen 0.3 | 0.6 | 0.9 | 0.97 |
+|---|---|---|---|---|
+| Echo | −69.2 dB | −59.9 | −52.3 | — |
+| Room | −102.7 dB | −95.5 | −62.7 | **−34.8** |
+
+Both live, both monotonic in regen. **Usability note worth having early: Room's
+useful range is the top third of the knob** — below regen ≈ 0.6 its tail is
+near the noise floor, which is correct for a small room but makes most of the
+knob's travel do very little. A per-type `amount` curve is the obvious fix and
+belongs with the per-slot pages, not here.
+
+**Contract preserved:** `Echo` selected at `mix = 0` differs from no Echo in
+**0 of 88,064 samples**. Parity 156/156 unchanged — no golden selects a slot
+type above 0.
+
+**Append-only:** labels and the enum share numeric order, and the type params
+widen 0..6 → 0..8. An existing patch stores the integer, so appending is the
+only safe direction.
