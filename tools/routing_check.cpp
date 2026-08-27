@@ -76,31 +76,69 @@ int main()
     check(std::fabs(gboth - (ga + gb)) < 1e-12, "both sources sum into one slot", d);
   }
 
-  // ---- 3. a backwards edge is DROPPED BY THE READER ------------------------
-  // Set directly on the model — the route a preset load, morph corner or
-  // automation takes. No editor is involved and none can be relied on.
+  // ---- 3. a backwards edge is LEGAL and carries ONE SAMPLE of delay --------
+  // REPLACED 2026-08-27. The invariant here used to be "an illegal backwards
+  // edge changes nothing", which encoded the forward-only contract. ADR-128
+  // (human ruling) widened that contract: cycles are legal and a backwards edge
+  // reads the previous SAMPLE. The old assertion is not weakened, it is
+  // obsolete — it tested a rule that no longer exists — and these three take
+  // its place, pinning the rule that replaced it. Edges are still set directly
+  // on the model, which is the route a preset load, morph corner or automation
+  // takes; no editor is involved and none can be relied on.
   {
     Matrix clean;
     clean.setSerialChain();
     const double src[2] = {0.3, 0.2};
-    const double before = clean.process(src, slotProc);
 
-    Matrix planted = clean;
-    planted.inFrom[0] |= (1u << (2 + 3));    // slot 3 -> slot 0, backwards
-    planted.coeff[2 + 3][0] = 1.0;
-    const double after = planted.process(src, slotProc);
+    // (a) INERTNESS. With no backwards edge the engine must be byte-identical
+    // to the forward-only one, sample after sample — this is what keeps every
+    // golden green, and it is the property the whole change rests on.
+    Matrix fwd = clean;
+    bool driftedFwd = false;
+    double firstFwd = 0;
+    for (int i = 0; i < 64; i++)
+    {
+      const double y = fwd.process(src, slotProc);
+      if (i == 0) firstFwd = y;
+      else if (y != firstFwd) driftedFwd = true;
+    }
+    std::snprintf(d, sizeof(d), "64 samples, all %.12g, zPrev never read", firstFwd);
+    check(!driftedFwd, "no backwards edge: the engine is stationary and unchanged", d);
 
-    std::snprintf(d, sizeof(d), "before %.12g, after planting slot3->slot0 %.12g", before, after);
-    check(before == after, "an illegal backwards edge changes nothing", d);
+    // (b) A backwards edge is now legal and DOES change the output — but not on
+    // the first sample, because it reads a zPrev that is still zero. That
+    // one-sample lag IS the ruling, so it is what gets asserted.
+    Matrix fb = clean;
+    fb.inFrom[0] |= (1u << (2 + 3));         // slot 3 -> slot 0, backwards
+    fb.coeff[2 + 3][0] = 0.5;
+    const double s0 = fb.process(src, slotProc);
+    const double s1 = fb.process(src, slotProc);
+    std::snprintf(d, sizeof(d),
+                  "sample0 %.12g == forward-only %.12g; sample1 %.12g differs",
+                  s0, firstFwd, s1);
+    check(s0 == firstFwd && s1 != s0,
+          "a backwards edge is inert for exactly one sample, then live", d);
 
-    // and the control: a LEGAL edge in the same shape must change the result,
-    // or the guard is simply eating everything.
+    // (c) A SELF edge is the same rule at its tightest: slot 1 reading slot 1
+    // must be delayed, not an infinite regress within one pass.
+    Matrix self;
+    self.setSerialChain();
+    self.inFrom[1] |= (1u << (2 + 1));       // slot 1 -> slot 1
+    self.coeff[2 + 1][1] = 0.5;
+    const double q0 = self.process(src, slotProc);
+    const double q1 = self.process(src, slotProc);
+    std::snprintf(d, sizeof(d), "self-edge sample0 %.12g, sample1 %.12g", q0, q1);
+    check(q0 == firstFwd && q1 != q0, "a self edge is delayed, not a regress", d);
+
+    // and the control that the old block also carried: a FORWARD edge in the
+    // same shape must change the result immediately, or the delay logic is
+    // simply eating everything.
     Matrix legal = clean;
     legal.inFrom[3] |= (1u << (2 + 0));      // slot 0 -> slot 3, forwards
     legal.coeff[2 + 0][3] = 1.0;
     const double legalOut = legal.process(src, slotProc);
-    std::snprintf(d, sizeof(d), "legal slot0->slot3 gives %.12g vs %.12g", legalOut, before);
-    check(legalOut != before, "a legal edge in the same shape DOES change it", d);
+    std::snprintf(d, sizeof(d), "legal slot0->slot3 gives %.12g vs %.12g", legalOut, firstFwd);
+    check(legalOut != firstFwd, "a forward edge in the same shape changes it at once", d);
   }
 
   // ---- 4. terminal detection follows the edges -----------------------------
