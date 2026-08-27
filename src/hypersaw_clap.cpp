@@ -376,7 +376,15 @@ static const ParamDef kParams[] = {
     {129, "sawBase", "Saw Base", 0, 1, 0, false, nullptr},
     {130, "sawProfile", "Roundness Shape", 0, 1, 0, false, nullptr},
     {131, "round", "Roundness", 0, 1, 0, false, nullptr},
-    {132, "roundHi", "Round x Pitch", 0, 1, 0, false, nullptr},
+    /* B60/ADR-133: BIPOLAR. The maths was always bipolar --
+       `rnd[i] = clamp(round * (1 + roundHi * (2*up - 1)))` has `2*up - 1`
+       running -1..+1 across the spread -- so a negative roundHi skews roundness
+       toward the LOW voices with no formula change at all. Only the declared
+       lower bound stood in the way (human 2026-08-27: "the other direction
+       skewing the roundness to the low end voices instead of the high end").
+       Parity-safe as a superset by the ADR-056 pattern: the default is 0,
+       `1 + 0*x == 1`, and no golden sets it, so every golden is untouched. */
+    {132, "roundHi", "Round x Pitch", -1, 1, 0, false, nullptr},
     /* FX SLOT MIX (ids 133-136) — the rack-owned dry/wet of the approved slot
        contract. GLOBAL, like the rest of the rack. Defaults to 1 so every patch
        predating the contract is bit-identical; 0 is a guaranteed bypass for EVERY

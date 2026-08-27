@@ -38,6 +38,29 @@ PAIRS = [
     ("swarmphaser.html",   "src/notch_core.h",      "Track E phaser/notch", {}),
     ("swarmtime.html",     "src/time_core.h",       "Track E time", {}),
     ("swarmalator.html",   "src/swarmalator_core.h","experimental swarmalator (ADR-048)", {}),
+    # ADDED 2026-08-27. morph_core.h's own header names this lab as its
+    # reference -- "ported from docs/design/quantum-morph-lab.html. The lab is
+    # the reference" -- but the pair was never registered here, so nothing
+    # compared them and an unported control was invisible. That is exactly how
+    # `timing` (Immediate / Next note) sat in the reference and never reached
+    # the engine: not a regression, a port gap with no gate looking at it.
+    ("docs/design/quantum-morph-lab.html", "src/morph_core.h", "quantum morph (ADR-104)", {
+        # The lab is a full instrument bench; morph_core is the assignment law
+        # and nothing else. The shell owns everything below.
+        "x": "morphX, shell-owned (id 152)",
+        "y": "morphY, shell-owned (id 153)",
+        "temp": "morphTemp, shell-owned (id 154)",
+        "coup": "morphCoup, shell-owned (id 155)",
+        "seed": "morphSeed, shell-owned (id 156)",
+        "glide": "morphGlide, shell-owned (id 158)",
+        "contMode": "morphMode, shell-owned (id 157) — quantum/blend",
+        "arp":   "bench arpeggiator, not morph surface",
+        "bpm":   "bench transport; the plugin takes tempo from the host",
+        "vol":   "bench level",
+        "arate": "bench arp rate",
+        "adepth":"bench arp depth",
+        "sel":   "bench UI selection state",
+    }),
     ("docs/design/bend-lab.html", "src/glide_core.h", "travel laws (ADR-093/096/097)", {
         # bend-lab drives a demo oscillator so you can HEAR the law. Those are
         # bench furniture; glide_core is the travel law and nothing else.

@@ -3957,3 +3957,59 @@ never knew the workaround existed. Neither ADR is wrong on its own terms. Only
 reading them together shows the redundancy — which is an argument for checking a
 workaround's stated premise when the surrounding mechanism changes, not for
 writing fewer workarounds.
+
+## ADR-133 — Round × Pitch is bipolar; and the morph lab joins the port-gap tracker (2026-08-27)
+
+**Status: ACCEPTED.** Human: *"I think round x pitch should be bipolar, with the
+other direction skewing the roundness to the low end voices instead of the high
+end."*
+
+### The change is a range, not a formula
+
+`swarm_core.h` already computes
+`rnd[i] = clamp(round · (1 + roundHi · (2·up − 1)))`, and `2·up − 1` runs
+−1..+1 across the spread. A negative `roundHi` therefore skews roundness toward
+the **low** voices with **no change to the maths at all** — the declared lower
+bound of `0` was the only thing preventing it. Range becomes −1..1, default
+unchanged at 0.
+
+**Parity-safe as a superset**, by ADR-056's pattern (which widened the onset
+lock to bipolar for the same reason): the default is 0, `1 + 0·x == 1`, and no
+golden sets it. **156/156 unchanged.**
+
+**Measured from the core's own `rnd[]`** rather than inferred from audio, since
+the claim is about *which voices* get rounded:
+
+| voice | roundHi −1 | 0 | +1 |
+|---|---|---|---|
+| 0 (low) | **1.000** | 0.500 | **0.000** |
+| 3 | 0.533 | 0.500 | 0.467 |
+| 7 (high) | **0.000** | 0.500 | **1.000** |
+
+Tilt −1.000 at −1, +1.000 at +1, and 0.0000 spread at zero — exactly mirrored,
+flat in the middle. The GUI knob picked up bipolar paint automatically, because
+`paintFill`'s test keys on `lo < 0 && hi > 0`.
+
+### The gate hole this work exposed
+
+`morph_core.h`'s header names its reference plainly — *"ported from
+docs/design/quantum-morph-lab.html. The lab is the reference"* — but **that pair
+was never registered in `port_gap`**, so nothing ever compared them.
+
+Registering it immediately reports four unmatched controls, and the first is a
+feature the human asked to "reintroduce":
+
+- **`timing`** — the lab's *Flip timing: Immediate / Next note*. Never ported.
+  Not a regression: a port gap with no gate looking at it.
+- **`glyphs`**, **`tint`**, **`editRoute`** — the campaign-3 audition items,
+  which are open human rulings. The gate rediscovered them independently, which
+  is corroboration rather than news.
+
+**The lesson is about coverage, not care.** Every other reference/port pair was
+registered; this one was not, and its absence was silent. A tracker that lists
+what it checks does not tell you what it *doesn't* — so the honest question for
+any such registry is "what is missing from this list", and nothing was asking it.
+
+**`port_gap` is advisory, not a `./verify` gate.** That is a separate decision
+and is left alone here; making it blocking would fail the build today on four
+items that are legitimately open.
