@@ -3876,3 +3876,48 @@ pair from here.
 **Verified:** AU plist name `Lifted Truck: horde`, subtype `Hsaw`, manufacturer
 `LfTk`; both new bundles carry the Echo/Room labels; seal verified; `auval`
 SUCCEEDED; parity 156/156; `./verify fast` exit 0.
+
+## ADR-131 — the FX slots get real parameters (2026-08-27)
+
+**Status: ACCEPTED (increment 1 of the FX page rebuild).** Human: *"Let's rebuild
+the FX page so the FX can have actual parameters and visuals."*
+
+**The gap.** A rack slot exposed four controls — type, amount, tone, mix —
+standing in front of cores with far more. `TimeCore` alone has nineteen
+parameters, of which the rack could reach exactly one (`amount` → regen). The
+`docs/proposals/fx-slot-contract.md` note *"until the rack grows per-slot param
+pages"* is what this begins.
+
+**Twenty-eight parameters, at `200 + slot*8`.** Seven per slot — size, spread,
+taps/lines, damping, noise, stereo, spacing — with one spare id per block so a
+slot's page can grow without renumbering. Global, because the rack is post-mix
+and there is exactly one of it (ADR-129's reasoning about note identity applies
+to the whole rack, not just to scope).
+
+**Dispatched by arithmetic, not by twenty-eight cases:** `slot = (id-200)/8`,
+`key = (id-200)%8`. A block layout that the shell computes cannot fall out of
+step with a table the shell also computes.
+
+**Type-conditional by an existing mechanism.** Every row carries
+`shown_when: fxNtype=7|8` *and the matching `depends`*, which is ADR-108's
+pattern exactly: the GUI hides the control and the morph hierarchy holds it, from
+one declaration, so the field can never write a parameter the interface has
+hidden. Both columns are set deliberately — they are separate columns and
+keeping them in step is a convention, not an enforcement.
+
+**The change guard is load-bearing, not an optimisation.** `size`, `spread`,
+`nb` and `dist` call `TimeCore::rebuild()` inside `setParam`, so writing them
+every block would rebuild the delay swarm every block. The rack mirrors what the
+shell asked for against what the core has been told and writes only differences.
+The plain scalars go through the same path so there is one rule rather than two.
+
+**Measured.** With slot 1 as Echo, each of the seven changes the render
+(133,676–143,490 of 158,208 samples differ from baseline). With slot 1 **Off**,
+the worst difference across all seven is **0 samples** — they are inert unless
+the slot is a time engine. Readback matches TimeCore's own defaults.
+Parity **156/156**.
+
+**Not in this increment:** the visuals, and per-slot pages for the other six
+types. `amount` still stands alone for Drive/Filter/Gain/Comp/Comb/Notch. The
+FX page is now a page with real controls on it; it is not yet the designed page
+the human asked for.
