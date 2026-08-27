@@ -1029,6 +1029,39 @@ only because the human noticed the two threads were the same question.
 **Not implemented.** This ADR records the ruling; the increment that builds it
 is scoped in ROADMAP.
 
+### Amendment 1 — the dense table's justification is now BOTH morph laws (2026-08-27)
+
+**Queued at ADR-125 and executed here**, with its own reason stated at the time:
+*"or the next agent re-derives the wrong thing from a stale why."*
+
+The original rationale rests entirely on continuity — *"a coefficient of 0 IS
+'not connected', so connecting and disconnecting are one continuous motion"* —
+which reads as though the dense table exists to serve a blended morph. **ADR-125
+then ruled ARGMAX the default topology law**, under which topology does *not*
+interpolate: the route coefficients draw one corner between them and the chain
+order flips discretely.
+
+That does not weaken the choice, and the amendment is the point: **the dense
+table is the substrate for BOTH laws, and its value under the ruled default is
+different from the one recorded.**
+
+- Under **BLEND** (the retained option), continuity is the argument as written.
+- Under **ARGMAX** (the default), the table earns its place for a different
+  reason: a coefficient that can be *any* value is what lets a flip be **glided
+  through zero** rather than cut, so even a discrete topology change has a
+  continuous path available to it. A sparse edge list offers no such path — an
+  edge either exists or does not, and there is nothing to ramp.
+
+So the honest one-line justification is now: *dense because a coefficient of zero
+is a legal, reachable, ramp-through-able state* — which serves continuity when
+blending and de-clicking when flipping. The cost argument (88 patch-state values,
+8 automation ids) is unchanged and still merely fails to disqualify it.
+
+**Also unchanged and worth restating here, since ADR-128 widened the matrix:**
+read-side legality is still what makes one forward pass correct. Backwards edges
+are now legal but read `zPrev`, so the single-pass property the original ADR
+bought is intact rather than traded away.
+
 ## ADR-089 — Gate changes are asymmetric: adding is delegated, weakening is not
 
 **Date:** 2026-08-11 · **Status:** accepted. Human: *"I'm just going to have to
