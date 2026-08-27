@@ -58,13 +58,35 @@ struct RoutingMatrix
      charter's "safety by construction, not by vigilance" applied literally. */
   RoutingMatrix() { setSerialChain(); }
 
-  /* THE legality predicate. Sources may reach anything; a slot may reach only
-     a LATER slot. Every consumer calls this — see the header note on why it
-     cannot live at the write sites. */
-  static constexpr bool edgeLive(int from, int to)
+  /* THE legality predicate. Sources may reach anything; a slot may reach any
+     slot, including itself. Every consumer calls this — see the header note on
+     why it cannot live at the write sites.
+
+     WIDENED (ADR-128, 2026-08-27) from "a slot may reach only a LATER slot".
+     Backwards and self edges are now legal and carry a ONE-SAMPLE delay: they
+     read `zPrev`, the previous sample's slot output, so the graph stays a
+     single forward pass and the audio thread still needs no cycle detection.
+     The old strictness bought exactly that property; the delay buys it back
+     without forbidding the topology.
+     Block rate was rejected for this: at 128 samples / 44.1 kHz a block-delayed
+     loop is 2.9 ms — a flanger, not a routing primitive — and it would change
+     with the host's buffer size, which our own determinism rule forbids. */
+  static constexpr bool edgeLive(int, int) { return true; }
+
+  /* Does this edge read the CURRENT pass, or the previous sample? A source, or
+     a slot strictly earlier than the destination, has already been computed
+     this pass. Anything else is a cycle edge and reads `zPrev`. */
+  static constexpr bool edgeForward(int from, int to)
   {
     return from < NSRC ? true : (from - NSRC) < to;
   }
+
+  /* Feedback state: each slot's output from the previous sample. Zero until a
+     backwards edge exists, so a graph with no cycle never reads it and stays
+     byte-identical to the forward-only engine — which is what keeps every
+     golden and all nine routing invariants green. */
+  double zPrev[NSLOT] = {0};
+  void resetFeedback() { for (int t = 0; t < NSLOT; t++) zPrev[t] = 0.0; }
 
   bool connected(int from, int to) const
   {
@@ -104,6 +126,9 @@ struct RoutingMatrix
     // tests the presence bit and because a future change to the bound would
     // otherwise silently lose the check — but the protection is structural, and
     // claiming the call provides it would be a comment that lies.
+    /* FORWARD consumption only. A slot read solely by a feedback edge is still
+       the end of the forward chain and therefore still an output — otherwise
+       closing a loop would silently mute the very slot that feeds it. */
     for (int t = slot + 1; t < NSLOT; t++)
       if (connected(NSRC + slot, t)) return false;
     return true;
@@ -113,7 +138,7 @@ struct RoutingMatrix
      that slot's output for input x. Returns the summed terminal output.
      Allocation-free and branch-simple: this runs on the audio thread. */
   template <class Proc>
-  double process(const double *src, Proc &&proc) const
+  double process(const double *src, Proc &&proc)
   {
     double slotOut[NSLOT];
     for (int t = 0; t < NSLOT; t++)
@@ -122,10 +147,16 @@ struct RoutingMatrix
       for (int f = 0; f < NSRC + NSLOT; f++)
       {
         if (!connected(f, t)) continue;
-        x += coeff[f][t] * (f < NSRC ? src[f] : slotOut[f - NSRC]);
+        /* Forward edges read this pass; cycle edges read the previous sample.
+           One branch, no cycle detection, no ordering constraint. */
+        const double a = f < NSRC              ? src[f]
+                         : edgeForward(f, t)   ? slotOut[f - NSRC]
+                                               : zPrev[f - NSRC];
+        x += coeff[f][t] * a;
       }
       slotOut[t] = proc(t, x);
     }
+    for (int t = 0; t < NSLOT; t++) zPrev[t] = slotOut[t];
     double y = 0;
     for (int t = 0; t < NSLOT; t++)
       if (isTerminal(t)) y += outAmount[t] * slotOut[t];
