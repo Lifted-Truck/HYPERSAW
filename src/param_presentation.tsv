@@ -294,3 +294,31 @@ morphX	global	Morph X	MORPH	Morph engine	knob		morph	morphOn=1		morphOn=1
 morphY	global	Morph Y	MORPH	Morph engine	knob		morph	morphOn=1		morphOn=1
 morphArm	global	Edit Corner	MORPH	Morph engine	select		morph	never		never
 voiceCull	global	Voice Cull	SET	Performance	knob	dB	voice-cull			
+fx1size	global	Size	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
+fx1spread	global	Spread	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
+fx1taps	global	Taps / Lines	FX	Slot 1	select		fx-rack	fx1type=7|8		fx1type=7|8
+fx1damp	global	Damping	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
+fx1noise	global	Noise	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
+fx1stereo	global	Stereo	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
+fx1dist	global	Spacing	FX	Slot 1	select		fx-rack	fx1type=7|8		fx1type=7|8
+fx2size	global	Size	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
+fx2spread	global	Spread	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
+fx2taps	global	Taps / Lines	FX	Slot 2	select		fx-rack	fx2type=7|8		fx2type=7|8
+fx2damp	global	Damping	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
+fx2noise	global	Noise	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
+fx2stereo	global	Stereo	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
+fx2dist	global	Spacing	FX	Slot 2	select		fx-rack	fx2type=7|8		fx2type=7|8
+fx3size	global	Size	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
+fx3spread	global	Spread	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
+fx3taps	global	Taps / Lines	FX	Slot 3	select		fx-rack	fx3type=7|8		fx3type=7|8
+fx3damp	global	Damping	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
+fx3noise	global	Noise	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
+fx3stereo	global	Stereo	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
+fx3dist	global	Spacing	FX	Slot 3	select		fx-rack	fx3type=7|8		fx3type=7|8
+fx4size	global	Size	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
+fx4spread	global	Spread	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
+fx4taps	global	Taps / Lines	FX	Slot 4	select		fx-rack	fx4type=7|8		fx4type=7|8
+fx4damp	global	Damping	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
+fx4noise	global	Noise	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
+fx4stereo	global	Stereo	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
+fx4dist	global	Spacing	FX	Slot 4	select		fx-rack	fx4type=7|8		fx4type=7|8

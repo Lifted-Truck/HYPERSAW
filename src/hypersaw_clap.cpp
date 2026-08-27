@@ -487,6 +487,42 @@ static const ParamDef kParams[] = {
        label says "cull" and the unit says dB for that reason.
        Global and non-morphable: a voice-lifecycle policy that morphed would
        change how long notes ring as you move the pad. */
+    /* PER-SLOT TIME-ENGINE PARAMETERS (ADR-131). One block of 8 ids per slot at
+       200 + slot*8, seven used and one spare, so a slot's page can grow without
+       renumbering. GLOBAL, like every other rack id: the rack is post-mix and
+       there is exactly one of it. Every row is `shown_when fxNtype=7|8` in the
+       presentation table, so the controls appear only on a slot actually
+       holding Echo or Room -- the same mechanism `topo`/`bendLaw` already use,
+       and the reason a slot page can be type-specific without the GUI owning a
+       second copy of what is live (ADR-108). */
+    {200, "fx1size", "FX1 Size", 0, 1, 0.55, false, nullptr},
+    {201, "fx1spread", "FX1 Spread", 0, 1, 0.6, false, nullptr},
+    {202, "fx1taps", "FX1 Taps/Lines", 2, 12, 8, true, nullptr},
+    {203, "fx1damp", "FX1 Damping", 0, 1, 0.4, false, nullptr},
+    {204, "fx1noise", "FX1 Noise", 0, 1, 0.2, false, nullptr},
+    {205, "fx1stereo", "FX1 Stereo", 0, 1, 0.7, false, nullptr},
+    {206, "fx1dist", "FX1 Spacing", 0, 4, 1, true, kDistLabels},
+    {208, "fx2size", "FX2 Size", 0, 1, 0.55, false, nullptr},
+    {209, "fx2spread", "FX2 Spread", 0, 1, 0.6, false, nullptr},
+    {210, "fx2taps", "FX2 Taps/Lines", 2, 12, 8, true, nullptr},
+    {211, "fx2damp", "FX2 Damping", 0, 1, 0.4, false, nullptr},
+    {212, "fx2noise", "FX2 Noise", 0, 1, 0.2, false, nullptr},
+    {213, "fx2stereo", "FX2 Stereo", 0, 1, 0.7, false, nullptr},
+    {214, "fx2dist", "FX2 Spacing", 0, 4, 1, true, kDistLabels},
+    {216, "fx3size", "FX3 Size", 0, 1, 0.55, false, nullptr},
+    {217, "fx3spread", "FX3 Spread", 0, 1, 0.6, false, nullptr},
+    {218, "fx3taps", "FX3 Taps/Lines", 2, 12, 8, true, nullptr},
+    {219, "fx3damp", "FX3 Damping", 0, 1, 0.4, false, nullptr},
+    {220, "fx3noise", "FX3 Noise", 0, 1, 0.2, false, nullptr},
+    {221, "fx3stereo", "FX3 Stereo", 0, 1, 0.7, false, nullptr},
+    {222, "fx3dist", "FX3 Spacing", 0, 4, 1, true, kDistLabels},
+    {224, "fx4size", "FX4 Size", 0, 1, 0.55, false, nullptr},
+    {225, "fx4spread", "FX4 Spread", 0, 1, 0.6, false, nullptr},
+    {226, "fx4taps", "FX4 Taps/Lines", 2, 12, 8, true, nullptr},
+    {227, "fx4damp", "FX4 Damping", 0, 1, 0.4, false, nullptr},
+    {228, "fx4noise", "FX4 Noise", 0, 1, 0.2, false, nullptr},
+    {229, "fx4stereo", "FX4 Stereo", 0, 1, 0.7, false, nullptr},
+    {230, "fx4dist", "FX4 Spacing", 0, 4, 1, true, kDistLabels},
     {160, "voiceCull", "Voice Cull", -80, -40, -80, false, nullptr},
 };
 
@@ -583,6 +619,11 @@ constexpr clap_id kGlobalIds[] = {
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
     160,                                         // B38 voice-cull threshold (lifecycle policy)
+    // ADR-131 per-slot time-engine params: 200..231, four blocks of 8.
+    200, 201, 202, 203, 204, 205, 206,
+    208, 209, 210, 211, 212, 213, 214,
+    216, 217, 218, 219, 220, 221, 222,
+    224, 225, 226, 227, 228, 229, 230,
 };
 constexpr bool isGlobalId(clap_id id)
 {
@@ -2730,6 +2771,10 @@ struct Plugin
          writes to `scale` and both lanes read it rather than either owning it —
          the surface was made global for exactly this. */
       if (id >= 133 && id <= 136) { rack.setMix((int)(id - 133), applied); return; }
+      /* ADR-131: 200..231 is four blocks of 8. Arithmetic rather than 28 cases,
+         so adding a slot or a param cannot fall out of step with the table. */
+      if (id >= 200 && id <= 231)
+      { rack.setTimeParam((int)((id - 200) / 8), (int)((id - 200) % 8), applied); return; }
       /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
          retMul. Note the absent tau: id 33 carries the note lag, in seconds, and
          the core converts at the use site — see the swarm_core comment. */
@@ -3062,6 +3107,8 @@ struct Plugin
         }
       }
       if (d->id >= 133 && d->id <= 136) return rack.getMix((int)(d->id - 133));
+      if (d->id >= 200 && d->id <= 231)
+        return rack.getTimeParam((int)((d->id - 200) / 8), (int)((d->id - 200) % 8));
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
       if (d->id == 40) return bassMonoOn;

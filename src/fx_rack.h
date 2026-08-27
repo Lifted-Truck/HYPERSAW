@@ -221,6 +221,37 @@ class FxRack
   {
     return (slot < 0 || slot >= kRackSlots) ? 0.5 : slots[slot].tone;
   }
+  /* ADR-131 — per-slot time-engine parameters. The shell writes these; the
+     mirrored state lives with the other private members. The change guard in
+     processSlot is what makes them safe: size/spread/nb/dist call
+     TimeCore::rebuild() inside setParam, so writing them every block would
+     rebuild the delay swarm every block — audible as a stutter, and pointless
+     work. The scalars go through the same path so there is one rule, not two. */
+  void setTimeParam(int slot, int key, double v)
+  {
+    if (slot < 0 || slot >= kRackSlots || key < 0 || key > 6) return;
+    auto &t = timeSet[slot];
+    if (key == 0) t.size = v;
+    else if (key == 1) t.spread = v;
+    else if (key == 2) t.taps = v;
+    else if (key == 3) t.damp = v;
+    else if (key == 4) t.noise = v;
+    else if (key == 5) t.stereo = v;
+    else t.dist = v;
+  }
+  double getTimeParam(int slot, int key) const
+  {
+    if (slot < 0 || slot >= kRackSlots || key < 0 || key > 6) return 0.0;
+    const auto &t = timeSet[slot];
+    if (key == 0) return t.size;
+    if (key == 1) return t.spread;
+    if (key == 2) return t.taps;
+    if (key == 3) return t.damp;
+    if (key == 4) return t.noise;
+    if (key == 5) return t.stereo;
+    return t.dist;
+  }
+
   void setMix(int slot, double v)
   {
     if (slot < 0 || slot >= kRackSlots) return;
@@ -388,6 +419,17 @@ class FxRack
           auto &t = *timeFx[idx];
           const double wantMode = (s.type == FxType::Room) ? 1.0 : 0.0;
           if (t.p.mode != wantMode) t.setParam("mode", wantMode);   // no alloc
+          /* Change-guarded: four of these rebuild the swarm inside setParam. */
+          {
+            auto &w = timeSet[idx]; auto &a = timeApplied[idx];
+            if (w.size   != a.size)   { t.setParam("size", w.size);     a.size   = w.size; }
+            if (w.spread != a.spread) { t.setParam("spread", w.spread); a.spread = w.spread; }
+            if (w.taps   != a.taps)   { t.setParam("nb", w.taps);       a.taps   = w.taps; }
+            if (w.dist   != a.dist)   { t.setParam("dist", w.dist);     a.dist   = w.dist; }
+            if (w.damp   != a.damp)   { t.setParam("damp", w.damp);     a.damp   = w.damp; }
+            if (w.noise  != a.noise)  { t.setParam("noise", w.noise);   a.noise  = w.noise; }
+            if (w.stereo != a.stereo) { t.setParam("stereo", w.stereo); a.stereo = w.stereo; }
+          }
           t.setParam("regen", s.amount);
           t.setParam("mix", 1.0);
           t.setParam("vol", 1.0);
@@ -518,6 +560,10 @@ class FxRack
   // rather than lazily constructing on first use from the audio thread.
   std::unique_ptr<NotchCore> notch[kRackSlots];
   std::unique_ptr<TimeCore> timeFx[kRackSlots];
+  struct TimeSet { double size = 0.55, spread = 0.6, taps = 8, damp = 0.4,
+                   noise = 0.2, stereo = 0.7, dist = 1; };
+  TimeSet timeSet[kRackSlots];      // what the shell asked for
+  TimeSet timeApplied[kRackSlots];  // what the core has been told
   double sr = 44100;
   // Comp state — coefficients derived from SECONDS constants in setSampleRate
   // (ADR-009); these defaults are the 44.1 kHz values so a shell that never
