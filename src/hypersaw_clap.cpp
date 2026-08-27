@@ -2794,23 +2794,24 @@ struct Plugin
       {
         const uint32_t osc = id / 1000;
         const bool on = applied >= 0.5;
-        /* ADR-100 A3: with morph ON, the switch writes itself into ALL FOUR
-           corners -- otherwise the next grid tick reads the corner's stored
-           enable and reverts it, and a power switch that snaps back reads as
-           broken ("the power buttons on the oscillators don't work", human
-           2026-08-21, morph engaged). This is the recorded exempt-lean design
-           (live value into every corner) applied to the one control where a
-           revert is indistinguishable from a defect. Full per-edit routing is
-           the corner-editing phase; the SWITCH cannot wait for it.
-           `!morphFromField` is LOAD-BEARING (B48): the FIELD's own flips come
-           through this same handler, and unguarded they overwrote all four
-           corners on the first boundary crossing -- the stored on/off
-           boundary silently ceased to exist the first time the morph crossed
-           it. Only a HUMAN edit rewrites the corners. */
-        if (morphOn > 0.5 && !morphFromField)
-          for (size_t i = 0; i < morphIds.size(); i++)
-            if (morphIds[i] == (clap_id)id)
-              for (int k = 0; k < 4; k++) morphCorner[k][i] = on ? 1.0 : 0.0;
+        /* ADR-100 A3's blanket write is GONE (ADR-132, 2026-08-27). It used to
+           copy an enable edit into ALL FOUR corners, and its reason was real
+           when written: without it "the next grid tick reads the corner's
+           stored enable and reverts it, and a power switch that snaps back
+           reads as broken".
+
+           ADR-109 made that obsolete and nobody removed it. `morphRouteEdit`
+           now runs BEFORE this block and stores the edit itself in every path:
+           armed, into the armed corner; unarmed pick-mode, into the corner that
+           WON the parameter. Either way the grid tick reads back what was just
+           written, so nothing reverts and no safety net is needed.
+
+           What the net cost instead: it destroyed the feature ADR-100 exists
+           for. Its own header promises "the morph grid can hold 'off in this
+           corner, on in that one'" — and an unarmed toggle silently overwrote
+           the three corners the player was not standing on. Reported
+           2026-08-27 and reproduced: corners C and D, authored OFF and never
+           touched, both read ON after one unarmed edit at corner B. */
         if ((oscEnabled[osc] != 0) != on)
         {
           oscEnabled[osc] = on ? 1 : 0;
