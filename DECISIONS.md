@@ -3921,3 +3921,39 @@ Parity **156/156**.
 types. `amount` still stands alone for Drive/Filter/Gain/Comp/Comb/Notch. The
 FX page is now a page with real controls on it; it is not yet the designed page
 the human asked for.
+
+## ADR-132 — ADR-100 A3's blanket corner write is removed (2026-08-27)
+
+**Status: ACCEPTED.** Human: *"if I edit the on/off of an oscillator in one
+corner, it seems to copy that setting to every other corner."*
+
+**Reproduced.** Author corner A osc2 ON and B/C/D OFF; then, **unarmed**, toggle
+the power at corner B. Corners C and D — authored OFF and never touched — both
+read ON afterwards.
+
+**Cause.** ADR-100 A3 wrote every enable edit into all four corners. Its reason
+was real when written: *"otherwise the next grid tick reads the corner's stored
+enable and reverts it, and a power switch that snaps back reads as broken."*
+
+**ADR-109 made that obsolete, and nobody removed the workaround.**
+`morphRouteEdit` runs *before* this block and stores the edit in every path —
+armed, into the armed corner; unarmed pick-mode, into the corner that **won**
+the parameter (`morphCorner[k][idx] = v`). The grid tick therefore reads back
+what was just written and cannot revert. The net was catching nothing.
+
+**What it cost instead: the feature ADR-100 exists for.** That ADR's own header
+promises *"the morph grid can hold 'off in this corner, on in that one' per
+corner per oscillator"* — and its amendment quietly made that impossible for any
+edit not made with a corner armed.
+
+**Verified both directions.** After removal: C and D keep their authored OFF and
+the edit lands only on the corner being stood on. And the symptom A3 guarded
+against does **not** return — an unarmed toggle at pad positions 0.0, 0.5 and
+1.0 holds through 3 s (~500 grid ticks) at each. Parity 156/156.
+
+**The general shape, worth naming:** a workaround outlives the defect it was
+written for, and the thing that removes the defect is a *different* ADR that
+never knew the workaround existed. Neither ADR is wrong on its own terms. Only
+reading them together shows the redundancy — which is an argument for checking a
+workaround's stated premise when the surrounding mechanism changes, not for
+writing fewer workarounds.
