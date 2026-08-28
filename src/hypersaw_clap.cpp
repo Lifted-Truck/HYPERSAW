@@ -607,7 +607,11 @@ constexpr double kBendGridSeconds = 16.0 / 44100.0;   // 0.363 ms
 constexpr int kMixChunk = 256;
 constexpr uint32_t kOscStride = 1000;
 // B69 mod-matrix destination keys. Opaque to mod_core; the shell owns meaning.
-constexpr uint32_t kModDestPitch = 1;
+// SYNTHETIC destinations live in high-bit space so they can never collide with
+// a CLAP param id (kModDestPitch was 1, which is param "n" — a landmine found
+// before it fired, moved in ADR-136). A generic destination IS its param id.
+constexpr uint32_t kModDestSynthetic = 0x80000000u;
+constexpr uint32_t kModDestPitch = kModDestSynthetic | 1;
 constexpr uint32_t kMaxOsc = 2;   // ratified 2026-08-06; 2000-2999 stays free for a third
 constexpr uint32_t kNumOsc = 2;   // ADR-082 increment 2: the ratified slot count
 static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified range");
@@ -1318,6 +1322,23 @@ struct Plugin
      48 st moves fast enough to zipper otherwise. */
   hypersaw::ModCore mod;
   double modPitchSt = 0, modPitchSm = 0;
+  /* ADR-136: generic destinations. For every param the matrix targets, the
+     shell owns the BASE here — the value the player/host/morph authored — and
+     writes base+offset through the normal apply path each mod tick. Readback
+     reports base, so state, automation and the GUI never see the modulation.
+     modFromMatrix is the re-entrancy guard (the morphFromField pattern): a
+     matrix write must not route into morph corners or update its own base. */
+  struct ModDest { clap_id id = 0; double base = 0, lastApplied = 1e300; bool active = false; };
+  ModDest modDests[hypersaw::ModCore::kMaxRoutes];
+  bool modFromMatrix = false;
+  ModDest *modDestFor(clap_id id, bool create)
+  {
+    for (auto &d : modDests) if (d.active && d.id == id) return &d;
+    if (!create) return nullptr;
+    for (auto &d : modDests)
+      if (!d.active) { d.id = id; d.base = readParam(id); d.lastApplied = 1e300; d.active = true; return &d; }
+    return nullptr;
+  }
   /* ADR-135: ENV 2, a shell-side ADSR advanced at the mod grid. One-pole
      approaches per stage (attack -> 1, decay -> sustain, release -> 0), gated
      by "any voice gated across enabled oscillators" — a global paraphrase,
@@ -1629,6 +1650,30 @@ struct Plugin
      route is already there for it). Inert by construction at depth 0: the
      route only exists once the knob has moved, evaluate() of an empty table
      is zero entries, and modPitchSm settles to exactly 0. */
+  /* ADR-136 route management, called from the GUI bridge (main thread).
+     Stepped destinations are refused — a zippered enum is not modulation, and
+     the GUI mirrors the rule by not offering the menu item. Source is a slot
+     index (0 = ENV 1, 1 = ENV 2). */
+  bool modAddRoute(uint32_t srcSlot, clap_id destId)
+  {
+    const ParamDef *pd = findParam(destId);
+    if (!pd || pd->stepped) return false;
+    if (destId == 161 || (destId >= 162 && destId <= 165)) return false;  // no self-reference
+    return mod.addRoute(srcSlot, destId, 0.25, hypersaw::ModCore::kGlobal);
+  }
+  std::string modRoutesJson()
+  {
+    std::string out = "[";
+    char buf[128];
+    for (int r = 0; r < mod.nRoutes; r++)
+    {
+      const auto &q = mod.routes[r];
+      std::snprintf(buf, sizeof buf, "%s{\"i\":%d,\"src\":%u,\"dest\":%u,\"depth\":%.6g}",
+                    r ? "," : "", r, q.src, q.dest, q.depth);
+      out += buf;
+    }
+    return out + "]";
+  }
   int modAccum = 0;
   void modStep(int samples)
   {
@@ -1668,7 +1713,43 @@ struct Plugin
     const int n = mod.evaluate(hypersaw::ModCore::kGlobal, dests, deltas, hypersaw::ModCore::kMaxRoutes);
     double pitch = 0;
     for (int i = 0; i < n; i++)
-      if (dests[i] == kModDestPitch) pitch = deltas[i];
+    {
+      if (dests[i] == kModDestPitch) { pitch = deltas[i]; continue; }
+      if (dests[i] & kModDestSynthetic) continue;      // unknown synthetic: inert
+      /* Generic param destination (ADR-136). depth*src is normalized; scale by
+         the param's own range and clamp to its bounds — OQ-30's rule applied
+         at the ruled place. Stepped params are refused at route-add, so
+         everything arriving here is continuous. */
+      const ParamDef *pd = findParam(dests[i]);
+      if (!pd) continue;
+      ModDest *md = modDestFor(dests[i], true);
+      if (!md) continue;
+      const double span = pd->maxV - pd->minV;
+      double want = md->base + deltas[i] * span;
+      want = std::max(pd->minV, std::min(pd->maxV, want));
+      if (std::fabs(want - md->lastApplied) > 1e-9)
+      {
+        md->lastApplied = want;
+        modFromMatrix = true;
+        applyParam(dests[i], want);
+        modFromMatrix = false;
+      }
+    }
+    // A destination whose routes have all been removed releases back to base.
+    for (auto &d2 : modDests)
+    {
+      if (!d2.active) continue;
+      bool still = false;
+      for (int r = 0; r < mod.nRoutes; r++)
+        if (mod.routes[r].dest == d2.id) { still = true; break; }
+      if (!still)
+      {
+        modFromMatrix = true;
+        applyParam(d2.id, d2.base);
+        modFromMatrix = false;
+        d2.active = false;
+      }
+    }
     // OQ-30 bounding at APPLICATION, the ruled place: the route can ask for
     // anything; the destination clamps to its own declared range.
     pitch = std::max(-48.0, std::min(48.0, pitch));
@@ -2787,7 +2868,13 @@ struct Plugin
          rather than a rule per call site. `morphFromField` guards re-entry:
          morphStep applies the field's own output through applyParam, and
          routing THAT would have the field endlessly rewriting its own corners. */
-      if (!morphFromField && morphOn > 0.5 && !morphRouteEdit(id, applied)) return;
+      if (!morphFromField && !modFromMatrix && morphOn > 0.5 && !morphRouteEdit(id, applied)) return;
+      /* ADR-136: the base intercept. Any write that is NOT the matrix's own
+         lands as the new BASE for a modulated destination; the offset is
+         re-applied on the next mod tick rather than here, so a user drag under
+         modulation feels like dragging the base. */
+      if (!modFromMatrix)
+        if (ModDest *md = modDestFor(id, false)) md->base = applied;
       if (id == 32)
       {
         if (applied != voiceMono)
@@ -3246,6 +3333,8 @@ struct Plugin
       if (d->id >= 200 && d->id <= 231)
         return rack.getTimeParam((int)((d->id - 200) / 8), (int)((d->id - 200) % 8));
       if (d->id == 161) return mod.nRoutes ? mod.routes[0].depth : 0.0;
+      if (const ModDest *md = const_cast<Plugin *>(this)->modDestFor(d->id, false))
+        return md->base;
       if (d->id == 162) return env2A;
       if (d->id == 163) return env2D;
       if (d->id == 164) return env2S;
@@ -4312,6 +4401,13 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.morphToggleExempt = [pl](uint32_t id) { return pl->morphToggleExempt((clap_id)id); };
   hostIf.morphExemptJson = [pl]() { return pl->morphExemptJson(); };
   hostIf.morphOwnersJson = [pl]() { return pl->morphOwnersJson(); };
+  hostIf.modRoutesJson = [pl]() { return pl->modRoutesJson(); };
+  hostIf.modAddRoute = [pl](uint32_t src, uint32_t dest) { return pl->modAddRoute(src, dest); };
+  hostIf.modSetDepth = [pl](int i, double v) {
+    if (i >= 0 && i < pl->mod.nRoutes) pl->mod.routes[i].depth = v;
+    if (i == 0) { /* keep knob 161's readback in step: it IS route 0's depth */ }
+  };
+  hostIf.modRemoveRoute = [pl](int i) { pl->mod.removeRoute(i); };
   hostIf.morphCornerValsJson = [pl](int k) { return pl->morphCornerValsJson(k); };
   hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };
   hostIf.setParam = [pl](uint32_t id, double v) { pl->enqueueParam(id, v, 0); };
@@ -4537,6 +4633,18 @@ bool hypersaw_test_slot_gated(const clap_plugin_t *p, int slot)
 {
   if (slot < 0 || slot >= (int)hypersaw::kPoly) return false;
   return self(p)->core.voiceAt(slot).gate != 0;
+}
+
+bool hypersaw_test_mod_add(const clap_plugin_t *p, uint32_t srcSlot, uint32_t destId)
+{
+  return self(p)->modAddRoute(srcSlot, destId);
+}
+void hypersaw_test_mod_remove(const clap_plugin_t *p, int idx) { self(p)->mod.removeRoute(idx); }
+double hypersaw_test_mod_applied(const clap_plugin_t *p, uint32_t destId)
+{
+  for (auto &d : self(p)->modDests)
+    if (d.active && d.id == destId) return d.lastApplied;
+  return -1e300;
 }
 
 bool hypersaw_entry_init(const char *) { return true; }

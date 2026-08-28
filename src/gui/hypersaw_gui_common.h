@@ -244,6 +244,27 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     if (args.isArray() && args.size() >= 1) k = (int)args[0].getWithDefault<int64_t>(-1);
     return choc::value::createString(host.morphCornerValsJson ? host.morphCornerValsJson(k) : std::string("{}"));
   });
+  web->bind("hzModRoutes", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    return choc::value::createString(host.modRoutesJson ? host.modRoutesJson() : std::string("[]"));
+  });
+  web->bind("hzModAdd", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    bool ok = false;
+    if (host.modAddRoute && args.isArray() && args.size() >= 2)
+      ok = host.modAddRoute((uint32_t)args[0].getWithDefault<int64_t>(0),
+                            (uint32_t)args[1].getWithDefault<int64_t>(0));
+    return choc::value::createBool(ok);
+  });
+  web->bind("hzModDepth", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    if (host.modSetDepth && args.isArray() && args.size() >= 2)
+      host.modSetDepth((int)args[0].getWithDefault<int64_t>(-1),
+                       args[1].getWithDefault<double>(0.0));
+    return choc::value::createBool(true);
+  });
+  web->bind("hzModRemove", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    if (host.modRemoveRoute && args.isArray() && args.size() >= 1)
+      host.modRemoveRoute((int)args[0].getWithDefault<int64_t>(-1));
+    return choc::value::createBool(true);
+  });
   web->bind("hzMorphOwners", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.morphOwnersJson ? host.morphOwnersJson() : std::string("{}"));
   });

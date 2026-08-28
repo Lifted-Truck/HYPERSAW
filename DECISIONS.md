@@ -4110,3 +4110,39 @@ release → 0), time constants in seconds per ADR-009.
 that creates routes nothing can apply is a dead control (L0023's class). Generic
 destination application is the gate for that surface; ENV 2 needed nothing but
 a source slot.
+
+## ADR-136 — generic mod destinations, the right-click, and the MOD page (2026-08-28)
+
+**Status: ACCEPTED (B69 increment 4).** The matrix opens to arbitrary
+continuous parameters, and the human's interface ruling ships: right-click any
+knob → *Send to mod matrix* (ENV 1 or ENV 2); routes live on the MOD page —
+the tab goes live for the first time — with depth sliders and removal.
+
+**The base/offset contract is the heart of it.** For every modulated
+destination the shell owns the BASE — the value the player, host or morph
+authored — and writes base+offset through the normal apply path each mod tick
+under a re-entrancy guard (the morphFromField pattern). Every *other* write
+updates base, so dragging a knob under modulation drags the base and the
+offset rides on. **Readback reports base**, so state, automation and the GUI
+never see the modulation. Measured: mid-modulation the applied value read
+0.7911 while host readback held exactly 0.5500.
+
+**Rules, each with its reason:** stepped destinations are refused at route-add
+(a zippered enum is not modulation) and the menu mirrors the rule by absence;
+the matrix's own controls (161–165) never appear in the menu — modulating your
+own depth is B70's territory and arrives with its cycle rule, not by accident;
+depth is ±1 of the destination's range, clamped to the param's own bounds
+(OQ-30 at application); a destination whose routes are all removed releases
+back to base. **kModDestPitch moved to high-bit synthetic space** — it was 1,
+which is param "n": a collision found before it fired.
+
+**Test hooks over reimplementation:** `hypersaw_test_mod_add/remove/applied`
+call the same shell functions the GUI bridge calls, so the oracle exercises
+the shipped path. Full cycle measured: add → applies at the attack → base
+survives → stepped refused → removal releases. Depth 0 / no-route remains
+byte-identical; parity 156/156.
+
+**Known gap, stated:** routes added by right-click are NOT yet persisted in
+the state chunk — the Env>Pitch route survives via param 161, generic routes
+do not survive a session reload. Persistence is the next increment and the gap
+is recorded in B69 rather than discovered by a user losing work.

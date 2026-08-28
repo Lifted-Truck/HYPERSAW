@@ -42,4 +42,14 @@ extern "C"
   bool hypersaw_test_retire_slot(const clap_plugin_t *p, int slot, int32_t *note_id, int16_t *port,
                                  int16_t *channel, int16_t *key);
   bool hypersaw_test_slot_gated(const clap_plugin_t *p, int slot);
+
+  /* TEST HOOKS — ADR-136 mod-matrix route surface. The GUI reaches routes
+     through the webview bridge, which no headless oracle can drive; these call
+     the SAME shell functions the bridge calls (modAddRoute / removeRoute), so
+     what is under test is the shipped path and not a reimplementation. The
+     third returns the shell's last APPLIED value for a destination — the one
+     number that distinguishes "modulating" from "readback lying". */
+  bool hypersaw_test_mod_add(const clap_plugin_t *p, uint32_t srcSlot, uint32_t destId);
+  void hypersaw_test_mod_remove(const clap_plugin_t *p, int idx);
+  double hypersaw_test_mod_applied(const clap_plugin_t *p, uint32_t destId);
 }
