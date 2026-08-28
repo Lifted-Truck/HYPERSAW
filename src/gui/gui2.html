@@ -647,6 +647,22 @@
     background-position:left top; background-repeat:no-repeat; }
   .row.ghost:not(.kcell) > * { opacity:.55; }   /* dim content, NOT the stripe */
   .row.ghost > label { color:var(--t2); }
+  /* ADR-141: a route row carries five controls — source, destination, depth,
+     readout, remove — into a cluster that is 240px wide by ADR-098's flow rule.
+     Five across cannot fit (measured: the destination label collapsed to zero
+     and the row read as an anonymous slider), so the row is TWO LINES: what the
+     route IS on top, what it DOES underneath. It also leaves the natural place
+     for B70's depth-mod control to land on line two. */
+  .row.modrow { grid-template-columns:88px minmax(0,1fr) 24px;
+    grid-template-areas:"src dest x" "depth depth val"; gap:4px 6px;
+    padding:4px 0 6px; border-bottom:1px dashed var(--line); }
+  .row.modrow:last-child { border-bottom:0; }
+  .row.modrow > select { grid-area:src; font-size:10px; min-width:0; }
+  .row.modrow > label { grid-area:dest; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; align-self:center; }
+  .row.modrow > input[type=range] { grid-area:depth; min-width:0; }
+  .row.modrow > output { grid-area:val; text-align:right; }
+  .row.modrow > button { grid-area:x; }
   .pmenu { position:fixed; z-index:9999; min-width:172px; padding:4px;
            background:var(--panel,#FCFAF4); border:var(--stroke) solid var(--line);
            border-radius:var(--r); box-shadow:var(--shadow); font-size:11px; }
@@ -884,10 +900,12 @@
   <div class="cluster"><h2>Routes</h2>
     <div id="modList"></div>
     <div class="note">Right-click any knob or slider and choose “Send to mod
-      matrix” to add a route here. Depth is ±1 of the destination's full range;
-      the destination's own bounds always clamp the result. The <b>Env &gt;
-      Pitch</b> knob on OSC is route 0 when it is non-zero — its depth is in
-      semitones and edits in either place stay in step.</div>
+      matrix”; the route arrives on <b>ENV 1</b> and the select re-aims it at any
+      source. Depth is ±1 of the destination's full range; the destination's own
+      bounds always clamp the result. Right-click a routed parameter again to
+      <b>release</b> it. The <b>Env &gt; Pitch</b> knob on OSC owns the Pitch row
+      — its depth is in semitones, its source is fixed, and edits in either place
+      stay in step.</div>
   </div>
   <div class="cluster"><h2>Sources</h2>
     <div class="note"><b>ENV 1</b> — the amp envelope (loudest voice).
@@ -2132,47 +2150,38 @@ const PARAM_MENU = [
     label: () => 'Reset to default',
     hint: () => 'same as double-click',
     run: ctx => resetToDefault(ctx.el) },
-  /* ADR-136 (the human's B69 interface ruling): the right-click IS how a
-     parameter reaches the mod matrix. Continuous params only — the shell
-     refuses stepped destinations and the menu mirrors the rule by absence.
-     The matrix's own controls (161-165) never appear: modulating your own
-     depth is B70's territory and arrives with its cycle rule, not by accident. */
-  { id: 'mod1',
+  /* ADR-141 (the human's B71 ruling, superseding ADR-137's source submenu):
+     ONE entry. "Send to mod matrix" creates the route; WHICH modulator drives
+     it is chosen in the TABLE, where there is room for a labelled select —
+     the menu stays two items long however many sources exist. There is
+     deliberately NO pending/unlinked state: a sent parameter is a real route
+     at ENV 1, depth 0.25, and re-aiming is a re-source of a live row. A
+     pending row would be a second route representation needing its own
+     persistence, refusal rules and halo semantics — all cost, no sound.
+     Continuous params only (the shell refuses stepped dests and the menu
+     mirrors it by absence); the matrix's own controls 161-178 never appear. */
+  { id: 'modSend',
     show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
-                 && !(ctx.id >= 161 && ctx.id <= 177),
-    label: () => 'Send to mod matrix — ENV 1',
-    hint: () => 'amp envelope drives this parameter',
+                 && !(ctx.id >= 161 && ctx.id <= 178)
+                 && !MODROUTES.some(r => r.dest === ctx.id),
+    label: () => 'Send to mod matrix',
+    hint: () => 'starts on ENV 1 — pick the modulator on the MOD page',
     run: async ctx => { if (await window.hzModAdd(0, ctx.id)) renderModRoutes().catch(() => {}); } },
-  { id: 'mod2',
-    show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
-                 && !(ctx.id >= 161 && ctx.id <= 177),
-    label: () => 'Send to mod matrix — ENV 2',
-    hint: () => 'pitch envelope (its own ADSR) drives this',
-    run: async ctx => { if (await window.hzModAdd(1, ctx.id)) renderModRoutes().catch(() => {}); } },
-  /* ADR-137: the macros. Eight flat entries would double the menu, so this one
-     stays open (keep:true) and swaps its items for the macro list in place. */
-  { id: 'modMac', keep: true,
-    show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
-                 && !(ctx.id >= 161 && ctx.id <= 177),
-    label: () => 'Send to mod matrix — Macro…',
-    hint: () => 'pick one of the eight macros',
-    run: ctx => {
-      if (!menuEl) return;
-      [...menuEl.querySelectorAll('.pmenuItem')].forEach(b => b.remove());
-      for (let i = 0; i < 8; i++) {
-        const b = document.createElement('button');
-        b.type = 'button'; b.className = 'pmenuItem';
-        b.textContent = 'Macro ' + (i + 1);
-        b.addEventListener('click', async () => {
-          closeParamMenu();
-          try { if (await window.hzModAdd(2 + i, ctx.id)) renderModRoutes().catch(() => {}); } catch (_) {}
-        });
-        menuEl.appendChild(b);
-      }
-      // the list is taller than the item it replaced — keep it on screen
-      const r = menuEl.getBoundingClientRect();
-      menuEl.style.top = Math.max(4, Math.min(parseFloat(menuEl.style.top) || 4,
-                                              window.innerHeight - r.height - 6)) + 'px';
+  { id: 'modRelease',
+    show: ctx => !!window.hzModRemove && MODROUTES.some(r => r.dest === ctx.id),
+    label: ctx => {
+      const n = MODROUTES.filter(r => r.dest === ctx.id).length;
+      return n > 1 ? `Release all modulators (${n})` : 'Release modulator';
+    },
+    hint: () => 'the parameter returns to its own value',
+    run: async ctx => {
+      /* DESCENDING, and that is load-bearing: removeRoute compacts the table,
+         so removing index 2 renumbers everything above it. Ascending removal
+         deletes the wrong rows — the same index-shift family as the 161
+         landmine (ADR-138). */
+      const idx = MODROUTES.filter(r => r.dest === ctx.id).map(r => r.i).sort((a, b) => b - a);
+      for (const i of idx) await window.hzModRemove(i);
+      renderModRoutes().catch(() => {});
     } },
 ];
 
@@ -2211,13 +2220,27 @@ async function renderModRoutes() {
     box.appendChild(p); return;
   }
   for (const r of routes) {
-    const row = document.createElement('div'); row.className = 'row';
+    const row = document.createElement('div'); row.className = 'row modrow';
+    const pitchRoute = (r.dest >>> 0) >= 0x80000000;
+    /* ADR-141: the SOURCE lives here, not in the right-click menu — this select
+       is the human's "from there you can decide which modulator to link it to".
+       The pitch route's select is disabled: its source is ADR-135's contract
+       (knob 161 is that route's depth, ENV 2 is its source), and the shell
+       refuses to re-source it anyway — the disable states the rule rather than
+       letting the click fail silently. */
+    const src = document.createElement('select');
+    for (let i = 0; i < MOD_SRC_NAMES.length; i++) src.add(new Option(MOD_SRC_NAMES[i], i));
+    src.value = r.src;
+    src.disabled = pitchRoute;
+    src.title = pitchRoute ? 'the pitch route is ENV 2 by contract (ADR-135)' : 'which modulator drives this';
+    src.addEventListener('change', async () => {
+      if (await window.hzModSource(r.i, +src.value)) { r.src = +src.value; renderModRoutes().catch(() => {}); }
+    });
     const lab = document.createElement('label');
-    lab.textContent = `${MOD_SRC_NAMES[r.src] ?? ('src ' + r.src)} → ${modDestLabel(r.dest)}`;
+    lab.textContent = '→ ' + modDestLabel(r.dest);
+    lab.title = modDestLabel(r.dest);
     const sl = document.createElement('input');
     sl.type = 'range';
-    // by DEST, never by index — ADR-138 made "route 0" an unsafe name here too
-    const pitchRoute = (r.dest >>> 0) >= 0x80000000;
     sl.min = pitchRoute ? -48 : -1; sl.max = pitchRoute ? 48 : 1;
     sl.step = pitchRoute ? 0.5 : 0.01; sl.value = r.depth;
     sl.addEventListener('input', () => { window.hzModDepth(r.i, +sl.value); r.depth = +sl.value; out.value = (+sl.value).toFixed(2); });
@@ -2226,7 +2249,7 @@ async function renderModRoutes() {
     x.type = 'button'; x.textContent = '×'; x.title = 'remove this route';
     x.style.minHeight = '22px';
     x.addEventListener('click', async () => { await window.hzModRemove(r.i); renderModRoutes(); });
-    row.appendChild(lab); row.appendChild(sl); row.appendChild(out); row.appendChild(x);
+    row.appendChild(src); row.appendChild(lab); row.appendChild(sl); row.appendChild(out); row.appendChild(x);
     box.appendChild(row);
   }
 }
@@ -2341,6 +2364,12 @@ document.addEventListener('contextmenu', async (ev) => {
   if (!el) return;                       // outside a parameter: leave the host's own menu alone
   ev.preventDefault();
   if (OWNERS === null) await paintOwners().catch(() => {});   // don't hide Exempt in the first poll gap
+  /* ADR-141: the send/release guards ask MODROUTES whether this dest is already
+     routed, and MODROUTES is only filled by a MOD-page render or a halo tick —
+     stale here means the menu offers Send for a routed param (a duplicate row)
+     or hides Release entirely. One cheap read makes the guards truthful. */
+  if (window.hzModRoutes)
+    try { MODROUTES = JSON.parse(await window.hzModRoutes()); } catch (_) {}
   const id = el.dataset.fixed ? +el.dataset.p : effId(+el.dataset.p);
   const lbl = row.querySelector('label');
   const ctx = {
@@ -2368,10 +2397,7 @@ document.addEventListener('contextmenu', async (ev) => {
     b.appendChild(document.createTextNode(it.label(ctx)));
     const h = it.hint && it.hint(ctx);
     if (h) { const sp = document.createElement('span'); sp.className = 'pmenuHint'; sp.textContent = h; b.appendChild(sp); }
-    b.addEventListener('click', async () => {
-      if (!it.keep) closeParamMenu();          // keep:true items rebuild the menu in place
-      try { await it.run(ctx); } catch (_) {}
-    });
+    b.addEventListener('click', async () => { closeParamMenu(); try { await it.run(ctx); } catch (_) {} });
     menuEl.appendChild(b);
   }
   document.body.appendChild(menuEl);

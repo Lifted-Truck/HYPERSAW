@@ -1698,6 +1698,19 @@ struct Plugin
     if (destId >= 161 && destId <= 177) return false;
     return mod.addRoute(srcSlot, destId, 0.25, hypersaw::ModCore::kGlobal);
   }
+  /* ADR-141: re-aim a live route's SOURCE. The human's ruling moved the
+     modulator choice out of the right-click menu and into the table, so this
+     is the table's verb. The pitch route is refused: its source is ADR-135's
+     contract (knob 161 IS that route's depth, ENV 2 IS its source), not a
+     user choice. */
+  bool modSetSource(int idx, uint32_t srcSlot)
+  {
+    if (idx < 0 || idx >= mod.nRoutes) return false;
+    if (srcSlot >= (uint32_t)hypersaw::ModCore::kMaxSources) return false;
+    if (mod.routes[idx].dest & kModDestSynthetic) return false;
+    mod.routes[idx].src = srcSlot;
+    return true;
+  }
   std::string modRoutesJson()
   {
     std::string out = "[";
@@ -4578,9 +4591,11 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.modLiveJson = [pl]() { return pl->modLiveJson(); };
   hostIf.modAddRoute = [pl](uint32_t src, uint32_t dest) { return pl->modAddRoute(src, dest); };
   hostIf.modSetDepth = [pl](int i, double v) {
+    // No index-0 special case: ADR-138 made knob 161 find its route BY DEST,
+    // so the depth of whatever sits at index 0 is nobody's secret twin.
     if (i >= 0 && i < pl->mod.nRoutes) pl->mod.routes[i].depth = v;
-    if (i == 0) { /* keep knob 161's readback in step: it IS route 0's depth */ }
   };
+  hostIf.modSetSource = [pl](int i, uint32_t src) { return pl->modSetSource(i, src); };
   hostIf.modRemoveRoute = [pl](int i) { pl->mod.removeRoute(i); };
   hostIf.morphCornerValsJson = [pl](int k) { return pl->morphCornerValsJson(k); };
   hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };

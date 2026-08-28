@@ -4308,3 +4308,44 @@ of v2-on in the VST decides whether B75 is urgency or luxury.
 the other details" — a dilation ring reads fatter than a stroked line of the
 same nominal width; 1.0 matches the 1.5px hairlines by eye, and a smaller
 radius closes the ring more easily, not less).
+
+## ADR-141 — one send entry; the modulator is chosen in the table (2026-08-28)
+
+**Status: ACCEPTED (B71).** The human's ruling: *"it should just be 'send to
+mod matrix' and it sends it to a table and from there you can decide which
+modulator to link it to (or x to release it)"*, plus a *"release all
+modulators"* verb. Supersedes ADR-137's in-place macro submenu — that shape
+assumed the source is chosen at send time, and ten sources made the menu the
+clutter the right-click was meant to prevent.
+
+**The menu is now two items, permanently.** "Send to mod matrix" on an
+unrouted continuous parameter; "Release modulator(s)" on a routed one, never
+both. Source count no longer touches menu length — B16's LFOs and B40's
+bottom bar can add sources without the menu growing a pixel.
+
+**No pending/unlinked state, deliberately.** A sent parameter becomes a REAL
+route at ENV 1, depth 0.25, and "deciding which modulator" is a re-source of a
+live row through the table's select. The rejected alternative is recorded
+because it looks tidier than it is: a pending row would be a second route
+representation needing its own persistence, refusal rules, halo semantics and
+morph story — cost with no audible return.
+
+**Two index traps closed.** (1) Release-all removes DESCENDING, because
+removeRoute compacts the table: ascending removal deletes the wrong rows.
+Measured in-browser — a dest routed at indices 0 and 2 removes as [2, 0] and
+the unrelated route at index 1 survives intact. This is the same family as the
+161 landmine (ADR-138); the third sighting. (2) modSetDepth's leftover
+`if (i == 0)` comment claiming route 0 is knob 161's twin was deleted — false
+since ADR-138 made 161 find its route by dest.
+
+**The pitch route is not re-sourceable**: the shell refuses (synthetic dest)
+and the row's select is disabled with the reason in its tooltip — ENV 2 is
+ADR-135's contract, not a user choice. Stating the rule beats letting a click
+fail silently.
+
+**Layout, measured not assumed:** five controls across cannot fit the 240px
+newspaper column ADR-098 gives this cluster (the destination label collapsed
+to zero width and the row read as an anonymous slider). The row is two lines —
+what the route IS above, what it DOES below — which also leaves the natural
+seat for B70's depth-mod control. The MOD note stopped describing the
+pre-ADR-138 "route 0" world.
