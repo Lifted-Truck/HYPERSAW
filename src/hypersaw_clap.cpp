@@ -542,6 +542,17 @@ static const ParamDef kParams[] = {
        amp envelope for now; a dedicated ENV 2 with its own times is the next
        increment, and this knob then becomes ENV 2's route without renaming. */
     {161, "modEnvPitch", "Env > Pitch", -48, 48, 0, false, nullptr},
+    /* B64 completed (ADR-135): ENV 2, the dedicated pitch envelope. Its OWN
+       times, computed in the shell at the mod grid — a mod SOURCE, not a copy
+       of the core's amp envelope. Sustain defaults 0: a pitch envelope that
+       returns to base pitch while the note holds is the musical default, and
+       it is what makes ENV 2 audibly a different envelope from ENV 1.
+       Route 0 (the Env > Pitch knob) now draws from ENV 2. ENV 1 (the amp
+       projection, source slot 0) remains auto-included for future routes. */
+    {162, "penvA", "P.Env Attack (s)", 0.001, 2.0, 0.003, false, nullptr},
+    {163, "penvD", "P.Env Decay (s)", 0.005, 4.0, 0.16, false, nullptr},
+    {164, "penvS", "P.Env Sustain", 0, 1, 0, false, nullptr},
+    {165, "penvR", "P.Env Release (s)", 0.005, 8.0, 0.16, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -639,7 +650,8 @@ constexpr clap_id kGlobalIds[] = {
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
     160,                                         // B38 voice-cull threshold (lifecycle policy)
-    161,                                         // B69 mod route depth: ENV 1 -> pitch
+    161,                                         // B69 mod route depth (Env > Pitch)
+    162, 163, 164, 165,                          // ADR-135 ENV 2 (pitch envelope) ADSR
     // ADR-131 per-slot time-engine params: 200..231, four blocks of 8.
     200, 201, 202, 203, 204, 205, 206,
     208, 209, 210, 211, 212, 213, 214,
@@ -1306,6 +1318,15 @@ struct Plugin
      48 st moves fast enough to zipper otherwise. */
   hypersaw::ModCore mod;
   double modPitchSt = 0, modPitchSm = 0;
+  /* ADR-135: ENV 2, a shell-side ADSR advanced at the mod grid. One-pole
+     approaches per stage (attack -> 1, decay -> sustain, release -> 0), gated
+     by "any voice gated across enabled oscillators" — a global paraphrase,
+     stated plainly: per-note ENV 2 is the per-note fan-out increment, not
+     this one. env2Gate tracks the edge so attack restarts on the first new
+     gate after silence, matching how a player reads a monophonic envelope. */
+  double env2 = 0, env2A = 0.003, env2D = 0.16, env2S = 0.0, env2R = 0.16;
+  int env2Stage = 0;   // 0 idle, 1 attack, 2 decay/sustain
+  bool env2Gate = false;
   hypersaw::MorphCore morph;
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
   std::vector<double> morphCorner[4];     // snapshots, aligned to morphIds
@@ -1617,14 +1638,31 @@ struct Plugin
     const double dt = (double)modAccum / sampleRate;
     modAccum = 0;
     double envMax = 0;
+    bool anyGate = false;
     for (uint32_t k = 0; k < kNumOsc; k++)
       if (oscEnabled[k])
         for (int i = 0; i < (int)hypersaw::kPoly; i++)
         {
-          const double e = cores[k].voiceAt(i).env;
-          if (e > envMax) envMax = e;
+          const auto &v = cores[k].voiceAt(i);
+          if (v.env > envMax) envMax = v.env;
+          if (v.gate) anyGate = true;
         }
     mod.src[0] = envMax;
+    /* ADR-135: ENV 2. Stage machine on the gate edge, one-pole approaches per
+       stage. Time constants are the knobs' SECONDS converted per tick
+       (ADR-009's rule — never hand-tuned per-tick constants). */
+    {
+      if (anyGate && !env2Gate) { env2Stage = 1; }             // fresh gate: attack
+      if (!anyGate) env2Stage = 0;                              // all keys up: release
+      env2Gate = anyGate;
+      double target, tau;
+      if (env2Stage == 1) { target = 1.0; tau = env2A; }
+      else if (env2Stage == 2) { target = env2S; tau = env2D; }
+      else { target = 0.0; tau = env2R; }
+      env2 += (target - env2) * (1.0 - std::exp(-dt / std::max(1e-4, tau)));
+      if (env2Stage == 1 && env2 > 0.99) { env2 = 1.0; env2Stage = 2; }
+      mod.src[1] = env2;
+    }
     uint32_t dests[hypersaw::ModCore::kMaxRoutes];
     double deltas[hypersaw::ModCore::kMaxRoutes];
     const int n = mod.evaluate(hypersaw::ModCore::kGlobal, dests, deltas, hypersaw::ModCore::kMaxRoutes);
@@ -2858,9 +2896,18 @@ struct Plugin
       {
         /* The knob IS route 0's depth. The route is created on first non-zero
            depth and its depth tracks the knob thereafter — one knob, one
-           route, no hidden state. kDestPitch is an opaque key to the core. */
-        if (mod.nRoutes == 0) mod.addRoute(0, kModDestPitch, applied, hypersaw::ModCore::kGlobal);
+           route, no hidden state. Source slot 1 = ENV 2 (ADR-135); slot 0
+           (ENV 1, the amp projection) stays free for future routes. */
+        if (mod.nRoutes == 0) mod.addRoute(1, kModDestPitch, applied, hypersaw::ModCore::kGlobal);
         else mod.routes[0].depth = applied;
+        return;
+      }
+      if (id >= 162 && id <= 165)
+      {
+        if (id == 162) env2A = applied;
+        else if (id == 163) env2D = applied;
+        else if (id == 164) env2S = applied;
+        else env2R = applied;
         return;
       }
       /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
@@ -3199,6 +3246,10 @@ struct Plugin
       if (d->id >= 200 && d->id <= 231)
         return rack.getTimeParam((int)((d->id - 200) / 8), (int)((d->id - 200) % 8));
       if (d->id == 161) return mod.nRoutes ? mod.routes[0].depth : 0.0;
+      if (d->id == 162) return env2A;
+      if (d->id == 163) return env2D;
+      if (d->id == 164) return env2S;
+      if (d->id == 165) return env2R;
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
       if (d->id == 40) return bassMonoOn;

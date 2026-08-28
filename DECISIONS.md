@@ -4084,3 +4084,29 @@ Parity 156/156.
 shared), a dedicated envelope (ENV 2 with its own times is B64's completion —
 this knob then becomes ENV 2's route without renaming), or the right-click
 route surface (B69's interface ruling, next increment).
+
+## ADR-135 — ENV 2: the dedicated pitch envelope; B64 completed (2026-08-28)
+
+**Status: ACCEPTED (B69 increment 3).** ENV 2 is a shell-side ADSR advanced at
+the mod grid — a mod *source* with its own times (162–165), not a copy of the
+core's amp envelope. Route 0 (`Env > Pitch`) now draws from it; ENV 1 (the amp
+projection, slot 0) stays auto-included for future routes.
+
+**Sustain defaults 0, deliberately:** a pitch envelope that returns to base
+pitch while the note holds is the musical default — and it is the measurable
+difference between ENV 2 and ENV 1. Measured exactly that way: with the amp
+envelope sustaining at 1 (note still sounding), depth +12 reads 390 Hz in the
+attack window and **exactly 220.0 Hz in the held-sustain window** — the pitch
+came back while the note did not. Under ENV 1 it would have stayed raised.
+Depth 0 remains bit-identical to an untouched build (0 of 52,736 samples).
+
+**Gate semantics, stated plainly:** ENV 2 gates on "any voice gated across
+enabled oscillators" — attack restarts on the first gate after silence, release
+begins when all keys are up. A global paraphrase; per-note ENV 2 is the fan-out
+increment. Stage machine: one-pole approaches (attack → 1, decay → sustain,
+release → 0), time constants in seconds per ADR-009.
+
+**Why the right-click menu increment was reordered behind this:** a menu item
+that creates routes nothing can apply is a dead control (L0023's class). Generic
+destination application is the gate for that surface; ENV 2 needed nothing but
+a source slot.
