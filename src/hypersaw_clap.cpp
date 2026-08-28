@@ -116,8 +116,12 @@ static const char *const kBendQuantLabels[] = {"off", "chromatic", "scale (drag)
 static const char *const kNoteQuantLabels[] = {"off", "chromatic", "scale"};
 static const char *const kTopoLabels[] = {"mean-field", "ring", "two-cluster"};
 static const char *const kPolesLabels[] = {"1 — classic", "2 — pair", "3 — triad", "4 — quad"};
+// ADR-142: the Delay's time mode. Named for what each choice MEANS at the
+// knob ("free ms" vs "tempo sync"), not "off/on" — a sync toggle labelled
+// off/on reads as though it disables the delay.
+static const char *const kDelaySyncLabels[] = {"free (ms)", "tempo sync"};
 static const char *const kFxTypeLabels[] = {"Off",  "Drive", "Filter", "Gain",
-                                            "Comp", "Comb",  "Notch", "Echo", "Room"};
+                                            "Comp", "Comb",  "Notch", "Echo", "Room", "Delay"};
 // Display names for the gravity ratio readout (indices match core kRatios)
 static const char *const kRatioNames[13] = {"1/1", "16/15", "9/8", "6/5", "5/4", "4/3", "7/5",
                                             "3/2", "8/5", "5/3", "16/9", "15/8", "2/1"};
@@ -207,13 +211,13 @@ static const ParamDef kParams[] = {
     // amount, processed in slot order. Default type Off = bit-exact passthrough
     // (the parity gate). coreKeys are unique non-core strings — used only as
     // state-blob keys; apply/readParam intercept these ids and route to `rack`.
-    {57, "fx1type", "FX1 Type", 0, 8, 0, true, kFxTypeLabels},
+    {57, "fx1type", "FX1 Type", 0, 9, 0, true, kFxTypeLabels},
     {58, "fx1amt", "FX1 Amount", 0, 1, 0.5, false, nullptr},
-    {59, "fx2type", "FX2 Type", 0, 8, 0, true, kFxTypeLabels},
+    {59, "fx2type", "FX2 Type", 0, 9, 0, true, kFxTypeLabels},
     {60, "fx2amt", "FX2 Amount", 0, 1, 0.5, false, nullptr},
-    {61, "fx3type", "FX3 Type", 0, 8, 0, true, kFxTypeLabels},
+    {61, "fx3type", "FX3 Type", 0, 9, 0, true, kFxTypeLabels},
     {62, "fx3amt", "FX3 Amount", 0, 1, 0.5, false, nullptr},
-    {63, "fx4type", "FX4 Type", 0, 8, 0, true, kFxTypeLabels},
+    {63, "fx4type", "FX4 Type", 0, 9, 0, true, kFxTypeLabels},
     {64, "fx4amt", "FX4 Amount", 0, 1, 0.5, false, nullptr},
     // SPECTRA ADSR (ADR-055; SPECTRA-only, ids route to the spectra core).
     // SEPARATE from the SAW ADSR (ids 19-22): the two references have
@@ -579,6 +583,44 @@ static const ParamDef kParams[] = {
        (low fixed resolution, fewer march steps, 20 Hz, idle-gated); off = the
        phase circle returns to MAIN. The native-GUI escape is B75. */
     {178, "specimen", "Specimen (CHROME-001)", 0, 1, 0, true, nullptr},
+    /* ADR-142 — the standard Delay's per-slot params: 232..263, four blocks of
+       8, the same shape ADR-131 gave the time engines (slot = (id-232)/8, key
+       = (id-232)%8), so a fifth slot or a ninth param is a table edit and never
+       a switch to keep in step. Times are LINEAR ms here rather than log: the
+       GUI's data-log10 owns the control curve (ADR's log-control rule), and the
+       parameter the host automates stays in real milliseconds. */
+    {232, "d1time", "D1 Time (ms)", 1, 2000, 375, false, nullptr},
+    {233, "d1sync", "D1 Sync", 0, 1, 0, true, kDelaySyncLabels},
+    {234, "d1beats", "D1 Beats", 0.0625, 8, 0.5, false, nullptr},
+    {235, "d1offR", "D1 R Offset", 0.25, 2, 1, false, nullptr},
+    {236, "d1fb", "D1 Feedback", 0, 1, 0.35, false, nullptr},
+    {237, "d1cross", "D1 Crossfeed", 0, 1, 0, false, nullptr},
+    {238, "d1damp", "D1 Damp", 0, 1, 0.35, false, nullptr},
+    {239, "d1hp", "D1 Loop HP (Hz)", 0, 500, 60, false, nullptr},
+    {240, "d2time", "D2 Time (ms)", 1, 2000, 375, false, nullptr},
+    {241, "d2sync", "D2 Sync", 0, 1, 0, true, kDelaySyncLabels},
+    {242, "d2beats", "D2 Beats", 0.0625, 8, 0.5, false, nullptr},
+    {243, "d2offR", "D2 R Offset", 0.25, 2, 1, false, nullptr},
+    {244, "d2fb", "D2 Feedback", 0, 1, 0.35, false, nullptr},
+    {245, "d2cross", "D2 Crossfeed", 0, 1, 0, false, nullptr},
+    {246, "d2damp", "D2 Damp", 0, 1, 0.35, false, nullptr},
+    {247, "d2hp", "D2 Loop HP (Hz)", 0, 500, 60, false, nullptr},
+    {248, "d3time", "D3 Time (ms)", 1, 2000, 375, false, nullptr},
+    {249, "d3sync", "D3 Sync", 0, 1, 0, true, kDelaySyncLabels},
+    {250, "d3beats", "D3 Beats", 0.0625, 8, 0.5, false, nullptr},
+    {251, "d3offR", "D3 R Offset", 0.25, 2, 1, false, nullptr},
+    {252, "d3fb", "D3 Feedback", 0, 1, 0.35, false, nullptr},
+    {253, "d3cross", "D3 Crossfeed", 0, 1, 0, false, nullptr},
+    {254, "d3damp", "D3 Damp", 0, 1, 0.35, false, nullptr},
+    {255, "d3hp", "D3 Loop HP (Hz)", 0, 500, 60, false, nullptr},
+    {256, "d4time", "D4 Time (ms)", 1, 2000, 375, false, nullptr},
+    {257, "d4sync", "D4 Sync", 0, 1, 0, true, kDelaySyncLabels},
+    {258, "d4beats", "D4 Beats", 0.0625, 8, 0.5, false, nullptr},
+    {259, "d4offR", "D4 R Offset", 0.25, 2, 1, false, nullptr},
+    {260, "d4fb", "D4 Feedback", 0, 1, 0.35, false, nullptr},
+    {261, "d4cross", "D4 Crossfeed", 0, 1, 0, false, nullptr},
+    {262, "d4damp", "D4 Damp", 0, 1, 0.35, false, nullptr},
+    {263, "d4hp", "D4 Loop HP (Hz)", 0, 500, 60, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -685,6 +727,10 @@ constexpr clap_id kGlobalIds[] = {
     166, 167, 168, 169, 170, 171, 172, 173,      // ADR-137 macros (mod sources 2-9)
     174, 175, 176, 177,                          // ADR-137 per-osc XY axis assignment
     178,                                         // ADR-140 specimen on/off (GUI-only)
+    232, 233, 234, 235, 236, 237, 238, 239,      // ADR-142 Delay slot 1
+    240, 241, 242, 243, 244, 245, 246, 247,      // ADR-142 Delay slot 2
+    248, 249, 250, 251, 252, 253, 254, 255,      // ADR-142 Delay slot 3
+    256, 257, 258, 259, 260, 261, 262, 263,      // ADR-142 Delay slot 4
     // ADR-131 per-slot time-engine params: 200..231, four blocks of 8.
     200, 201, 202, 203, 204, 205, 206,
     208, 209, 210, 211, 212, 213, 214,
@@ -3133,6 +3179,9 @@ struct Plugin
          so adding a slot or a param cannot fall out of step with the table. */
       if (id >= 200 && id <= 231)
       { rack.setTimeParam((int)((id - 200) / 8), (int)((id - 200) % 8), applied); return; }
+      // ADR-142: the Delay's four blocks of 8 (see the param table's note).
+      if (id >= 232 && id <= 263)
+      { rack.setDelayParam((int)((id - 232) / 8), (int)((id - 232) % 8), applied); return; }
       if (id == 161)
       {
         /* The knob IS the pitch route's depth. The route is created on first
@@ -3494,6 +3543,8 @@ struct Plugin
       if (d->id >= 133 && d->id <= 136) return rack.getMix((int)(d->id - 133));
       if (d->id >= 200 && d->id <= 231)
         return rack.getTimeParam((int)((d->id - 200) / 8), (int)((d->id - 200) % 8));
+      if (d->id >= 232 && d->id <= 263)
+        return rack.getDelayParam((int)((d->id - 232) / 8), (int)((d->id - 232) % 8));
       if (d->id == 161)
       {
         const int pr = modPitchRouteIdx();
@@ -4040,6 +4091,11 @@ struct Plugin
     // for the same reason: a heap buffer sized at activate() once made audible
     // output conditional on activate() having run.
     {
+      /* ADR-142: the host's tempo, pushed once per block. The Delay's sync
+         reads it as DATA — no core reads a clock (SPEC §5.7), and a host that
+         never sends transport leaves the rack at its 120 default rather than
+         at zero. */
+      rack.setTempo(core.p.bpm);
       float sL[hypersaw::kRackSlots][kMixChunk], sR[hypersaw::kRackSlots][kMixChunk];
       float *slotL[hypersaw::kRackSlots], *slotR[hypersaw::kRackSlots];
       for (int t = 0; t < hypersaw::kRackSlots; t++) { slotL[t] = sL[t]; slotR[t] = sR[t]; }

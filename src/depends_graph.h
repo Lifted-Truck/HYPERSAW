@@ -22,6 +22,38 @@ static const DepCond kDep113[] = {{106, 1}, {106, 2}, {106, 3}, {106, 4}};
 static const DepCond kDep110[] = {{106, 4}};
 static const DepCond kDep109[] = {{106, 3}};
 static const DepCond kDep107[] = {{106, 1}};
+static const DepCond kDep234[] = {{57, 9}, {233, 1}};
+static const DepCond kDep237[] = {{57, 9}};
+static const DepCond kDep238[] = {{57, 9}};
+static const DepCond kDep236[] = {{57, 9}};
+static const DepCond kDep239[] = {{57, 9}};
+static const DepCond kDep235[] = {{57, 9}};
+static const DepCond kDep233[] = {{57, 9}};
+static const DepCond kDep232[] = {{57, 9}, {233, 0}};
+static const DepCond kDep242[] = {{59, 9}, {241, 1}};
+static const DepCond kDep245[] = {{59, 9}};
+static const DepCond kDep246[] = {{59, 9}};
+static const DepCond kDep244[] = {{59, 9}};
+static const DepCond kDep247[] = {{59, 9}};
+static const DepCond kDep243[] = {{59, 9}};
+static const DepCond kDep241[] = {{59, 9}};
+static const DepCond kDep240[] = {{59, 9}, {241, 0}};
+static const DepCond kDep250[] = {{61, 9}, {249, 1}};
+static const DepCond kDep253[] = {{61, 9}};
+static const DepCond kDep254[] = {{61, 9}};
+static const DepCond kDep252[] = {{61, 9}};
+static const DepCond kDep255[] = {{61, 9}};
+static const DepCond kDep251[] = {{61, 9}};
+static const DepCond kDep249[] = {{61, 9}};
+static const DepCond kDep248[] = {{61, 9}, {249, 0}};
+static const DepCond kDep258[] = {{63, 9}, {257, 1}};
+static const DepCond kDep261[] = {{63, 9}};
+static const DepCond kDep262[] = {{63, 9}};
+static const DepCond kDep260[] = {{63, 9}};
+static const DepCond kDep263[] = {{63, 9}};
+static const DepCond kDep259[] = {{63, 9}};
+static const DepCond kDep257[] = {{63, 9}};
+static const DepCond kDep256[] = {{63, 9}, {257, 0}};
 static const DepCond kDep203[] = {{57, 7}, {57, 8}};
 static const DepCond kDep206[] = {{57, 7}, {57, 8}};
 static const DepCond kDep204[] = {{57, 7}, {57, 8}};
@@ -105,6 +137,38 @@ static const DepRule kDepRules[] = {
   {110, kDep110, 1},
   {109, kDep109, 1},
   {107, kDep107, 1},
+  {234, kDep234, 2},
+  {237, kDep237, 1},
+  {238, kDep238, 1},
+  {236, kDep236, 1},
+  {239, kDep239, 1},
+  {235, kDep235, 1},
+  {233, kDep233, 1},
+  {232, kDep232, 2},
+  {242, kDep242, 2},
+  {245, kDep245, 1},
+  {246, kDep246, 1},
+  {244, kDep244, 1},
+  {247, kDep247, 1},
+  {243, kDep243, 1},
+  {241, kDep241, 1},
+  {240, kDep240, 2},
+  {250, kDep250, 2},
+  {253, kDep253, 1},
+  {254, kDep254, 1},
+  {252, kDep252, 1},
+  {255, kDep255, 1},
+  {251, kDep251, 1},
+  {249, kDep249, 1},
+  {248, kDep248, 2},
+  {258, kDep258, 2},
+  {261, kDep261, 1},
+  {262, kDep262, 1},
+  {260, kDep260, 1},
+  {263, kDep263, 1},
+  {259, kDep259, 1},
+  {257, kDep257, 1},
+  {256, kDep256, 2},
   {203, kDep203, 2},
   {206, kDep206, 2},
   {204, kDep204, 2},
@@ -177,5 +241,5 @@ static const DepRule kDepRules[] = {
   {126, kDep126, 4},
   {116, kDep116, 3},
 };
-static const int kNumDepRules = 82;
+static const int kNumDepRules = 114;
 }  // namespace hypersaw

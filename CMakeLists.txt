@@ -377,6 +377,15 @@ if(NOT MSVC)
   target_compile_options(mod_check PRIVATE -O2)
 endif()
 
+# delay_check: the standard delay's SPEC (ADR-142). Not a parity test -- this
+# core has no HTML lab on purpose, so the impulse-response invariants in the
+# oracle are the definition of correct. Wiring it into ./verify is a human
+# decision (charter); proposed in the PR that adds it.
+add_executable(delay_check tools/delay_check.cpp)
+if(NOT MSVC)
+  target_compile_options(delay_check PRIVATE -O2)
+endif()
+
 add_executable(gain_probe tools/gain_probe.cpp)
 target_link_libraries(gain_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)

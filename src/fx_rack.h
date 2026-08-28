@@ -28,6 +28,7 @@
 
 #include "notch_core.h"
 #include "time_core.h"
+#include "delay_core.h"
 
 namespace hypersaw
 {
@@ -88,6 +89,10 @@ enum class FxType : int
   Echo = 7,    // tap-swarm delay (TimeCore mode 0); ADR-031's stability laws
                // live inside that core, Layer-0 guarded by L0-19
   Room = 8,    // FDN room swarm (TimeCore mode 1); L0-20/21
+  Delay = 9,   // ADR-142: the STANDARD stereo delay (DelayCore) — textbook
+               // feedback, sync, L/R offset, crossfeed/ping-pong, in-loop tone.
+               // The A/B baseline for Echo/Room, and the module B73 judges them
+               // against; its own oracle is delay_check, not a lab parity run.
   Notch = 6,   // swarm-herded notch cascade (NotchCore): amount -> core's own
                // dry/wet `mix` param; population/topology stay at core defaults
                // until the rack grows a per-slot param page for them.
@@ -142,6 +147,9 @@ class FxRack
        AUDIO thread from param events, so lazy construction there would be
        exactly the allocation this note exists to prevent. */
     for (auto &t : timeFx) t = std::make_unique<TimeCore>(sr);
+    // 2 MB of buffers per instance: heap, never a member by value (the oracle
+    // segfaulted on two stack-allocated cores before this was float+heap).
+    for (auto &d : delayFx) d = std::make_unique<DelayCore>(sr);
     // Declick constants in SECONDS, converted here (ADR-009). 6 ms is long
     // enough to be inaudible as a step and short enough that a retuned line is
     // back before the next note; 30 ms smooths the 1/activeLines normaliser,
@@ -210,7 +218,17 @@ class FxRack
   void setType(int slot, int type)
   {
     if (slot < 0 || slot >= kRackSlots) return;
+    const FxType prev = slots[slot].type;
     slots[slot].type = (FxType)type;
+    /* ADR-142: selecting Delay is a LOAD, not a knob move — snap the read head
+       to the patch's time instead of gliding to it from whatever the slot held
+       before. Without this the first repeats after a type change arrive late
+       and pitched (measured as an oracle failure before snapTime existed). */
+    if ((FxType)type == FxType::Delay && prev != FxType::Delay && delayFx[slot])
+    {
+      delayFx[slot]->p = delaySet[slot];
+      delayFx[slot]->reset();
+    }
   }
   void setTone(int slot, double tone)
   {
@@ -238,6 +256,48 @@ class FxRack
     else if (key == 4) t.noise = v;
     else if (key == 5) t.stereo = v;
     else t.dist = v;
+  }
+  /* ADR-142: the Delay's per-slot params, keyed 0..7 in declaration order —
+     the same arithmetic-not-cases shape ADR-131 chose for the time engines, so
+     adding a param is a table edit at both ends and never a switch to keep in
+     step. */
+  void setDelayParam(int slot, int key, double v)
+  {
+    if (slot < 0 || slot >= kRackSlots || key < 0 || key > 7) return;
+    auto &d = delaySet[slot];
+    switch (key)
+    {
+      case 0: d.timeMs = v; break;
+      case 1: d.sync = v; break;
+      case 2: d.timeBeats = v; break;
+      case 3: d.offsetR = v; break;
+      case 4: d.feedback = v; break;
+      case 5: d.crossfeed = v; break;
+      case 6: d.damp = v; break;
+      default: d.loopHp = v; break;
+    }
+  }
+  double getDelayParam(int slot, int key) const
+  {
+    if (slot < 0 || slot >= kRackSlots || key < 0 || key > 7) return 0.0;
+    const auto &d = delaySet[slot];
+    switch (key)
+    {
+      case 0: return d.timeMs;
+      case 1: return d.sync;
+      case 2: return d.timeBeats;
+      case 3: return d.offsetR;
+      case 4: return d.feedback;
+      case 5: return d.crossfeed;
+      case 6: return d.damp;
+      default: return d.loopHp;
+    }
+  }
+  // Host tempo for sync. Data pushed in, never a clock read in a core.
+  void setTempo(double bpm)
+  {
+    rackTempo = bpm > 1 ? bpm : 120.0;
+    for (auto &d : delayFx) d->setTempo(rackTempo);
   }
   double getTimeParam(int slot, int key) const
   {
@@ -499,6 +559,28 @@ class FxRack
           }
           break;
         }
+        case FxType::Delay:
+        {
+          /* `amount` -> FEEDBACK, for the same reason Echo maps it to regen:
+             the slot's `mix` already owns wet/dry under the rack contract, and
+             feedback is what changes the effect's identity (slapback at 0.05,
+             runaway at 1.0). The per-slot page owns everything else. Feedback
+             reaches 1.08 at amount 1 — past unity ON PURPOSE, bounded by the
+             core's soft ceiling (L0-D4), which is the performance move a
+             /N-normalised swarm delay cannot offer at any setting. */
+          auto &d = *delayFx[idx];
+          const bool retimed = d.p.timeMs != delaySet[idx].timeMs
+                            || d.p.sync != delaySet[idx].sync
+                            || d.p.timeBeats != delaySet[idx].timeBeats
+                            || d.p.offsetR != delaySet[idx].offsetR;
+          d.p = delaySet[idx];
+          d.p.feedback = s.amount * 1.08;
+          (void)retimed;   // a knob move GLIDES (tape retime) — snapping here
+                           // would defeat the feature; snapTime is for loads,
+                           // and the shell calls it when a slot is selected.
+          d.processStereo(L, R, n);
+          break;
+        }
         case FxType::Notch:
         {
           // Swarm-herded notch cascade (notch_core.h), driven as a bus effect
@@ -564,6 +646,13 @@ class FxRack
                    noise = 0.2, stereo = 0.7, dist = 1; };
   TimeSet timeSet[kRackSlots];      // what the shell asked for
   TimeSet timeApplied[kRackSlots];  // what the core has been told
+  /* ADR-142: the Delay's eight per-slot params. No change-guard twin like
+     TimeSet's: DelayCore's setters rebuild nothing (its buffers are fixed and
+     its coefficients are recomputed per block anyway), so the shell's values
+     are simply copied in. A guard here would be ceremony protecting nothing. */
+  std::unique_ptr<DelayCore> delayFx[kRackSlots];
+  DelayCore::Params delaySet[kRackSlots];
+  double rackTempo = 120.0;
   double sr = 44100;
   // Comp state — coefficients derived from SECONDS constants in setSampleRate
   // (ADR-009); these defaults are the 44.1 kHz values so a shell that never
