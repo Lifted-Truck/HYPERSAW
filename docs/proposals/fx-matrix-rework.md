@@ -184,3 +184,147 @@ route edges marked as one atomic group per corner.
 5. Write the migration with the collision detector as a **gate**, not a
    warning, and a golden corpus of real presets as its oracle.
 6. Retire `docs/proposals/fx-slot-contract.md` as subsumed (§1).
+
+---
+
+# Part 2 — The recommendation: how the FX should be shaped (2026-08-28)
+
+**Written at the human's request before anything locks:** *"what would you say
+is the optimal way to set up FX so they work with quantum morph but also allow
+for the greatest degree of flexibility... 1. CPU-affordable 2. robust/modular/
+flexible 3. morph-friendly."*
+
+Most of this is composition, not invention — the rulings already exist
+(ADR-088/123/124/125/128, B49/B63/B65). What follows is the shape they add up
+to, plus the two trade-offs that are genuinely still open.
+
+## The one-sentence shape
+
+**A fixed roster of always-present module instances behind one dense crosspoint
+matrix, where presence is a coefficient, structure flips atomically, cost is
+charged only for audible signal, and every module exposes a small morphable
+macro face with its depth behind it.**
+
+## 1. CPU-affordable: existence is free, audibility costs
+
+The bar is already set by today's rack: `FxType::Off` is `break;` — a slot that
+does nothing costs nothing. Set modules must clear the same bar, and the
+mechanism generalises:
+
+- **Reachability skip.** A module with no live input path from any source, or
+  no live path onward to the output, is not processed at all. This is
+  `mix <= 0`'s guaranteed bypass promoted from a per-slot check to a graph
+  property, computed on the control thread when edges change — never per
+  sample.
+- **Quiesce.** Reachable is not audible: a reverb whose input path just closed
+  is still ringing, and a reverb that finished ringing is still reachable.
+  Each module answers "am I silent?" (input silent AND internal energy below a
+  floor) and sleeps when it is. **This is B47's lesson arriving in the FX
+  domain** — release tails cost full price until a threshold retires them, and
+  an FX graph accumulates ringing state exactly the way the voice pool
+  accumulates tails. voiceCull's shape (a floor, default conservative) is the
+  precedent. Neither TimeCore nor the rack has this today; it is new work and
+  it is the *load-bearing* half of "affordable".
+- **Live-edge summing** (already an ADR-128 constraint): the matrix sums over
+  the live edge set recomputed per block, never the full N² table.
+
+Worst-case cost is then bounded by *modules carrying audible signal*, not by
+roster size — which is what makes a generous roster safe to ship.
+
+## 2. Morph-friendly: three laws, all already ruled, applied uniformly
+
+The morph question is settled in pieces; the design just has to apply them to
+every axis of the FX consistently:
+
+| axis | law | already ruled by |
+|---|---|---|
+| module **parameters** | morph as values (pick or blend, per `morphMode`) | ADR-104 |
+| **structure** (which edges) | ARGMAX — route edges draw ONE corner, atomically | ADR-125 + ADR-124's lead map |
+| **presence** (how much) | continuous — a coefficient of zero IS disconnection, and flips glide *through* zero rather than cutting | ADR-088 A1, ADR-123's shape |
+| **inaudible params** (module has no live path in a corner) | the B65 rule: AUTHOR / HOLD / ADOPT toggle, ADOPT = weighted average of ON corners (ratified 2026-08-27) | B65 |
+
+Two consequences worth stating plainly:
+
+- **Set modules dissolve the chimera class.** No `type` param → nothing stepped
+  for the field to draw independently → ADR-124's FX atomic group becomes
+  vestigial. The B49 defect cannot recur *by construction*.
+- **B65 must be stated in terms of live paths, not oscillators.** "This
+  module's parameters, in a corner where no path reaches it, are held / adopted
+  / authored" — same toggle, same rule, no special case for oscillators.
+
+## 3. Robust/modular: the facility owns safety; the module owns sound
+
+The charter's "safety by construction, not by vigilance," applied at the
+boundary:
+
+- **ADR-031's laws live in the MATRIX, not in modules.** Feedback-edge
+  normalisation (/N, worst-case correlation), a DC blocker on cycle edges, and
+  the loop-gain ceiling are facility guarantees — a module cannot know it is
+  inside a loop, so it must not be responsible for surviving one. The
+  morph-law lab's resonant-damper failure (a default-Q lowpass quietly adding
+  loop gain) is the cautionary instance: the facility should also own its own
+  in-loop filters' Q.
+- **NaN watchdog at the module boundary** (ADR-032's law: a NaN must never
+  silence the instrument for more than a block).
+- **The module contract**, kept small: stereo block process in place, declared
+  latency, the quiesce query, and — only for modules that opt in — a per-sample
+  tap. **Cycle membership requires the tap** (ADR-128 option B): at edit time
+  the control thread finds cycles and switches exactly those members to
+  sample-wise processing. A module without a tap (a lookahead compressor, any
+  future FFT module) is simply *refused membership in a cycle*, surfaced in the
+  UI as a rule rather than discovered as a glitch. That is the principled
+  answer to "a compressor detecting over a block is not naturally per-sample":
+  it is not per-sample, so it does not go in loops.
+- **Latency is declared but v1 keeps a zero-latency roster.** The moment a
+  latent module lands in a *parallel* path, the rack needs internal delay
+  compensation — real work that should arrive with the first module that needs
+  it, not speculatively.
+
+## 4. Flexible: the macro face / deep set split
+
+The flexibility ceiling is not ids (768 free) and not really
+`kMaxParams = 512` (a constexpr, raisable) — it is **automation-lane clutter
+and corner-chunk size**, which grow with every exposed param (188 declared
+today; B63's OTT alone wants ~21).
+
+So every module ships two surfaces:
+
+- **The macro face: ≤ 8 morphable params**, in the field, in the corner chunks,
+  on the slot page. For OTT that is *depth* (+ maybe time); for Echo/Room it is
+  roughly what ADR-131 already picked. Eight is not the old stride embarrassed
+  into a rule — it is about what a corner can meaningfully author and a pad
+  meaningfully morph.
+- **The deep set: everything else**, exposed on per-module pages as params that
+  default to **morph-exempt** (the exempt machinery already exists, ADR-109) so
+  they are automatable and tweakable but do not bloat every corner or the
+  Gumbel field by default. Un-exempting one is the player's deliberate act.
+
+This keeps "fully modifiable" true without making every corner carry 21 OTT
+values it will never author.
+
+## The two genuinely open trade-offs (human decisions, both cheap to defer)
+
+1. **One instance per type, or N?** The migration premise (no preset uses a
+   module twice) makes one-per-type exact today, and it is the cheap, morphable
+   shape — module identity is structural, so "two Drives" is not expressible.
+   The flexible answer is instance slots (any type in any of N sockets), which
+   reintroduces a stepped identity param and with it the chimera problem the
+   set-module design exists to kill. **Recommendation: one instance per type
+   for 1.0**, revisit only if a real patch wants two of something — and note
+   the workaround (Comb and Notch are different types; the roster can grow a
+   second flavour of a popular module more safely than it can grow sockets).
+2. **How much of the deep set exists at 1.0.** Macro faces + reachability +
+   quiesce is a shippable, affordable, morphable system. Deep pages can arrive
+   module-by-module afterwards without touching the architecture. This is
+   B63's staging generalised to the whole rack.
+
+## What this rules out, explicitly
+
+- **Dynamic module instantiation** (allocation, and "which modules exist" as
+  morphable state — a structure chimera by construction).
+- **Dry/wet inside modules** — bypass is an edge property; the module-level
+  identity-point mess is the fx-slot-contract proposal's whole finding, and
+  this retires it.
+- **Every deep param as a day-one automation lane** — the clutter cost is the
+  player's, and it is the one cost that cannot be optimised later without
+  breaking saved automation.
