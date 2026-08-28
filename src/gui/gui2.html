@@ -491,6 +491,12 @@
     transform-origin:50% 18px; transform:rotate(var(--mang,0deg));
     opacity:0; }
   .knob.mod .kmnow { opacity:1; }
+  /* SLIDER mod band (UI Spec §4, ADR-137): the handle never moves — the reach
+     is a band under the track and the live value is a tick riding in it. */
+  .smod { position:absolute; height:3px; border-radius:1.5px;
+    background:var(--physics); opacity:.6; pointer-events:none; }
+  .snow { position:absolute; width:2.5px; height:6px; border-radius:1px;
+    background:var(--physics); pointer-events:none; }
   .kcap { position:absolute; inset:4.5px; border-radius:50%;
     background:var(--panel); border:var(--stroke) solid var(--line);
     box-shadow:var(--shadow); }
@@ -733,10 +739,25 @@
       have no per-oscillator twin, so they never remap.</div>
   </div>
   <div class="vizcol">
-  <div class="cluster"><h2>XY — x=detune · y=pull K</h2>
+  <div class="cluster"><h2>XY — macro pad</h2>
     <canvas id="xy" class="xy" width="340" height="212"></canvas>
-    <div class="note" style="margin-top:5px">Drives the ACTIVE oscillator (the plumbing rule this
-      interface is built on: nothing is hardwired to oscillator 1).</div>
+    <div class="row xyAsnRow"><label>x drives</label><select class="xyAX"></select><output></output></div>
+    <div class="row xyAsnRow"><label>y drives</label><select class="xyAY"></select><output></output></div>
+    <div class="note" style="margin-top:5px">ADR-137: the pad CONTROLS two macros — which two is the
+      ACTIVE oscillator's assignment (the plumbing rule: nothing hardwired to
+      oscillator 1). Route the macros by right-clicking any knob.</div>
+  </div>
+  <div class="cluster"><h2>Macros</h2>
+    <div class="knobs">
+      <div class="row kcell"><label>M1</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="166" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M2</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="167" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M3</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="168" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M4</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="169" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M5</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="170" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M6</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="171" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M7</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="172" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M8</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="173" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    </div>
   </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
@@ -870,6 +891,21 @@
 
 <div class="page" id="pg-SET">
   <div class="ctlcol">
+  <!-- ADR-137: the STATIC home of the four XY assignments. The pad clusters
+       carry dynamic selects that follow the active oscillator (no data-p by
+       design — one control, two addresses); these fixed rows are the
+       always-reachable copy, one per param, which is also what gui_reach
+       audits for. data-fixed: each row addresses ITS oscillator, never the
+       edited one. -->
+  <div class="cluster"><h2>XY assignment</h2>
+    <div class="row"><label>OSC1 x</label><select data-p="174" data-fixed="1"><option value="0" selected>Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+    <div class="row"><label>OSC1 y</label><select data-p="175" data-fixed="1"><option value="0">Macro 1</option><option value="1" selected>Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+    <div class="row"><label>OSC2 x</label><select data-p="176" data-fixed="1"><option value="0">Macro 1</option><option value="1">Macro 2</option><option value="2" selected>Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+    <div class="row"><label>OSC2 y</label><select data-p="177" data-fixed="1"><option value="0">Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3" selected>Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+    <div class="note">Which macro each XY pad axis drives, per oscillator. The
+      pads' own selects are the same four values seen through the active
+      oscillator.</div>
+  </div>
   <div class="cluster"><h2>Keyboard</h2>
     <div id="setKeys"></div>
     <div class="note">Off keeps focus in this window, which is what makes
@@ -1052,11 +1088,15 @@
     <div id="vmapScope2"><div class="vlabel">Voice map · pan × pitch</div>
       <canvas id="vmapC" width="256" height="96"></canvas></div>
   </div>
-<div class="cluster"><h2>XY — x=detune · y=pull K</h2>
+<div class="cluster"><h2>XY — macro pad</h2>
     <!-- The SAME pad as MAIN, not a copy of its picture: both are `canvas.xy`,
-         both are painted from the one (curX, curK) and both write the same two
-         params, so they cannot drift apart the way two hand-maintained pads would. -->
+         both are painted from the one macro pair and both write the same two
+         params, so they cannot drift apart the way two hand-maintained pads
+         would. The assignment selects repeat here for the same reason — every
+         `.xyAX`/`.xyAY` is synced from the one ASN mirror. -->
     <canvas id="xy2" class="xy" width="340" height="212"></canvas>
+    <div class="row xyAsnRow"><label>x drives</label><select class="xyAX"></select><output></output></div>
+    <div class="row xyAsnRow"><label>y drives</label><select class="xyAY"></select><output></output></div>
   </div>
   </div>
   <div class="ctlcol">
@@ -1693,8 +1733,12 @@ function setControl(id, v) {
   const isGlobal = globalIds ? globalIds.has(base) : osc === 0;
   if (!isGlobal && osc !== editOsc) return;
   if (base === 0) return;
-  if (base === 4) { curX = v; xyDirty = true; }
-  if (base === 6) { curK = v; xyDirty = true; }
+  // ADR-137: the pad renders the assigned macros; assignment echoes re-sync
+  // the selects (host automation of 174-177 must move the panel too).
+  if (base >= 166 && base <= 173) xyDirty = true;
+  if (base >= 174 && base <= 177) {
+    ASN[base - 174] = v; syncXYAsnSelects(); xyDirty = true;
+  }
   const el = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
   if (el) paintControl(el, v);
   // A HOST-DRIVEN repaint changes what the gates read, so they must be
@@ -2073,21 +2117,47 @@ const PARAM_MENU = [
      depth is B70's territory and arrives with its cycle rule, not by accident. */
   { id: 'mod1',
     show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
-                 && !(ctx.id >= 161 && ctx.id <= 165),
+                 && !(ctx.id >= 161 && ctx.id <= 177),
     label: () => 'Send to mod matrix — ENV 1',
     hint: () => 'amp envelope drives this parameter',
     run: async ctx => { if (await window.hzModAdd(0, ctx.id)) renderModRoutes().catch(() => {}); } },
   { id: 'mod2',
     show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
-                 && !(ctx.id >= 161 && ctx.id <= 165),
+                 && !(ctx.id >= 161 && ctx.id <= 177),
     label: () => 'Send to mod matrix — ENV 2',
     hint: () => 'pitch envelope (its own ADSR) drives this',
     run: async ctx => { if (await window.hzModAdd(1, ctx.id)) renderModRoutes().catch(() => {}); } },
+  /* ADR-137: the macros. Eight flat entries would double the menu, so this one
+     stays open (keep:true) and swaps its items for the macro list in place. */
+  { id: 'modMac', keep: true,
+    show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
+                 && !(ctx.id >= 161 && ctx.id <= 177),
+    label: () => 'Send to mod matrix — Macro…',
+    hint: () => 'pick one of the eight macros',
+    run: ctx => {
+      if (!menuEl) return;
+      [...menuEl.querySelectorAll('.pmenuItem')].forEach(b => b.remove());
+      for (let i = 0; i < 8; i++) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'pmenuItem';
+        b.textContent = 'Macro ' + (i + 1);
+        b.addEventListener('click', async () => {
+          closeParamMenu();
+          try { if (await window.hzModAdd(2 + i, ctx.id)) renderModRoutes().catch(() => {}); } catch (_) {}
+        });
+        menuEl.appendChild(b);
+      }
+      // the list is taller than the item it replaced — keep it on screen
+      const r = menuEl.getBoundingClientRect();
+      menuEl.style.top = Math.max(4, Math.min(parseFloat(menuEl.style.top) || 4,
+                                              window.innerHeight - r.height - 6)) + 'px';
+    } },
 ];
 
 /* ADR-136: the MOD page's route list. Rendered from the shell's own table
    (hzModRoutes) — the GUI holds no second copy of the routes. */
-const MOD_SRC_NAMES = ['ENV 1', 'ENV 2'];
+const MOD_SRC_NAMES = ['ENV 1', 'ENV 2', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4',
+                       'Macro 5', 'Macro 6', 'Macro 7', 'Macro 8'];
 function modDestLabel(dest) {
   const row = document.querySelector(`[data-p="${dest}"]`)?.closest('.row');
   const lbl = row?.querySelector('label')?.textContent?.trim();
@@ -2098,6 +2168,7 @@ async function renderModRoutes() {
   if (!box || !window.hzModRoutes) return;
   let routes = [];
   try { routes = JSON.parse(await window.hzModRoutes()); } catch (_) { return; }
+  MODROUTES = routes;   // the halos read reach from the same parse
   box.textContent = '';
   if (!routes.length) {
     const p = document.createElement('div');
@@ -2113,7 +2184,7 @@ async function renderModRoutes() {
     const pitchRoute = r.i === 0 && (r.dest >>> 0) >= 0x80000000;
     sl.min = pitchRoute ? -48 : -1; sl.max = pitchRoute ? 48 : 1;
     sl.step = pitchRoute ? 0.5 : 0.01; sl.value = r.depth;
-    sl.addEventListener('input', () => { window.hzModDepth(r.i, +sl.value); out.value = (+sl.value).toFixed(2); });
+    sl.addEventListener('input', () => { window.hzModDepth(r.i, +sl.value); r.depth = +sl.value; out.value = (+sl.value).toFixed(2); });
     const out = document.createElement('output'); out.value = (+r.depth).toFixed(2);
     const x = document.createElement('button');
     x.type = 'button'; x.textContent = '×'; x.title = 'remove this route';
@@ -2122,6 +2193,101 @@ async function renderModRoutes() {
     row.appendChild(lab); row.appendChild(sl); row.appendChild(out); row.appendChild(x);
     box.appendChild(row);
   }
+}
+
+/* ============ LIVE MOD HALOS (ADR-137, per the UI Spec §4) ============
+   The knob/handle NEVER moves under modulation — it holds the BASE (what the
+   shell reports back, ADR-136). The modulation is an OFFSET drawn around it:
+   on a knob, the .kmod reach arc plus the .kmnow live tick the ADR-121 seam
+   built for exactly this; on a slider, a band under the track plus a tick.
+   Reach comes from the route table the GUI already holds; only base + the
+   applied value come over the bridge (hzModLive), because those are the two
+   numbers the GUI cannot know. ~20 Hz from the rAF loop; the busy flag drops
+   overlapping polls the way the viz frames do. */
+let MODROUTES = [];
+let modMarked = new Set();
+let modHaloBusy = false, modRouteTick = 0;
+function ctlPct(el, v) {
+  const c = paramToCtl(el, v), a = +el.min, b = +el.max;
+  return b > a ? Math.min(1, Math.max(0, (c - a) / (b - a))) : 0;
+}
+function clearModVis(el) {
+  const k = el.parentElement;
+  if (k && k.classList.contains('knob')) {
+    k.classList.remove('mod');
+    k.style.removeProperty('--m0'); k.style.removeProperty('--m1'); k.style.removeProperty('--mang');
+  } else {
+    const row = el.closest('.row');
+    row?.querySelector('.smod')?.remove(); row?.querySelector('.snow')?.remove();
+  }
+}
+function applyModVis(el, base, now, lo, hi) {
+  /* Depth is a fraction of the PARAMETER's range (the shell scales by
+     maxV-minV, ADR-136), so the reach edges are computed in value space and
+     mapped through the control's own curve — a log control draws its band
+     where its own knob would sit, not where a linear ruler says. */
+  const V0 = el.dataset.log10 ? Math.pow(10, +el.min) : +el.min;
+  const V1 = el.dataset.log10 ? Math.pow(10, +el.max) : +el.max;
+  const span = V1 - V0;
+  const vLo = Math.min(V1, Math.max(V0, base + lo * span));
+  const vHi = Math.min(V1, Math.max(V0, base + hi * span));
+  const a = ctlPct(el, vLo), b = ctlPct(el, vHi), pn = ctlPct(el, now);
+  const k = el.parentElement;
+  if (k && k.classList.contains('knob')) {
+    const SWEEP = 280;
+    k.style.setProperty('--m0', (Math.min(a, b) * SWEEP).toFixed(2) + 'deg');
+    k.style.setProperty('--m1', (Math.max(a, b) * SWEEP).toFixed(2) + 'deg');
+    k.style.setProperty('--mang', (-140 + pn * SWEEP).toFixed(2) + 'deg');
+    k.classList.add('mod');
+  } else {
+    const row = el.closest('.row');
+    if (!row || el.offsetParent === null) return;   // hidden page: geometry reads 0
+    let band = row.querySelector('.smod'), tick = row.querySelector('.snow');
+    if (!band) {
+      row.style.position = 'relative';
+      band = document.createElement('span'); band.className = 'smod'; row.appendChild(band);
+      tick = document.createElement('span'); tick.className = 'snow'; row.appendChild(tick);
+    }
+    const rr = row.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const L = er.left - rr.left, W = er.width, T = er.bottom - rr.top;
+    band.style.left = (L + Math.min(a, b) * W).toFixed(1) + 'px';
+    band.style.width = Math.max(2, Math.abs(b - a) * W).toFixed(1) + 'px';
+    band.style.top = (T - 2).toFixed(1) + 'px';
+    tick.style.left = (L + pn * W - 1).toFixed(1) + 'px';
+    tick.style.top = (T - 5).toFixed(1) + 'px';
+  }
+}
+async function modHaloFrame() {
+  if (!window.hzModLive || modHaloBusy) return;
+  modHaloBusy = true;
+  try {
+    // routes change on user actions and rarely otherwise; refresh at ~2 Hz so a
+    // host-side change cannot strand a stale halo for more than half a second
+    if ((modRouteTick++ % 10) === 0 && window.hzModRoutes) {
+      try { MODROUTES = JSON.parse(await window.hzModRoutes()); } catch (_) {}
+    }
+    const generic = MODROUTES.filter(r => (r.dest >>> 0) < 0x80000000);
+    let live = [];
+    if (generic.length) { try { live = JSON.parse(await window.hzModLive()); } catch (_) {} }
+    const byId = new Map();
+    if (live.length)
+      for (const el of document.querySelectorAll('input[type=range][data-p]')) {
+        const eff = el.dataset.fixed ? +el.dataset.p : effId(+el.dataset.p);
+        if (!byId.has(eff)) byId.set(eff, el);
+      }
+    const seen = new Set();
+    for (const d of live) {
+      const el = byId.get(d.id);
+      if (!el) continue;                       // the other osc's twin: no visible control
+      let lo = 0, hi = 0;
+      for (const r of generic) if (r.dest === d.id) { lo += Math.min(0, r.depth); hi += Math.max(0, r.depth); }
+      if (lo === 0 && hi === 0) continue;
+      applyModVis(el, d.base, d.now, lo, hi);
+      seen.add(el);
+    }
+    for (const el of modMarked) if (!seen.has(el)) clearModVis(el);
+    modMarked = seen;
+  } finally { modHaloBusy = false; }
 }
 
 let menuEl = null;
@@ -2166,7 +2332,10 @@ document.addEventListener('contextmenu', async (ev) => {
     b.appendChild(document.createTextNode(it.label(ctx)));
     const h = it.hint && it.hint(ctx);
     if (h) { const sp = document.createElement('span'); sp.className = 'pmenuHint'; sp.textContent = h; b.appendChild(sp); }
-    b.addEventListener('click', async () => { closeParamMenu(); try { await it.run(ctx); } catch (_) {} });
+    b.addEventListener('click', async () => {
+      if (!it.keep) closeParamMenu();          // keep:true items rebuild the menu in place
+      try { await it.run(ctx); } catch (_) {}
+    });
     menuEl.appendChild(b);
   }
   document.body.appendChild(menuEl);
@@ -2277,8 +2446,10 @@ document.querySelectorAll('[data-p]').forEach(el => {
     bridge.setParam(id_(), v);
     displayValue(el, v);
     lastParams[id_()] = v;
-    if (baseId === 4) { curX = v; xyDirty = true; }
-    if (baseId === 6) { curK = v; xyDirty = true; }
+    if (baseId >= 166 && baseId <= 173) xyDirty = true;   // macro knob moves the pad
+    if (baseId >= 174 && baseId <= 177) {                 // fixed SET rows re-aim the pads
+      ASN[baseId - 174] = v; syncXYAsnSelects(); xyDirty = true;
+    }
   });
   el.addEventListener('pointerdown', () => bridge.gesture(id_(), true));
   el.addEventListener('pointerup', () => bridge.gesture(id_(), false));
@@ -2430,7 +2601,8 @@ async function syncFromEngine() {
   Object.assign(lastParams, ps);
   paintLive(ps);
   paintOscTabs(ps);
-  if (!xyDown) { const xv = ps[effId(4)]; if (xv !== undefined) { curX = xv; xyDirty = true; } }
+  // ADR-137: the pad reads the assigned macros out of lastParams every frame,
+  // so the poll needs no pad-specific line — Object.assign above is enough.
 }
 /* ============ page shell ================================================== */
 // OSC sits second: it is where the instrument is SHAPED, and MIX is where a
@@ -2473,26 +2645,52 @@ for (const [name, live] of PAGES) {
   });
   tabs.appendChild(t);
 }
-/* ============ XY (active-oscillator, per the plumbing rule) =============== */
+/* ============ XY (macro controller, ADR-137) ===============
+   The pad no longer writes detune/pull K. It CONTROLS two macros — which two
+   is the ACTIVE oscillator's assignment (params 174-177, mirrored in ASN), so
+   "Main shows whichever XY belongs to the selected osc" holds by construction.
+   The macros then reach parameters only through the matrix: the pad is a
+   control surface, the routing stays in one place. */
 const XYS = () => [...document.querySelectorAll('canvas.xy')];
-let curX = 0.28, curK = 0, xyDirty = true, xyDown = false;
+const ASN = [0, 1, 2, 3];       // [osc0 X, osc0 Y, osc1 X, osc1 Y] → macro index
+const xyMacroIds = () => [166 + ASN[editOsc * 2], 166 + ASN[editOsc * 2 + 1]];
+let xyLastX = -1, xyLastY = -1, xyDirty = true, xyDown = false;
 function xyApply(e) {
   const r = e.currentTarget.getBoundingClientRect();
-  curX = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-  curK = Math.min(1, Math.max(-1, 1 - 2 * (e.clientY - r.top) / r.height));
-  bridge.setParam(effId(4), curX);
-  bridge.setParam(effId(6), curK);
-  setControl(effId(4), curX);
-  setControl(effId(6), curK);
+  const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  const y = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+  const [ix, iy] = xyMacroIds();
+  bridge.setParam(ix, x); bridge.setParam(iy, y);
+  lastParams[ix] = x; lastParams[iy] = y;
+  setControl(ix, x); setControl(iy, y);
   xyDirty = true;
 }
 XYS().forEach(cv => {
   cv.addEventListener('pointerdown', e => { xyDown = true; cv.setPointerCapture(e.pointerId);
-    bridge.gesture(effId(4), true); bridge.gesture(effId(6), true); xyApply(e); });
+    const [ix, iy] = xyMacroIds();
+    bridge.gesture(ix, true); bridge.gesture(iy, true); xyApply(e); });
   cv.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
   cv.addEventListener('pointerup', () => { xyDown = false;
-    bridge.gesture(effId(4), false); bridge.gesture(effId(6), false); });
+    const [ix, iy] = xyMacroIds();
+    bridge.gesture(ix, false); bridge.gesture(iy, false); });
 });
+/* The assignment selects. Every .xyAX/.xyAY on any page is synced from the one
+   ASN mirror — the same one-state-many-renderings discipline the pads use. */
+function syncXYAsnSelects() {
+  document.querySelectorAll('select.xyAX').forEach(s => { s.value = ASN[editOsc * 2]; });
+  document.querySelectorAll('select.xyAY').forEach(s => { s.value = ASN[editOsc * 2 + 1]; });
+}
+document.querySelectorAll('select.xyAX, select.xyAY').forEach(sel => {
+  for (let i = 0; i < 8; i++) sel.add(new Option('Macro ' + (i + 1), i));
+  sel.addEventListener('change', () => {
+    const axis = sel.classList.contains('xyAX') ? 0 : 1;
+    const pid = 174 + editOsc * 2 + axis;
+    ASN[editOsc * 2 + axis] = +sel.value;
+    bridge.setParam(pid, +sel.value); lastParams[pid] = +sel.value;
+    syncXYAsnSelects(); xyDirty = true;
+  });
+});
+syncXYAsnSelects();
 let frameNo = 0;
 function drawXY() {
   requestAnimationFrame(drawXY);
@@ -2500,6 +2698,12 @@ function drawXY() {
   vizFrame();                          // every frame; busy-flag drops overlaps
   specFrame();                         // every frame; the busy flag drops overlaps
   if (frameNo % 2 === 0) drawScope().catch(() => {});   // gui.html's own cadence
+  if (frameNo % 3 === 0) modHaloFrame().catch(() => {});   // ADR-137: live halos, ~20 Hz
+  {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
+    const [mix, miy] = xyMacroIds();
+    const mx = +(lastParams[mix] ?? 0), my = +(lastParams[miy] ?? 0);
+    if (mx !== xyLastX || my !== xyLastY) { xyLastX = mx; xyLastY = my; xyDirty = true; }
+  }
   if (!xyDirty) return;
   xyDirty = false;
   for (const cv of XYS()) {
@@ -2507,7 +2711,7 @@ function drawXY() {
     const w = cv.width, h = cv.height;
     xyctx.fillStyle = TOK('--scr-tube'); xyctx.fillRect(0, 0, w, h);
   scan(xyctx, w, h, scanA());
-    const x = curX * w, y = (1 - (curK + 1) / 2) * h;
+    const x = xyLastX * w, y = (1 - xyLastY) * h;
     xyctx.strokeStyle = TOKA('--scr-grid', 0.30);
     xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
     xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();

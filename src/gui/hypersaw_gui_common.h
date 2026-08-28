@@ -247,6 +247,9 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
   web->bind("hzModRoutes", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.modRoutesJson ? host.modRoutesJson() : std::string("[]"));
   });
+  web->bind("hzModLive", [&host](const choc::value::ValueView &) -> choc::value::Value {
+    return choc::value::createString(host.modLiveJson ? host.modLiveJson() : std::string("[]"));
+  });
   web->bind("hzModAdd", [&host](const choc::value::ValueView &args) -> choc::value::Value {
     bool ok = false;
     if (host.modAddRoute && args.isArray() && args.size() >= 2)
