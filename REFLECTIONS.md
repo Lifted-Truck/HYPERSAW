@@ -10,7 +10,9 @@
   routes vanish on session reload (param-161's route survives). B72's
   deterministic link IDs — key (source slot, dest id) — are the natural
   serialization identity; build persistence ON that key, not before it.
-- [2026-08-28] Three FOUNDATIONS responses to our briefs sit answered and
-  unread in their tree: round1-rulings, seam-round2, stage3-doorframes (F2
-  extraction scope). Pulled, deliberately not processed mid-build. Read before
-  building anything that touches the extraction seams.
+- [2026-08-28] RESOLVED same day: the three FOUNDATIONS threads were read —
+  all closed, ball none (stage3 took our three routing answers into their
+  manifest boundary as their DECISIONS #61; seam-round2 settled by our own
+  Aug-26 answer; round1 acked). Nothing owed either direction. Kept one fact:
+  cite their DECISIONS #61 (edge gain / node constants / ordering) when the
+  B50 visual routing matrix starts.
