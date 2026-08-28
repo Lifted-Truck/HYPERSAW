@@ -106,6 +106,7 @@ struct GuiHost
   std::function<std::string()> modLiveJson;   // ADR-137: per-dest base + applied, for the halos
   std::function<bool(uint32_t, uint32_t)> modAddRoute;      // (srcSlot, destParamId)
   std::function<void(int, double)> modSetDepth;             // (routeIndex, depth)
+  std::function<bool(int, uint32_t)> modSetSource;          // ADR-141: (routeIndex, srcSlot)
   std::function<void(int)> modRemoveRoute;
   std::function<std::string()> morphExemptJson;
   std::function<std::string()> morphOwnersJson;             // ADR-110 colour coding

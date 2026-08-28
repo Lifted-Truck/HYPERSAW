@@ -340,3 +340,35 @@ xyAsn0Y	global	OSC1 y	SET	XY assignment	enum		mod-matrix
 xyAsn1X	global	OSC2 x	SET	XY assignment	enum		mod-matrix			
 xyAsn1Y	global	OSC2 y	SET	XY assignment	enum		mod-matrix			
 specimen	global	Specimen	SET	Visualizers	toggle		mod-matrix			
+d1time	global	Delay Time	FX	Slot 1	knob	ms	fx-rack	fx1type=9,d1sync=0	log10	fx1type=9,d1sync=0
+d1sync	global	Time Mode	FX	Slot 1	select		fx-rack	fx1type=9		fx1type=9
+d1beats	global	Beats	FX	Slot 1	knob	/beat	fx-rack	fx1type=9,d1sync=1		fx1type=9,d1sync=1
+d1offR	global	R Offset	FX	Slot 1	knob	x	fx-rack	fx1type=9		fx1type=9
+d1fb	global	Feedback	FX	Slot 1	knob		fx-rack	fx1type=9		fx1type=9
+d1cross	global	Crossfeed	FX	Slot 1	knob		fx-rack	fx1type=9		fx1type=9
+d1damp	global	Damp	FX	Slot 1	knob		fx-rack	fx1type=9		fx1type=9
+d1hp	global	Loop HP	FX	Slot 1	knob	Hz	fx-rack	fx1type=9		fx1type=9
+d2time	global	Delay Time	FX	Slot 2	knob	ms	fx-rack	fx2type=9,d2sync=0	log10	fx2type=9,d2sync=0
+d2sync	global	Time Mode	FX	Slot 2	select		fx-rack	fx2type=9		fx2type=9
+d2beats	global	Beats	FX	Slot 2	knob	/beat	fx-rack	fx2type=9,d2sync=1		fx2type=9,d2sync=1
+d2offR	global	R Offset	FX	Slot 2	knob	x	fx-rack	fx2type=9		fx2type=9
+d2fb	global	Feedback	FX	Slot 2	knob		fx-rack	fx2type=9		fx2type=9
+d2cross	global	Crossfeed	FX	Slot 2	knob		fx-rack	fx2type=9		fx2type=9
+d2damp	global	Damp	FX	Slot 2	knob		fx-rack	fx2type=9		fx2type=9
+d2hp	global	Loop HP	FX	Slot 2	knob	Hz	fx-rack	fx2type=9		fx2type=9
+d3time	global	Delay Time	FX	Slot 3	knob	ms	fx-rack	fx3type=9,d3sync=0	log10	fx3type=9,d3sync=0
+d3sync	global	Time Mode	FX	Slot 3	select		fx-rack	fx3type=9		fx3type=9
+d3beats	global	Beats	FX	Slot 3	knob	/beat	fx-rack	fx3type=9,d3sync=1		fx3type=9,d3sync=1
+d3offR	global	R Offset	FX	Slot 3	knob	x	fx-rack	fx3type=9		fx3type=9
+d3fb	global	Feedback	FX	Slot 3	knob		fx-rack	fx3type=9		fx3type=9
+d3cross	global	Crossfeed	FX	Slot 3	knob		fx-rack	fx3type=9		fx3type=9
+d3damp	global	Damp	FX	Slot 3	knob		fx-rack	fx3type=9		fx3type=9
+d3hp	global	Loop HP	FX	Slot 3	knob	Hz	fx-rack	fx3type=9		fx3type=9
+d4time	global	Delay Time	FX	Slot 4	knob	ms	fx-rack	fx4type=9,d4sync=0	log10	fx4type=9,d4sync=0
+d4sync	global	Time Mode	FX	Slot 4	select		fx-rack	fx4type=9		fx4type=9
+d4beats	global	Beats	FX	Slot 4	knob	/beat	fx-rack	fx4type=9,d4sync=1		fx4type=9,d4sync=1
+d4offR	global	R Offset	FX	Slot 4	knob	x	fx-rack	fx4type=9		fx4type=9
+d4fb	global	Feedback	FX	Slot 4	knob		fx-rack	fx4type=9		fx4type=9
+d4cross	global	Crossfeed	FX	Slot 4	knob		fx-rack	fx4type=9		fx4type=9
+d4damp	global	Damp	FX	Slot 4	knob		fx-rack	fx4type=9		fx4type=9
+d4hp	global	Loop HP	FX	Slot 4	knob	Hz	fx-rack	fx4type=9		fx4type=9

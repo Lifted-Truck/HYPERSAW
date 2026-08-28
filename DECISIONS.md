@@ -4308,3 +4308,109 @@ of v2-on in the VST decides whether B75 is urgency or luxury.
 the other details" — a dilation ring reads fatter than a stroked line of the
 same nominal width; 1.0 matches the 1.5px hairlines by eye, and a smaller
 radius closes the ring more easily, not less).
+
+## ADR-141 — one send entry; the modulator is chosen in the table (2026-08-28)
+
+**Status: ACCEPTED (B71).** The human's ruling: *"it should just be 'send to
+mod matrix' and it sends it to a table and from there you can decide which
+modulator to link it to (or x to release it)"*, plus a *"release all
+modulators"* verb. Supersedes ADR-137's in-place macro submenu — that shape
+assumed the source is chosen at send time, and ten sources made the menu the
+clutter the right-click was meant to prevent.
+
+**The menu is now two items, permanently.** "Send to mod matrix" on an
+unrouted continuous parameter; "Release modulator(s)" on a routed one, never
+both. Source count no longer touches menu length — B16's LFOs and B40's
+bottom bar can add sources without the menu growing a pixel.
+
+**No pending/unlinked state, deliberately.** A sent parameter becomes a REAL
+route at ENV 1, depth 0.25, and "deciding which modulator" is a re-source of a
+live row through the table's select. The rejected alternative is recorded
+because it looks tidier than it is: a pending row would be a second route
+representation needing its own persistence, refusal rules, halo semantics and
+morph story — cost with no audible return.
+
+**Two index traps closed.** (1) Release-all removes DESCENDING, because
+removeRoute compacts the table: ascending removal deletes the wrong rows.
+Measured in-browser — a dest routed at indices 0 and 2 removes as [2, 0] and
+the unrelated route at index 1 survives intact. This is the same family as the
+161 landmine (ADR-138); the third sighting. (2) modSetDepth's leftover
+`if (i == 0)` comment claiming route 0 is knob 161's twin was deleted — false
+since ADR-138 made 161 find its route by dest.
+
+**The pitch route is not re-sourceable**: the shell refuses (synthetic dest)
+and the row's select is disabled with the reason in its tooltip — ENV 2 is
+ADR-135's contract, not a user choice. Stating the rule beats letting a click
+fail silently.
+
+**Layout, measured not assumed:** five controls across cannot fit the 240px
+newspaper column ADR-098 gives this cluster (the destination label collapsed
+to zero width and the row read as an anonymous slider). The row is two lines —
+what the route IS above, what it DOES below — which also leaves the natural
+seat for B70's depth-mod control. The MOD note stopped describing the
+pre-ADR-138 "route 0" world.
+
+## ADR-142 — the standard Delay: a module with no lab, whose oracle is its spec (2026-08-28)
+
+**Status: ACCEPTED (B68 / B73 increment A).** Slot type 9, `src/delay_core.h`,
+32 per-slot params (232–263, four blocks of 8 — ADR-131's arithmetic, not
+cases). It is simultaneously the A/B baseline the human asked for in B68 and
+the reference the swarm delays get judged against in B73.
+
+**Why it exists, measured in `src/time_core.h` rather than asserted.** The
+human's report was *"the feedback from their lab didn't really work very
+well"*. Three compounding causes, all visible in the source:
+1. `fbSig = wetRaw / n` is ADR-031's worst-case-correlation norm. At the
+   default 8 taps the audible loop gain at regen 0.9 is ≈0.32 — repeats die
+   in two or three generations and the edge-of-oscillation zone, the musical
+   heart of a delay, is unreachable at any knob setting.
+2. Every tap averages into ONE write head, so each generation re-smears
+   through the whole swarm: a wash, not repeats.
+3. `tanh` sits at unity in the loop and damping is always in circuit, so
+   every pass ducks and dulls even when the patch asked for neither.
+
+**THIS CORE HAS NO HTML LAB, DELIBERATELY**, and that is a real amendment to
+ADR-003's spec-in-code rule for this one module. Writing a lab first would
+have reproduced the rejected law; B73's roadmap entry is the standing license
+to diverge. So the file IS the spec and `tools/delay_check.cpp` IS the
+correctness definition — ten impulse-response invariants rather than parity
+against a reference that would only enshrine the defect.
+
+**Three bugs the oracle found in its own author's work, each fixed at the
+source rather than papered over in the test:**
+- **The limiter shaped the dry path.** `softLimit(in + loop*fb)` compressed a
+  full-scale input entering a delay with feedback 0 — measured 0.976 where it
+  should be 1.000. It now limits only the returning term, so the input path is
+  arithmetically clean and past-unity feedback still parks at a ceiling (the
+  fixed point of x = limit(1.08x) is ≈1.0; L0-D4 measures 1.0000 over 10 s).
+- **Damping was always in circuit** — the exact complaint this module was
+  written to answer, reproduced by its author. `damp = 0` and `loopHp = 0` now
+  BYPASS their filters; "open at 18 kHz" is still a one-pole colouring every
+  pass at 48 kHz, and it showed as a measurable error in the generation ratio.
+  With true bypass the ratio is EXACTLY 0.5000 at feedback 0.5.
+- **Nothing snapped the read head on load.** A knob move should glide (tape
+  retime) but a preset arriving should not: repeats landed late and pitched
+  until `snapTime()` existed. The rack calls it when a slot becomes a Delay.
+
+**Two measurement traps recorded, because both would have passed a careless
+test.** Peak amplitude is NOT loop gain — a fractional read splits an impulse
+across two samples, so peaks read 0.4735 where the gain was exactly 0.5;
+summed magnitude is invariant under that split. And summed magnitude is NOT
+brightness — a one-pole lowpass has unity DC gain, so it preserves the sum
+exactly (dry and damped both measured 0.6000); darkening shows in the PEAK
+(0.6000 vs 0.0632). Pick the statistic the physics actually moves.
+
+**Storage is float, on the heap.** Two double-buffered cores are 8 MB and
+segfaulted the oracle on the stack. Float halves it, the loop state stays
+double where the recursion lives, and the rack holds `unique_ptr`s as it
+already does for TimeCore. rtsafety stays GREEN: allocation happens only at
+construction.
+
+**Deferred with reason:** M-S mode. The human listed "std/M-S/ping-pong";
+crossfeed = 1 IS ping-pong, and M-S needs a mid/side seam the rack does not
+have. Named here rather than silently dropped.
+
+**The oracle is NOT yet in `./verify`** — adding a gate is a human decision
+(charter). It builds and passes; the test row says `none` rather than naming
+it, because a row claiming a gate that does not run is the false coverage the
+table exists to prevent.
