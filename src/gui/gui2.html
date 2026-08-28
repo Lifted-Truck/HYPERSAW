@@ -931,34 +931,6 @@
 </div>
 
 <div class="page" id="pg-FX">
-  <div class="cluster"><h2>Slot 1</h2>
-    <div class="row"><label>type</label><select data-p="57" data-fixed="1">
-      <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option>
-    </select><output></output></div>
-    <div class="row"><label>amount</label><input type="range" data-p="58" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-    <div class="row"><label>tone</label><input type="range" data-p="96" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-  </div>
-  <div class="cluster"><h2>Slot 2</h2>
-    <div class="row"><label>type</label><select data-p="59" data-fixed="1">
-      <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option>
-    </select><output></output></div>
-    <div class="row"><label>amount</label><input type="range" data-p="60" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-    <div class="row"><label>tone</label><input type="range" data-p="97" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-  </div>
-  <div class="cluster"><h2>Slot 3</h2>
-    <div class="row"><label>type</label><select data-p="61" data-fixed="1">
-      <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option>
-    </select><output></output></div>
-    <div class="row"><label>amount</label><input type="range" data-p="62" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-    <div class="row"><label>tone</label><input type="range" data-p="98" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-  </div>
-  <div class="cluster"><h2>Slot 4</h2>
-    <div class="row"><label>type</label><select data-p="63" data-fixed="1">
-      <option value="0">Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option>
-    </select><output></output></div>
-    <div class="row"><label>amount</label><input type="range" data-p="64" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-    <div class="row"><label>tone</label><input type="range" data-p="99" data-fixed="1" min="0" max="1" step="0.01" value="0.5"><output></output></div>
-  </div>
   <div class="cluster"><h2>About the rack</h2>
     <div class="note">Four slots in series, slot 1 first. Order IS the slot index, so
       "reordering" means reassigning types. An Off slot is a bit-exact passthrough —
@@ -974,13 +946,11 @@
   </div>
 
 <!--GEN:FX-->
-  <div class="cluster"><h2>FX rack</h2>
-    <div class="row kcell" data-addr="fx1mix"><label>FX1 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="133" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx2mix"><label>FX2 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="134" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx3mix"><label>FX3 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="135" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx4mix"><label>FX4 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="136" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
-  </div>
   <div class="cluster"><h2>Slot 1</h2>
+    <div class="row" data-addr="fx1type"><label>FX1 Type</label><select data-p="57" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option></select><output></output></div>
+    <div class="row kcell" data-addr="fx1amt"><label>FX1 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="58" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx1tone"><label>FX1 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="96" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx1mix"><label>FX1 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="133" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1size" data-when="fx1type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="200" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1spread" data-when="fx1type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="201" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx1taps" data-when="fx1type=7|8"><label>Taps / Lines</label><input type="range" data-p="202" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
@@ -990,6 +960,10 @@
     <div class="row" data-addr="fx1dist" data-when="fx1type=7|8"><label>Spacing</label><select data-p="206" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Slot 2</h2>
+    <div class="row" data-addr="fx2type"><label>FX2 Type</label><select data-p="59" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option></select><output></output></div>
+    <div class="row kcell" data-addr="fx2amt"><label>FX2 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="60" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx2tone"><label>FX2 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="97" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx2mix"><label>FX2 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="134" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2size" data-when="fx2type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="208" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2spread" data-when="fx2type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="209" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx2taps" data-when="fx2type=7|8"><label>Taps / Lines</label><input type="range" data-p="210" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
@@ -999,6 +973,10 @@
     <div class="row" data-addr="fx2dist" data-when="fx2type=7|8"><label>Spacing</label><select data-p="214" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Slot 3</h2>
+    <div class="row" data-addr="fx3type"><label>FX3 Type</label><select data-p="61" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option></select><output></output></div>
+    <div class="row kcell" data-addr="fx3amt"><label>FX3 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="62" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx3tone"><label>FX3 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="98" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx3mix"><label>FX3 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="135" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3size" data-when="fx3type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="216" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3spread" data-when="fx3type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="217" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx3taps" data-when="fx3type=7|8"><label>Taps / Lines</label><input type="range" data-p="218" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
@@ -1008,6 +986,10 @@
     <div class="row" data-addr="fx3dist" data-when="fx3type=7|8"><label>Spacing</label><select data-p="222" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
   </div>
   <div class="cluster"><h2>Slot 4</h2>
+    <div class="row" data-addr="fx4type"><label>FX4 Type</label><select data-p="63" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option></select><output></output></div>
+    <div class="row kcell" data-addr="fx4amt"><label>FX4 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="64" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx4tone"><label>FX4 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="99" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx4mix"><label>FX4 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="136" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4size" data-when="fx4type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="224" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4spread" data-when="fx4type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="225" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx4taps" data-when="fx4type=7|8"><label>Taps / Lines</label><input type="range" data-p="226" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
@@ -3085,7 +3067,14 @@ function applyGates() {
         const [key, vals] = clause.split('=');
         const base = GATE_KEY[key];
         if (base === undefined) continue;  // gate names a param this page never placed
-        const src = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
+        /* Prefer the osc-remapped control, but FALL BACK to a fixed-id one:
+           the FX gates (fx1type=7|8, ADR-131) name raw-id globals, and every
+           such control carries data-fixed -- the :not() alone made the clause
+           silently skip, so a conditional row on a fixed-id param ALWAYS
+           showed. A skipped clause and a passing clause are indistinguishable
+           from outside, which is why this shipped unnoticed. */
+        const src = document.querySelector(`[data-p="${base}"]:not([data-fixed])`)
+                 || document.querySelector(`[data-p="${base}"][data-fixed]`);
         if (!src) continue;
         const cur = String(src.type === 'checkbox' ? (src.checked ? 1 : 0) : Math.round(+src.value));
         if (!vals.split('|').includes(cur)) return false;
