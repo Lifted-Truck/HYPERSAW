@@ -4146,3 +4146,55 @@ byte-identical; parity 156/156.
 the state chunk — the Env>Pitch route survives via param 161, generic routes
 do not survive a session reload. Persistence is the next increment and the gap
 is recorded in B69 rather than discovered by a user losing work.
+
+## ADR-137 — eight macros, the XY pads become macro controllers, and the offset is drawn, never moved (2026-08-28)
+
+**Status: ACCEPTED (B69 increment 5).** Three rulings from the human land
+together because they are one system: (1) modulation on a control is shown as
+an OFFSET around a stationary knob, per the UI Spec §4 the human provided
+2026-08-23; (2) eight macro knobs on MAIN; (3) the XY grids stop writing
+detune/pull-K and become macro controllers with variable assignments.
+
+**The offset law.** The knob/handle NEVER moves under modulation — it holds
+the BASE (which is also exactly what ADR-136 makes readback report, so the
+picture and the contract are the same fact). On a knob the reach is the
+`.kmod` arc plus the `.kmnow` live tick — the seam ADR-121 built and nothing
+ever called; this increment is its first caller. On a slider it is a band
+under the track plus a tick (Spec §4's slider mod band). Reach is computed
+from the route table the GUI already holds; only base + applied cross the
+bridge (`hzModLive`), because those are the two numbers the GUI cannot know.
+Log-scaled controls draw the band through their own curve — the band sits
+where the knob would sit, not where a linear ruler says.
+
+**Macros.** Params 166-173, mod source slots 2-9, knobs on MAIN. A macro is a
+param-driven source: it modulates with NO note sounding (measured: routed
+Macro 1 at 0.8, depth 0.25 → applied 0.7500 = 0.55 + 0.25·0.8·range, gate
+closed, readback still 0.5500). Macros stay OUT of the morph field (a corner
+that moved your controller would be a trap, not a timbre) and OUT of the
+destination menu — macro-as-dest is fan-out, B70-adjacent, refused until its
+cycle rule is ruled.
+
+**The XY pads.** Each oscillator's pad drives two ASSIGNED macros (params
+174-177 hold the assignment; defaults give osc 1 the pad M1/M2, osc 2 M3/M4).
+MAIN shows the ACTIVE oscillator's pad, per the human's "until we come up with
+a better system". The pad's own selects follow the active osc and therefore
+carry no data-p (one control, two addresses); the always-reachable static
+copies live on SET as data-fixed rows, which is also what satisfies gui_reach
+honestly. Routing stays in ONE place: the pad writes macros, macros reach
+parameters only through the matrix.
+
+**Menu shape:** ten flat source entries would double the right-click menu, so
+"Send to mod matrix — Macro…" keeps the menu open and swaps its items for the
+macro list in place (the first `keep:true` pmenu item).
+
+**Verified:** macro_probe (drive gate-free · track · base survives · return ·
+refuse macro/assign-as-dest · assignment readback); in-browser: pad writes the
+assigned pair (166/167 → 170/167 after reassignment), SET row re-aims the MAIN
+selects, halo angles exact (base 0.3 → 84°, +0.4 reach → 196°, now 0.55 →
+tick 14°), slider band renders and clears, submenu shows 8, matrix's own knobs
+show none. Parity 156/156 — macros at defaults are the parity-safe superset
+again.
+
+**Known gap (unchanged from ADR-136, now louder):** routes still do not
+survive a session reload. With macros now the performance surface, persistence
+is the next increment.

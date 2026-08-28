@@ -553,6 +553,27 @@ static const ParamDef kParams[] = {
     {163, "penvD", "P.Env Decay (s)", 0.005, 4.0, 0.16, false, nullptr},
     {164, "penvS", "P.Env Sustain", 0, 1, 0, false, nullptr},
     {165, "penvR", "P.Env Release (s)", 0.005, 8.0, 0.16, false, nullptr},
+    /* ADR-137: eight MACROS + the XY assignment. A macro is a mod SOURCE
+       (slots 2-9) with a knob on MAIN; the per-osc XY pad is a CONTROLLER of
+       macros — its axes write the assigned macro params — per the human's
+       ruling that the XY grids become macro controllers with variable
+       assignments. All twelve stay OUT of the morph field (a corner that
+       reassigned your controller mid-morph would be a trap, not a timbre) and
+       OUT of the destination menu (macro-as-dest is fan-out, B70-adjacent,
+       refused until ruled). Assignment defaults 0/1/2/3: osc 1's pad drives
+       M1/M2, osc 2's M3/M4, and M5-8 start knob-only. */
+    {166, "macro1", "Macro 1", 0, 1, 0, false, nullptr},
+    {167, "macro2", "Macro 2", 0, 1, 0, false, nullptr},
+    {168, "macro3", "Macro 3", 0, 1, 0, false, nullptr},
+    {169, "macro4", "Macro 4", 0, 1, 0, false, nullptr},
+    {170, "macro5", "Macro 5", 0, 1, 0, false, nullptr},
+    {171, "macro6", "Macro 6", 0, 1, 0, false, nullptr},
+    {172, "macro7", "Macro 7", 0, 1, 0, false, nullptr},
+    {173, "macro8", "Macro 8", 0, 1, 0, false, nullptr},
+    {174, "xyAsn0X", "XY1 X > Macro", 0, 7, 0, true, nullptr},
+    {175, "xyAsn0Y", "XY1 Y > Macro", 0, 7, 1, true, nullptr},
+    {176, "xyAsn1X", "XY2 X > Macro", 0, 7, 2, true, nullptr},
+    {177, "xyAsn1Y", "XY2 Y > Macro", 0, 7, 3, true, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -656,6 +677,8 @@ constexpr clap_id kGlobalIds[] = {
     160,                                         // B38 voice-cull threshold (lifecycle policy)
     161,                                         // B69 mod route depth (Env > Pitch)
     162, 163, 164, 165,                          // ADR-135 ENV 2 (pitch envelope) ADSR
+    166, 167, 168, 169, 170, 171, 172, 173,      // ADR-137 macros (mod sources 2-9)
+    174, 175, 176, 177,                          // ADR-137 per-osc XY axis assignment
     // ADR-131 per-slot time-engine params: 200..231, four blocks of 8.
     200, 201, 202, 203, 204, 205, 206,
     208, 209, 210, 211, 212, 213, 214,
@@ -1347,6 +1370,10 @@ struct Plugin
      gate after silence, matching how a player reads a monophonic envelope. */
   double env2 = 0, env2A = 0.003, env2D = 0.16, env2S = 0.0, env2R = 0.16;
   int env2Stage = 0;   // 0 idle, 1 attack, 2 decay/sustain
+  // ADR-137: macro values (mod source slots 2-9) and the XY axis assignment
+  // [osc0 X, osc0 Y, osc1 X, osc1 Y], each an index into macroVal.
+  double macroVal[8] = {0};
+  int xyAsn[4] = {0, 1, 2, 3};
   bool env2Gate = false;
   hypersaw::MorphCore morph;
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
@@ -1658,7 +1685,10 @@ struct Plugin
   {
     const ParamDef *pd = findParam(destId);
     if (!pd || pd->stepped) return false;
-    if (destId == 161 || (destId >= 162 && destId <= 165)) return false;  // no self-reference
+    // No self-reference: the matrix's own controls (161-165) and the macros +
+    // XY assignment (166-177, ADR-137). Macro-as-dest is fan-out — B70's
+    // territory, refused until its cycle rule is ruled.
+    if (destId >= 161 && destId <= 177) return false;
     return mod.addRoute(srcSlot, destId, 0.25, hypersaw::ModCore::kGlobal);
   }
   std::string modRoutesJson()
@@ -1671,6 +1701,27 @@ struct Plugin
       std::snprintf(buf, sizeof buf, "%s{\"i\":%d,\"src\":%u,\"dest\":%u,\"depth\":%.6g}",
                     r ? "," : "", r, q.src, q.dest, q.depth);
       out += buf;
+    }
+    return out + "]";
+  }
+  /* ADR-137: the live picture for the GUI's mod halos — base and the value the
+     matrix last applied, per active destination. The GUI computes reach from
+     the routes it already has; this reports only what it cannot know. */
+  std::string modLiveJson() const
+  {
+    std::string out = "[";
+    char buf[96];
+    bool first = true;
+    for (const auto &md : modDests)
+    {
+      if (!md.active) continue;
+      // 1e300 is the "never applied yet" sentinel — a poll can land in the
+      // sub-tick window between route-add and the first evaluate.
+      const double now = md.lastApplied > 1e299 ? md.base : md.lastApplied;
+      std::snprintf(buf, sizeof buf, "%s{\"id\":%u,\"base\":%.6g,\"now\":%.6g}",
+                    first ? "" : ",", md.id, md.base, now);
+      out += buf;
+      first = false;
     }
     return out + "]";
   }
@@ -1708,6 +1759,9 @@ struct Plugin
       if (env2Stage == 1 && env2 > 0.99) { env2 = 1.0; env2Stage = 2; }
       mod.src[1] = env2;
     }
+    // ADR-137: macros feed source slots 2-9 every tick. A macro with no route
+    // is inert by the matrix's own law — no route, no evaluate output.
+    for (int i = 0; i < 8; i++) mod.src[2 + i] = macroVal[i];
     uint32_t dests[hypersaw::ModCore::kMaxRoutes];
     double deltas[hypersaw::ModCore::kMaxRoutes];
     const int n = mod.evaluate(hypersaw::ModCore::kGlobal, dests, deltas, hypersaw::ModCore::kMaxRoutes);
@@ -2997,6 +3051,8 @@ struct Plugin
         else env2R = applied;
         return;
       }
+      if (id >= 166 && id <= 173) { macroVal[id - 166] = applied; return; }
+      if (id >= 174 && id <= 177) { xyAsn[id - 174] = (int)applied; return; }
       /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
          retMul. Note the absent tau: id 33 carries the note lag, in seconds, and
          the core converts at the use site — see the swarm_core comment. */
@@ -3339,6 +3395,8 @@ struct Plugin
       if (d->id == 163) return env2D;
       if (d->id == 164) return env2S;
       if (d->id == 165) return env2R;
+      if (d->id >= 166 && d->id <= 173) return macroVal[d->id - 166];
+      if (d->id >= 174 && d->id <= 177) return xyAsn[d->id - 174];
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
       if (d->id == 40) return bassMonoOn;
@@ -4402,6 +4460,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
   hostIf.morphExemptJson = [pl]() { return pl->morphExemptJson(); };
   hostIf.morphOwnersJson = [pl]() { return pl->morphOwnersJson(); };
   hostIf.modRoutesJson = [pl]() { return pl->modRoutesJson(); };
+  hostIf.modLiveJson = [pl]() { return pl->modLiveJson(); };
   hostIf.modAddRoute = [pl](uint32_t src, uint32_t dest) { return pl->modAddRoute(src, dest); };
   hostIf.modSetDepth = [pl](int i, double v) {
     if (i >= 0 && i < pl->mod.nRoutes) pl->mod.routes[i].depth = v;
