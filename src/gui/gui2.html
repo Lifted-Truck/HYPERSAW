@@ -2361,8 +2361,12 @@ async function modHaloFrame() {
     let live = [];
     if (generic.length) { try { live = JSON.parse(await window.hzModLive()); } catch (_) {} }
     const byId = new Map();
+    // Scoped to the VISIBLE page: a whole-document sweep (~200 controls) plus a
+    // getBoundingClientRect per hit is a forced reflow, and it was running 20
+    // times a second over controls that were not on screen to be haloed.
+    const pg = document.querySelector('.page.on') || document;
     if (live.length)
-      for (const el of document.querySelectorAll('input[type=range][data-p]')) {
+      for (const el of pg.querySelectorAll('input[type=range][data-p]')) {
         const eff = el.dataset.fixed ? +el.dataset.p : effId(+el.dataset.p);
         if (!byId.has(eff)) byId.set(eff, el);
       }
@@ -2725,6 +2729,12 @@ for (const [name, live] of PAGES) {
     // chance and stayed blank (measured litPx 0 on arrival, 2032 from an
     // identical call once visible).
     document.getElementById('pg-' + name).classList.add('on');
+    /* AFTER the reveal, and the comment above says why in the general case:
+       a query that runs before `.on` lands sees NO visible page, so every feed
+       reads false and OSC's phase circle, spectrum and voice map go dark. That
+       is exactly what happened when this line sat above (measured: feeds
+       {viz:false, spec:false, scope:false} on OSC). Same trap, second victim. */
+    recomputeFeeds();
     /* The pad bakes its field on RESIZE, inside the rAF loop -- so a pad that
        was invalidated while hidden (the boot case: the scheme applies before
        any page is shown) depends on a frame arriving to get its corner colours
@@ -2787,12 +2797,42 @@ document.querySelectorAll('select.xyAX, select.xyAY').forEach(sel => {
 });
 syncXYAsnSelects();
 let frameNo = 0;
+/* ============ FEED GATING (ADR-143) ============
+   Every one of these feeds crosses the BRIDGE, and the bridge is the expensive
+   part: a webview bind is marshalling plus a JS evaluation, not a function
+   call. Until now all three ran every frame on every page — measured 150
+   round-trips per second, identical on FX, MOD, SET and MORPH where NOTHING
+   they feed is on screen, and the JS half alone cost MORE there (0.47 ms per
+   vizFrame vs 0.20 on MAIN: full work, drawn into canvases nobody can see).
+
+   The gate is DERIVED FROM THE DOM, never a hardcoded page list: a feed runs
+   only when the visible page actually contains one of its consumers. Put a
+   `canvas.spec` on a new page and its feed turns itself on — the same
+   one-state-many-renderings discipline the phase circle and the XY pads use,
+   applied to the fetch instead of the paint. */
+const FEED_CONSUMERS = {
+  // .meter is here because oscPeak/outPeak ride the viz snapshot: MIX needs
+  // the feed for its strip meters even though it draws no phase circle.
+  viz:   'canvas.phase, #vmapC, #carpetC, #stripC, .vizline, .vlabel, #chromeC, .meter',
+  spec:  'canvas.spec',
+  scope: '#wavC2',
+};
+const FEED = { viz: true, spec: true, scope: true };
+function recomputeFeeds() {
+  const pg = document.querySelector('.page.on');
+  for (const k in FEED_CONSUMERS) FEED[k] = !!(pg && pg.querySelector(FEED_CONSUMERS[k]));
+}
+
 function drawXY() {
   requestAnimationFrame(drawXY);
   frameNo++;
-  vizFrame();                          // every frame; busy-flag drops overlaps
-  specFrame();                         // every frame; the busy flag drops overlaps
-  if (frameNo % 2 === 0) drawScope().catch(() => {});   // gui.html's own cadence
+  /* 30 Hz, not 60, for the two heaviest feeds. The wordmark's warp already
+     made this argument in this file and it holds here: halving the rate halves
+     the cost outright, and neither a phase circle nor a smoothed spectrum
+     reads differently at 30. The scope was already on this cadence. */
+  if (FEED.viz && frameNo % 2 === 0) vizFrame();
+  if (FEED.spec && frameNo % 2 === 1) specFrame();   // offset phase: never both in one frame
+  if (FEED.scope && frameNo % 2 === 0) drawScope().catch(() => {});
   if (frameNo % 3 === 0) modHaloFrame().catch(() => {});   // ADR-137: live halos, ~20 Hz
   if (frameNo % 3 === 0) chromeFrame();                    // ADR-140: the specimen, ~20 Hz
   {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
@@ -3522,6 +3562,7 @@ window.addEventListener('load', async () => {
     document.body.appendChild(el);
   } catch (e) {}
   syncFromEngine().catch(() => {});
+  recomputeFeeds();   // ADR-143: MAIN's consumers, before the first frame
   drawXY();
   setInterval(() => syncFromEngine().catch(() => {}), 500);
   // arm + exempt are engine state; repaint them on the same cadence as params

@@ -4414,3 +4414,58 @@ have. Named here rather than silently dropped.
 (charter). It builds and passes; the test row says `none` rather than naming
 it, because a row claiming a gate that does not run is the false coverage the
 table exists to prevent.
+
+## ADR-143 — feeds are gated on visible consumers; the specimen was never the cost (2026-08-28)
+
+**Status: ACCEPTED.** The human reported the interface *"still lagging as
+badly as it was when the blob was visible"* and asked the right question: is
+it still computing in the background? **It is not — measured, 0 GL draws with
+the specimen off** (and 0 again with it on but nothing sounding, so ADR-140's
+idle gate holds too). The lag was never the specimen. It was the frame loop.
+
+**What was actually happening: 150 bridge round-trips per second, on every
+page, forever.** `vizFrame` and `specFrame` ran every frame and `drawScope`
+every second frame, none of them gated on whether anything they feed was on
+screen. On FX, MOD, SET and MORPH — where NOTHING consumes them — the JS half
+alone cost MORE than on MAIN (0.473 ms per vizFrame vs 0.200), because the
+work still happens and the paint lands in canvases nobody can see. Over a
+webview bind, where each call is marshalling plus a JS evaluation rather than
+a function call, that traffic is the bill.
+
+**The gate is derived from the DOM, never a hardcoded page list.** A feed runs
+only when the visible page contains one of its consumers, so putting a
+`canvas.spec` on a new page turns its feed back on by itself — the same
+one-state-many-renderings discipline the phase circle and XY pads already use,
+applied to the FETCH instead of the paint. `.meter` is in the viz set because
+MIX's strip meters ride the viz snapshot even though MIX draws no circle.
+
+**Cadence halved for the two heaviest feeds** (30 Hz, not 60), on the argument
+this file already makes for the wordmark's warp: halving the rate halves the
+cost outright, and neither a phase circle nor a smoothed spectrum reads
+differently at 30. Viz and spec are given opposite frame parity so they never
+land in the same frame.
+
+**Measured, per second at 60 fps:**
+
+| page | before | after |
+|---|---|---|
+| MAIN | 150 | 92 |
+| OSC | 150 | 62 |
+| MIX | 150 | 32 |
+| FX · MOD · SET · MORPH | 150 | **2** |
+
+**The mod halo's DOM sweep is now scoped to the visible page** — it queried
+the whole document (~200 controls) and called getBoundingClientRect per hit,
+a forced reflow 20 times a second over controls that were not on screen.
+
+**I stepped in this handler's own documented trap.** `recomputeFeeds()` first
+went in BEFORE the page reveal, where no page carries `.on` — so every feed
+read false and OSC's phase circle, spectrum and voice map went dark (measured
+`{viz:false, spec:false, scope:false}` on a page that needs all three). The
+comment three lines above says "REVEAL FIRST, THEN PAINT" and records the
+identical bug from 2026. Second victim, same line.
+
+**This is a floor, not a ceiling.** MAIN still pays 92 calls/s. The structural
+fix is one batched snapshot bind instead of three per-frame calls (filed as
+B76), and under it B75's native backend. Whether 92 is tenable is the human's
+judgement in the DAW, not mine from a localhost profile.
