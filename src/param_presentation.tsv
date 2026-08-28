@@ -159,14 +159,14 @@ osc1.subOct	osc1	Sub Octave	OSC	Spectra	knob
 osc2.subOct	osc2	Sub Octave	OSC	Spectra	knob					
 osc1.balance	osc1	A/B Balance	OSC	Dynamics	knob		dynamics	topo=2		topo=2
 osc2.balance	osc2	A/B Balance	OSC	Dynamics	knob		dynamics	topo=2		topo=2
-fx1type	global	FX1 Type	FX	FX rack	select		fx-rack			
-fx1amt	global	FX1 Amount	FX	FX rack	knob		fx-rack			
-fx2type	global	FX2 Type	FX	FX rack	select		fx-rack			
-fx2amt	global	FX2 Amount	FX	FX rack	knob		fx-rack			
-fx3type	global	FX3 Type	FX	FX rack	select		fx-rack			
-fx3amt	global	FX3 Amount	FX	FX rack	knob		fx-rack			
-fx4type	global	FX4 Type	FX	FX rack	select		fx-rack			
-fx4amt	global	FX4 Amount	FX	FX rack	knob		fx-rack			
+fx1type	global	FX1 Type	FX	Slot 1	select		fx-rack			
+fx1amt	global	FX1 Amount	FX	Slot 1	knob		fx-rack			
+fx2type	global	FX2 Type	FX	Slot 2	select		fx-rack			
+fx2amt	global	FX2 Amount	FX	Slot 2	knob		fx-rack			
+fx3type	global	FX3 Type	FX	Slot 3	select		fx-rack			
+fx3amt	global	FX3 Amount	FX	Slot 3	knob		fx-rack			
+fx4type	global	FX4 Type	FX	Slot 4	select		fx-rack			
+fx4amt	global	FX4 Amount	FX	Slot 4	knob		fx-rack			
 osc1.sAttack	osc1	S.Attack (s)	OSC	Envelope	knob					
 osc2.sAttack	osc2	S.Attack (s)	OSC	Envelope	knob					
 osc1.sDecay	osc1	S.Decay (s)	OSC	Envelope	knob					
@@ -223,10 +223,10 @@ osc1.voiceEnv	osc1	Per-Partial Env	OSC	Onset & scatter	toggle		onset-scatter
 osc2.voiceEnv	osc2	Per-Partial Env	OSC	Onset & scatter	toggle		onset-scatter			
 osc1.relScatter	osc1	Release Scatter	OSC	Onset & scatter	knob		onset-scatter			
 osc2.relScatter	osc2	Release Scatter	OSC	Onset & scatter	knob		onset-scatter			
-fx1tone	global	FX1 Tone	FX	FX rack	knob		fx-rack			
-fx2tone	global	FX2 Tone	FX	FX rack	knob		fx-rack			
-fx3tone	global	FX3 Tone	FX	FX rack	knob		fx-rack			
-fx4tone	global	FX4 Tone	FX	FX rack	knob		fx-rack			
+fx1tone	global	FX1 Tone	FX	Slot 1	knob		fx-rack			
+fx2tone	global	FX2 Tone	FX	Slot 2	knob		fx-rack			
+fx3tone	global	FX3 Tone	FX	Slot 3	knob		fx-rack			
+fx4tone	global	FX4 Tone	FX	Slot 4	knob		fx-rack			
 inertiaCurve	global	Inertia Curve (dev)	OSC	The coupling	knob		the-coupling	never		never
 masterVol	global	Master Volume	MIX	Mix	knob		mix			
 gSemi	global	Pitch	MIX	Mix	knob		mix			
@@ -267,10 +267,10 @@ osc2.sawBase	osc2	Saw Base	OSC	Saw shape	knob		saw-shape
 osc2.sawProfile	osc2	Roundness Shape	OSC	Saw shape	knob		saw-shape			
 osc2.round	osc2	Roundness	OSC	Saw shape	knob		saw-shape			
 osc2.roundHi	osc2	Round x Pitch	OSC	Saw shape	knob		saw-shape			
-fx1mix	global	FX1 Mix	FX	FX rack	knob		fx-rack			
-fx2mix	global	FX2 Mix	FX	FX rack	knob		fx-rack			
-fx3mix	global	FX3 Mix	FX	FX rack	knob		fx-rack			
-fx4mix	global	FX4 Mix	FX	FX rack	knob		fx-rack			
+fx1mix	global	FX1 Mix	FX	Slot 1	knob		fx-rack			
+fx2mix	global	FX2 Mix	FX	Slot 2	knob		fx-rack			
+fx3mix	global	FX3 Mix	FX	Slot 3	knob		fx-rack			
+fx4mix	global	FX4 Mix	FX	Slot 4	knob		fx-rack			
 noteLawLink	global	Note Law	MAIN	Bend	select		bend			
 noteLaw	global	Note Travel	MAIN	Bend	select		bend	noteLawLink=0		noteLawLink=0
 noteTime	global	Note Time	MAIN	Bend	knob	ms	bend	noteLawLink=0,noteLaw=1	log10	noteLawLink=0,noteLaw=1
