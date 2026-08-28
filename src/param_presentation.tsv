@@ -322,3 +322,5 @@ fx4damp	global	Damping	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4noise	global	Noise	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4stereo	global	Stereo	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4dist	global	Spacing	FX	Slot 4	select		fx-rack	fx4type=7|8		fx4type=7|8
+modEnvPitch	global	Env > Pitch	OSC	Pitch	knob	st	mod-matrix			
+
