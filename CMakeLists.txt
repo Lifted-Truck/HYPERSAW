@@ -369,6 +369,14 @@ if(NOT MSVC)
   target_compile_options(ratchet_probe PRIVATE -O2)
 endif()
 
+# mod_check: matrix increment 1 invariants (mod_core.h). Core + oracle land
+# together, unwired -- the glide_core order. NOT yet run by ./verify: adding a
+# gate is a human decision (charter), proposed in the PR that adds this.
+add_executable(mod_check tools/mod_check.cpp)
+if(NOT MSVC)
+  target_compile_options(mod_check PRIVATE -O2)
+endif()
+
 add_executable(gain_probe tools/gain_probe.cpp)
 target_link_libraries(gain_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
