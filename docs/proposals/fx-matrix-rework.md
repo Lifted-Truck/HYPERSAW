@@ -328,3 +328,95 @@ values it will never author.
 - **Every deep param as a day-one automation lane** — the clutter cost is the
   player's, and it is the one cost that cannot be optimised later without
   breaking saved automation.
+
+---
+
+# Part 3 — The module roster, as an editable list (2026-08-28)
+
+**At the human's request** (*"can you output what all the intended FX modules
+are so I can add or subtract or consolidate based on my recent
+experimentation"*), gathered from the record — the current rack, B45's filter
+roster, B63, B17, the Track E cores, and WARP's spec — rather than invented.
+**This list is the artifact to edit**: the human strikes, adds, merges, and
+lists the interface they envision per module; the struck version becomes the
+1.0 roster.
+
+Also recorded here: **the human ruled one-instance-per-type, with the exception
+of two or three filters.** Design note on that exception: multiple filters do
+NOT reintroduce the chimera, *provided they are fixed sockets* — "Filter A" and
+"Filter B" as two always-present instances, each structurally itself. Identity
+stays structural; only a "what type is this socket" dropdown would bring the
+chimera back.
+
+**Status legend** — SHIPPED: in the rack today · CORE: DSP exists and is
+oracle-covered, not yet a rack module · SPEC: spec/prototype exists, no C++ ·
+IDEA: named in the roadmap only.
+
+## Dynamics
+
+| module | status | source | proposed macro face (≤8) |
+|---|---|---|---|
+| **Comp** (comp+limiter) | SHIPPED | `fx_rack.h` (lab core) | strength · attack · release · makeup |
+| **OTT** (3-band up+down) | IDEA (B63) | crossover from `filter_core`'s SVF + Comp's follower | **depth** · time · low/mid/high gain |
+| **Gain** | SHIPPED | trivial | level (candidate for CONSOLIDATION — a matrix coefficient already is a gain; this module may be redundant under the rework) |
+
+## Distortion / colour
+
+| module | status | source | proposed macro face |
+|---|---|---|---|
+| **Drive** (tanh) | SHIPPED | `fx_rack.h` | drive · tone (candidate to be SUBSUMED by WARP) |
+| **WARP** (morphing waveshaper w/ hysteresis, phase-then-shape, dispersion) | SPEC (`SPEC-DISTORTION.md`, prototype validated by ear; unseeded-RNG blocker) | `horde_distortion_engine.html` | drive · shape-morph XY · hysteresis · dispersion · inertia — *the charter already destines this for the shared post stage (FX-C), so it may be a fixed END-OF-CHAIN socket rather than a free module* |
+
+## Filters (the ruled exception: 2–3 instances)
+
+| module | status | source | proposed macro face |
+|---|---|---|---|
+| **SVF** (TPT/ZDF LP/HP/BP/notch/peak, 12→24 dB) | CORE-adjacent (E1 resonator bank in `filter_core.h`; B45 item 1 is the generalisation) | swarmfilter lab | cutoff · resonance · type · slope · keytrack · drive-in |
+| **Ladder** (nonlinear ZDF, Moog-ish) | IDEA (B45 item 2) | — | cutoff · resonance · drive · keytrack |
+| **Tilt** (one-pole) | IDEA (B45 item 5) | — | tilt · pivot |
+| **Formant pair** | IDEA (B45 item 4; CANTO synergy) | formant lab donors | vowel XY · resonance |
+
+## Swarm-native (the ones nothing else has)
+
+| module | status | source | proposed macro face |
+|---|---|---|---|
+| **Comb** (polyphonic per-note Karplus, sympathetic-string) | SHIPPED | `fx_rack.h` (ADR-071) | wet · feedback · damp · keytrack |
+| **Notch swarm** (herded notch cascade) | SHIPPED | `notch_core.h` (E1.2) | mix · population · K · spread |
+| **Phaser swarm** | CORE (in `notch_core.h` family / swarmphaser lab; reachable in SWARM-FX, not the rack) | swarmphaser.html | mix · rate · K · depth |
+| **Filter swarm** (resonator bank) | CORE (`filter_core.h`, E1) | swarmfilter.html | mix · population · K · spread |
+
+## Time
+
+| module | status | source | proposed macro face |
+|---|---|---|---|
+| **Echo** (tap-swarm delay) | SHIPPED (ADR-129) | `time_core.h` mode 0 | regen · size · taps · damp · stereo · sync |
+| **Room** (FDN room swarm) | SHIPPED (ADR-129) | `time_core.h` mode 1 | regen · size · lines · damp · stereo |
+| *A true long reverb?* | IDEA (unfiled) | Room's useful range is the top third of its knob; a dedicated hall/plate may deserve its own module rather than stretching Room | — |
+
+## Modulation-class (blocked on B17's `link` contract)
+
+| module | status | source | note |
+|---|---|---|---|
+| **Chorus / ensemble** | IDEA (B17) | Kuro-synced class | first of the "N steerable parallel elements" family |
+| **Kuro-phaser** | IDEA (B17) | same class | B17 wants the `link` contract designed before the SECOND of these lands |
+
+## Consolidation candidates the list itself suggests
+
+- **Gain** → likely redundant: under the matrix, every edge is a gain.
+- **Drive** → subsumed by WARP if WARP lands as a module (or kept as the
+  cheap one if WARP is the fixed post stage).
+- **Filter (one-pole LP placeholder)** → replaced outright by SVF.
+- **Notch/Phaser/Filter swarms** → three faces of the same E1 family; could
+  ship as ONE "swarm filter" module with a mode, *if* mode can be a fixed
+  per-socket choice rather than a morphable dropdown (else the chimera rule
+  applies).
+
+## Clarification recorded: "how much deep set"
+
+The human asked what this phrase meant. Plainly: every module has its few
+morphable knobs on the FX page (the macro face) and the REST of its controls —
+OTT's per-band thresholds/ratios/attacks, Echo's spacing law, WARP's memory
+depths — which live on a per-module page, automatable but morph-exempt by
+default. **"How much deep set at 1.0" asks only: do we build those per-module
+pages before 1.0, or ship macro faces first and add pages module-by-module?**
+It is a sequencing question, not an architecture one.
