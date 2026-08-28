@@ -327,3 +327,15 @@ penvA	global	P.Env Attack	OSC	Pitch	knob	s	mod-matrix
 penvD	global	P.Env Decay	OSC	Pitch	knob	s	mod-matrix			
 penvS	global	P.Env Sustain	OSC	Pitch	knob		mod-matrix			
 penvR	global	P.Env Release	OSC	Pitch	knob	s	mod-matrix			
+macro1	global	M1	MAIN	Macros	knob		mod-matrix			
+macro2	global	M2	MAIN	Macros	knob		mod-matrix			
+macro3	global	M3	MAIN	Macros	knob		mod-matrix			
+macro4	global	M4	MAIN	Macros	knob		mod-matrix			
+macro5	global	M5	MAIN	Macros	knob		mod-matrix			
+macro6	global	M6	MAIN	Macros	knob		mod-matrix			
+macro7	global	M7	MAIN	Macros	knob		mod-matrix			
+macro8	global	M8	MAIN	Macros	knob		mod-matrix			
+xyAsn0X	global	OSC1 x	SET	XY assignment	enum		mod-matrix			
+xyAsn0Y	global	OSC1 y	SET	XY assignment	enum		mod-matrix			
+xyAsn1X	global	OSC2 x	SET	XY assignment	enum		mod-matrix			
+xyAsn1Y	global	OSC2 y	SET	XY assignment	enum		mod-matrix			

@@ -103,6 +103,7 @@ struct GuiHost
   std::function<bool(uint32_t)> morphToggleExempt;          // ADR-109
   // ADR-136: mod-matrix route surface (main thread; the GUI's MOD page)
   std::function<std::string()> modRoutesJson;
+  std::function<std::string()> modLiveJson;   // ADR-137: per-dest base + applied, for the halos
   std::function<bool(uint32_t, uint32_t)> modAddRoute;      // (srcSlot, destParamId)
   std::function<void(int, double)> modSetDepth;             // (routeIndex, depth)
   std::function<void(int)> modRemoveRoute;
