@@ -4235,3 +4235,42 @@ instance (applied 0.95 = base + 0.5·0.8·range, readback 0.55 intact);
 duplicates canonicalize (`2:4:0.5;3:9:0.25;`); pitch knob restores as 12 st;
 load-is-a-load clears. state_check, preset_check, mod_check, parity 156/156
 all green.
+
+## ADR-139 — CHROME-001: the specimen replaces MAIN's phase circle, and sound strikes it (2026-08-28)
+
+**Status: ACCEPTED (B74 v1).** The human's liquid-chrome material study
+(`Chrome 001.dc.html`, from their website) becomes MAIN's visualizer, replacing
+the phase circle there — which "currently makes the main page feel a little
+redundant" (human) because OSC shows the same circle; OSC keeps its copy.
+Ported shader-verbatim minus the React shell, plus exactly ONE shader
+addition (uRipple). Requested material: surfaceTension 0.1 · pearl · 500 nm.
+
+**The sound mapping (v1, all from the snapshot the bridge already ships —
+zero new plumbing):** a fresh note-on POKES the metal (the source's dent
+spring IS a percussion response; azimuth from pitch class, elevation from
+octave, so a run walks strikes around the specimen); the loudest envelope
+blooms filmThickness 500→750 nm (a literal hue bloom per attack); R drives
+surface tension 0.1→0.45 (a phase-locked swarm pulls the lobes into one mass
+— the order parameter as metal deciding whether it is one object); outPeak
+drives uRipple (held level shivers the surface unpoked). Gate edges are
+latched per-midi so a held note strikes once. Pointer interaction kept:
+drag orbits, click pokes. The source's self-throttle kept: slow frames drop
+render scale, never rate; ~30 Hz cadence off the existing rAF loop; skipped
+entirely when MAIN is hidden.
+
+**Two traps recorded:** (1) the theme-switch blanket clear called
+getContext('2d') on EVERY canvas, which LOCKS a canvas's context type — WebGL
+on the specimen was dead on arrival until the clear learned to skip it
+(measured: fresh canvas got GL, chromeC returned null). (2) In the same
+change, internal ids stopped reaching the UI: the pitch route rendered as
+"ENV 2 → #2147483649"; modDestLabel now names synthetic dests, strips the osc
+stride with an "· osc N" tag, and clones labels to drop .sc/.u decorations —
+and the MOD page's ±48 slider detection keys on dest, not index 0 (ADR-138's
+restore order made the GUI's index assumption false exactly as the shell's).
+
+**No WebGL = a quietly blank cell** (lab harness, exotic hosts); the phase
+circle still exists one page away. Verified in-browser: GL live, A4 poked at
+pitch-class-9's azimuth, spring mid-decay, center pixel lit chrome; labels
+"Pitch" / "Detune · osc 2". Deferred, named: visualizer uniforms as synthetic
+mod destinations (patchable material), morph-corner colors on the hot
+variant's rim lobes, multi-poke slots for chords.
