@@ -760,20 +760,22 @@
     </div>
   </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
-    <!-- CHROME-001 (ADR-139, B74): the liquid-chrome material study replaces
-         MAIN's phase circle (human: "the blob should replace the phase circle
-         on main, which currently makes the main page feel a little redundant").
-         The phase circle itself lives on — OSC keeps its copy (#phaseC2). -->
-    <canvas id="chromeC" style="display:block;width:100%;aspect-ratio:1.12;cursor:crosshair;touch-action:none"></canvas>
+    <!-- CHROME-001 (ADR-139/140, B74): the specimen is a TOGGLE now — measured
+         untenable in the VST at v1 cost (human 2026-08-28: "jumpy, jaggy"), so
+         it ships OFF, the phase circle returns to MAIN by default, and param
+         178 on SET swaps them. When on, the render is the reduced-cost path.
+         The native-GUI escape hatch is B75. -->
+    <canvas id="chromeC" style="display:none;width:100%;aspect-ratio:1.12;cursor:crosshair;touch-action:none"></canvas>
+    <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
     <div class="vlabel gravline"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
     <div class="note">Waveform &middot; <span class="whoOsc">OSC 1</span> &middot; L over R &middot; click to freeze</div>
     <canvas id="wavC2" class="wavscope" width="330" height="80" style="width:100%"></canvas>
-    <div class="note" style="margin-top:4px">CHROME-001: notes strike the metal,
-      the envelope blooms the pearl, coherence (R, <b id="vizWho2">OSC 1</b>) pulls
-      the lobes together. Drag orbits · click pokes. The phase circle lives on the
-      OSC page; the spectrum is the MASTER bus — what leaves the plugin.</div>
+    <div class="note" style="margin-top:4px">Phase circle + K vector show
+      <b id="vizWho2">OSC 1</b>; the spectrum is the MASTER bus — what leaves the
+      plugin. SET → Visualizers swaps in CHROME-001: notes strike the metal, the
+      envelope blooms the pearl, coherence pulls the lobes together.</div>
   </div>
 
   </div>
@@ -911,6 +913,13 @@
     <div class="note">Which macro each XY pad axis drives, per oscillator. The
       pads' own selects are the same four values seen through the active
       oscillator.</div>
+  </div>
+  <div class="cluster"><h2>Visualizers</h2>
+    <div class="row"><label>Specimen</label><input type="checkbox" data-p="178"><output></output></div>
+    <div class="note">CHROME-001 on MAIN in place of the phase circle — a
+      GPU-rendered material study that reacts to what you play. Costs real GPU;
+      off by default after it proved heavy in some hosts (ADR-140). The native
+      renderer that would make it free is roadmapped (B75).</div>
   </div>
   <div class="cluster"><h2>Keyboard</h2>
     <div id="setKeys"></div>
@@ -1751,6 +1760,7 @@ function setControl(id, v) {
   if (base >= 174 && base <= 177) {
     ASN[base - 174] = v; syncXYAsnSelects(); xyDirty = true;
   }
+  if (base === 178) specimenSync(v > 0.5);   // ADR-140: swap specimen/phase circle
   const el = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
   if (el) paintControl(el, v);
   // A HOST-DRIVEN repaint changes what the gates read, so they must be
@@ -2476,6 +2486,7 @@ document.querySelectorAll('[data-p]').forEach(el => {
     if (baseId >= 174 && baseId <= 177) {                 // fixed SET rows re-aim the pads
       ASN[baseId - 174] = v; syncXYAsnSelects(); xyDirty = true;
     }
+    if (baseId === 178) specimenSync(v > 0.5);            // instant, before the echo
   });
   el.addEventListener('pointerdown', () => bridge.gesture(id_(), true));
   el.addEventListener('pointerup', () => bridge.gesture(id_(), false));
@@ -2725,7 +2736,7 @@ function drawXY() {
   specFrame();                         // every frame; the busy flag drops overlaps
   if (frameNo % 2 === 0) drawScope().catch(() => {});   // gui.html's own cadence
   if (frameNo % 3 === 0) modHaloFrame().catch(() => {});   // ADR-137: live halos, ~20 Hz
-  if (frameNo % 2 === 0) chromeFrame();                    // ADR-139: the specimen, ~30 Hz
+  if (frameNo % 3 === 0) chromeFrame();                    // ADR-140: the specimen, ~20 Hz
   {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
     const [mix, miy] = xyMacroIds();
     const mx = +(lastParams[mix] ?? 0), my = +(lastParams[miy] ?? 0);
@@ -2869,8 +2880,14 @@ function drawMeters(s) {
    (lab harness, headless hosts) = a quietly blank cell; the phase circle
    still lives on OSC. */
 const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pitT: 0.18,
-  dent: { x: 0, v: 0 }, poke: [0, 0, 1], time: 3.7, scale: 1, ema: 8, last: 0,
-  gates: {}, w: 0, h: 0 };
+  dent: { x: 0, v: 0 }, poke: [0, 0, 1], time: 3.7, scale: 0.65, ema: 8, last: 0,
+  gates: {}, w: 0, h: 0, lastAct: 0 };
+/* ADR-140: param 178 swaps the specimen and MAIN's phase circle. */
+function specimenSync(on) {
+  const c = document.getElementById('chromeC'), p = document.getElementById('phaseC');
+  if (c) c.style.display = on ? 'block' : 'none';
+  if (p) p.style.display = on ? 'none' : 'block';
+}
 function chromeInit() {
   const cv = document.getElementById('chromeC');
   if (!cv) return;
@@ -2930,7 +2947,7 @@ void main(){
  vec3 bg=mix(paperLo,paperHi,smoothstep(-1.,.9,uv.y));
  vec3 col=bg;
  float t=0.;bool hit=false;
- for(int i=0;i<64;i++){
+ for(int i=0;i<44;i++){
   vec3 p=ro+rd*t;
   float d=map(p);
   if(d<.0012*t+.0008){hit=true;break;}
@@ -2985,12 +3002,14 @@ void main(){
   // pointer: drag orbits, click pokes — the source's interaction, kept
   let down = false, moved = false, lx = 0, ly = 0;
   cv.addEventListener('pointerdown', e => { down = true; moved = false; lx = e.clientX; ly = e.clientY;
+    chrome.lastAct = performance.now();
     try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
   cv.addEventListener('pointermove', e => {
     if (!down) return;
     const dx = e.clientX - lx, dy = e.clientY - ly;
     if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    if (moved) { chrome.yawT -= dx * 0.006; chrome.pitT = Math.max(-1.1, Math.min(1.1, chrome.pitT + dy * 0.005)); }
+    if (moved) { chrome.yawT -= dx * 0.006; chrome.pitT = Math.max(-1.1, Math.min(1.1, chrome.pitT + dy * 0.005));
+      chrome.lastAct = performance.now(); }
     lx = e.clientX; ly = e.clientY;
   });
   cv.addEventListener('pointerup', e => {
@@ -3032,8 +3051,14 @@ function chromeFrame() {
   const now = performance.now();
   const dt = Math.min(0.05, (now - c.last) / 1000 || 0.033);
   const ft = now - c.last; c.last = now;
-  c.ema = c.ema * 0.95 + ft * 0.05;
-  if (c.ema > 40 && c.scale > 0.45) { c.scale *= 0.7; c.ema = 25; c.w = 0; }  // 30 Hz cadence: throttle at ~25 fps effective
+  // A GAP IS NOT A SLOW RENDER: returning from a hidden page or the idle
+  // gate hands this frame a huge ft; feeding that into the EMA triggers a
+  // spurious downscale (measured: scale collapsed to 0.455 from test pauses
+  // alone). Gaps are excluded; only sustained real frame times throttle.
+  if (ft < 250) c.ema = c.ema * 0.95 + ft * 0.05;
+  // 20 Hz cadence: nominal gap IS 50 ms, so "slow" starts at 75 (the old
+  // 40 ms threshold would have throttled every healthy frame at this rate)
+  if (c.ema > 75 && c.scale > 0.35) { c.scale *= 0.7; c.ema = 55; c.w = 0; }
   c.time += dt;
   // sound -> material, from the snapshot vizFrame already fetched
   let envMax = 0, R = 0, peak = 0;
@@ -3050,6 +3075,13 @@ function chromeFrame() {
     }
     for (const m in c.gates) if (!seen[m]) delete c.gates[m];
   }
+  /* ADR-140 idle gate: with nothing sounding, nothing ringing and nobody
+     touching it, the last frame stands as a product photograph — zero draws.
+     Any note, level or poke re-arms instantly (the gate check above already
+     latched fresh attacks into the dent spring). */
+  const ringing = Math.abs(c.dent.x) > 5e-4 || Math.abs(c.dent.v) > 2e-3;
+  if (envMax > 1e-3 || peak > 1e-3 || ringing) c.lastAct = now;
+  if (now - c.lastAct > 1500) return;
   // the damped spring, per the source (w=9, zeta 0.82)
   const w = 9, z = 0.82, d = c.dent;
   const a = -w * w * d.x - 2 * z * w * d.v;
@@ -3060,7 +3092,10 @@ function chromeFrame() {
   c.yaw += (c.yawT - c.yaw) * ease;
   c.pit += (c.pitT - c.pit) * ease;
   const gl = c.gl, cv = c.cv;
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * c.scale;
+  /* ADR-140: FIXED low internal resolution, CSS-upscaled — soft chrome
+     upscales beautifully, and pixels × march-steps is the whole bill. dpr is
+     deliberately NOT in the product: retina doubling was most of v1's cost. */
+  const dpr = 1.0 * c.scale;
   const pw = Math.max(2, Math.round(cv.clientWidth * dpr)), ph = Math.max(2, Math.round(cv.clientHeight * dpr));
   if (pw !== c.w || ph !== c.h) { c.w = pw; c.h = ph; cv.width = pw; cv.height = ph; gl.viewport(0, 0, pw, ph); }
   gl.uniform2f(c.u.uRes, pw, ph);
@@ -3099,10 +3134,9 @@ async function vizFrame() {
        as ruled: "only have the visuals turn off when oscillators are
        themselves off." */
     if (s && s.active && s.oscEnabled === false) {
-      // ADR-139: MAIN's phase circle became the chrome specimen; only the OSC
-      // page's copy still takes the 2D "osc off" stamp (a 2D getContext on the
-      // WebGL canvas would return null and mask the GL context anyway).
-      for (const cv of [document.getElementById('phaseC2')]) {
+      // ADR-140: phaseC is back on MAIN (specimen off by default). chromeC
+      // stays out — a 2D getContext on the WebGL canvas returns null anyway.
+      for (const cv of [document.getElementById('phaseC'), document.getElementById('phaseC2')]) {
         if (!cv || !cv.offsetWidth) continue;
         const g = cv.getContext('2d');
         g.fillStyle = TOK('--scr-tube'); g.fillRect(0, 0, cv.width, cv.height);
@@ -3818,9 +3852,12 @@ function tdWarp(seed) {
     const edgeCv = document.createElement('canvas'), fillCv = document.createElement('canvas');
     edgeCv.width = fillCv.width = W; edgeCv.height = fillCv.height = H;
     const ectx = edgeCv.getContext('2d'), fctx = fillCv.getContext('2d');
-    /* 8 stamps at 1.4px: enough to close the ring at this weight without the
-       edge reading as a second, blurrier glyph behind the first */
-    const EDGE_R = 1.4;
+    /* 8 stamps. 1.4px closed the ring but read HEAVIER than the interface's
+       1.5px hairlines (a dilation ring reads fatter than a stroked line of
+       the same nominal width); 1.0 matches the other details by eye — the
+       human's ask, 2026-08-28. The ring still closes: a smaller radius closes
+       more easily, not less. */
+    const EDGE_R = 1.0;
     const EDGE_OFF = [[1,0],[-1,0],[0,1],[0,-1],[0.7,0.7],[-0.7,0.7],[0.7,-0.7],[-0.7,-0.7]]
                        .map(([x, y]) => [x * EDGE_R, y * EDGE_R]);
     const outline = () => {

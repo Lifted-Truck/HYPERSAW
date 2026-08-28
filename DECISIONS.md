@@ -4274,3 +4274,37 @@ pitch-class-9's azimuth, spring mid-decay, center pixel lit chrome; labels
 "Pitch" / "Detune · osc 2". Deferred, named: visualizer uniforms as synthetic
 mod destinations (patchable material), morph-corner colors on the hot
 variant's rim lobes, multi-poke slots for chords.
+
+## ADR-140 — the specimen becomes a toggle, off by default; the webview verdict and B75 (2026-08-28)
+
+**Status: ACCEPTED (B74 v2).** ADR-139's specimen was measured untenable in
+the VST ("jumpy, jaggy" — human, 2026-08-28, hours after v1 shipped). Ruling
+applied: performance is preserved by DEFAULT — param 178 ships 0, MAIN gets
+its phase circle back, and CHROME-001 becomes a SET → Visualizers toggle whose
+ON state is a reduced-cost render for the human to judge.
+
+**The cost went where the bill was.** v1 rendered 468×418 device pixels (dpr
+1.5) × 64 march steps × 30 Hz. v2: FIXED low internal resolution, CSS-upscaled
+(204×182 measured at cluster width — soft chrome upscales beautifully; retina
+doubling was most of the bill, so dpr is deliberately not in the product), 44
+steps, 20 Hz, and an IDLE GATE — nothing sounding, nothing ringing, nobody
+touching it → zero draws, the last frame standing as a product photograph.
+Net ≈12× cheaper per second while active, free while idle. Two throttle bugs
+fixed in passing: the 40 ms EMA threshold would have throttled every healthy
+frame at 20 Hz cadence (nominal gap IS 50 ms → threshold 75), and a long gap
+(hidden page, idle wake) fed the EMA as if it were a slow render and collapsed
+the scale (measured 0.65 → 0.455 from pauses alone) — gaps > 250 ms are now
+excluded from the EMA.
+
+**The webview question, answered honestly:** yes, a native C++ GUI would beat
+the webview here — direct Metal, no compositor contention, and ADR-019 built
+the seam for exactly this swap (hypersaw_gui.h is the ONLY interface the shell
+knows; a native backend reimplements hypersaw_gui.mm and nothing else moves).
+But it is a weeks-scale build against a minutes-scale fix, so: v2 now, B75
+files the native backend as its own investigation, and the human's judgement
+of v2-on in the VST decides whether B75 is urgency or luxury.
+
+**Also:** the wordmark's outline EDGE_R 1.4 → 1.0 (human: "same thickness as
+the other details" — a dilation ring reads fatter than a stroked line of the
+same nominal width; 1.0 matches the 1.5px hairlines by eye, and a smaller
+radius closes the ring more easily, not less).
