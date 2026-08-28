@@ -101,6 +101,11 @@ struct GuiHost
   std::function<std::string(uint32_t)> morphCornerJson;      // ADR-105: corner -> preset
   std::function<std::string()> morphLiveJson;               // ADR-105 A3: live state -> preset
   std::function<bool(uint32_t)> morphToggleExempt;          // ADR-109
+  // ADR-136: mod-matrix route surface (main thread; the GUI's MOD page)
+  std::function<std::string()> modRoutesJson;
+  std::function<bool(uint32_t, uint32_t)> modAddRoute;      // (srcSlot, destParamId)
+  std::function<void(int, double)> modSetDepth;             // (routeIndex, depth)
+  std::function<void(int)> modRemoveRoute;
   std::function<std::string()> morphExemptJson;
   std::function<std::string()> morphOwnersJson;             // ADR-110 colour coding
   std::function<std::string(int)> morphCornerValsJson;     // ADR-111 armed corner view

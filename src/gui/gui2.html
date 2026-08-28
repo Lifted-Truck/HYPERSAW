@@ -850,6 +850,24 @@
   <!--/GEN:MIX-->
 </div>
 
+<div class="page" id="pg-MOD">
+  <div class="ctlcol">
+  <div class="cluster"><h2>Routes</h2>
+    <div id="modList"></div>
+    <div class="note">Right-click any knob or slider and choose “Send to mod
+      matrix” to add a route here. Depth is ±1 of the destination's full range;
+      the destination's own bounds always clamp the result. The <b>Env &gt;
+      Pitch</b> knob on OSC is route 0 when it is non-zero — its depth is in
+      semitones and edits in either place stay in step.</div>
+  </div>
+  <div class="cluster"><h2>Sources</h2>
+    <div class="note"><b>ENV 1</b> — the amp envelope (loudest voice).
+      <b>ENV 2</b> — the pitch envelope's own ADSR (the P.Env knobs on OSC).
+      LFOs land here when B16 builds them; the bottom bar is B40.</div>
+  </div>
+  </div>
+</div>
+
 <div class="page" id="pg-SET">
   <div class="ctlcol">
   <div class="cluster"><h2>Keyboard</h2>
@@ -2048,7 +2066,63 @@ const PARAM_MENU = [
     label: () => 'Reset to default',
     hint: () => 'same as double-click',
     run: ctx => resetToDefault(ctx.el) },
+  /* ADR-136 (the human's B69 interface ruling): the right-click IS how a
+     parameter reaches the mod matrix. Continuous params only — the shell
+     refuses stepped destinations and the menu mirrors the rule by absence.
+     The matrix's own controls (161-165) never appear: modulating your own
+     depth is B70's territory and arrives with its cycle rule, not by accident. */
+  { id: 'mod1',
+    show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
+                 && !(ctx.id >= 161 && ctx.id <= 165),
+    label: () => 'Send to mod matrix — ENV 1',
+    hint: () => 'amp envelope drives this parameter',
+    run: async ctx => { if (await window.hzModAdd(0, ctx.id)) renderModRoutes().catch(() => {}); } },
+  { id: 'mod2',
+    show: ctx => !!window.hzModAdd && ctx.el && ctx.el.type === 'range'
+                 && !(ctx.id >= 161 && ctx.id <= 165),
+    label: () => 'Send to mod matrix — ENV 2',
+    hint: () => 'pitch envelope (its own ADSR) drives this',
+    run: async ctx => { if (await window.hzModAdd(1, ctx.id)) renderModRoutes().catch(() => {}); } },
 ];
+
+/* ADR-136: the MOD page's route list. Rendered from the shell's own table
+   (hzModRoutes) — the GUI holds no second copy of the routes. */
+const MOD_SRC_NAMES = ['ENV 1', 'ENV 2'];
+function modDestLabel(dest) {
+  const row = document.querySelector(`[data-p="${dest}"]`)?.closest('.row');
+  const lbl = row?.querySelector('label')?.textContent?.trim();
+  return lbl || ('#' + dest);
+}
+async function renderModRoutes() {
+  const box = document.getElementById('modList');
+  if (!box || !window.hzModRoutes) return;
+  let routes = [];
+  try { routes = JSON.parse(await window.hzModRoutes()); } catch (_) { return; }
+  box.textContent = '';
+  if (!routes.length) {
+    const p = document.createElement('div');
+    p.className = 'note'; p.textContent = 'No routes yet.';
+    box.appendChild(p); return;
+  }
+  for (const r of routes) {
+    const row = document.createElement('div'); row.className = 'row';
+    const lab = document.createElement('label');
+    lab.textContent = `${MOD_SRC_NAMES[r.src] ?? ('src ' + r.src)} → ${modDestLabel(r.dest)}`;
+    const sl = document.createElement('input');
+    sl.type = 'range';
+    const pitchRoute = r.i === 0 && (r.dest >>> 0) >= 0x80000000;
+    sl.min = pitchRoute ? -48 : -1; sl.max = pitchRoute ? 48 : 1;
+    sl.step = pitchRoute ? 0.5 : 0.01; sl.value = r.depth;
+    sl.addEventListener('input', () => { window.hzModDepth(r.i, +sl.value); out.value = (+sl.value).toFixed(2); });
+    const out = document.createElement('output'); out.value = (+r.depth).toFixed(2);
+    const x = document.createElement('button');
+    x.type = 'button'; x.textContent = '×'; x.title = 'remove this route';
+    x.style.minHeight = '22px';
+    x.addEventListener('click', async () => { await window.hzModRemove(r.i); renderModRoutes(); });
+    row.appendChild(lab); row.appendChild(sl); row.appendChild(out); row.appendChild(x);
+    box.appendChild(row);
+  }
+}
 
 let menuEl = null;
 function closeParamMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
@@ -2363,7 +2437,7 @@ async function syncFromEngine() {
 // finished sound is balanced — so the order follows the order of work rather
 // than the order the pages happened to be built in (human, 2026-08-19).
 const PAGES = [['MAIN', true], ['OSC', true], ['MIX', true], ['FX', true],
-               ['MOD', false], ['MORPH', true],
+               ['MOD', true], ['MORPH', true],
                ['SET', true]];   // SPACE retired 2026-08-24; SET added 2026-08-25
 const tabs = $('#tabs');
 for (const [name, live] of PAGES) {
@@ -2375,6 +2449,7 @@ for (const [name, live] of PAGES) {
     document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
     document.querySelectorAll('.page').forEach(x => x.classList.remove('on'));
     t.classList.add('on');
+    if (name === 'MOD') renderModRoutes().catch(() => {});   // routes are shell state
     // REVEAL FIRST, THEN PAINT. These draws used to run before the line below,
     // so every one of them measured the canvas while the page was still
     // display:none — zero CSS size, and the ink lands outside the bitmap.
