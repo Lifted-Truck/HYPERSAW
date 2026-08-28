@@ -331,92 +331,90 @@ values it will never author.
 
 ---
 
-# Part 3 — The module roster, as an editable list (2026-08-28)
+# Part 3 — The module roster — REVISION A, the human's edits applied (2026-08-28)
 
-**At the human's request** (*"can you output what all the intended FX modules
-are so I can add or subtract or consolidate based on my recent
-experimentation"*), gathered from the record — the current rack, B45's filter
-roster, B63, B17, the Track E cores, and WARP's spec — rather than invented.
-**This list is the artifact to edit**: the human strikes, adds, merges, and
-lists the interface they envision per module; the struck version becomes the
-1.0 roster.
-
-Also recorded here: **the human ruled one-instance-per-type, with the exception
-of two or three filters.** Design note on that exception: multiple filters do
-NOT reintroduce the chimera, *provided they are fixed sockets* — "Filter A" and
-"Filter B" as two always-present instances, each structurally itself. Identity
-stays structural; only a "what type is this socket" dropdown would bring the
-chimera back.
-
-**Status legend** — SHIPPED: in the rack today · CORE: DSP exists and is
-oracle-covered, not yet a rack module · SPEC: spec/prototype exists, no C++ ·
-IDEA: named in the roadmap only.
+The human went through the list module by module. This revision applies every
+ruling; the original is in git history. Standing rulings carried forward:
+one-instance-per-type **except 2–3 filter sockets** (fixed sockets, so the
+chimera stays dead), macro face / deep set split, and — new this revision —
+**every surviving module gets a visualizer** (the human asked for one on
+almost every line; it is now a roster-wide requirement, not a per-module note).
 
 ## Dynamics
 
-| module | status | source | proposed macro face (≤8) |
-|---|---|---|---|
-| **Comp** (comp+limiter) | SHIPPED | `fx_rack.h` (lab core) | strength · attack · release · makeup |
-| **OTT** (3-band up+down) | IDEA (B63) | crossover from `filter_core`'s SVF + Comp's follower | **depth** · time · low/mid/high gain |
-| **Gain** | SHIPPED | trivial | level (candidate for CONSOLIDATION — a matrix coefficient already is a gain; this module may be redundant under the rework) |
+| module | ruling | face notes |
+|---|---|---|
+| **Comp** | KEEP, **promote** — *"practically useless"* today (one `strength` knob over a hidden brickwall). Gets its own controls + a visual interface | threshold · ratio · attack · release · makeup, **gain-reduction meter** as the visual |
+| **OTT** | KEEP (B63) | *"no notes other than I want to make sure it has its own visualizer"* — 3-band GR display is the natural one |
+| **Gain** | **BURIED** — *"I have never used the gain module."* Goes read-only with the old surface in the rebuild; the matrix's edge coefficients are its replacement |
 
 ## Distortion / colour
 
-| module | status | source | proposed macro face |
-|---|---|---|---|
-| **Drive** (tanh) | SHIPPED | `fx_rack.h` | drive · tone (candidate to be SUBSUMED by WARP) |
-| **WARP** (morphing waveshaper w/ hysteresis, phase-then-shape, dispersion) | SPEC (`SPEC-DISTORTION.md`, prototype validated by ear; unseeded-RNG blocker) | `horde_distortion_engine.html` | drive · shape-morph XY · hysteresis · dispersion · inertia — *the charter already destines this for the shared post stage (FX-C), so it may be a fixed END-OF-CHAIN socket rather than a free module* |
+| module | ruling | face notes |
+|---|---|---|
+| **Saturator** (Drive's successor) | **REBUILD** — *"a proper saturator/overdrive module with a color control and different algorithms"*, plus a visualizer (transfer-curve display is the obvious one) | drive · **color** · algorithm (fixed per-socket list) · output |
+| **WARP** | KEEP as the deep distortion, **slimmed**: *"lose a handful of its subtler parameters; particularly anything related to movement, which could just be replaced by modulation"* — i.e. WARP's internal LFO/walk motion goes, and the mod matrix drives those targets instead. Needs a visualizer (transfer curve + hysteresis trace) | shape-morph · hysteresis · dispersion · drive |
+| *Brainstorm requested* | The human asked for other distortion candidates. Offered for striking: **wavefolder** (through-zero, the West-coast bend) · **decimator/redux** (bitdepth + rate, the digital colour) · **rectifier/octave fuzz** · **hard/soft clipper with waveshape view** · **Chebyshev harmonic shaper** (dial harmonics in directly — pairs beautifully with a spectrum visual) · **ring mod against an internal swarm osc** (swarm-native colour nothing else has) | — |
 
-## Filters (the ruled exception: 2–3 instances)
+## Filters (2–3 fixed sockets)
 
-| module | status | source | proposed macro face |
-|---|---|---|---|
-| **SVF** (TPT/ZDF LP/HP/BP/notch/peak, 12→24 dB) | CORE-adjacent (E1 resonator bank in `filter_core.h`; B45 item 1 is the generalisation) | swarmfilter lab | cutoff · resonance · type · slope · keytrack · drive-in |
-| **Ladder** (nonlinear ZDF, Moog-ish) | IDEA (B45 item 2) | — | cutoff · resonance · drive · keytrack |
-| **Tilt** (one-pole) | IDEA (B45 item 5) | — | tilt · pivot |
-| **Formant pair** | IDEA (B45 item 4; CANTO synergy) | formant lab donors | vowel XY · resonance |
+Unchanged from the original: **SVF** · **Ladder** · **Tilt** · **Formant pair**
+as candidates for the 2–3 sockets. The human's phaser note below adds a
+**standard phaser** to this neighbourhood.
 
-## Swarm-native (the ones nothing else has)
+## Swarm-native
 
-| module | status | source | proposed macro face |
-|---|---|---|---|
-| **Comb** (polyphonic per-note Karplus, sympathetic-string) | SHIPPED | `fx_rack.h` (ADR-071) | wet · feedback · damp · keytrack |
-| **Notch swarm** (herded notch cascade) | SHIPPED | `notch_core.h` (E1.2) | mix · population · K · spread |
-| **Phaser swarm** | CORE (in `notch_core.h` family / swarmphaser lab; reachable in SWARM-FX, not the rack) | swarmphaser.html | mix · rate · K · depth |
-| **Filter swarm** (resonator bank) | CORE (`filter_core.h`, E1) | swarmfilter.html | mix · population · K · spread |
+| module | ruling | face notes |
+|---|---|---|
+| **Comb** | KEEP — *"great"*. More controls + *"maybe we can get creative with"* the visualizer. Creative candidate: the strings themselves — one line per active note, displacement as brightness, sympathetic ringing visible | wet · feedback · damp · keytrack · + new controls TBD |
+| **Notch swarm** | **NIXED** as a module — *"K-coupling frequencies along a spectrum doesn't tend to be a very satisfying effect unless the K-value is being modulated like a spring."* Replaced by standard modules below |
+| **Phaser swarm** | **NIXED** — same ruling. A **standard phaser** joins the roster instead |
+| **Filter swarm** | **NIXED** by the same logic (not explicitly named, struck as the third of the family — flag if wrong) |
+
+**The discussion hook the nix opened, worth keeping:** *"unless the K-value is
+being modulated like a spring (though that does give some interesting ideas
+worth a discussion)."* This is B57's silent spring pointed at FX — a
+note-driven mass-spring modulating a *coupling*, so the swarm effect only
+blooms when the playing moves. The swarm CORES survive their module burial
+(they are oracle-covered and reachable in SWARM-FX); if the spring-modulated
+version proves out, the module returns with a reason to exist.
 
 ## Time
 
-| module | status | source | proposed macro face |
-|---|---|---|---|
-| **Echo** (tap-swarm delay) | SHIPPED (ADR-129) | `time_core.h` mode 0 | regen · size · taps · damp · stereo · sync |
-| **Room** (FDN room swarm) | SHIPPED (ADR-129) | `time_core.h` mode 1 | regen · size · lines · damp · stereo |
-| *A true long reverb?* | IDEA (unfiled) | Room's useful range is the top third of its knob; a dedicated hall/plate may deserve its own module rather than stretching Room | — |
+| module | ruling | face notes |
+|---|---|---|
+| **Delay** (NEW) | **BUILD for an A/B** — a standard, boring, excellent delay: *"Hz/sync rate, feedback, L/R offsets, standard vs M/S vs ping-pong, in-line filter module."* The timing trio reuses ADR-128/B62's continuous·Hz·sync vocabulary | rate (Hz/sync) · feedback · L/R offset · mode (std/MS/pingpong) · filter cutoff · mix |
+| **Echo** (tap-swarm) | ON TRIAL — *"sound nice but controls may add an unnecessary level of complexity with little payoff (random distribution laws are barely audibly different)."* The A/B against Delay decides; consolidation into one module is on the table |
+| **Room** (FDN swarm) | ON TRIAL, leaning keep — *"I do like how Room sounds"* — but may be covered by Reverb below |
+| **Reverb** (NEW) | **BUILD — the reverb lab's robust design**, which the original roster missed entirely: `docs/design/reverb-lab.html` carries a full pre-delay · ER · diffusion · FDN · swarm-modulation surface (~24 controls: RT60, damping, width, ER spin, tail decorrelation, mixing time…). Macro face from its headline controls; the rest is the deep set's first big customer | mix · pre-delay · size · decay · damping · width |
 
-## Modulation-class (blocked on B17's `link` contract)
+## The smear family (NEW — the human's reference list)
 
-| module | status | source | note |
-|---|---|---|---|
-| **Chorus / ensemble** | IDEA (B17) | Kuro-synced class | first of the "N steerable parallel elements" family |
-| **Kuro-phaser** | IDEA (B17) | same class | B17 wants the `link` contract designed before the SECOND of these lands |
+*"a feedback/allpass chain/phaser/dispersion filter/freeverb/Serum 2 Bode/
+Scrumulator style module"* — that list names a family (phase and frequency
+smearing) more than one module. Proposed as **two** modules, offered for
+striking:
 
-## Consolidation candidates the list itself suggests
+| module | covers | face |
+|---|---|---|
+| **Disperser** | allpass cascade with feedback — the chirp/laser/watery smear (WARP's dispersion stage, promoted to a standalone with resonance and feedback; freeverb-style allpass colour lives here too) | amount · frequency · resonance · feedback · stages |
+| **Shifter** | Bode-style frequency shifter (Hilbert pair) — the Serum-2-Bode half; single-sideband shift + feedback gets the barberpole/Scrumulator territory | shift (Hz/sync) · feedback · mix |
 
-- **Gain** → likely redundant: under the matrix, every edge is a gain.
-- **Drive** → subsumed by WARP if WARP lands as a module (or kept as the
-  cheap one if WARP is the fixed post stage).
-- **Filter (one-pole LP placeholder)** → replaced outright by SVF.
-- **Notch/Phaser/Filter swarms** → three faces of the same E1 family; could
-  ship as ONE "swarm filter" module with a mode, *if* mode can be a fixed
-  per-socket choice rather than a morphable dropdown (else the chimera rule
-  applies).
+*Prior-art note: the Scrumulator reference (frequent.audio) is recorded as the
+human's pointer and has NOT been researched yet — the family description above
+is from the named techniques, not from that product. Research before any public
+claim (PRIOR-ART.md discipline).*
 
-## Clarification recorded: "how much deep set"
+## Modulation-class (unchanged)
 
-The human asked what this phrase meant. Plainly: every module has its few
-morphable knobs on the FX page (the macro face) and the REST of its controls —
-OTT's per-band thresholds/ratios/attacks, Echo's spacing law, WARP's memory
-depths — which live on a per-module page, automatable but morph-exempt by
-default. **"How much deep set at 1.0" asks only: do we build those per-module
-pages before 1.0, or ship macro faces first and add pages module-by-module?**
-It is a sequencing question, not an architecture one.
+**Chorus/ensemble** and **Kuro-phaser** remain blocked on B17's `link`
+contract. The standard phaser ruled in above is a separate, simpler thing.
+
+## Net roster after Revision A
+
+**Kept/promoted:** Comp⁺ · OTT · Saturator · WARP⁻ · SVF · Ladder · Tilt ·
+Formant · Comb⁺ · Delay · Reverb · Disperser · Shifter · (Echo, Room on trial)
+· chorus-class later. **Buried:** Gain, notch/phaser/filter swarms (cores
+survive in SWARM-FX). That is ~13 modules plus trials — a real instrument's
+rack, and the reachability-skip + quiesce architecture from Part 2 is what
+makes a roster this size affordable.
