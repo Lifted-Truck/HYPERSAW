@@ -2158,10 +2158,18 @@ const PARAM_MENU = [
    (hzModRoutes) — the GUI holds no second copy of the routes. */
 const MOD_SRC_NAMES = ['ENV 1', 'ENV 2', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4',
                        'Macro 5', 'Macro 6', 'Macro 7', 'Macro 8'];
+/* Internal ids never reach the UI (human 2026-08-28: the pitch route rendered
+   as "#2147483649"). Synthetic dests get their names here; per-osc twins strip
+   the stride and borrow the base control's label with an osc tag. */
 function modDestLabel(dest) {
-  const row = document.querySelector(`[data-p="${dest}"]`)?.closest('.row');
-  const lbl = row?.querySelector('label')?.textContent?.trim();
-  return lbl || ('#' + dest);
+  const d = dest >>> 0;
+  if (d >= 0x80000000) return d === 0x80000001 ? 'Pitch' : 'internal';
+  const base = d % OSC_STRIDE, osc = Math.floor(d / OSC_STRIDE);
+  const el = document.querySelector(`[data-p="${d}"]`) || document.querySelector(`[data-p="${base}"]`);
+  const lbl = el?.closest('.row')?.querySelector('label')?.textContent
+    ?.replace(/[⊘■]/g, '').trim();
+  if (!lbl) return 'param ' + d;
+  return osc > 0 ? `${lbl} · osc ${osc + 1}` : lbl;
 }
 async function renderModRoutes() {
   const box = document.getElementById('modList');
@@ -2181,7 +2189,8 @@ async function renderModRoutes() {
     lab.textContent = `${MOD_SRC_NAMES[r.src] ?? ('src ' + r.src)} → ${modDestLabel(r.dest)}`;
     const sl = document.createElement('input');
     sl.type = 'range';
-    const pitchRoute = r.i === 0 && (r.dest >>> 0) >= 0x80000000;
+    // by DEST, never by index — ADR-138 made "route 0" an unsafe name here too
+    const pitchRoute = (r.dest >>> 0) >= 0x80000000;
     sl.min = pitchRoute ? -48 : -1; sl.max = pitchRoute ? 48 : 1;
     sl.step = pitchRoute ? 0.5 : 0.01; sl.value = r.depth;
     sl.addEventListener('input', () => { window.hzModDepth(r.i, +sl.value); r.depth = +sl.value; out.value = (+sl.value).toFixed(2); });
