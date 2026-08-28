@@ -28,6 +28,7 @@
 #include "gui/hypersaw_gui.h"
 #include "spectra_core.h"
 #include "glide_core.h"
+#include "mod_core.h"
 #include "morph_core.h"
 #include "depends_graph.h"
 #include "fx_rack.h"
@@ -532,6 +533,15 @@ static const ParamDef kParams[] = {
     {229, "fx4stereo", "FX4 Stereo", 0, 1, 0.7, false, nullptr},
     {230, "fx4dist", "FX4 Spacing", 0, 4, 1, true, kDistLabels},
     {160, "voiceCull", "Voice Cull", -80, -40, -80, false, nullptr},
+    /* MOD MATRIX increment 2 (B69): the matrix reaches the audio path through
+       ONE route — ENV 1 (the amp envelope's loudest-voice projection) to the
+       ADR-027 tune sum. This knob is that route's depth, in semitones,
+       bipolar so the envelope can dive as well as rise (the ADR-056/133
+       superset pattern: default 0 = no route = byte-identical output).
+       It is ALSO B64's pitch envelope in functional form — same ADSR as the
+       amp envelope for now; a dedicated ENV 2 with its own times is the next
+       increment, and this knob then becomes ENV 2's route without renaming. */
+    {161, "modEnvPitch", "Env > Pitch", -48, 48, 0, false, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -585,6 +595,8 @@ constexpr double kBendGridSeconds = 16.0 / 44100.0;   // 0.363 ms
 
 constexpr int kMixChunk = 256;
 constexpr uint32_t kOscStride = 1000;
+// B69 mod-matrix destination keys. Opaque to mod_core; the shell owns meaning.
+constexpr uint32_t kModDestPitch = 1;
 constexpr uint32_t kMaxOsc = 2;   // ratified 2026-08-06; 2000-2999 stays free for a third
 constexpr uint32_t kNumOsc = 2;   // ADR-082 increment 2: the ratified slot count
 static_assert(kNumOsc >= 1 && kNumOsc <= kMaxOsc, "kNumOsc outside the ratified range");
@@ -627,6 +639,7 @@ constexpr clap_id kGlobalIds[] = {
     116, 117, 118, 119, 120, 121, 122, 123, 124,     // global scale: root + twelve degrees
     125, 126, 127, 128,                          // (the mask is the truth; the name is UI)
     160,                                         // B38 voice-cull threshold (lifecycle policy)
+    161,                                         // B69 mod route depth: ENV 1 -> pitch
     // ADR-131 per-slot time-engine params: 200..231, four blocks of 8.
     200, 201, 202, 203, 204, 205, 206,
     208, 209, 210, 211, 212, 213, 214,
@@ -1283,6 +1296,16 @@ struct Plugin
      later, with the corner-editing model, rather than v1 guessing at it.
      Corner snapshots persist in the state chunk (a corner IS patch data);
      they are NOT parameters — 4 x ~100 automation lanes would be noise. */
+  /* B69 increment 2. The matrix instance and the ONE destination this
+     increment applies: a pitch offset in semitones joining updateTune's sum.
+     Applied as an OFFSET beside the stored params — never written back into
+     any param — so readback, state and automation all still see the base
+     value; corrupting the base is the classic matrix mistake and the reason
+     destinations are added one at a time. modPitchSm is slewed at the grid
+     rate (~8 ms one-pole, the gainSmoothCoef feel) because env * depth at
+     48 st moves fast enough to zipper otherwise. */
+  hypersaw::ModCore mod;
+  double modPitchSt = 0, modPitchSm = 0;
   hypersaw::MorphCore morph;
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
   std::vector<double> morphCorner[4];     // snapshots, aligned to morphIds
@@ -1576,6 +1599,54 @@ struct Plugin
     return true;
   }
 
+  /* B69 increment 2 — the matrix's control tick, on the same gravity grid as
+     morphStep (the ADR-086 rule: grid accumulation makes the result
+     independent of host buffer subdivision). ENV 1's global projection is the
+     LOUDEST voice's envelope across both oscillators — the honest global
+     reduction of a per-voice quantity, stated so nobody mistakes it for a
+     per-note fan-out (that is a later increment, and the scope field on the
+     route is already there for it). Inert by construction at depth 0: the
+     route only exists once the knob has moved, evaluate() of an empty table
+     is zero entries, and modPitchSm settles to exactly 0. */
+  int modAccum = 0;
+  void modStep(int samples)
+  {
+    modAccum += samples;
+    const int grid = (int)std::lround(sampleRate * hypersaw::kGravGridSeconds);
+    if (modAccum < grid) return;
+    const double dt = (double)modAccum / sampleRate;
+    modAccum = 0;
+    double envMax = 0;
+    for (uint32_t k = 0; k < kNumOsc; k++)
+      if (oscEnabled[k])
+        for (int i = 0; i < (int)hypersaw::kPoly; i++)
+        {
+          const double e = cores[k].voiceAt(i).env;
+          if (e > envMax) envMax = e;
+        }
+    mod.src[0] = envMax;
+    uint32_t dests[hypersaw::ModCore::kMaxRoutes];
+    double deltas[hypersaw::ModCore::kMaxRoutes];
+    const int n = mod.evaluate(hypersaw::ModCore::kGlobal, dests, deltas, hypersaw::ModCore::kMaxRoutes);
+    double pitch = 0;
+    for (int i = 0; i < n; i++)
+      if (dests[i] == kModDestPitch) pitch = deltas[i];
+    // OQ-30 bounding at APPLICATION, the ruled place: the route can ask for
+    // anything; the destination clamps to its own declared range.
+    pitch = std::max(-48.0, std::min(48.0, pitch));
+    modPitchSt = pitch;
+    const double c = 1.0 - std::exp(-dt / 0.008);
+    modPitchSm += (modPitchSt - modPitchSm) * c;
+    if (std::fabs(modPitchSm - modPitchSt) < 1e-6) modPitchSm = modPitchSt;
+    static_assert(true, "");
+    if (std::fabs(modPitchSm - modPitchApplied) > 1e-5)
+    {
+      modPitchApplied = modPitchSm;
+      updateTuneAll();
+    }
+  }
+  double modPitchApplied = 0;
+
   void morphStep(int samples)
   {
     morphAccum += samples;
@@ -1704,7 +1775,7 @@ struct Plugin
   void updateTune(uint32_t k)
   {
     const double st = 12.0 * (octaveA[k] + gOct) + semiA[k] + gSemi + pitchBend +
-                      (fineCentsA[k] + gFine) / 100.0;
+                      (fineCentsA[k] + gFine) / 100.0 + modPitchSm;   // B69: matrix offset
     const double factor = st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0);
     cores[k].setParam("tune", factor);
     if (k == 0)
@@ -2783,6 +2854,15 @@ struct Plugin
          so adding a slot or a param cannot fall out of step with the table. */
       if (id >= 200 && id <= 231)
       { rack.setTimeParam((int)((id - 200) / 8), (int)((id - 200) % 8), applied); return; }
+      if (id == 161)
+      {
+        /* The knob IS route 0's depth. The route is created on first non-zero
+           depth and its depth tracks the knob thereafter — one knob, one
+           route, no hidden state. kDestPitch is an opaque key to the core. */
+        if (mod.nRoutes == 0) mod.addRoute(0, kModDestPitch, applied, hypersaw::ModCore::kGlobal);
+        else mod.routes[0].depth = applied;
+        return;
+      }
       /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
          retMul. Note the absent tau: id 33 carries the note lag, in seconds, and
          the core converts at the use site — see the swarm_core comment. */
@@ -3118,6 +3198,7 @@ struct Plugin
       if (d->id >= 133 && d->id <= 136) return rack.getMix((int)(d->id - 133));
       if (d->id >= 200 && d->id <= 231)
         return rack.getTimeParam((int)((d->id - 200) / 8), (int)((d->id - 200) % 8));
+      if (d->id == 161) return mod.nRoutes ? mod.routes[0].depth : 0.0;
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
       if (d->id == 40) return bassMonoOn;
@@ -3569,6 +3650,7 @@ struct Plugin
          engaged the span is cut on the fixed grid and the tune factor is
          recomputed at each boundary, which is where the bench measured it. */
       if (morphOn > 0.5) morphStep((int)(until - frame));
+      modStep((int)(until - frame));
       if (bendActive() && !spectraMode())
       {
         const int grid = bendGridSamples();

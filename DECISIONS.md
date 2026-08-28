@@ -4046,3 +4046,41 @@ any such registry is "what is missing from this list", and nothing was asking it
 **`port_gap` is advisory, not a `./verify` gate.** That is a separate decision
 and is left alone here; making it blocking would fail the build today on four
 items that are legitimately open.
+
+## ADR-134 — the mod matrix reaches the audio path: ENV 1 → pitch (2026-08-28)
+
+**Status: ACCEPTED (B69 increment 2).** The matrix's first live route, and —
+deliberately the same thing — **B64's pitch envelope in functional form.**
+
+**One knob, one route.** Param 161 `Env > Pitch` (±48 st, default 0) is route
+0's depth. The route exists once the knob moves; `evaluate()` of an empty table
+is zero entries; the smoothed offset settles to exactly 0 — so at default the
+feature is inert **by construction**, and measured: a depth-0 render is
+bit-identical to a build that never touched it (0 of 52,736 samples differ).
+
+**The offset joins ADR-027's tune sum as a fifth term.** It is applied beside
+the stored parameters, never written back into any of them — readback, state,
+and host automation all still see the base value. Corrupting the base is the
+classic matrix mistake, and it is why destinations are added one at a time
+rather than generically.
+
+**ENV 1's global projection is the loudest voice's envelope** across enabled
+oscillators — stated plainly so nobody mistakes it for per-note fan-out. The
+route already carries the scope field (B34 vocabulary) for the per-note
+increment.
+
+**Grid + slew.** Evaluation on the 256-sample gravity grid (ADR-086: buffer-
+subdivision-independent), with an ~8 ms one-pole on the applied offset —
+env × 48 st moves fast enough to zipper otherwise. OQ-30's rule is honoured at
+the ruled place: the route may ask for anything; the destination clamps to its
+declared ±48.
+
+**Measured** (single voice, no detune, zero-crossing pitch): depth +12 → attack
+at 410 Hz vs 220 baseline (1.86×; the residue from 2.0 is the slew still rising
+inside the window), decay converging back to base. Depth −12 mirrors (0.545×).
+Parity 156/156.
+
+**What this is NOT yet:** per-note (the global projection is honest but
+shared), a dedicated envelope (ENV 2 with its own times is B64's completion —
+this knob then becomes ENV 2's route without renaming), or the right-click
+route surface (B69's interface ruling, next increment).
