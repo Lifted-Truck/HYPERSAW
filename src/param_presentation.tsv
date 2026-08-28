@@ -339,3 +339,4 @@ xyAsn0X	global	OSC1 x	SET	XY assignment	enum		mod-matrix
 xyAsn0Y	global	OSC1 y	SET	XY assignment	enum		mod-matrix			
 xyAsn1X	global	OSC2 x	SET	XY assignment	enum		mod-matrix			
 xyAsn1Y	global	OSC2 y	SET	XY assignment	enum		mod-matrix			
+specimen	global	Specimen	SET	Visualizers	toggle		mod-matrix			

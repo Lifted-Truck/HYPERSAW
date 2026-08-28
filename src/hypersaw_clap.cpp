@@ -574,6 +574,11 @@ static const ParamDef kParams[] = {
     {175, "xyAsn0Y", "XY1 Y > Macro", 0, 7, 1, true, nullptr},
     {176, "xyAsn1X", "XY2 X > Macro", 0, 7, 2, true, nullptr},
     {177, "xyAsn1Y", "XY2 Y > Macro", 0, 7, 3, true, nullptr},
+    /* ADR-140: the CHROME-001 specimen is OFF by default — measured untenable
+       ("jumpy, jaggy") in the VST on 2026-08-28. On = the reduced-cost render
+       (low fixed resolution, fewer march steps, 20 Hz, idle-gated); off = the
+       phase circle returns to MAIN. The native-GUI escape is B75. */
+    {178, "specimen", "Specimen (CHROME-001)", 0, 1, 0, true, nullptr},
 };
 
 // THE DEFAULT OF A PARAMETER, DEFINED ONCE. Both CLAP (`clap_param_info.
@@ -679,6 +684,7 @@ constexpr clap_id kGlobalIds[] = {
     162, 163, 164, 165,                          // ADR-135 ENV 2 (pitch envelope) ADSR
     166, 167, 168, 169, 170, 171, 172, 173,      // ADR-137 macros (mod sources 2-9)
     174, 175, 176, 177,                          // ADR-137 per-osc XY axis assignment
+    178,                                         // ADR-140 specimen on/off (GUI-only)
     // ADR-131 per-slot time-engine params: 200..231, four blocks of 8.
     200, 201, 202, 203, 204, 205, 206,
     208, 209, 210, 211, 212, 213, 214,
@@ -1374,6 +1380,7 @@ struct Plugin
   // [osc0 X, osc0 Y, osc1 X, osc1 Y], each an index into macroVal.
   double macroVal[8] = {0};
   int xyAsn[4] = {0, 1, 2, 3};
+  double specimenOn = 0;   // ADR-140: CHROME-001 gate, off by default
   bool env2Gate = false;
   hypersaw::MorphCore morph;
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
@@ -3138,6 +3145,7 @@ struct Plugin
       }
       if (id >= 166 && id <= 173) { macroVal[id - 166] = applied; return; }
       if (id >= 174 && id <= 177) { xyAsn[id - 174] = (int)applied; return; }
+      if (id == 178) { specimenOn = applied; return; }
       /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
          retMul. Note the absent tau: id 33 carries the note lag, in seconds, and
          the core converts at the use site — see the swarm_core comment. */
@@ -3486,6 +3494,7 @@ struct Plugin
       if (d->id == 165) return env2R;
       if (d->id >= 166 && d->id <= 173) return macroVal[d->id - 166];
       if (d->id >= 174 && d->id <= 177) return xyAsn[d->id - 174];
+      if (d->id == 178) return specimenOn;
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
       if (d->id == 40) return bassMonoOn;
