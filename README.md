@@ -68,6 +68,13 @@ rate, lag, mass-spring), quantisation to chromatic or to a scale in three flavou
 grid, and an on-screen wheel so every one of them is auditionable without hardware. Glide
 sources, mono/legato, and MPE per-note bend live here too.
 
+**Eight macro knobs and a per-oscillator XY pad** (2026-08-28): the pad drives two assignable
+macros; macros reach any continuous parameter through the **mod matrix** — right-click a knob
+to send it. Modulation draws as an offset (a reach arc and a live tick around a stationary
+knob) — the knob always shows the value you authored. Two envelopes (the amp projection and a
+dedicated pitch ADSR) are auto-included sources. Routes do not yet survive a session reload —
+the named next increment.
+
 ---
 
 ## Eight things that work differently
@@ -390,7 +397,7 @@ is kept building so the escape hatch stays real.
 
 ## Status and known gaps
 
-*Last verified: **2026-08-26** — every claim below re-checked against the gates on that date.
+*Last verified: **2026-08-28** — every claim below re-checked against the gates on that date.
 If this date is old, trust `ROADMAP.md` over this file.*
 
 Stated rather than omitted:
