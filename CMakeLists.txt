@@ -377,6 +377,14 @@ if(NOT MSVC)
   target_compile_options(mod_check PRIVATE -O2)
 endif()
 
+# strata_check: STRATA's six properties, as the human's own spec states them
+# (B77 increment 1). Core + oracle land together, unwired -- the glide_core /
+# mod_core order. Wiring it into ./verify is a human decision (charter).
+add_executable(strata_check tools/strata_check.cpp)
+if(NOT MSVC)
+  target_compile_options(strata_check PRIVATE -O2)
+endif()
+
 # delay_check: the standard delay's SPEC (ADR-142). Not a parity test -- this
 # core has no HTML lab on purpose, so the impulse-response invariants in the
 # oracle are the definition of correct. Wiring it into ./verify is a human
