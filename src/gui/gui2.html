@@ -755,6 +755,16 @@
       have no per-oscillator twin, so they never remap.</div>
   </div>
   <div class="vizcol">
+  <!-- CHROME-001 (ADR-139/140/144, B74): its own cluster, first in the left
+       column — the human's placement. It ships ON again now that ADR-143 gave
+       the frame loop the budget back; SET still carries the switch, and with
+       it off the phase circle takes the page's viz slot as before. -->
+  <div class="cluster" id="specimenBox"><h2>Specimen — CHROME-001</h2>
+    <canvas id="chromeC" style="display:block;width:100%;aspect-ratio:1.12;cursor:crosshair;touch-action:none"></canvas>
+    <div class="note" style="margin-top:5px">Notes strike the metal · the envelope
+      blooms the film · coherence pulls the lobes together. Drag orbits, click pokes.
+      It stops drawing entirely when nothing sounds, and settles at full resolution.</div>
+  </div>
   <div class="cluster"><h2>XY — macro pad</h2>
     <canvas id="xy" class="xy" width="340" height="212"></canvas>
     <div class="row xyAsnRow"><label>x drives</label><select class="xyAX"></select><output></output></div>
@@ -776,13 +786,7 @@
     </div>
   </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
-    <!-- CHROME-001 (ADR-139/140, B74): the specimen is a TOGGLE now — measured
-         untenable in the VST at v1 cost (human 2026-08-28: "jumpy, jaggy"), so
-         it ships OFF, the phase circle returns to MAIN by default, and param
-         178 on SET swaps them. When on, the render is the reduced-cost path.
-         The native-GUI escape hatch is B75. -->
-    <canvas id="chromeC" style="display:none;width:100%;aspect-ratio:1.12;cursor:crosshair;touch-action:none"></canvas>
-    <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <canvas id="phaseC" class="phase" width="220" height="220" style="display:none;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
     <div class="vlabel gravline"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
@@ -933,7 +937,7 @@
       oscillator.</div>
   </div>
   <div class="cluster"><h2>Visualizers</h2>
-    <div class="row"><label>Specimen</label><input type="checkbox" data-p="178"><output></output></div>
+    <div class="row"><label>Specimen</label><input type="checkbox" data-p="178" checked><output></output></div>
     <div class="note">CHROME-001 on MAIN in place of the phase circle — a
       GPU-rendered material study that reacts to what you play. Costs real GPU;
       off by default after it proved heavy in some hosts (ADR-140). The native
@@ -2977,14 +2981,34 @@ function drawMeters(s) {
    kept too: slow frames drop render scale, never the frame rate. No WebGL
    (lab harness, headless hosts) = a quietly blank cell; the phase circle
    still lives on OSC. */
+/* RESOLUTION, ADR-144. The last pass pinned the render at a fixed 0.65x with
+   retina deliberately excluded — a guess made while hunting a stall that
+   turned out to be the frame loop (ADR-143), and the human's verdict on the
+   guess was "fairly low resolution". A fixed number is the wrong shape of
+   answer anyway: the affordable resolution is a property of the machine, not
+   of my estimate. So the scale now ADAPTS IN BOTH DIRECTIONS between a floor
+   and the display's own pixel grid, and the throttle that already stepped it
+   down learns to step it back up.
+
+   And the state you actually stare at gets the best of it: when the specimen
+   goes idle it draws ONE more frame at the ceiling and then stops. Motion is
+   where a dropped pixel hides; stillness is where it shows. The ADR called
+   the idle frame "a product photograph" — this makes that literal. */
 const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pitT: 0.18,
-  dent: { x: 0, v: 0 }, poke: [0, 0, 1], time: 3.7, scale: 0.65, ema: 8, last: 0,
-  gates: {}, w: 0, h: 0, lastAct: 0 };
-/* ADR-140: param 178 swaps the specimen and MAIN's phase circle. */
+  dent: { x: 0, v: 0 }, poke: [0, 0, 1], time: 3.7, scale: 1.0, ema: 8, last: 0,
+  gates: {}, w: 0, h: 0, lastAct: 0, plate: false, up: 0,
+  // the ceiling is the display's real pixel grid, capped at 2x: past that the
+  // extra samples land inside a pixel nobody can resolve.
+  scaleMax: Math.min(window.devicePixelRatio || 1, 2), scaleMin: 0.5 };
+/* ADR-140/144: param 178 shows the specimen's own cluster. With it off, MAIN's
+   phase circle takes the viz slot back — the human's redundancy ruling still
+   holds, so the two never share the page. */
 function specimenSync(on) {
-  const c = document.getElementById('chromeC'), p = document.getElementById('phaseC');
-  if (c) c.style.display = on ? 'block' : 'none';
+  const box = document.getElementById('specimenBox');
+  const p = document.getElementById('phaseC');
+  if (box) box.style.display = on ? '' : 'none';
   if (p) p.style.display = on ? 'none' : 'block';
+  if (on) { chrome.w = 0; chrome.plate = false; chrome.lastAct = performance.now(); }
 }
 function chromeInit() {
   const cv = document.getElementById('chromeC');
@@ -3154,9 +3178,16 @@ function chromeFrame() {
   // spurious downscale (measured: scale collapsed to 0.455 from test pauses
   // alone). Gaps are excluded; only sustained real frame times throttle.
   if (ft < 250) c.ema = c.ema * 0.95 + ft * 0.05;
-  // 20 Hz cadence: nominal gap IS 50 ms, so "slow" starts at 75 (the old
-  // 40 ms threshold would have throttled every healthy frame at this rate)
-  if (c.ema > 75 && c.scale > 0.35) { c.scale *= 0.7; c.ema = 55; c.w = 0; }
+  /* BOTH DIRECTIONS. 20 Hz cadence means the nominal gap IS 50 ms, so "slow"
+     starts at 75 and "comfortable" at 58 — a band, not a threshold, because a
+     single trip point makes the scale oscillate across it forever. Down is
+     immediate (a stalling GUI must recover now); up is patient, 40 frames of
+     sustained comfort per step, so a brief calm never buys a resolution the
+     machine cannot keep. */
+  if (c.ema > 75 && c.scale > c.scaleMin) { c.scale = Math.max(c.scaleMin, c.scale * 0.7); c.ema = 55; c.w = 0; c.up = 0; }
+  else if (c.ema < 58 && c.scale < c.scaleMax && ++c.up > 40) {
+    c.scale = Math.min(c.scaleMax, c.scale * 1.25); c.ema = 50; c.w = 0; c.up = 0;
+  }
   c.time += dt;
   // sound -> material, from the snapshot vizFrame already fetched
   let envMax = 0, R = 0, peak = 0;
@@ -3178,8 +3209,19 @@ function chromeFrame() {
      Any note, level or poke re-arms instantly (the gate check above already
      latched fresh attacks into the dent spring). */
   const ringing = Math.abs(c.dent.x) > 5e-4 || Math.abs(c.dent.v) > 2e-3;
-  if (envMax > 1e-3 || peak > 1e-3 || ringing) c.lastAct = now;
-  if (now - c.lastAct > 1500) return;
+  if (envMax > 1e-3 || peak > 1e-3 || ringing) { c.lastAct = now; c.plate = false; }
+  if (now - c.lastAct > 1500)
+  {
+    /* THE PLATE. Settling is not a reason to leave a coarse frame on screen —
+       it is the one moment the render is worth its full cost, because it will
+       sit there. One draw at the ceiling, then nothing until something moves. */
+    if (c.plate) return;
+    c.plate = true;
+    c.plateScale = c.scale;
+    c.scale = c.scaleMax;
+    c.w = 0;                    // force the resize this frame
+  }
+  else if (c.plate) { c.plate = false; c.scale = c.plateScale || c.scale; c.w = 0; }
   // the damped spring, per the source (w=9, zeta 0.82)
   const w = 9, z = 0.82, d = c.dent;
   const a = -w * w * d.x - 2 * z * w * d.v;
@@ -3190,10 +3232,9 @@ function chromeFrame() {
   c.yaw += (c.yawT - c.yaw) * ease;
   c.pit += (c.pitT - c.pit) * ease;
   const gl = c.gl, cv = c.cv;
-  /* ADR-140: FIXED low internal resolution, CSS-upscaled — soft chrome
-     upscales beautifully, and pixels × march-steps is the whole bill. dpr is
-     deliberately NOT in the product: retina doubling was most of v1's cost. */
-  const dpr = 1.0 * c.scale;
+  // ADR-144: the scale IS the resolution now, and it already carries the
+  // display's pixel grid in its ceiling — so this is simply it.
+  const dpr = c.scale;
   const pw = Math.max(2, Math.round(cv.clientWidth * dpr)), ph = Math.max(2, Math.round(cv.clientHeight * dpr));
   if (pw !== c.w || ph !== c.h) { c.w = pw; c.h = ph; cv.width = pw; cv.height = ph; gl.viewport(0, 0, pw, ph); }
   gl.uniform2f(c.u.uRes, pw, ph);
