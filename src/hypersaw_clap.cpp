@@ -1725,6 +1725,64 @@ struct Plugin
     }
     return out + "]";
   }
+  int modPitchRouteIdx() const
+  {
+    for (int r = 0; r < mod.nRoutes; r++)
+      if (mod.routes[r].dest == kModDestPitch) return r;
+    return -1;
+  }
+  /* ADR-138: route persistence, keyed on B72's deterministic link identity.
+     One line, generic routes only: `src:dest:depth;…`. The pitch route is
+     param 161's and persists as that param — writing it here too would double
+     it on load. Serialization CANONICALIZES: one entry per (src, dest) with
+     summed depth, which the SUM law already makes indistinguishable from the
+     un-merged form — this is the identity B72's morph interpolation will key
+     on, established at the serialization boundary first. */
+  std::string modRoutesChunk() const
+  {
+    uint32_t ks[hypersaw::ModCore::kMaxRoutes], kd[hypersaw::ModCore::kMaxRoutes];
+    double dep[hypersaw::ModCore::kMaxRoutes];
+    int n = 0;
+    for (int r = 0; r < mod.nRoutes; r++)
+    {
+      const auto &q = mod.routes[r];
+      if (q.dest & kModDestSynthetic) continue;
+      int j = 0;
+      while (j < n && !(ks[j] == q.src && kd[j] == q.dest)) j++;
+      if (j == n) { ks[n] = q.src; kd[n] = q.dest; dep[n] = q.depth; n++; }
+      else dep[j] += q.depth;
+    }
+    std::string out;
+    char buf[64];
+    for (int j = 0; j < n; j++)
+    {
+      std::snprintf(buf, sizeof buf, "%u:%u:%.6g;", ks[j], kd[j], dep[j]);
+      out += buf;
+    }
+    return out;
+  }
+  void applyModRoutesChunk(const std::string &chunk)
+  {
+    // Existing generic routes are replaced wholesale (a load is a load); the
+    // pitch route, if present, is untouched — it belongs to param 161.
+    for (int r = mod.nRoutes - 1; r >= 0; r--)
+      if (!(mod.routes[r].dest & kModDestSynthetic)) mod.removeRoute(r);
+    size_t pos = 0;
+    while (pos < chunk.size())
+    {
+      const size_t semi = chunk.find(';', pos);
+      const std::string ent = chunk.substr(pos, semi == std::string::npos ? std::string::npos
+                                                                          : semi - pos);
+      pos = semi == std::string::npos ? chunk.size() : semi + 1;
+      unsigned src = 0, dest = 0;
+      double depth = 0;
+      if (std::sscanf(ent.c_str(), "%u:%u:%lf", &src, &dest, &depth) != 3) continue;
+      // Through the shipped refusal path — a chunk naming a stepped dest, the
+      // matrix's own controls, or a bad source is dropped, never trusted.
+      if (!modAddRoute(src, dest)) continue;
+      mod.routes[mod.nRoutes - 1].depth = std::max(-1.0, std::min(1.0, depth));
+    }
+  }
   int modAccum = 0;
   void modStep(int samples)
   {
@@ -2786,7 +2844,7 @@ struct Plugin
   {
     // The debug dump IS the preset format (ROADMAP Phase 2 design position):
     // one schema, provenance included (SPEC §5.7).
-    std::string out = "{\"plugin\":\"HYPERSAW\",\"schema\":2,\"params\":{";   // 2: ADR-103 glideMode split
+    std::string out = "{\"plugin\":\"HYPERSAW\",\"schema\":3,\"params\":{";   // 2: ADR-103 glideMode split · 3: ADR-138 modRoutes
     char buf[64];
     bool first = true;
     for (const auto &d : kParams)
@@ -2813,7 +2871,12 @@ struct Plugin
     // const_cast confined to serialisation: morphJson touches no state, but
     // morphIds is lazily built and stateJson is const. Building eagerly at
     // construction would be cleaner; deferred to keep this diff reviewable.
-    return out + "}" + const_cast<Plugin *>(this)->morphJson() + "}";
+    std::string tail = "}" + const_cast<Plugin *>(this)->morphJson();
+    // ADR-138: routes in the preset too, same canonical chunk as state_save —
+    // one serializer, two transports. Only when routes exist (see state_save).
+    const std::string routes = modRoutesChunk();
+    if (!routes.empty()) tail += ",\"modRoutes\":\"" + routes + "\"";
+    return out + tail + "}";
   }
 
   bool applyStateJson(const std::string &json)
@@ -2822,6 +2885,23 @@ struct Plugin
     // "key" and parse the number after the colon. Queued to the audio
     // thread — never applied directly from the GUI thread.
     if (json.find("\"params\"") == std::string::npos) return false;
+    /* ADR-138: a load is a load — generic routes are REPLACED by the preset's
+       (or cleared, for a preset saved before routes existed; stale routes
+       bleeding into a loaded patch would be state the preset never named).
+       Applied directly on this thread, the same discipline as the GUI's own
+       route edits; params below still go through the queue. */
+    {
+      std::string chunk;
+      const size_t mp = json.find("\"modRoutes\"");
+      if (mp != std::string::npos)
+      {
+        const size_t q0 = json.find('"', json.find(':', mp) + 1);
+        const size_t q1 = q0 == std::string::npos ? std::string::npos : json.find('"', q0 + 1);
+        if (q0 != std::string::npos && q1 != std::string::npos)
+          chunk = json.substr(q0 + 1, q1 - q0 - 1);
+      }
+      applyModRoutesChunk(chunk);
+    }
     bool any = false;
     for (const auto &d : kParams)
     {
@@ -3035,12 +3115,17 @@ struct Plugin
       { rack.setTimeParam((int)((id - 200) / 8), (int)((id - 200) % 8), applied); return; }
       if (id == 161)
       {
-        /* The knob IS route 0's depth. The route is created on first non-zero
-           depth and its depth tracks the knob thereafter — one knob, one
-           route, no hidden state. Source slot 1 = ENV 2 (ADR-135); slot 0
-           (ENV 1, the amp projection) stays free for future routes. */
-        if (mod.nRoutes == 0) mod.addRoute(1, kModDestPitch, applied, hypersaw::ModCore::kGlobal);
-        else mod.routes[0].depth = applied;
+        /* The knob IS the pitch route's depth. The route is created on first
+           non-zero depth and its depth tracks the knob thereafter — one knob,
+           one route, no hidden state. Source slot 1 = ENV 2 (ADR-135).
+           ADR-138: found BY DEST, never by index — "route 0" stopped being a
+           safe name the moment routes persist (a restored generic route can
+           sit at index 0), and it was already corruptible by removing the
+           pitch route in the GUI and then automating this knob. */
+        const int pr = modPitchRouteIdx();
+        if (pr >= 0) mod.routes[pr].depth = applied;
+        else if (applied != 0.0)
+          mod.addRoute(1, kModDestPitch, applied, hypersaw::ModCore::kGlobal);
         return;
       }
       if (id >= 162 && id <= 165)
@@ -3388,7 +3473,11 @@ struct Plugin
       if (d->id >= 133 && d->id <= 136) return rack.getMix((int)(d->id - 133));
       if (d->id >= 200 && d->id <= 231)
         return rack.getTimeParam((int)((d->id - 200) / 8), (int)((d->id - 200) % 8));
-      if (d->id == 161) return mod.nRoutes ? mod.routes[0].depth : 0.0;
+      if (d->id == 161)
+      {
+        const int pr = modPitchRouteIdx();
+        return pr >= 0 ? mod.routes[pr].depth : 0.0;
+      }
       if (const ModDest *md = const_cast<Plugin *>(this)->modDestFor(d->id, false))
         return md->base;
       if (d->id == 162) return env2A;
@@ -4290,6 +4379,13 @@ bool state_save(const clap_plugin_t *p, const clap_ostream_t *stream)
   // fragment is opaque JSON on one line; the parser find()s its keys, so the
   // leading comma the fragment carries is harmless.
   blob += "morph=" + self(p)->morphJson() + "\n";
+  // ADR-138: generic mod routes ride the session. Emitted ONLY when routes
+  // exist, so a routeless patch's bytes are unchanged and every existing
+  // state round-trip stays exactly what it was. Old builds ignore the key.
+  {
+    const std::string routes = self(p)->modRoutesChunk();
+    if (!routes.empty()) blob += "modroutes=" + routes + "\n";
+  }
   int64_t written = 0;
   while (written < (int64_t)blob.size())
   {
@@ -4316,6 +4412,11 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
   if (!v1 && !v2) return false;
   size_t pos = blob.find('\n') + 1;
   auto *pl = self(p);
+  // ADR-138: a load is a load — clear generic routes up front, so a state
+  // saved before routes existed (no `modroutes=` key) loads route-free
+  // instead of inheriting whatever the previous patch had. A present key
+  // then replaces this empty set.
+  pl->applyModRoutesChunk("");
   while (pos < blob.size())
   {
     const size_t eol = blob.find('\n', pos);
@@ -4328,6 +4429,11 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
     if (key == "morph")   // ADR-112 A3: the field's chunk, shared parser
     {
       pl->applyMorphChunk(line.substr(eq + 1));
+      continue;
+    }
+    if (key == "modroutes")   // ADR-138: generic routes, canonical (src,dest,depth)
+    {
+      pl->applyModRoutesChunk(line.substr(eq + 1));
       continue;
     }
     const double val = std::atof(line.c_str() + eq + 1);

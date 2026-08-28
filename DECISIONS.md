@@ -4198,3 +4198,40 @@ again.
 **Known gap (unchanged from ADR-136, now louder):** routes still do not
 survive a session reload. With macros now the performance surface, persistence
 is the next increment.
+
+## ADR-138 — route persistence on B72's link identity; the pitch route found by dest (2026-08-28)
+
+**Status: ACCEPTED (B69 increment 6).** Generic mod routes now survive the
+session — the gap ADR-136 and ADR-137 carried openly is closed. One
+serializer, two transports: a `modroutes=` line in the CLAP state chunk and a
+`"modRoutes"` string in the JSON preset, both the same canonical form.
+
+**The canonical form IS B72's identity, established at the boundary first.**
+`src:dest:depth;…` with one entry per (src, dest), depths summed — the SUM law
+already makes the merged and un-merged forms indistinguishable, so
+serialization canonicalizes for free, and the (src, dest) key is exactly what
+B72's morph interpolation will later key on. The pitch route is NOT in the
+chunk: it is param 161's and persists as that param — writing it twice would
+double it on load.
+
+**Restore goes through the shipped refusal path** (applyModRoutesChunk calls
+modAddRoute), so a chunk naming a stepped destination, the matrix's own
+controls, or a bad source is dropped, never trusted. **A load is a load:**
+generic routes are replaced wholesale, and a state saved before routes existed
+clears them — stale routes bleeding into a loaded patch would be state the
+preset never named. A routeless patch emits no line at all, so existing state
+bytes are unchanged.
+
+**The by-dest fix.** Param 161's handler assumed the pitch route was INDEX 0 —
+false the moment a restored generic route lands first, and already corruptible
+by removing the pitch route in the GUI then automating 161 (the knob would
+have overwritten some other route's depth). Both the handler and readParam now
+find the pitch route by destination key. Second landmine in this id space
+found before it fired; measured in the probe: editing 161 after restore leaves
+the generic depths untouched.
+
+**Measured (routepersist_probe, 10/10):** round-trip modulates in a fresh
+instance (applied 0.95 = base + 0.5·0.8·range, readback 0.55 intact);
+duplicates canonicalize (`2:4:0.5;3:9:0.25;`); pitch knob restores as 12 st;
+load-is-a-load clears. state_check, preset_check, mod_check, parity 156/156
+all green.
