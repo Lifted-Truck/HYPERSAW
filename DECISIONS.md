@@ -4555,3 +4555,38 @@ lived only in session memory. A citation to a roadmap entry that is not there
 is the same failure class as a test row naming an oracle `./verify` does not
 run: provenance that cannot be checked. The reference in the script was
 corrected to the item that now genuinely exists.
+
+## ADR-146 — the webview un-throttled at the source: B79 executed, not investigated (2026-08-29)
+
+**Status: ACCEPTED.** The human: *"So can we please fix the issue?"* — after a
+watchdog, a health line, and a filed investigation. Fair. This is the fix
+itself, not another layer around it.
+
+**The measured defects** (health line, in Ableton): `frame 69ms` — WKWebView's
+occlusion heuristic decides a host's child view is "background" and throttles
+rAF to ~14 fps while fully visible — and `dpr 1` — the WebContent process
+never picks up the retina backing scale, so every canvas in the GUI renders
+soft. Identical page in a browser: 6 ms, dpr 2. The second defect explains the
+human's original "fairly low resolution" verdict better than anything in the
+specimen's own code ever did.
+
+**The fix:** three WebKit switches applied in `hypersaw_gui.mm` at webview
+creation and again at attach (when the real window and its scale exist):
+occlusion detection off, visibility-based process suppression off, and an
+explicit device-scale override from the window's `backingScaleFactor`.
+
+**How, and the tradeoff stated:** these are WebKit SPI, reached through KVC
+(`setValue:forKey:@"windowOcclusionDetectionEnabled"` resolves to
+`_setWindowOcclusionDetectionEnabled:` by KVC's `_set<Key>:` search rule) —
+no private headers, and every call in @try. A WebKit rename degrades to a
+silent no-op, never a crash, and the regression is then VISIBLE: the health
+line reads `raf 69ms · dpr 1` again instead of `raf 16ms · dpr 2`. The JS
+timer watchdog (previous commit) stays as the floor for exactly that world.
+This is a locally-installed instrument; an App Store build would need this
+revisited, and that constraint is recorded here rather than discovered.
+
+**Verified here:** builds clean, parity 156/156, verify fast exit 0, auval
+SUCCEEDED, installed binary carries both KVC key strings. **Verdict pending
+where it counts:** the health line in Ableton after relaunch — `raf 16ms ·
+dpr 2` is B79's written exit criterion, and the human's next screenshot is
+the measurement.

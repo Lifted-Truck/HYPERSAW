@@ -12,6 +12,44 @@
 namespace hypersaw
 {
 
+/* B79 — THE PLUGIN WEBVIEW WAS A DEGRADED SURFACE, MEASURED: the in-GUI
+   health line inside Ableton read `frame 69ms · dpr 1` (≈14 fps rAF while
+   fully visible, non-retina canvases on a retina display) against 6 ms and
+   dpr 2 for the identical page in a browser. Two WebKit behaviours cause it:
+   WKWebView's occlusion heuristic decides a host's child view is "background"
+   and throttles rAF, and the WebContent process gets visibility-based
+   suppression on top.
+
+   The knobs that turn those off are WebKit SPI. They are reached through KVC
+   (`setValue:forKey:@"windowOcclusionDetectionEnabled"` resolves to
+   `_setWindowOcclusionDetectionEnabled:` via KVC's `_set<Key>:` search rule)
+   rather than private headers, and every call sits in @try — a WebKit rename
+   degrades to a silent no-op, never a crash, and the health line then shows
+   `raf 69ms` again so the regression is VISIBLE rather than mysterious. The
+   JS-side timer watchdog stays as the fallback for exactly that case. This is
+   a locally-installed instrument, not App Store material; the tradeoff is
+   recorded here and in B79. Exit criterion, readable in the GUI corner:
+   `raf 16ms · dpr 2`. */
+static void configureSurfaceForPluginWindow(NSView *child)
+{
+  if (!child || ![child isKindOfClass:NSClassFromString(@"WKWebView")]) return;
+  id wk = child;
+  @try { [wk setValue:@NO forKey:@"windowOcclusionDetectionEnabled"]; } @catch (NSException *) {}
+  @try
+  {
+    id prefs = [[wk valueForKey:@"configuration"] valueForKey:@"preferences"];
+    [prefs setValue:@NO forKey:@"pageVisibilityBasedProcessSuppressionEnabled"];
+  } @catch (NSException *) {}
+  @try
+  {
+    // dpr 1 in-window means WebKit never picked up the backing scale; override
+    // with the real one. Window when attached, main screen before that.
+    const CGFloat sc = child.window ? child.window.backingScaleFactor
+                                    : NSScreen.mainScreen.backingScaleFactor;
+    if (sc > 1.0) [wk setValue:@(sc) forKey:@"overrideDeviceScaleFactor"];
+  } @catch (NSException *) {}
+}
+
 struct HypersawGui::Impl
 {
   GuiHost host;
@@ -21,6 +59,9 @@ struct HypersawGui::Impl
   explicit Impl(GuiHost h) : host(std::move(h))
   {
     web = detail::makeWebView(host);
+    // B79: throttle/suppression off as early as possible; the retina override
+    // is re-applied at attach, when the real window (and its scale) exists.
+    configureSurfaceForPluginWindow((__bridge NSView *)web->getViewHandle());
     // Hosts often do not hand the plugin view keyboard focus on click; the
     // GUI's text-entry path requests it explicitly (2026-07-18 report: edit
     // boxes lost focus instantly in Live — the INVERSE of the classic
@@ -67,6 +108,7 @@ bool HypersawGui::attachToParent(void *parentView)
   [child setFrame:[parent bounds]];
   [child setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
   [parent addSubview:child];
+  configureSurfaceForPluginWindow(child);   // B79: now the window's scale is real
 
   /* THE FIX for the 2026-08-12 lingering-note report. A WKWebView becomes first
      responder on click and then keeps it, so every subsequent keystroke goes to
