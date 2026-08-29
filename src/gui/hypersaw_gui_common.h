@@ -365,7 +365,30 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
      binds above STAY — they are the fallback for a page served outside the
      plugin (dev server, lab harness) and the seam other callers already use.
      `want` bits: 1 viz · 2 spec · 4 scope. */
+  /* B76 part 2 — THE TOKENS, NOT THE CALLS. Collapsing three calls into one
+     (part 1) moved the DAW's raf number not at all (44 ms before and after),
+     which killed the call-count theory and convicted the payload: every bind
+     reply is an evaluateJavaScript whose cost is per-TOKEN, and the scope was
+     ~3,072 number literals per frame. A base64 string of packed int16 is ONE
+     token carrying the same samples — the JS side decodes it in microseconds
+     with a DataView. Int16 is not an audio path: 96 dB of display dynamic
+     range on a ~300 px canvas, quantization invisible by construction. The
+     spectrum rides the same way as uint8 (the GUI smooths it anyway). */
   web->bind("hzFrame", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    static const char *kB64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    auto b64 = [](const unsigned char *d, size_t n) {
+      std::string o;
+      o.reserve(((n + 2) / 3) * 4);
+      for (size_t i = 0; i < n; i += 3)
+      {
+        const unsigned a = d[i], b = i + 1 < n ? d[i + 1] : 0, c = i + 2 < n ? d[i + 2] : 0;
+        o += kB64[a >> 2];
+        o += kB64[((a & 3) << 4) | (b >> 4)];
+        o += i + 1 < n ? kB64[((b & 15) << 2) | (c >> 6)] : '=';
+        o += i + 2 < n ? kB64[c & 63] : '=';
+      }
+      return o;
+    };
     const int want = args.isArray() && args.size() >= 1
                          ? (int)args[0].getWithDefault<int64_t>(7) : 7;
     auto obj = choc::value::createObject("Frame");
@@ -375,9 +398,13 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
       constexpr int kBins = 256;
       float bins[kBins];
       host.getSpectrum(bins, kBins);
-      auto arr = choc::value::createEmptyArray();
-      for (int i = 0; i < kBins; i++) arr.addArrayElement(bins[i]);
-      obj.addMember("spec", arr);
+      unsigned char q[kBins];
+      for (int i = 0; i < kBins; i++)
+      {
+        const float v = bins[i] < 0 ? 0.0f : (bins[i] > 1 ? 1.0f : bins[i]);
+        q[i] = (unsigned char)(v * 255.0f + 0.5f);
+      }
+      obj.addMember("spec8", b64(q, kBins));
     }
     if (want & 4)
     {
@@ -385,12 +412,18 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
       float l[kN], r[kN];
       if (host.getScope) host.getScope(l, r, kN);
       else { for (int i = 0; i < kN; i++) { l[i] = 0; r[i] = 0; } }
-      auto L = choc::value::createEmptyArray(), R = choc::value::createEmptyArray();
-      for (int i = 0; i < kN; i++) { L.addArrayElement(l[i]); R.addArrayElement(r[i]); }
-      auto sc = choc::value::createObject("Scope");
-      sc.addMember("l", L);
-      sc.addMember("r", R);
-      obj.addMember("scope", sc);
+      // little-endian int16, L block then R block — the JS DataView mirrors this
+      unsigned char pk[kN * 4];
+      auto put = [&](int idx, float v) {
+        const float c = v < -1 ? -1.0f : (v > 1 ? 1.0f : v);
+        const int16_t q = (int16_t)(c * 32767.0f);
+        pk[idx * 2] = (unsigned char)(q & 0xFF);
+        pk[idx * 2 + 1] = (unsigned char)((q >> 8) & 0xFF);
+      };
+      for (int i = 0; i < kN; i++) put(i, l[i]);
+      for (int i = 0; i < kN; i++) put(kN + i, r[i]);
+      obj.addMember("scope16", b64(pk, sizeof pk));
+      obj.addMember("scopeN", (int32_t)kN);
     }
     return obj;
   });

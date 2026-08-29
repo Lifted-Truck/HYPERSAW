@@ -2840,17 +2840,46 @@ let lastBody = 0, lastRafTick = 0;
    batched snapshot is the fix); raf staying ~44 ms over a DEAD page = the
    surface itself is capped and B75 is the conversation. */
 let QUIET = false;
-let frameBusy = false;
+let frameBusy = false, fetchEma = 0;
+/* B76 pt 2: the bulk feeds arrive as base64-packed binary — ONE string token
+   each instead of thousands of number literals, because evaluateJavaScript's
+   parse cost is per-token and the DAW measured 44 ms loud with the literals
+   in the reply. decode cost here is microseconds via DataView. */
+function b64ToBytes(str) {
+  const bin = atob(str);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
 async function frameFetch() {
   const want = (FEED.viz ? 1 : 0) | (FEED.spec ? 2 : 0)
              | (FEED.scope && wvC && !scopeFrozen ? 4 : 0);
   if (!want || frameBusy) return;
   frameBusy = true;
   try {
+    const t0 = performance.now();
     const f = await window.hzFrame(want);
+    fetchEma = fetchEma * 0.9 + (performance.now() - t0) * 0.1;
     if (f.viz) { try { paintVizSnapshot(f.viz); } catch (e) {} }
-    if (f.spec) { try { paintSpec(f.spec); } catch (e) {} }
-    if (f.scope) { try { paintScope(f.scope); } catch (e) {} }
+    if (f.spec8) {
+      try {
+        const q = b64ToBytes(f.spec8);
+        const bins = new Float32Array(q.length);
+        for (let i = 0; i < q.length; i++) bins[i] = q[i] / 255;
+        paintSpec(bins);
+      } catch (e) {}
+    } else if (f.spec) { try { paintSpec(f.spec); } catch (e) {} }
+    if (f.scope16) {
+      try {
+        const u = b64ToBytes(f.scope16);
+        const dv = new DataView(u.buffer);
+        const n = f.scopeN || (u.length >> 2);
+        const l = new Float32Array(n), r = new Float32Array(n);
+        for (let i = 0; i < n; i++) l[i] = dv.getInt16(i * 2, true) / 32768;
+        for (let i = 0; i < n; i++) r[i] = dv.getInt16((n + i) * 2, true) / 32768;
+        paintScope({ l, r });
+      } catch (e) {}
+    } else if (f.scope) { try { paintScope(f.scope); } catch (e) {} }
   } finally { frameBusy = false; }
 }
 function frameBody() {
@@ -3660,6 +3689,7 @@ window.addEventListener('load', async () => {
       const clock = (performance.now() - lastRafTick > 200) ? 'timer' : 'raf';
       el.textContent = 'gui2 · build ' + build + ' · ' + gl
                      + ' · ' + clock + ' ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—')
+                     + ' · fetch ' + (fetchEma ? fetchEma.toFixed(1) + 'ms' : '—')
                      + ' · dpr ' + (window.devicePixelRatio || 1) + sp
                      + (QUIET ? ' · QUIET (all feeds silenced — click to restore)' : '');
     };
