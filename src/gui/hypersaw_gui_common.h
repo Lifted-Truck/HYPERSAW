@@ -356,6 +356,44 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     obj.addMember("l", L); obj.addMember("r", R);
     return obj;
   });
+  /* B76: ONE round-trip per GUI frame tick instead of three. Measured with
+     the QUIET instrument (2026-08-29): a fully silenced page ran raf 16ms
+     while the loud page ran 44ms — the per-frame cost was ours, and the BIND
+     is the expensive unit (marshal + main-thread hop + reply eval), not the
+     native work inside it. So the three per-feed fetches collapse into one
+     call whose payload the ADR-143 consumer gate trims per page. The per-feed
+     binds above STAY — they are the fallback for a page served outside the
+     plugin (dev server, lab harness) and the seam other callers already use.
+     `want` bits: 1 viz · 2 spec · 4 scope. */
+  web->bind("hzFrame", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    const int want = args.isArray() && args.size() >= 1
+                         ? (int)args[0].getWithDefault<int64_t>(7) : 7;
+    auto obj = choc::value::createObject("Frame");
+    if (want & 1) obj.addMember("viz", vizToValue(host.getViz()));
+    if (want & 2)
+    {
+      constexpr int kBins = 256;
+      float bins[kBins];
+      host.getSpectrum(bins, kBins);
+      auto arr = choc::value::createEmptyArray();
+      for (int i = 0; i < kBins; i++) arr.addArrayElement(bins[i]);
+      obj.addMember("spec", arr);
+    }
+    if (want & 4)
+    {
+      constexpr int kN = 1536;   // matches hzGetScope, same reason (D2 period)
+      float l[kN], r[kN];
+      if (host.getScope) host.getScope(l, r, kN);
+      else { for (int i = 0; i < kN; i++) { l[i] = 0; r[i] = 0; } }
+      auto L = choc::value::createEmptyArray(), R = choc::value::createEmptyArray();
+      for (int i = 0; i < kN; i++) { L.addArrayElement(l[i]); R.addArrayElement(r[i]); }
+      auto sc = choc::value::createObject("Scope");
+      sc.addMember("l", L);
+      sc.addMember("r", R);
+      obj.addMember("scope", sc);
+    }
+    return obj;
+  });
   web->bind("hzGetState", [&host](const choc::value::ValueView &) -> choc::value::Value {
     return choc::value::createString(host.getStateJson());
   });

@@ -2840,6 +2840,19 @@ let lastBody = 0, lastRafTick = 0;
    batched snapshot is the fix); raf staying ~44 ms over a DEAD page = the
    surface itself is capped and B75 is the conversation. */
 let QUIET = false;
+let frameBusy = false;
+async function frameFetch() {
+  const want = (FEED.viz ? 1 : 0) | (FEED.spec ? 2 : 0)
+             | (FEED.scope && wvC && !scopeFrozen ? 4 : 0);
+  if (!want || frameBusy) return;
+  frameBusy = true;
+  try {
+    const f = await window.hzFrame(want);
+    if (f.viz) { try { paintVizSnapshot(f.viz); } catch (e) {} }
+    if (f.spec) { try { paintSpec(f.spec); } catch (e) {} }
+    if (f.scope) { try { paintScope(f.scope); } catch (e) {} }
+  } finally { frameBusy = false; }
+}
 function frameBody() {
   lastBody = performance.now();
   if (QUIET) return;
@@ -2848,9 +2861,17 @@ function frameBody() {
      made this argument in this file and it holds here: halving the rate halves
      the cost outright, and neither a phase circle nor a smoothed spectrum
      reads differently at 30. The scope was already on this cadence. */
-  if (FEED.viz && frameNo % 2 === 0) vizFrame();
-  if (FEED.spec && frameNo % 2 === 1) specFrame();   // offset phase: never both in one frame
-  if (FEED.scope && frameNo % 2 === 0) drawScope().catch(() => {});
+  /* B76: in the plugin all three feeds ride ONE hzFrame round-trip at 20 Hz —
+     the QUIET instrument measured the bind as the cost (raf 44ms loud, 16ms
+     silent), so the CALL COUNT is what this cuts: 3-at-30Hz became 1-at-20Hz.
+     The per-feed fallback keeps dev pages and the lab harness working. */
+  if (window.hzFrame) {
+    if (frameNo % 3 === 0) frameFetch().catch(() => {});
+  } else {
+    if (FEED.viz && frameNo % 2 === 0) vizFrame();
+    if (FEED.spec && frameNo % 2 === 1) specFrame();   // offset phase: never both in one frame
+    if (FEED.scope && frameNo % 2 === 0) drawScope().catch(() => {});
+  }
   if (frameNo % 3 === 0) modHaloFrame().catch(() => {});   // ADR-137: live halos, ~20 Hz
   // if (frameNo % 3 === 0) chromeFrame();               // EXPERIMENT: excised
   {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
@@ -3292,11 +3313,17 @@ function chromeFrame() {
 chrome.fail = 'excised (experiment build)';
 
 let lastViz = null;
+/* B76: fetch and paint are separate — paintVizSnapshot takes a snapshot from
+   EITHER transport: the batched hzFrame (plugin) or the per-feed fallback
+   (dev server, lab harness). */
 async function vizFrame() {
   if (vizBusy) return;
   vizBusy = true;
-  try {
-    const s = await bridge.getViz();
+  try { paintVizSnapshot(await bridge.getViz()); } catch (e) {}
+  vizBusy = false;
+}
+function paintVizSnapshot(s) {
+  {
     lastViz = s;
     // Swap the engine-specific pair BEFORE drawing anything, so a throw below
     // cannot leave SPECTRA's strips hidden behind SAW's carpet (gui.html, same order).
@@ -3356,8 +3383,7 @@ async function vizFrame() {
     // phase circle did — the whole per-swarm family follows the switch.
     if (s && s.active && s.oscEnabled === false) { /* off state drawn above */ }
     else if (spectraOn) drawStrips(s); else { drawCarpet(s); drawVmap(s); }
-  } catch (e) {}
-  vizBusy = false;
+  }
 }
 /* ============ OSCILLOSCOPE — transplanted whole from gui.html ============
    The trigger-filter engineering below (lowpass-to-fundamental trigger, pole
@@ -3384,8 +3410,14 @@ for (const c of document.querySelectorAll('canvas.wavscope')) {
   };
 }
 let scopeBusy = false;
-async function drawScope() {
+async function drawScope() {   // B76: per-feed FALLBACK; the plugin path is frameFetch
   if (!wvC || scopeFrozen || scopeBusy || !window.hzGetScope) return;
+  scopeBusy = true;
+  try { paintScope(await bridge.getScope()); } catch (e) {}
+  scopeBusy = false;
+}
+function paintScope(s) {
+  if (!wvC || scopeFrozen) return;
   // ADR-100 A4: the scope follows the viz osc; a switched-off osc taps nothing,
   // so the ring is stale — show the OFF state instead of a frozen wave.
   if (lastVizOscEnabled === false) {
@@ -3396,9 +3428,7 @@ async function drawScope() {
     blitScope();
     return;
   }
-  scopeBusy = true;
-  try {
-    const s = await bridge.getScope();
+  {
     const w = wvC.width, h = wvC.height;
     // OPAQUE clear + a TRIGGER. The first version used a translucent fill
     // (persistence) and drew from a fixed offset, so every frame started at a
@@ -3485,16 +3515,18 @@ async function drawScope() {
         wvx.setLineDash([]);
       }
     }
-  } catch (e) {}
+  }
   blitScope();
-  scopeBusy = false;
 }
 
-async function specFrame() {
+async function specFrame() {   // B76: per-feed FALLBACK; the plugin path is frameFetch
   if (specBusy) return;
   specBusy = true;
-  try {
-    const bins = await bridge.getSpec();
+  try { paintSpec(await bridge.getSpec()); } catch (e) {}
+  specBusy = false;
+}
+function paintSpec(bins) {
+  {
     // Two smoothers, different jobs (the "choppy" report was both at once):
     //  - TEMPORAL: asymmetric — fast attack, slow release — so transients stay
     //    honest while the noise floor stops flickering frame to frame.
@@ -3506,8 +3538,7 @@ async function specFrame() {
       specSm[i] = v > specSm[i] ? v : specSm[i] + (v - specSm[i]) * 0.28;
     }
     for (const _cv of SPECS()) { sc2 = _cv; sctx2 = _cv.getContext('2d'); _drawSpecOne(specSm); }
-  } catch (e) {}
-  specBusy = false;
+  }
 }
 
 // One canvas's worth of spectrum. Split out so the fan-out above stays inside
