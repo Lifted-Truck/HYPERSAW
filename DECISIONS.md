@@ -4469,3 +4469,45 @@ identical bug from 2026. Second victim, same line.
 fix is one batched snapshot bind instead of three per-frame calls (filed as
 B76), and under it B75's native backend. Whether 92 is tenable is the human's
 judgement in the DAW, not mine from a localhost profile.
+
+## ADR-144 — the specimen returns: adaptive resolution, and a full-resolution plate at rest (2026-08-28)
+
+**Status: ACCEPTED (B74 v3).** With ADR-143 having found and removed the real
+cost, the human asked for the specimen back and named its remaining fault:
+*"it was fairly low resolution on the last pass."* It ships ON again, as its
+own cluster **first in MAIN's left column** (their placement), and the
+resolution stops being my guess.
+
+**A fixed scale was the wrong SHAPE of answer.** ADR-140 pinned the render at
+0.65× with retina deliberately excluded — a number chosen while hunting a
+stall that turned out to be the frame loop, not the shader. The affordable
+resolution is a property of the machine, so the scale now adapts in BOTH
+directions between a floor of 0.5 and a ceiling of the display's own pixel
+grid (capped at 2×; past that the samples land inside a pixel nobody can
+resolve). The throttle that only ever stepped down now steps back up.
+
+**A band, not a threshold.** Down at an EMA above 75 ms, up below 58 — a
+single trip point makes the scale oscillate across it forever. Down is
+immediate, because a stalling interface must recover now; up is patient, 40
+sustained comfortable frames per step, so a brief calm cannot buy a resolution
+the machine will not keep. Measured on this display: it climbs to the 2× ceiling
+on its own and renders **628×560 device pixels into a 314 px canvas** — against
+roughly 204 px on the last pass, about nine times the pixels.
+
+**The plate.** ADR-140 called the idle frame "a product photograph"; this makes
+it literal. When the specimen settles it draws ONE more frame at the ceiling
+and then stops — measured, exactly 1 draw across 120 frames. Motion is where a
+dropped pixel hides; stillness is where it shows, and stillness is the state
+you look at longest. The one expensive frame per settle is the deliberate
+trade, and it is bounded at one.
+
+**The redundancy ruling still holds:** the specimen and MAIN's phase circle
+never share the page. With the specimen on, the circle lives on OSC; with it
+off, the circle takes MAIN's viz slot back. Markup defaults now match the
+shell default (178 = 1) so a no-engine preview shows a state the plugin
+actually has.
+
+**Still open, honestly:** whether 2× at 20 Hz is affordable in the DAW is the
+human's judgement, not a localhost profile's. If it is not, the adaptive
+scale finds the floor by itself now instead of waiting for a session — which
+is the difference between this pass and the last.
