@@ -755,16 +755,13 @@
       have no per-oscillator twin, so they never remap.</div>
   </div>
   <div class="vizcol">
-  <!-- CHROME-001 (ADR-139/140/144, B74): its own cluster, first in the left
-       column — the human's placement. It ships ON again now that ADR-143 gave
-       the frame loop the budget back; SET still carries the switch, and with
-       it off the phase circle takes the page's viz slot as before. -->
-  <div class="cluster" id="specimenBox"><h2>Specimen — CHROME-001</h2>
-    <canvas id="chromeC" style="display:block;width:100%;aspect-ratio:1.12;cursor:crosshair;touch-action:none"></canvas>
-    <div class="note" style="margin-top:5px">Notes strike the metal · the envelope
-      blooms the film · coherence pulls the lobes together. Drag orbits, click pokes.
-      It stops drawing entirely when nothing sounds, and settles at full resolution.</div>
-  </div>
+  <!-- EXPERIMENT (human-designed, 2026-08-29): the specimen is EXCISED from
+       this build — no cluster, no canvas, and critically NO WebGL context is
+       ever created (see the commented chromeInit call). Every prior "off"
+       configuration still created the GL context at load, so no earlier A/B
+       ever tested the specimen's true absence — this build is the first. The
+       phase circle returns as MAIN's viz. Revert-or-ratify on the human's
+       lag verdict. -->
   <div class="cluster"><h2>XY — macro pad</h2>
     <canvas id="xy" class="xy" width="340" height="212"></canvas>
     <div class="row xyAsnRow"><label>x drives</label><select class="xyAX"></select><output></output></div>
@@ -786,7 +783,7 @@
     </div>
   </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
-    <canvas id="phaseC" class="phase" width="220" height="220" style="display:none;margin:0 auto;max-width:232px"></canvas>
+    <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
     <div class="vlabel gravline"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
@@ -938,10 +935,10 @@
   </div>
   <div class="cluster"><h2>Visualizers</h2>
     <div class="row"><label>Specimen</label><input type="checkbox" data-p="178" checked><output></output></div>
-    <div class="note">CHROME-001 on MAIN in place of the phase circle — a
-      GPU-rendered material study that reacts to what you play. Costs real GPU;
-      off by default after it proved heavy in some hosts (ADR-140). The native
-      renderer that would make it free is roadmapped (B75).</div>
+    <div class="note">INERT IN THIS EXPERIMENT BUILD — the specimen is fully
+      excised (no canvas, no GL context) to give the lag A/B a clean single
+      variable. The switch stays so the parameter remains reachable; it does
+      nothing until the experiment is ratified or reverted.</div>
   </div>
   <div class="cluster"><h2>Keyboard</h2>
     <div id="setKeys"></div>
@@ -2846,7 +2843,7 @@ function frameBody() {
   if (FEED.spec && frameNo % 2 === 1) specFrame();   // offset phase: never both in one frame
   if (FEED.scope && frameNo % 2 === 0) drawScope().catch(() => {});
   if (frameNo % 3 === 0) modHaloFrame().catch(() => {});   // ADR-137: live halos, ~20 Hz
-  if (frameNo % 3 === 0) chromeFrame();                    // ADR-140: the specimen, ~20 Hz
+  // if (frameNo % 3 === 0) chromeFrame();               // EXPERIMENT: excised
   {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
     const [mix, miy] = xyMacroIds();
     const mx = +(lastParams[mix] ?? 0), my = +(lastParams[miy] ?? 0);
@@ -3020,11 +3017,8 @@ const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pi
    phase circle takes the viz slot back — the human's redundancy ruling still
    holds, so the two never share the page. */
 function specimenSync(on) {
-  const box = document.getElementById('specimenBox');
-  const p = document.getElementById('phaseC');
-  if (box) box.style.display = on ? '' : 'none';
-  if (p) p.style.display = on ? 'none' : 'block';
-  if (on) { chrome.w = 0; chrome.plate = false; chrome.lastAct = performance.now(); }
+  // EXPERIMENT: no-op — there is no specimen in this build, and the phase
+  // circle must not be hidden by the (inert) param echoing through setControl.
 }
 /* WHY-IT-FAILED IS PART OF THE FEATURE (L0046 pending). ADR-139 shipped "no
    WebGL = a quietly blank cell", and on 2026-08-29 the quiet blank cost a
@@ -3283,7 +3277,10 @@ function chromeFrame() {
   gl.uniform1f(c.u.uRipple, Math.min(0.045, peak * 0.05));        // held level shivers the surface
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
-chromeInit();
+// chromeInit();   // EXPERIMENT: excised — this call is what created the GL
+// context even when the specimen was "off", which is why no earlier toggle
+// A/B was decisive. chrome.fail makes the health line self-describing.
+chrome.fail = 'excised (experiment build)';
 
 let lastViz = null;
 async function vizFrame() {
