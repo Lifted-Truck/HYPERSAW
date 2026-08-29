@@ -1406,6 +1406,21 @@ struct Plugin
   struct ModDest { clap_id id = 0; double base = 0, lastApplied = 1e300; bool active = false; };
   ModDest modDests[hypersaw::ModCore::kMaxRoutes];
   bool modFromMatrix = false;
+  /* DEFAULT MAPPING (human 2026-08-29): a fresh instance ships with Macro 1
+     driving BOTH oscillators' detune and Macro 2 driving both pull-Ks — so
+     the default pads (M1/M2 on osc 1's pad) feel like the old hardwired XY
+     from the first note. Load-is-a-load still governs: a saved set's chunk
+     REPLACES these, absent keys clear them (ADR-138) — defaults are what you
+     get before you have said anything, never what overrides what you said.
+     Depths: detune 0.7 of range; K 1.0 (a unipolar macro can only push K up
+     from base, so full depth is what makes the pad's reach musical). */
+  void modInstallDefaults()
+  {
+    mod.addRoute(2, 4, 0.7, hypersaw::ModCore::kGlobal);      // M1 -> detune (osc 1)
+    mod.addRoute(2, 1004, 0.7, hypersaw::ModCore::kGlobal);   // M1 -> detune (osc 2)
+    mod.addRoute(3, 6, 1.0, hypersaw::ModCore::kGlobal);      // M2 -> pull K (osc 1)
+    mod.addRoute(3, 1006, 1.0, hypersaw::ModCore::kGlobal);   // M2 -> pull K (osc 2)
+  }
   ModDest *modDestFor(clap_id id, bool create)
   {
     for (auto &d : modDests) if (d.active && d.id == id) return &d;
@@ -1886,6 +1901,17 @@ struct Plugin
     // ADR-137: macros feed source slots 2-9 every tick. A macro with no route
     // is inert by the matrix's own law — no route, no evaluate output.
     for (int i = 0; i < 8; i++) mod.src[2 + i] = macroVal[i];
+    /* Pad AXES as first-class sources (human 2026-08-29: "make X and Y for
+       each separate XY grid accessible from the mod matrix"). Slots 10-13 =
+       XY1 X, XY1 Y, XY2 X, XY2 Y — each an ALIAS through the assignment, so
+       routing "XY1 X" means "whatever the pad's X drives", and re-aiming the
+       pad re-aims every route riding it. The full nested system is STRATA
+       (B77); this is the interim the human asked for. */
+    for (int i = 0; i < 4; i++)
+    {
+      const int a = xyAsn[i] & 7;
+      mod.src[10 + i] = macroVal[a];
+    }
     uint32_t dests[hypersaw::ModCore::kMaxRoutes];
     double deltas[hypersaw::ModCore::kMaxRoutes];
     const int n = mod.evaluate(hypersaw::ModCore::kGlobal, dests, deltas, hypersaw::ModCore::kMaxRoutes);
@@ -4796,6 +4822,7 @@ const clap_plugin_t *factory_create_plugin(const clap_plugin_factory *, const cl
 {
   if (std::strcmp(plugin_id, s_desc.id) != 0) return nullptr;
   auto *pl = new Plugin();
+  pl->modInstallDefaults();   // fresh instance: M1 -> detunes, M2 -> Ks (both oscs)
   pl->host = host;
   pl->plugin.desc = &s_desc;
   pl->plugin.plugin_data = pl;
