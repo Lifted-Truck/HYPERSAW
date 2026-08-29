@@ -4511,3 +4511,47 @@ actually has.
 human's judgement, not a localhost profile's. If it is not, the adaptive
 scale finds the floor by itself now instead of waiting for a session — which
 is the difference between this pass and the last.
+
+## ADR-145 — the CLAP was never installed, and the legacy bundles shadow the new ones (2026-08-29)
+
+**Status: ACCEPTED.** The human said *"I think the old version is still
+loading."* They were right, and the cause was two defects in `./install`, not
+in the GUI.
+
+**1. `./install` never copied the CLAP.** The build emits `horde.clap`; the
+script installed only the VST3 and the AU. The only CLAP in `~/Library` was a
+hand-placed `HYPERSAW.clap` from **Aug 25** — four days stale. On a CLAP-first
+plugin (ADR-002) that means the format this project develops against was the
+one format guaranteed to be old. The omission was invisible because nothing
+ever compared what was built against what was installed for that format.
+
+**2. Legacy bundles shadow the current ones.** `HYPERSAW.vst3` and
+`HYPERSAW.component` (Aug 27) sit beside `horde.vst3` / `horde.component`, and
+every one of them declares `com.lifted-truck.hypersaw` and the AU triple
+`aumu/Hsaw/LfTk` — **frozen forever by ADR-002**, which is exactly what makes
+the duplicate dangerous rather than harmless. A host may resolve to either.
+
+**A correction to earlier claims, because it matters.** Several PRs and traces
+this week ended with "installed; auval SUCCEEDED". With two components sharing
+one AU triple, `auval` may have been validating the Aug 27 bundle rather than
+the build just made. The line was reported in good faith and is not
+trustworthy as written; what IS verified now is stated by embedded-string
+comparison instead (L0042's method — identifiers do not survive compilation,
+so check the artefact for strings only the new source contains):
+`specimenBox` and `scaleMax` appear in all three installed `horde.*` bundles
+and in none of the legacy ones.
+
+**The script does not delete them, and will not.** Deleting a human's
+installed plugins is not an agent's call, and a stale bundle may be kept
+deliberately to open an old session. `./install` now names each legacy bundle
+with its date and prints the exact `rm -rf` on every run until they are gone,
+and finishes by listing what it actually installed with timestamps — so
+"is the thing on disk the thing I just built" stops being a question anyone
+has to ask.
+
+**Filed as B78** — and the roadmap item this trap was supposedly already
+tracked under (B58-4) turned out **not to exist in ROADMAP.md at all**. It
+lived only in session memory. A citation to a roadmap entry that is not there
+is the same failure class as a test row naming an oracle `./verify` does not
+run: provenance that cannot be checked. The reference in the script was
+corrected to the item that now genuinely exists.

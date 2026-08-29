@@ -17,6 +17,12 @@ BUILD="$(pwd)/build-release"
 ASSETS="$BUILD/HYPERSAW_assets"
 VST3_DST="$HOME/Library/Audio/Plug-Ins/VST3"
 AU_DST="$HOME/Library/Audio/Plug-Ins/Components"
+# CLAP was MISSING from this script until 2026-08-29 and the omission was
+# invisible: the build emits horde.clap, nothing copied it, and the only CLAP
+# in ~/Library was a hand-installed HYPERSAW.clap from days earlier. On a
+# CLAP-first plugin that means the format we develop against was the one format
+# guaranteed to be stale.
+CLAP_DST="$HOME/Library/Audio/Plug-Ins/CLAP"
 INSTALLED_BIN="$VST3_DST/horde.vst3/Contents/MacOS/horde"
 
 # `check`: is the installed binary current? Compares the installed VST3 binary's
@@ -47,14 +53,41 @@ echo "==> build Release"
 cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)" || { echo "build FAILED"; exit 1; }
 
 echo "==> codesign (JUCE/clap-wrapper can break the seal → DAW silently skips it)"
-codesign --force -s - "$ASSETS/horde.vst3" "$ASSETS/horde.component"
+codesign --force -s - "$ASSETS/horde.vst3" "$ASSETS/horde.component" "$ASSETS/horde.clap"
 
 echo "==> install into ~/Library"
-rm -rf "$VST3_DST/horde.vst3" "$AU_DST/horde.component"
+mkdir -p "$VST3_DST" "$AU_DST" "$CLAP_DST"
+rm -rf "$VST3_DST/horde.vst3" "$AU_DST/horde.component" "$CLAP_DST/horde.clap"
 cp -R "$ASSETS/horde.vst3"      "$VST3_DST/"
 cp -R "$ASSETS/horde.component" "$AU_DST/"
+cp -R "$ASSETS/horde.clap"      "$CLAP_DST/"
+
+# LEGACY BUNDLES ARE A LOADED GUN, and this is how the trap sprang on
+# 2026-08-29: HYPERSAW.vst3/.component/.clap carry the SAME frozen plugin id
+# and AU triple as the horde bundles, so a host -- and auval -- may resolve to
+# either. The human reported "the old version is still loading" and was right.
+# This script will NOT delete them (deleting a human's installed plugins is
+# theirs to authorise, and an old bundle may be deliberately kept for an old
+# session); it names them, every run, until they are gone.
+legacy=""
+for p in "$VST3_DST/HYPERSAW.vst3" "$AU_DST/HYPERSAW.component" "$CLAP_DST/HYPERSAW.clap"; do
+  [ -e "$p" ] && legacy="$legacy  $p ($(date -r "$p" '+%b %d %H:%M'))\n"
+done
+if [ -n "$legacy" ]; then
+  echo ""
+  echo "!! STALE LEGACY BUNDLES PRESENT — same plugin id as the ones just installed."
+  echo "!! A host may load EITHER. This is ROADMAP B78."
+  printf "%b" "$legacy"
+  echo "!! To remove them (your call — nothing here deletes them for you):"
+  echo "     rm -rf \"$VST3_DST/HYPERSAW.vst3\" \"$AU_DST/HYPERSAW.component\" \"$CLAP_DST/HYPERSAW.clap\""
+  echo ""
+fi
 
 echo "==> reset AU scanner cache"
 killall -9 AudioComponentRegistrar 2>/dev/null || true
 
+echo "==> installed bundles now on disk:"
+for p in "$VST3_DST/horde.vst3" "$AU_DST/horde.component" "$CLAP_DST/horde.clap"; do
+  [ -e "$p" ] && echo "     $p  ($(date -r "$p" '+%b %d %H:%M'))"
+done
 echo "==> DONE — installed $(git rev-parse --short HEAD). Fully restart the DAW (and re-add the plugin) to load it."
