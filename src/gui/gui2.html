@@ -3010,12 +3010,31 @@ function specimenSync(on) {
   if (p) p.style.display = on ? 'none' : 'block';
   if (on) { chrome.w = 0; chrome.plate = false; chrome.lastAct = performance.now(); }
 }
+/* WHY-IT-FAILED IS PART OF THE FEATURE (L0046 pending). ADR-139 shipped "no
+   WebGL = a quietly blank cell", and on 2026-08-29 the quiet blank cost a
+   debugging round: the first genuinely-current run inside the DAW showed "no
+   blob", and nothing distinguished "GL refused in this webview" from "specimen
+   off in saved state" from "shader failed". Every failure path now records
+   its reason in chrome.fail, the cell prints it, and the build-stamp line
+   carries it — so the next report names the culprit instead of the symptom. */
+function chromeFail(why) {
+  chrome.fail = why;
+  const cv = document.getElementById('chromeC');
+  if (!cv) return;
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.style.cssText = 'padding:18px 8px;text-align:center;letter-spacing:.08em';
+  note.textContent = 'SPECIMEN UNAVAILABLE — ' + why;
+  cv.replaceWith(note);
+}
 function chromeInit() {
   const cv = document.getElementById('chromeC');
   if (!cv) return;
-  let gl = null;
-  try { gl = cv.getContext('webgl', { antialias: false }); } catch (_) {}
-  if (!gl) return;
+  let gl = null, err = '';
+  try { gl = cv.getContext('webgl', { antialias: false })
+             || cv.getContext('experimental-webgl', { antialias: false }); }
+  catch (e) { err = String(e && e.message || e); }
+  if (!gl) { chromeFail('WebGL context refused' + (err ? ' (' + err + ')' : '')); return; }
   const fs = `precision highp float;
 uniform vec2 uRes;uniform float uTime;uniform float uK;uniform int uVariant;
 uniform vec3 uPoke;uniform float uDent;uniform vec2 uOrbit;uniform float uThick;
@@ -3106,11 +3125,11 @@ void main(){
     return gl.getShaderParameter(sh, gl.COMPILE_STATUS) ? sh : null;
   };
   const v = mk(gl.VERTEX_SHADER, vs), f = mk(gl.FRAGMENT_SHADER, fs);
-  if (!v || !f) return;
+  if (!v || !f) { chromeFail('shader compile failed'); return; }
   const prog = gl.createProgram();
   gl.attachShader(prog, v); gl.attachShader(prog, f);
   gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { chromeFail('shader link failed'); return; }
   gl.useProgram(prog);
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -3574,7 +3593,22 @@ function _drawSpecOne(specSm) {
 window.addEventListener('load', async () => {
   try {
     const el = document.createElement('div');
-    el.textContent = 'gui2 · build ' + await bridge.getBuild();
+    const build = await bridge.getBuild();
+    let rafGap = 0, rafLast = 0;
+    (function rafMeter(t) {   // measures the REAL rAF cadence, whatever throttles it
+      if (rafLast) rafGap = rafGap * 0.9 + (t - rafLast) * 0.1;
+      rafLast = t;
+      requestAnimationFrame(rafMeter);
+    })(0);
+    const health = () => {
+      const gl = chrome.gl ? ('gl ' + chrome.w + 'x' + chrome.h + '@' + (+chrome.scale.toFixed(2)))
+                           : ('gl OFF' + (chrome.fail ? ': ' + chrome.fail : ''));
+      const sp = +(lastParams[178] ?? 1) > 0.5 ? '' : ' · specimen param OFF';
+      el.textContent = 'gui2 · build ' + build + ' · ' + gl
+                     + ' · frame ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—') + sp;
+    };
+    health();
+    setInterval(health, 2000);
     /* Host-misconfiguration notice. Polled rather than pushed because it can only
        become true after the user plays — and it is phrased as a possibility, never
        an error: plain single-channel MIDI is indistinguishable from a flattened
