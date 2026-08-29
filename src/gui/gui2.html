@@ -933,6 +933,19 @@
       pads' own selects are the same four values seen through the active
       oscillator.</div>
   </div>
+  <div class="cluster"><h2>Diagnostics — lag bisect</h2>
+    <div class="note">Each switch kills one periodic subsystem LIVE — no reinstall,
+      no reload. Turn them off one at a time and watch the corner's raf number;
+      the line names whatever is off. These are session-local and never saved.</div>
+    <div class="row"><label>Viz feed+paint</label><input type="checkbox" data-diag="viz" checked><output></output></div>
+    <div class="row"><label>Spectrum</label><input type="checkbox" data-diag="spec" checked><output></output></div>
+    <div class="row"><label>Scope</label><input type="checkbox" data-diag="scope" checked><output></output></div>
+    <div class="row"><label>XY pad paint</label><input type="checkbox" data-diag="xy" checked><output></output></div>
+    <div class="row"><label>Mod halos</label><input type="checkbox" data-diag="halos" checked><output></output></div>
+    <div class="row"><label>Param sync poll</label><input type="checkbox" data-diag="sync" checked><output></output></div>
+    <div class="row"><label>Morph polls</label><input type="checkbox" data-diag="morph" checked><output></output></div>
+    <div class="row"><label>Wordmark warp</label><input type="checkbox" data-diag="brand" checked><output></output></div>
+  </div>
   <div class="cluster"><h2>Visualizers</h2>
     <div class="row"><label>Specimen</label><input type="checkbox" data-p="178" checked><output></output></div>
     <div class="note">INERT IN THIS EXPERIMENT BUILD — the specimen is fully
@@ -1037,13 +1050,13 @@
   <div class="cluster"><h2>Slot 1</h2>
     <div class="row" data-addr="fx1type"><label>FX1 Type</label><select data-p="57" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx1amt"><label>FX1 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="58" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx1tone"><label>FX1 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="96" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx1tone" data-when="fx1type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="96" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1mix"><label>FX1 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="133" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1size" data-when="fx1type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="200" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1spread" data-when="fx1type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="201" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx1taps" data-when="fx1type=7|8"><label>Taps / Lines</label><input type="range" data-p="202" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx1damp" data-when="fx1type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="203" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx1noise" data-when="fx1type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="204" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx1noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="204" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1stereo" data-when="fx1type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="205" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx1dist" data-when="fx1type=7|8"><label>Spacing</label><select data-p="206" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d1time" data-when="fx1type=9,d1sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="232" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -1058,13 +1071,13 @@
   <div class="cluster"><h2>Slot 2</h2>
     <div class="row" data-addr="fx2type"><label>FX2 Type</label><select data-p="59" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx2amt"><label>FX2 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="60" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx2tone"><label>FX2 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="97" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx2tone" data-when="fx2type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="97" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2mix"><label>FX2 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="134" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2size" data-when="fx2type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="208" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2spread" data-when="fx2type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="209" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx2taps" data-when="fx2type=7|8"><label>Taps / Lines</label><input type="range" data-p="210" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx2damp" data-when="fx2type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="211" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx2noise" data-when="fx2type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="212" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx2noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="212" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2stereo" data-when="fx2type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="213" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx2dist" data-when="fx2type=7|8"><label>Spacing</label><select data-p="214" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d2time" data-when="fx2type=9,d2sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="240" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -1079,13 +1092,13 @@
   <div class="cluster"><h2>Slot 3</h2>
     <div class="row" data-addr="fx3type"><label>FX3 Type</label><select data-p="61" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx3amt"><label>FX3 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="62" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx3tone"><label>FX3 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="98" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx3tone" data-when="fx3type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="98" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3mix"><label>FX3 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="135" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3size" data-when="fx3type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="216" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3spread" data-when="fx3type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="217" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx3taps" data-when="fx3type=7|8"><label>Taps / Lines</label><input type="range" data-p="218" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx3damp" data-when="fx3type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="219" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx3noise" data-when="fx3type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="220" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx3noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="220" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3stereo" data-when="fx3type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="221" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx3dist" data-when="fx3type=7|8"><label>Spacing</label><select data-p="222" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d3time" data-when="fx3type=9,d3sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="248" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -1100,13 +1113,13 @@
   <div class="cluster"><h2>Slot 4</h2>
     <div class="row" data-addr="fx4type"><label>FX4 Type</label><select data-p="63" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx4amt"><label>FX4 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="64" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx4tone"><label>FX4 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="99" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx4tone" data-when="fx4type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="99" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4mix"><label>FX4 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="136" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4size" data-when="fx4type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="224" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4spread" data-when="fx4type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="225" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx4taps" data-when="fx4type=7|8"><label>Taps / Lines</label><input type="range" data-p="226" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx4damp" data-when="fx4type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="227" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx4noise" data-when="fx4type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="228" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx4noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="228" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4stereo" data-when="fx4type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="229" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx4dist" data-when="fx4type=7|8"><label>Spacing</label><select data-p="230" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d4time" data-when="fx4type=9,d4sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="256" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -2879,6 +2892,14 @@ let lastBody = 0, lastRafTick = 0;
    acquit the human's onset suspect specifically ("was it the halos? those
    were added shortly before the specimen"). QUIET remains the total floor. */
 let MODE = 0;   // 0 loud · 1 no-halo · 2 quiet
+/* DIAG — the lag bisect the human asked for outright ("a list of features we
+   can disable one at a time with toggles until the lag goes away"). Every
+   subsystem that does periodic work has a live kill switch on SET; the corner
+   line names whatever is off. GUI-local state, deliberately not params: a
+   diagnostic that persisted into saved sets would be ADR-140's specimen
+   mistake again. */
+const DIAG = { viz: true, spec: true, scope: true, xy: true, halos: true,
+               sync: true, morph: true, brand: true };
 Object.defineProperty(window, 'QUIET', { get: () => MODE === 2, set: v => { MODE = v ? 2 : 0; } });
 let frameBusy = false, fetchEma = 0;
 /* B76 pt 2: the bulk feeds arrive as base64-packed binary — ONE string token
@@ -2892,8 +2913,8 @@ function b64ToBytes(str) {
   return u;
 }
 async function frameFetch() {
-  const want = (FEED.viz ? 1 : 0) | (FEED.spec ? 2 : 0)
-             | (FEED.scope && wvC && !scopeFrozen ? 4 : 0);
+  const want = (FEED.viz && DIAG.viz ? 1 : 0) | (FEED.spec && DIAG.spec ? 2 : 0)
+             | (FEED.scope && DIAG.scope && wvC && !scopeFrozen ? 4 : 0);
   if (!want || frameBusy) return;
   frameBusy = true;
   try {
@@ -2937,12 +2958,13 @@ function frameBody() {
   if (window.hzFrame) {
     if (frameNo % 3 === 0) frameFetch().catch(() => {});
   } else {
-    if (FEED.viz && frameNo % 2 === 0) vizFrame();
-    if (FEED.spec && frameNo % 2 === 1) specFrame();   // offset phase: never both in one frame
-    if (FEED.scope && frameNo % 2 === 0) drawScope().catch(() => {});
+    if (FEED.viz && DIAG.viz && frameNo % 2 === 0) vizFrame();
+    if (FEED.spec && DIAG.spec && frameNo % 2 === 1) specFrame();   // offset phase
+    if (FEED.scope && DIAG.scope && frameNo % 2 === 0) drawScope().catch(() => {});
   }
-  if (frameNo % 6 === 0 && MODE !== 1) modHaloFrame().catch(() => {});   // halos: 10 Hz, off in NO-HALO mode
+  if (frameNo % 6 === 0 && MODE !== 1 && DIAG.halos) modHaloFrame().catch(() => {});   // halos: 10 Hz
   // if (frameNo % 3 === 0) chromeFrame();               // EXPERIMENT: excised
+  if (!DIAG.xy) return;   // DIAG: pad paint disabled
   {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
     const [mix, miy] = xyMacroIds();
     const mx = +(lastParams[mix] ?? 0), my = +(lastParams[miy] ?? 0);
@@ -3731,6 +3753,8 @@ window.addEventListener('load', async () => {
                      + ' · ' + clock + ' ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—')
                      + ' · fetch ' + (fetchEma ? fetchEma.toFixed(1) + 'ms' : '—')
                      + ' · dpr ' + (window.devicePixelRatio || 1) + sp
+                     + (Object.keys(DIAG).some(k => !DIAG[k])
+                        ? ' · OFF:' + Object.keys(DIAG).filter(k => !DIAG[k]).join(',') : '')
                      + (MODE === 1 ? ' · NO-HALO (halos only silenced — click for QUIET)'
                         : MODE === 2 ? ' · QUIET (all feeds silenced — click to restore)' : '');
     };
@@ -3742,7 +3766,7 @@ window.addEventListener('load', async () => {
        MPE stream, so a confident warning would be wrong for anyone not using an
        expressive controller. A hint you can dismiss beats a defect you cannot find. */
     setInterval(async () => {
-      if (QUIET) return;
+      if (QUIET || !DIAG.sync) return;
       let h = '';
       try { h = await bridge.getHostHint(); } catch (e) { return; }
       let n = document.getElementById('hostHint');
@@ -3769,9 +3793,9 @@ window.addEventListener('load', async () => {
   syncFromEngine().catch(() => {});
   recomputeFeeds();   // ADR-143: MAIN's consumers, before the first frame
   drawXY();
-  setInterval(() => { if (!QUIET) syncFromEngine().catch(() => {}); }, 500);
+  setInterval(() => { if (!QUIET && DIAG.sync) syncFromEngine().catch(() => {}); }, 500);
   // arm + exempt are engine state; repaint them on the same cadence as params
-  setInterval(() => { if (QUIET) return;
+  setInterval(() => { if (QUIET || !DIAG.morph) return;
                       paintArm(armValue()); paintExempt().catch(() => {});
                       paintOwners().catch(() => {}); paintCornerView().catch(() => {}); }, 700);
 });
@@ -4323,6 +4347,7 @@ function tdWarp(seed) {
     const FRAME = 1000 / 30;
     const draw = (nowMs) => {
       requestAnimationFrame(draw);
+      if (!DIAG.brand) return;              // DIAG: warp frozen, loop kept for re-enable
       if (nowMs - last < FRAME) return;
       const dt = last ? Math.min(0.25, (nowMs - last) / 1000) : 0;
       last = nowMs;
@@ -4376,6 +4401,9 @@ function tdWarp(seed) {
 }
 document.querySelectorAll('canvas.spec').forEach(wireSpecHover);
 document.querySelectorAll('.knob').forEach(wireKnob);
+document.querySelectorAll('input[data-diag]').forEach(cb => {
+  cb.addEventListener('change', () => { DIAG[cb.dataset.diag] = cb.checked; });
+});
 /* Knob cells flow in one grid per cluster. Done at runtime rather than in the
    generator because the generator emits per PARAMETER and this is a property
    of the GROUP — and because a hidden cell must still be a `.row` child of the
