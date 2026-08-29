@@ -54,3 +54,4 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - L0042 "the fix didn't work" -> first prove the fix reached what was tested (install vs build mtime + `grep -a` marker in the installed binary)
 - L0043 a subagent's summary is a claim about the tree, not the tree — read the primary source before ACTING on it (the seam answer filed from a scout's report)
 - [L0044] Stacked PRs merge bottom-up or strand work on a corpse — verify tips with merge-base --is-ancestor
+- [L0045] A running DAW keeps the old plugin image — verify the mapped inode or the in-GUI stamp, never the disk alone

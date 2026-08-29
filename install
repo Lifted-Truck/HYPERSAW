@@ -86,6 +86,40 @@ fi
 echo "==> reset AU scanner cache"
 killall -9 AudioComponentRegistrar 2>/dev/null || true
 
+# A RUNNING DAW KEEPS THE OLD IMAGE, and this check exists because it cost a
+# whole evening on 2026-08-29: a Live session that had been open since Aug 13
+# first mapped horde.vst3 on Aug 24 and reused that five-day-old image through
+# EVERY install since -- removing and re-adding the device does not remap a
+# dylib; only quitting the app does. The human reported "the old version is
+# still loading" three times and was right three times, while every disk-side
+# check said current. So: if a process is holding a horde image whose inode
+# differs from the one just installed, say so in the loudest line this script
+# owns. Detection only -- killing someone's DAW mid-session is not ours to do.
+# Per-path comparison, deliberately: the process's HELD inode (lsof's i field)
+# against the CURRENT inode of the same path on disk. Comparing everything to
+# one format's inode would cry wolf on a host that legitimately mapped the AU
+# or the CLAP -- caught in this check's own calibration before it shipped.
+STALE_HOSTS=$(lsof -F pcni 2>/dev/null | awk '
+  /^p/ { pid = substr($0, 2) }
+  /^c/ { cmd = substr($0, 2) }
+  /^i/ { held = substr($0, 2) }
+  /^n.*horde\.(vst3|component|clap)\/Contents\/MacOS\// {
+    path = substr($0, 2)
+    cmdline = "stat -f %i \"" path "\" 2>/dev/null"
+    cmdline | getline cur
+    close(cmdline)
+    if (cur != "" && held != "" && held != cur) print cmd " (pid " pid ")"
+  }' | sort -u)
+if [ -n "$STALE_HOSTS" ]; then
+  echo ""
+  echo "!!!! A RUNNING APP STILL HAS THE *PREVIOUS* PLUGIN IMAGE MAPPED:"
+  echo "$STALE_HOSTS" | sed 's/^/!!!!   /'
+  echo "!!!! Re-adding the device will NOT load the new build. FULLY QUIT that app"
+  echo "!!!! (Cmd-Q, not just closing the set) and relaunch. In the plugin, the"
+  echo "!!!! build stamp bottom-right must read: $(git rev-parse --short HEAD)+ or newer."
+  echo ""
+fi
+
 echo "==> installed bundles now on disk:"
 for p in "$VST3_DST/horde.vst3" "$AU_DST/horde.component" "$CLAP_DST/horde.clap"; do
   [ -e "$p" ] && echo "     $p  ($(date -r "$p" '+%b %d %H:%M'))"
