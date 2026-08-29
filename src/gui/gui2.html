@@ -2737,9 +2737,32 @@ function paintOscTabs(ps) {
 /* ADR-111: while a corner is armed, in-field controls display that corner's
    baseline; painting live values over them would flicker between what you are
    editing and what is sounding. Every live repaint goes through here. */
+/* THE LAG, FOUND BY THE HUMAN'S BISECT (2026-08-29: eight toggles, "only one
+   had any noticeable effect" — OFF:sync took raf 55ms → 17ms with everything
+   else running). This function repainted EVERY param on EVERY 500ms poll:
+   ~240 setControls, each two querySelectors over a ~4,000-element document
+   plus style writes — a ~100ms stall twice a second that the rAF EMA smears
+   into a constant 45-55ms. The poll is ancient; what changed is that the
+   mod/Delay/macro era grew the param count by ~56 and the generated-control
+   DOM substantially, pushing the per-poll cost over the threshold at exactly
+   the moment the specimen arrived to take the blame.
+
+   The fix: paint only what CHANGED since the last paint. On a quiet engine a
+   poll now paints zero controls; under automation it paints the moving ones.
+   The cache is busted on an oscillator switch, because effId remaps which
+   engine value each control shows — same values, different truth. */
+let lastPainted = {}, lastPaintedOsc = -1, lastPaintedArm = -2;
 function paintLive(ps) {
+  if (lastPaintedOsc !== editOsc) { lastPainted = {}; lastPaintedOsc = editOsc; }
+  /* Arm changes bust the cache too: while armed, the CONTROLS show corner
+     values (painted elsewhere) while the engine values sat unchanged — a
+     cached skip after release would leave the corner's numbers stuck on
+     screen even though the engine never moved. */
+  if (lastPaintedArm !== armedCorner) { lastPainted = {}; lastPaintedArm = armedCorner; }
   for (const [id, v] of Object.entries(ps)) {
     if (armedCorner >= 0 && CORNER_VALS && CORNER_VALS[id] !== undefined) continue;
+    if (lastPainted[id] === v) continue;
+    lastPainted[id] = v;
     setControl(+id, v);
   }
 }
