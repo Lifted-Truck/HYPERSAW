@@ -2827,8 +2827,16 @@ function recomputeFeeds() {
   for (const k in FEED_CONSUMERS) FEED[k] = !!(pg && pg.querySelector(FEED_CONSUMERS[k]));
 }
 
-function drawXY() {
-  requestAnimationFrame(drawXY);
+/* THE CLOCK IS NOT TRUSTWORTHY IN A PLUGIN WINDOW (measured 2026-08-29:
+   frame 69ms in Ableton vs 6ms for the same page in a browser — WKWebView
+   inside a host's child view can decide it is occluded and throttle rAF to
+   ~15 fps while fully visible). Timers are not throttled by that policy, so
+   the loop runs off whichever clock is alive: rAF when healthy, a 33 ms
+   timer when rAF is starved. The health line names the active clock, so the
+   next screenshot says which world we are in. */
+let lastBody = 0, lastRafTick = 0;
+function frameBody() {
+  lastBody = performance.now();
   frameNo++;
   /* 30 Hz, not 60, for the two heaviest feeds. The wordmark's warp already
      made this argument in this file and it holds here: halving the rate halves
@@ -2859,6 +2867,14 @@ function drawXY() {
     xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
   }
 }
+function drawXY() {
+  requestAnimationFrame(drawXY);
+  lastRafTick = performance.now();
+  frameBody();
+}
+/* the fallback: fires only while rAF is starved (>45 ms since the last body
+   run), so on a healthy surface it never executes a body and costs nothing */
+setInterval(() => { if (performance.now() - lastBody > 45) frameBody(); }, 33);
 /* ---- viz: phase circle + K vector (ported from gui.html, which ports
    swarmsaw's drawPhase) and the master spectrum. The snapshot follows vizOsc,
    so these display the ACTIVE oscillator by construction. ---- */
@@ -3604,8 +3620,10 @@ window.addEventListener('load', async () => {
       const gl = chrome.gl ? ('gl ' + chrome.w + 'x' + chrome.h + '@' + (+chrome.scale.toFixed(2)))
                            : ('gl OFF' + (chrome.fail ? ': ' + chrome.fail : ''));
       const sp = +(lastParams[178] ?? 1) > 0.5 ? '' : ' · specimen param OFF';
+      const clock = (performance.now() - lastRafTick > 200) ? 'timer' : 'raf';
       el.textContent = 'gui2 · build ' + build + ' · ' + gl
-                     + ' · frame ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—') + sp;
+                     + ' · ' + clock + ' ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—')
+                     + ' · dpr ' + (window.devicePixelRatio || 1) + sp;
     };
     health();
     setInterval(health, 2000);
