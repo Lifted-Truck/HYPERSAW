@@ -3207,6 +3207,7 @@ function chromeInit() {
 uniform vec2 uRes;uniform float uTime;uniform float uK;uniform int uVariant;
 uniform vec3 uPoke;uniform float uDent;uniform vec2 uOrbit;uniform float uThick;
 uniform float uStrike;uniform float uRAmp;uniform float uRWave;uniform float uShy;
+uniform vec3 uBg;
 float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
 float map(vec3 p){
  float t=uTime*.35;
@@ -3260,7 +3261,7 @@ void main(){
  vec3 uu=normalize(cross(vec3(0.,1.,0.),ww));
  vec3 vv=cross(ww,uu);
  vec3 rd=normalize(uv.x*uu+uv.y*vv+2.1*ww);
- vec3 paperHi=vec3(.972,.962,.938),paperLo=vec3(.912,.898,.862);
+ vec3 paperHi=uBg*1.035;vec3 paperLo=uBg*.93;
  vec3 bg=mix(paperLo,paperHi,smoothstep(-1.,.9,uv.y));
  vec3 col=bg;
  float t=0.;bool hit=false;
@@ -3313,7 +3314,7 @@ void main(){
   const loc = gl.getAttribLocation(prog, 'a');
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uStrike', 'uRAmp', 'uRWave', 'uShy'])
+  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uStrike', 'uRAmp', 'uRWave', 'uShy', 'uBg'])
     chrome.u[n] = gl.getUniformLocation(prog, n);
   chrome.gl = gl; chrome.cv = cv;
   // pointer: drag orbits, click pokes — the source's interaction, kept
@@ -3357,7 +3358,11 @@ function chromePoke(clientX, clientY) {
   chrome.strikeAge = 0; chrome.rWave = 9;   // CHROME-002: a click is a strike too
 }
 function chromeNotePoke(midi) {
-  const az = (midi % 12) / 12 * Math.PI * 2;
+  /* CAMERA-RELATIVE, per the human: strikes must originate at a point
+     visible from the viewer's POV. Pitch class spreads strikes across ±70°
+     around the CURRENT view axis instead of an absolute azimuth that could
+     land on the far side of the mass. */
+  const az = chrome.yaw + ((midi % 12) / 12 - 0.5) * 2.4;
   const el = Math.max(-0.9, Math.min(0.9, (Math.floor(midi / 12) - 5) * 0.25));
   chrome.poke = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
   chrome.dent.v = 6.0;
@@ -3448,7 +3453,10 @@ function chromeFrame() {
   if (pw !== c.w || ph !== c.h) { c.w = pw; c.h = ph; cv.width = pw; cv.height = ph; gl.viewport(0, 0, pw, ph); }
   gl.uniform2f(c.u.uRes, pw, ph);
   gl.uniform1f(c.u.uTime, c.time);
-  gl.uniform1f(c.u.uK, Math.min(0.9, 0.18 + 0.32 * R));          // 002's base tension; coherence pulls the lobes
+  /* INVERTED per the human (2026-08-29): "lowering it appears to tighten the
+     metaphysical substance against the orbs" — so coherence now LOWERS uK.
+     A phase-locked swarm reads as the metal pulling taut; decoherence loosens. */
+  gl.uniform1f(c.u.uK, Math.max(0.12, 0.45 - 0.3 * R));
   gl.uniform1i(c.u.uVariant, 1);                                  // pearl
   gl.uniform3f(c.u.uPoke, c.poke[0], c.poke[1], c.poke[2]);
   gl.uniform1f(c.u.uDent, Math.max(-0.35, Math.min(0.35, d.x * 0.28)));
@@ -3458,9 +3466,29 @@ function chromeFrame() {
   // amplitude breathes with the envelope; sustained level QUIVERS the mass.
   c.strikeAge = Math.min(10, c.strikeAge + dt);
   gl.uniform1f(c.u.uStrike, c.strikeAge);
-  gl.uniform1f(c.u.uRAmp, Math.min(1, 0.25 + envMax * 0.6));
+  // ripple DEPTH rides the envelope and the active osc's detune (the human's
+  // #4): a wide swarm strikes harder water.
+  const det = +(lastParams[effId(4)] ?? 0);
+  gl.uniform1f(c.u.uRAmp, Math.min(1, 0.25 + envMax * 0.5 + det * 0.35));
   gl.uniform1f(c.u.uRWave, c.rWave);
   gl.uniform1f(c.u.uShy, Math.min(1, peak * 1.5) * 0.6);
+  /* The human's #5: the specimen's ground follows the SCREEN colour, so the
+     material study sits inside the instrument's theme instead of on its own
+     paper. Parsed once per theme change, display-space, exact at ray misses
+     (the shader's bg path never gammas). */
+  {
+    const tok = TOK('--scr-tube', '#f2ede2');
+    if (tok !== c.bgTok) {
+      c.bgTok = tok;
+      let r = 0.95, g = 0.93, b = 0.89;
+      const hx = /^#([0-9a-f]{6})$/i.exec(tok.trim());
+      const rg = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(tok);
+      if (hx) { const v = parseInt(hx[1], 16); r = (v >> 16 & 255) / 255; g = (v >> 8 & 255) / 255; b = (v & 255) / 255; }
+      else if (rg) { r = +rg[1] / 255; g = +rg[2] / 255; b = +rg[3] / 255; }
+      c.bg = [r, g, b];
+    }
+    gl.uniform3f(c.u.uBg, c.bg[0], c.bg[1], c.bg[2]);
+  }
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 /* CREATE-ON-SHOW (the excision experiment's structural lesson): chromeInit is
