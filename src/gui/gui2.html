@@ -746,7 +746,7 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="hdr"><canvas class="brand" id="brand" width="146" height="96" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
+<div class="hdr"><canvas class="brand" id="brand" width="292" height="192" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
 
 <div class="page on" id="pg-MAIN">
   <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
@@ -755,13 +755,18 @@
       have no per-oscillator twin, so they never remap.</div>
   </div>
   <div class="vizcol">
-  <!-- EXPERIMENT (human-designed, 2026-08-29): the specimen is EXCISED from
-       this build — no cluster, no canvas, and critically NO WebGL context is
-       ever created (see the commented chromeInit call). Every prior "off"
-       configuration still created the GL context at load, so no earlier A/B
-       ever tested the specimen's true absence — this build is the first. The
-       phase circle returns as MAIN's viz. Revert-or-ratify on the human's
-       lag verdict. -->
+  <!-- CHROME-002 (the human's new material study, 2026-08-29): the specimen
+       returns EXONERATED — the excision experiment proved the lag was the
+       param-sync repaint, not this. Now with a create-on-show lifecycle: the
+       GL context exists only once the cluster is actually visible, so "off"
+       finally means what the experiment had to prove the hard way. -->
+  <div class="cluster" id="specimenBox"><h2>Specimen — CHROME-002</h2>
+    <canvas id="chromeC" style="display:block;width:100%;aspect-ratio:1.12;cursor:crosshair;touch-action:none"></canvas>
+    <div class="note" style="margin-top:5px">The pearl under impact: notes STRIKE it —
+      capillary ripples spread from the strike point, tighter for higher notes —
+      sustained level makes it quiver, the envelope blooms the film, coherence
+      pulls the lobes together. Drag orbits · click strikes.</div>
+  </div>
   <div class="cluster"><h2>XY — macro pad</h2>
     <canvas id="xy" class="xy" width="340" height="212"></canvas>
     <div class="row xyAsnRow"><label>x drives</label><select class="xyAX"></select><output></output></div>
@@ -783,7 +788,7 @@
     </div>
   </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
-    <canvas id="phaseC" class="phase" width="220" height="220" style="display:block;margin:0 auto;max-width:232px"></canvas>
+    <canvas id="phaseC" class="phase" width="220" height="220" style="display:none;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
     <div class="vlabel gravline"></div>
     <canvas id="specC" class="spec" width="330" height="70" style="width:100%"></canvas>
@@ -2925,6 +2930,8 @@ const DIAG = { viz: true, spec: true, scope: true, xy: true, halos: true,
                sync: true, morph: true, brand: true };
 Object.defineProperty(window, 'QUIET', { get: () => MODE === 2, set: v => { MODE = v ? 2 : 0; } });
 let frameBusy = false, fetchEma = 0;
+let SCOPEDIAG = 'idle';   // the waveform's own state, printed in the corner —
+                          // one screenshot names why it is dark, if it is
 /* B76 pt 2: the bulk feeds arrive as base64-packed binary — ONE string token
    each instead of thousands of number literals, because evaluateJavaScript's
    parse cost is per-token and the DAW measured 44 ms loud with the literals
@@ -2944,6 +2951,9 @@ async function frameFetch() {
     const t0 = performance.now();
     const f = await window.hzFrame(want);
     fetchEma = fetchEma * 0.9 + (performance.now() - t0) * 0.1;
+    SCOPEDIAG = !FEED.scope ? 'nofeed' : !DIAG.scope ? 'toggled-off'
+              : scopeFrozen ? 'frozen' : !(want & 4) ? 'nowant'
+              : f.scope16 ? 'ok' : (f.scope ? 'raw' : 'ABSENT');
     if (f.viz) { try { paintVizSnapshot(f.viz); } catch (e) {} }
     if (f.spec8) {
       try {
@@ -2986,7 +2996,7 @@ function frameBody() {
     if (FEED.scope && DIAG.scope && frameNo % 2 === 0) drawScope().catch(() => {});
   }
   if (frameNo % 6 === 0 && MODE !== 1 && DIAG.halos) modHaloFrame().catch(() => {});   // halos: 10 Hz
-  // if (frameNo % 3 === 0) chromeFrame();               // EXPERIMENT: excised
+  if (frameNo % 3 === 0) chromeFrame();                  // CHROME-002, ~20 Hz
   if (!DIAG.xy) return;   // DIAG: pad paint disabled
   {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
     const [mix, miy] = xyMacroIds();
@@ -3154,6 +3164,7 @@ function drawMeters(s) {
 const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pitT: 0.18,
   dent: { x: 0, v: 0 }, poke: [0, 0, 1], time: 3.7, scale: 1.0, ema: 8, last: 0,
   gates: {}, w: 0, h: 0, lastAct: 0, plate: false, up: 0,
+  strikeAge: 100, rWave: 9,   // CHROME-002: ripple front age + wavelength
   // the ceiling is the display's real pixel grid, capped at 2x: past that the
   // extra samples land inside a pixel nobody can resolve.
   scaleMax: Math.min(window.devicePixelRatio || 1, 2), scaleMin: 0.5 };
@@ -3161,8 +3172,11 @@ const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pi
    phase circle takes the viz slot back — the human's redundancy ruling still
    holds, so the two never share the page. */
 function specimenSync(on) {
-  // EXPERIMENT: no-op — there is no specimen in this build, and the phase
-  // circle must not be hidden by the (inert) param echoing through setControl.
+  const box = document.getElementById('specimenBox');
+  const p = document.getElementById('phaseC');
+  if (box) box.style.display = on ? '' : 'none';
+  if (p) p.style.display = on ? 'none' : 'block';
+  if (on) { chrome.w = 0; chrome.plate = false; chrome.lastAct = performance.now(); }
 }
 /* WHY-IT-FAILED IS PART OF THE FEATURE (L0046 pending). ADR-139 shipped "no
    WebGL = a quietly blank cell", and on 2026-08-29 the quiet blank cost a
@@ -3192,10 +3206,12 @@ function chromeInit() {
   const fs = `precision highp float;
 uniform vec2 uRes;uniform float uTime;uniform float uK;uniform int uVariant;
 uniform vec3 uPoke;uniform float uDent;uniform vec2 uOrbit;uniform float uThick;
-uniform float uRipple;
+uniform float uStrike;uniform float uRAmp;uniform float uRWave;uniform float uShy;
 float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
 float map(vec3 p){
  float t=uTime*.35;
+ float qv=uShy*.016*sin(t*38.+p.y*9.+p.x*7.);
+ p+=qv;
  vec3 c1=vec3(sin(t*.7)*.33,sin(t*.9+1.7)*.2,cos(t*.6)*.28);
  vec3 c2=vec3(cos(t*.5+3.)*.38,cos(t*.8)*.22,sin(t*.7+1.)*.3);
  vec3 c3=vec3(sin(t*.6+5.)*.28,cos(t*.5+2.)*.27,cos(t*.9+4.)*.22);
@@ -3204,7 +3220,13 @@ float map(vec3 p){
  d=smin(d,length(p-c3)-.4,uK);
  vec3 q=p-uPoke;
  d+=uDent*exp(-dot(q,q)*16.);
- d+=uRipple*sin(p.x*6.+p.y*8.+p.z*5.-uTime*5.);
+ if(uStrike<3.5&&uRAmp>0.){
+  float rd2=distance(normalize(p),normalize(uPoke));
+  float front=rd2*3.2-uStrike*2.6;
+  float env2=exp(-uStrike*1.9)*exp(-front*front*2.2)*smoothstep(0.,.12,uStrike);
+  float wave=sin(front*uRWave);
+  d+=.085*uRAmp*env2*wave;
+ }
  return d;
 }
 vec3 calcN(vec3 p){
@@ -3242,7 +3264,7 @@ void main(){
  vec3 bg=mix(paperLo,paperHi,smoothstep(-1.,.9,uv.y));
  vec3 col=bg;
  float t=0.;bool hit=false;
- for(int i=0;i<44;i++){
+ for(int i=0;i<64;i++){
   vec3 p=ro+rd*t;
   float d=map(p);
   if(d<.0012*t+.0008){hit=true;break;}
@@ -3291,7 +3313,7 @@ void main(){
   const loc = gl.getAttribLocation(prog, 'a');
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uRipple'])
+  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uStrike', 'uRAmp', 'uRWave', 'uShy'])
     chrome.u[n] = gl.getUniformLocation(prog, n);
   chrome.gl = gl; chrome.cv = cv;
   // pointer: drag orbits, click pokes — the source's interaction, kept
@@ -3332,16 +3354,29 @@ function chromePoke(clientX, clientY) {
   if (disc >= 0) { const t = -b - Math.sqrt(disc); p = [ro[0] + rd[0] * t, ro[1] + rd[1] * t, ro[2] + rd[2] * t]; }
   else { const t = -b; const q = [ro[0] + rd[0] * t, ro[1] + rd[1] * t, ro[2] + rd[2] * t]; p = norm(q); }
   chrome.poke = p; chrome.dent.v = 6.0;
+  chrome.strikeAge = 0; chrome.rWave = 9;   // CHROME-002: a click is a strike too
 }
 function chromeNotePoke(midi) {
   const az = (midi % 12) / 12 * Math.PI * 2;
   const el = Math.max(-0.9, Math.min(0.9, (Math.floor(midi / 12) - 5) * 0.25));
   chrome.poke = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
   chrome.dent.v = 6.0;
+  // CHROME-002: the note is a STRIKE. The ripple front starts here and its
+  // wavelength follows pitch: midi 36..96 maps to 24..6, so high notes ring
+  // tight capillary rings and low notes roll broad swells.
+  chrome.strikeAge = 0;
+  chrome.rWave = 24 - 18 * Math.max(0, Math.min(1, (midi - 36) / 60));
 }
 function chromeFrame() {
   const c = chrome;
-  if (!c.gl) return;
+  if (!c.gl) {
+    // create-on-show: no context exists until the cluster is actually visible
+    if (c.fail) return;
+    const cv = document.getElementById('chromeC');
+    if (!cv || !cv.offsetParent) return;
+    chromeInit();
+    if (!c.gl) return;
+  }
   if (!c.cv.offsetParent) return;              // MAIN not showing: skip entirely
   const now = performance.now();
   const dt = Math.min(0.05, (now - c.last) / 1000 || 0.033);
@@ -3381,7 +3416,8 @@ function chromeFrame() {
      touching it, the last frame stands as a product photograph — zero draws.
      Any note, level or poke re-arms instantly (the gate check above already
      latched fresh attacks into the dent spring). */
-  const ringing = Math.abs(c.dent.x) > 5e-4 || Math.abs(c.dent.v) > 2e-3;
+  const ringing = Math.abs(c.dent.x) > 5e-4 || Math.abs(c.dent.v) > 2e-3
+               || c.strikeAge < 3.5;   // CHROME-002: the ripple front is still crossing
   if (envMax > 1e-3 || peak > 1e-3 || ringing) { c.lastAct = now; c.plate = false; }
   if (now - c.lastAct > 1500)
   {
@@ -3412,19 +3448,25 @@ function chromeFrame() {
   if (pw !== c.w || ph !== c.h) { c.w = pw; c.h = ph; cv.width = pw; cv.height = ph; gl.viewport(0, 0, pw, ph); }
   gl.uniform2f(c.u.uRes, pw, ph);
   gl.uniform1f(c.u.uTime, c.time);
-  gl.uniform1f(c.u.uK, Math.min(0.9, 0.1 + 0.35 * R));           // coherence pulls the lobes together
+  gl.uniform1f(c.u.uK, Math.min(0.9, 0.18 + 0.32 * R));          // 002's base tension; coherence pulls the lobes
   gl.uniform1i(c.u.uVariant, 1);                                  // pearl
   gl.uniform3f(c.u.uPoke, c.poke[0], c.poke[1], c.poke[2]);
   gl.uniform1f(c.u.uDent, Math.max(-0.35, Math.min(0.35, d.x * 0.28)));
   gl.uniform2f(c.u.uOrbit, c.yaw, c.pit);
-  gl.uniform1f(c.u.uThick, 500 + 250 * Math.min(1, envMax));      // the pearl blooms on attack
-  gl.uniform1f(c.u.uRipple, Math.min(0.045, peak * 0.05));        // held level shivers the surface
+  gl.uniform1f(c.u.uThick, 480 + 250 * Math.min(1, envMax));      // the pearl blooms on attack
+  // CHROME-002's vocabulary: the strike front ages in real time; ripple
+  // amplitude breathes with the envelope; sustained level QUIVERS the mass.
+  c.strikeAge = Math.min(10, c.strikeAge + dt);
+  gl.uniform1f(c.u.uStrike, c.strikeAge);
+  gl.uniform1f(c.u.uRAmp, Math.min(1, 0.25 + envMax * 0.6));
+  gl.uniform1f(c.u.uRWave, c.rWave);
+  gl.uniform1f(c.u.uShy, Math.min(1, peak * 1.5) * 0.6);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
-// chromeInit();   // EXPERIMENT: excised — this call is what created the GL
-// context even when the specimen was "off", which is why no earlier toggle
-// A/B was decisive. chrome.fail makes the health line self-describing.
-chrome.fail = 'excised (experiment build)';
+/* CREATE-ON-SHOW (the excision experiment's structural lesson): chromeInit is
+   called lazily from the first frame that finds the canvas VISIBLE, so a
+   hidden specimen holds no GL context at all — "off" now means absent, which
+   is the state the experiment had to build a special branch to test. */
 
 let lastViz = null;
 /* B76: fetch and paint are separate — paintVizSnapshot takes a snapshot from
@@ -3535,6 +3577,7 @@ function paintScope(s) {
   // ADR-100 A4: the scope follows the viz osc; a switched-off osc taps nothing,
   // so the ring is stale — show the OFF state instead of a frozen wave.
   if (lastVizOscEnabled === false) {
+    SCOPEDIAG = 'osc-off';
     const w2 = wvC.width, h2 = wvC.height;
     wvx.fillStyle = TOK('--scr-tube'); wvx.fillRect(0, 0, w2, h2);
     wvx.fillStyle = TOKA('--scr-grid', 0.75); wvx.font = '10px monospace';
@@ -3775,6 +3818,7 @@ window.addEventListener('load', async () => {
       el.textContent = 'gui2 · build ' + build + ' · ' + gl
                      + ' · ' + clock + ' ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—')
                      + ' · fetch ' + (fetchEma ? fetchEma.toFixed(1) + 'ms' : '—')
+                     + ' · wave:' + SCOPEDIAG
                      + ' · dpr ' + (window.devicePixelRatio || 1) + sp
                      + (Object.keys(DIAG).some(k => !DIAG[k])
                         ? ' · OFF:' + Object.keys(DIAG).filter(k => !DIAG[k]).join(',') : '')
@@ -4209,7 +4253,7 @@ function tdWarp(seed) {
        the same nominal width); 1.0 matches the other details by eye — the
        human's ask, 2026-08-28. The ring still closes: a smaller radius closes
        more easily, not less. */
-    const EDGE_R = 1.0;
+    const EDGE_R = 2.0;   // bitmap doubled; 2 bitmap px = the same 1px visual hairline
     const EDGE_OFF = [[1,0],[-1,0],[0,1],[0,-1],[0.7,0.7],[-0.7,0.7],[0.7,-0.7],[-0.7,-0.7]]
                        .map(([x, y]) => [x * EDGE_R, y * EDGE_R]);
     const outline = () => {
@@ -4230,11 +4274,11 @@ function tdWarp(seed) {
       sctx.fillStyle = ink;
       /* Helvetica per the session JSON ("font": "Helvetica") -- the mark had
          been borrowing the UI's monospace, which was never art-directed. */
-      sctx.font = '700 45px Helvetica,"Helvetica Neue",Arial,sans-serif';
+      sctx.font = '700 90px Helvetica,"Helvetica Neue",Arial,sans-serif';
       sctx.textBaseline = 'middle';
       /* high in the box: the blobs pull DOWNWARD hardest, so the room has to
          be underneath the type rather than centred around it */
-      sctx.fillText('horde', 8, H * 0.38);
+      sctx.fillText('horde', 16, H * 0.38);
       SRC = sctx.getImageData(0, 0, W, H);
       DST = ctx.createImageData(W, H);
       bakedInk = ink;
@@ -4257,7 +4301,11 @@ function tdWarp(seed) {
        to the glyphs. Displacement relative to the TYPE is what preserves the
        authored look. (The old 288 reference was the README's example canvas,
        which was never the session the human actually tuned.) */
-    const TD_AUTHORED_FONT = 200, OUR_FONT = 45, K = OUR_FONT / TD_AUTHORED_FONT;
+    /* 2x BITMAP, SAME CSS BOX (human 2026-08-29: "increase the resolution of
+       the logo"): the page runs at dpr 2 since ADR-146, and a 146px bitmap in
+       a 146px box was rendering soft. Every strength keys off OUR_FONT, so
+       doubling the font with the bitmap keeps the authored look exactly. */
+    const TD_AUTHORED_FONT = 200, OUR_FONT = 90, K = OUR_FONT / TD_AUTHORED_FONT;
     /* The outline audition (2026-08-25) is RESOLVED: the human ruled the ink
        outline stays in light mode ("it definitely looks better than no
        border", 2026-08-26). The click-to-toggle went with the ruling -- a
@@ -4366,7 +4414,7 @@ function tdWarp(seed) {
     };
 
     let last = 0, tSec = 0;
-    const SPEED = 0.55;                      // t-units per second
+    const SPEED = 0.35;   // slowed per the human (was 0.55) — statelier, less busy
     const FRAME = 1000 / 30;
     const draw = (nowMs) => {
       requestAnimationFrame(draw);
