@@ -4590,3 +4590,24 @@ SUCCEEDED, installed binary carries both KVC key strings. **Verdict pending
 where it counts:** the health line in Ableton after relaunch — `raf 16ms ·
 dpr 2` is B79's written exit criterion, and the human's next screenshot is
 the measurement.
+
+## ADR-147 — the specimen's visibility is a GUI preference, not patch state (2026-08-29)
+
+**Status: ACCEPTED.** Three debugging rounds in a row ended with "please flip
+a checkbox", and the checkbox stayed unflipped while the human asked what
+success is supposed to look like. That is the software outsourcing its own
+defect. The defect: ADR-140's few-hours off-by-default era wrote `specimen=0`
+into the human's working set, and every reload re-hid the blob regardless of
+what was installed.
+
+**The rule:** whether a visualizer shows belongs to the machine and the
+moment — like the selected tab, and unlike anything that sounds. Param 178
+stays writable live (turn it off for a session if it bothers you) and is
+still WRITTEN to state for forward compatibility, but it is **never read
+back**: both restore paths (the CLAP/VST3/AU chunk and the JSON preset) skip
+it. An old set with 0 in the chunk loads with the specimen on; state_check,
+preset_check and parity are all green because the param never touched sound.
+
+If a persistent per-machine preference is ever wanted, it goes in the GUI's
+app-support store beside the presets (the ADR-105 A2 mechanism), not in the
+patch.

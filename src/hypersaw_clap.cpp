@@ -2971,6 +2971,7 @@ struct Plugin
     bool any = false;
     for (const auto &d : kParams)
     {
+      if (d.id == 178) continue;   // ADR-147: specimen is not patch state (see state_load)
       const std::string needle = "\"" + std::string(d.coreKey) + "\"";
       size_t pos = json.find(needle);
       if (pos == std::string::npos) continue;
@@ -4514,6 +4515,17 @@ bool state_load(const clap_plugin_t *p, const clap_istream_t *stream)
       pl->applyModRoutesChunk(line.substr(eq + 1));
       continue;
     }
+    /* ADR-147: the specimen's visibility is a GUI preference, NOT patch state,
+       so a chunk cannot switch it off. The scar: ADR-140's few-hours-long
+       off-by-default era wrote specimen=0 into the human's working set, and
+       every reload re-hid the blob no matter what was installed — three
+       debugging rounds ended at "please flip a checkbox", which is the
+       software outsourcing its own defect. Whether a visualizer shows belongs
+       to the machine and the moment, like the selected tab — it is still
+       writable live (turn it off for a session if it bothers you) and still
+       WRITTEN to state for forward compatibility; it is simply never read
+       back. */
+    if (key == "specimen") continue;
     const double val = std::atof(line.c_str() + eq + 1);
     // ADR-082: split an `o<k>.` prefix off the key and resolve it to that
     // oscillator's block. A prefix naming an oscillator this build does not
