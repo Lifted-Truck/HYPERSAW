@@ -2832,8 +2832,17 @@ function recomputeFeeds() {
    timer when rAF is starved. The health line names the active clock, so the
    next screenshot says which world we are in. */
 let lastBody = 0, lastRafTick = 0;
+/* QUIET MODE (experiment instrument, human-designed lineage): clicking the
+   health line silences EVERY periodic feed, poll and paint this GUI performs —
+   the page goes completely idle except the independent rAF meter that keeps
+   measuring the surface's own cadence. It is the feeds-vs-surface A/B as one
+   click: raf recovering toward 16 ms in quiet = our work is the cost (B76's
+   batched snapshot is the fix); raf staying ~44 ms over a DEAD page = the
+   surface itself is capped and B75 is the conversation. */
+let QUIET = false;
 function frameBody() {
   lastBody = performance.now();
+  if (QUIET) return;
   frameNo++;
   /* 30 Hz, not 60, for the two heaviest feeds. The wordmark's warp already
      made this argument in this file and it holds here: halving the rate halves
@@ -3620,7 +3629,8 @@ window.addEventListener('load', async () => {
       const clock = (performance.now() - lastRafTick > 200) ? 'timer' : 'raf';
       el.textContent = 'gui2 · build ' + build + ' · ' + gl
                      + ' · ' + clock + ' ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—')
-                     + ' · dpr ' + (window.devicePixelRatio || 1) + sp;
+                     + ' · dpr ' + (window.devicePixelRatio || 1) + sp
+                     + (QUIET ? ' · QUIET (all feeds silenced — click to restore)' : '');
     };
     health();
     setInterval(health, 2000);
@@ -3630,6 +3640,7 @@ window.addEventListener('load', async () => {
        MPE stream, so a confident warning would be wrong for anyone not using an
        expressive controller. A hint you can dismiss beats a defect you cannot find. */
     setInterval(async () => {
+      if (QUIET) return;
       let h = '';
       try { h = await bridge.getHostHint(); } catch (e) { return; }
       let n = document.getElementById('hostHint');
@@ -3648,15 +3659,18 @@ window.addEventListener('load', async () => {
       }
       n.textContent = '⚠ ' + h;
     }, 2000);
-    el.style.cssText = 'position:fixed;right:6px;bottom:4px;font-size:9px;color:var(--dim);opacity:.6;pointer-events:none';
+    el.style.cssText = 'position:fixed;right:6px;bottom:4px;font-size:9px;color:var(--dim);opacity:.6;cursor:pointer';
+    el.title = 'click: QUIET mode — silence every feed/poll/paint and watch the raf number; click again to restore';
+    el.addEventListener('click', () => { QUIET = !QUIET; health(); });
     document.body.appendChild(el);
   } catch (e) {}
   syncFromEngine().catch(() => {});
   recomputeFeeds();   // ADR-143: MAIN's consumers, before the first frame
   drawXY();
-  setInterval(() => syncFromEngine().catch(() => {}), 500);
+  setInterval(() => { if (!QUIET) syncFromEngine().catch(() => {}); }, 500);
   // arm + exempt are engine state; repaint them on the same cadence as params
-  setInterval(() => { paintArm(armValue()); paintExempt().catch(() => {});
+  setInterval(() => { if (QUIET) return;
+                      paintArm(armValue()); paintExempt().catch(() => {});
                       paintOwners().catch(() => {}); paintCornerView().catch(() => {}); }, 700);
 });
 /* ---- PORTED FROM src/gui/gui.html (GUI1), VERBATIM ------------------------
