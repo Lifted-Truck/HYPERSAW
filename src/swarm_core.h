@@ -294,6 +294,33 @@ constexpr double kPiFull = 3.141592653589793;
 class SwarmCore
 {
  public:
+  /* B81/B82 — THE PER-VOICE SEAM (increment 1, ADR-148). A tap, when
+     installed, receives each NOTE's contribution to the block as DOUBLE
+     buffers before it reaches the shared bus; the core then re-adds the
+     (possibly filtered) buffers into the bus with the exact float-store
+     arithmetic of the direct path, IN THE SAME NOTE ORDER — so a tap whose
+     function leaves the buffers untouched is bit-identical to no tap at all,
+     and tap == nullptr IS the original code path, pointer-for-pointer.
+
+     DOUBLE scratch is load-bearing: the direct path computes
+     (float)((double)out + lp*g) — capturing lp*g pre-rounded to float and
+     adding THAT would change the double addition and break the identity.
+
+     The width/tanh tail runs after all notes in both modes, untouched: the
+     filter sits per-note, the bus character stays the bus's.
+
+     Raw function pointer + ctx, not std::function: this runs on the audio
+     thread and must never allocate or type-erase. */
+  typedef void (*NoteTapFn)(void *ctx, int slot, int midi, double *l, double *r, int frames);
+  void setNoteTap(NoteTapFn fn, void *ctx) { tapFn = fn; tapCtx = ctx; }
+  static constexpr int kTapMax = 2048;   // > gravity grid at any real rate (1114 @192k)
+
+ private:
+  NoteTapFn tapFn = nullptr;
+  void *tapCtx = nullptr;
+  double tapScratchL[kTapMax], tapScratchR[kTapMax];
+
+ public:
   struct Voice
   {
     double phase[kMaxV], driftS[kMaxV], couple[kMaxV], vf[kMaxV], eff[kMaxV], mom[kMaxV];
@@ -849,6 +876,12 @@ private:
         }
         continue;
       }
+      // B81 seam: with a tap installed this note renders into double scratch;
+      // frames > kTapMax (impossible at real rates, guarded anyway) falls back
+      // to the direct path rather than overrunning.
+      const bool tapping = tapFn != nullptr && frames <= kTapMax;
+      if (tapping)
+        for (int z = 0; z < frames; z++) { tapScratchL[z] = 0.0; tapScratchR[z] = 0.0; }
       int tick = this->tick;
       for (int smp = 0; smp < frames; smp++)
       {
@@ -1045,9 +1078,28 @@ private:
         // ADR-084: velocity and smoothed pressure scale the voice. Both default
         // 1.0 (exact), so the multiply is bit-inert for goldens and old hosts.
         const double g = (vEnvOn ? gain : gain * s.env) * s.vel * s.pressSm;
-        // Float32Array += semantics: round to f32 on every store
-        outL[smp] = (float)((double)outL[smp] + s.lpL * g);
-        outR[smp] = (float)((double)outR[smp] + s.lpR * g);
+        if (tapping)
+        {
+          // raw doubles; the float-store rounding happens at the flush below,
+          // with the same expression shape as the direct path
+          tapScratchL[smp] += s.lpL * g;
+          tapScratchR[smp] += s.lpR * g;
+        }
+        else
+        {
+          // Float32Array += semantics: round to f32 on every store
+          outL[smp] = (float)((double)outL[smp] + s.lpL * g);
+          outR[smp] = (float)((double)outR[smp] + s.lpR * g);
+        }
+      }
+      if (tapping)
+      {
+        tapFn(tapCtx, (int)(&s - &voices[0]), s.midi, tapScratchL, tapScratchR, frames);
+        for (int smp = 0; smp < frames; smp++)
+        {
+          outL[smp] = (float)((double)outL[smp] + tapScratchL[smp]);
+          outR[smp] = (float)((double)outR[smp] + tapScratchR[smp]);
+        }
       }
     }
     this->tick = (this->tick + frames) & (kTick - 1);
