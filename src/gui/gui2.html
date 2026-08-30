@@ -3403,12 +3403,13 @@ function chromeNotePoke(midi) {
   const el = Math.max(-0.9, Math.min(0.9, (Math.floor(midi / 12) - 5) * 0.25));
   chrome.poke = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
   chrome.dent.v = 6.0;
-  // CHROME-002: the note is a STRIKE. Wavelength matches the click's (human
-  // 2026-08-30: "the bigger wavelength looks better" — the pitch→density
-  // mapping is RETIRED; pitch-coupling returns as TEMPORAL phase tracking in
-  // B80's frequency item, where it belongs, instead of as ring density).
+  // CHROME-002: the note is a STRIKE, and wavelength tracks pitch the way
+  // water does (human 2026-08-30, correcting my inverted first mapping —
+  // "lower notes have longer wavelength"): midi 36..96 maps uRWave 6..24, so
+  // low notes roll broad swells and high notes ring tight capillary rings.
+  // A click strikes at the middle of the range.
   chrome.strikeAge = 0;
-  chrome.rWave = 9;
+  chrome.rWave = 6 + 18 * Math.max(0, Math.min(1, (midi - 36) / 60));
 }
 function chromeFrame() {
   const c = chrome;
