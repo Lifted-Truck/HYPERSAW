@@ -377,6 +377,13 @@ if(NOT MSVC)
   target_compile_options(mod_check PRIVATE -O2)
 endif()
 
+# voicetap_check: the per-voice seam's bit-identity proof (B81/B82 inc 1,
+# ADR-148). Core-direct, like mod_check. Wiring into ./verify: human decision.
+add_executable(voicetap_check tools/voicetap_check.cpp)
+if(NOT MSVC)
+  target_compile_options(voicetap_check PRIVATE -O2)
+endif()
+
 # strata_check: STRATA's six properties, as the human's own spec states them
 # (B77 increment 1). Core + oracle land together, unwired -- the glide_core /
 # mod_core order. Wiring it into ./verify is a human decision (charter).

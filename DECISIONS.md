@@ -4611,3 +4611,40 @@ preset_check and parity are all green because the param never touched sound.
 If a persistent per-machine preference is ever wanted, it goes in the GUI's
 app-support store beside the presets (the ADR-105 A2 mechanism), not in the
 patch.
+
+## ADR-148 — the per-voice seam: a note tap with a bit-identity contract (2026-08-30)
+
+**Status: ACCEPTED (B81/B82 increment 1).** The structural move both FILT and
+per-note modulation stand on: SwarmCore gains an optional NOTE TAP — when
+installed, each note's contribution to a block reaches the tap as DOUBLE
+buffers before the shared bus; the core then re-adds the (possibly filtered)
+buffers with the direct path's exact float-store arithmetic, in the same note
+order. `tap == nullptr` IS the original code path, pointer for pointer.
+
+**The double scratch is load-bearing.** The direct path computes
+`(float)((double)out + lp·g)`. Capturing `lp·g` pre-rounded to float would
+change the double addition and silently break the identity — the proof would
+have failed on T2 and someone would have "fixed" it with a tolerance. Raw
+doubles all the way to the flush keep the arithmetic literally the same.
+
+**What stays where:** the width/tanh tail runs after all notes in both modes —
+filters are per-note, the bus character remains the bus's. Raw function
+pointer + ctx, never std::function: audio thread, no allocation, no type
+erasure (rtsafety stays GREEN). Frames > kTapMax (impossible at real rates)
+falls back to the direct path rather than overrunning. SPECTRA is explicitly
+DEFERRED: this increment covers SwarmCore; the SPECTRA seam lands when a
+consumer needs it, not speculatively.
+
+**Proven (voicetap_check, first full run green):** no-op tap bit-identical
+across five feature configs (defaults, voice envelopes, oversampling+
+decimator, super-width A, scatter+glide) rendered in deliberately odd chunk
+sizes; a unit-coefficient one-pole — real filter code — also bit-identical;
+a real LP audibly in-path (Σ|Δ| = 229); per-note buffers carry exactly the
+gated notes. Parity 156/156 untouched (no plugin code installs a tap yet);
+state, rtsafety green. The oracle is NOT yet a ./verify gate — human decision,
+proposed with this ADR.
+
+**Next increments ride this:** B81-2 (SVF pair + routing + filter envelope +
+FILT page), B82 (per-note evaluate with per-voice source vectors), and the
+human's parity re-baseline pre-authorization stands recorded in B81 for the
+day a consumer changes the summed sound.

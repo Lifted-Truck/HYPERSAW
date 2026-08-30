@@ -3208,8 +3208,14 @@ const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pi
      midi it belongs to while HELD (-1 once released). A held front RE-EMITS
      when its rings have crossed, which turns tap-tap-hold from frozen into
      continuous. */
-  fronts: [{age:100,poke:[0,0,1],wave:9,hold:-1},{age:100,poke:[0,0,1],wave:9,hold:-1},
-           {age:100,poke:[0,0,1],wave:9,hold:-1},{age:100,poke:[0,0,1],wave:9,hold:-1}],
+  /* fronts store CAMERA-RELATIVE offsets (azOff/elOff) and derive their
+     world point per frame from the live yaw/pitch — so a front is visible
+     from the viewer's POV by construction, for its whole life. The absolute
+     poke of the first pass leaked the ruling twice: elevation was absolute
+     while azimuth was relative, and the slow turntable carried the camera
+     away from held fronts' fixed origins (both human-reported 2026-08-30). */
+  fronts: [{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},
+           {age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0}],
   frontIx: 0, shySm: 0,
   // the ceiling is the display's real pixel grid, capped at 2x: past that the
   // extra samples land inside a pixel nobody can resolve.
@@ -3252,7 +3258,7 @@ function chromeInit() {
   const fs = `precision highp float;
 uniform vec2 uRes;uniform float uTime;uniform float uK;uniform int uVariant;
 uniform vec3 uPoke;uniform float uDent;uniform vec2 uOrbit;uniform float uThick;
-uniform vec3 uPokeN[4];uniform float uStrikeN[4];uniform float uRWaveN[4];
+uniform vec3 uPokeN[4];uniform float uStrikeN[4];uniform float uRWaveN[4];uniform float uHeldN[4];
 uniform float uRAmp;uniform float uShy;
 uniform vec3 uBg;
 float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
@@ -3269,11 +3275,14 @@ float map(vec3 p){
  vec3 q=p-uPoke;
  d+=uDent*exp(-dot(q,q)*16.);
  for(int i=0;i<4;i++){
+  float rd2=distance(normalize(p),normalize(uPokeN[i]));
   if(uStrikeN[i]<3.5&&uRAmp>0.){
-   float rd2=distance(normalize(p),normalize(uPokeN[i]));
    float front=rd2*3.2-uStrikeN[i]*2.6;
    float env2=exp(-uStrikeN[i]*1.9)*exp(-front*front*2.2)*smoothstep(0.,.12,uStrikeN[i]);
    d+=.085*uRAmp*env2*sin(front*uRWaveN[i]);
+  }
+  if(uHeldN[i]>.001){
+   d+=.05*uRAmp*uHeldN[i]*exp(-rd2*2.2)*sin(rd2*uRWaveN[i]-uTime*.8*uRWaveN[i]);
   }
  }
  return d;
@@ -3362,7 +3371,7 @@ void main(){
   const loc = gl.getAttribLocation(prog, 'a');
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uPokeN', 'uStrikeN', 'uRWaveN', 'uRAmp', 'uShy', 'uBg'])
+  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uPokeN', 'uStrikeN', 'uRWaveN', 'uHeldN', 'uRAmp', 'uShy', 'uBg'])
     chrome.u[n] = gl.getUniformLocation(prog, n);
   chrome.gl = gl; chrome.cv = cv;
   // pointer: drag orbits, click pokes — the source's interaction, kept
@@ -3405,7 +3414,9 @@ function chromePoke(clientX, clientY) {
   chrome.poke = p; chrome.dent.v = 6.0;
   chrome.strikeAge = 0; chrome.rWave = 9;
   const cf = chrome.fronts[chrome.frontIx]; chrome.frontIx = (chrome.frontIx + 1) % 4;
-  cf.age = 0; cf.poke = [p[0], p[1], p[2]]; cf.wave = 9; cf.hold = -1;
+  cf.age = 0; cf.wave = 9; cf.hold = -1;
+  cf.azOff = Math.atan2(p[0], p[2]) - chrome.yaw;
+  cf.elOff = Math.max(-0.45, Math.min(0.45, Math.asin(Math.max(-1, Math.min(1, p[1]))) - chrome.pit * 0.6));
 }
 function chromeNotePoke(midi) {
   /* CAMERA-RELATIVE, per the human: strikes must originate at a point
@@ -3434,7 +3445,9 @@ function chromeNotePoke(midi) {
     if (ix < 0) { ix = chrome.frontIx; chrome.frontIx = (chrome.frontIx + 1) % 4; }
   }
   const f = chrome.fronts[ix];
-  f.age = 0; f.poke = chrome.poke.slice(); f.wave = wave; f.hold = midi;
+  f.age = 0; f.wave = wave; f.hold = midi;
+  f.azOff = ((midi % 12) / 12 - 0.5) * 2.0;
+  f.elOff = Math.max(-0.45, Math.min(0.45, (Math.floor(midi / 12) - 5) * 0.18));
 }
 function chromeFrame() {
   const c = chrome;
@@ -3495,7 +3508,7 @@ function chromeFrame() {
      latched fresh attacks into the dent spring). */
   const ringing = Math.abs(c.dent.x) > 5e-4 || Math.abs(c.dent.v) > 2e-3
                || c.shySm > 1e-3
-               || c.fronts.some(f => f.age < 3.5 || f.hold >= 0);   // any live front
+               || c.fronts.some(f => f.age < 3.5 || f.hold >= 0 || f.heldAmt > 1e-3);
   if (envMax > 1e-3 || peak > 1e-3 || ringing) { c.lastAct = now; c.plate = false; }
   if (now - c.lastAct > 1500)
   {
@@ -3539,18 +3552,30 @@ function chromeFrame() {
   // amplitude breathes with the envelope; sustained level QUIVERS the mass.
   c.strikeAge = Math.min(10, c.strikeAge + dt);
   const pokes = new Float32Array(12), ages = new Float32Array(4), waves = new Float32Array(4);
+  const helds = new Float32Array(4);
   for (let i = 0; i < 4; i++) {
     const f = c.fronts[i];
     f.age = Math.min(10, f.age + dt);
-    // HELD REGENERATION: while the note is gated, re-emit once the rings have
-    // crossed — continuous propagation for the whole hold, per the human.
-    if (f.hold >= 0 && f.age > 1.4) f.age = 0;
-    pokes[i * 3] = f.poke[0]; pokes[i * 3 + 1] = f.poke[1]; pokes[i * 3 + 2] = f.poke[2];
-    ages[i] = f.age; waves[i] = f.wave;
+    /* CONTINUOUS, NOT RESTARTED (human 2026-08-30: the age-reset regeneration
+       "stops the current ripples and restarts over and over"). A held front
+       now drives a steady radiating wave term in the shader via heldAmt —
+       eased in ~250 ms, out ~450 ms — while the one-shot strike front runs
+       its natural life untouched. */
+    const hT = f.hold >= 0 ? 1 : 0;
+    const hC = hT > f.heldAmt ? 1 - Math.exp(-dt / 0.25) : 1 - Math.exp(-dt / 0.45);
+    f.heldAmt += (hT - f.heldAmt) * hC;
+    // world point derived per frame from the LIVE camera: visible by construction
+    const az = c.yaw + f.azOff;
+    const el = Math.max(-0.85, Math.min(0.85, c.pit * 0.6 + f.elOff));
+    pokes[i * 3] = Math.cos(el) * Math.sin(az);
+    pokes[i * 3 + 1] = Math.sin(el);
+    pokes[i * 3 + 2] = Math.cos(el) * Math.cos(az);
+    ages[i] = f.age; waves[i] = f.wave; helds[i] = f.heldAmt;
   }
   gl.uniform3fv(c.u.uPokeN, pokes);
   gl.uniform1fv(c.u.uStrikeN, ages);
   gl.uniform1fv(c.u.uRWaveN, waves);
+  gl.uniform1fv(c.u.uHeldN, helds);
   // ripple DEPTH rides the envelope and the active osc's detune (the human's
   // #4): a wide swarm strikes harder water.
   const det = +(lastParams[effId(4)] ?? 0);
