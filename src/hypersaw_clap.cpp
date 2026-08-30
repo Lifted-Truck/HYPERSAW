@@ -582,7 +582,7 @@ static const ParamDef kParams[] = {
        ("jumpy, jaggy") in the VST on 2026-08-28. On = the reduced-cost render
        (low fixed resolution, fewer march steps, 20 Hz, idle-gated); off = the
        phase circle returns to MAIN. The native-GUI escape is B75. */
-    {178, "specimen", "Specimen (CHROME-001)", 0, 1, 1, true, nullptr},
+    {178, "specimen", "Specimen (CHROME-002)", 0, 1, 1, true, nullptr},
     /* ADR-142 — the standard Delay's per-slot params: 232..263, four blocks of
        8, the same shape ADR-131 gave the time engines (slot = (id-232)/8, key
        = (id-232)%8), so a fifth slot or a ninth param is a table edit and never
