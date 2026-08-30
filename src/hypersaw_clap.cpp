@@ -138,9 +138,15 @@ static const ParamDef kParams[] = {
     {1, "n", "Voices", 1, 32, 7, true, nullptr},
     {2, "dist", "Distribution", 0, 4, 1, true, kDistLabels},
     {3, "seed", "Seed", 0, 999999, 1234, true, nullptr},
-    {4, "detune", "Detune", 0, 1, 0.28, false, nullptr},
+    /* Default at the FLOOR (human 2026-08-30): macros are unipolar, so the
+       default M1->detune route can only push UP from base — with base at 0.28
+       the pad could never reach the bottom third. Floor + 100% depth makes
+       the macro sweep cover the whole knob, which is the old hardwired pad's
+       feel exactly. Interim until bipolar modulation is an option (the
+       human's own framing); revisit with STRATA/B77. */
+    {4, "detune", "Detune", 0, 1, 0, false, nullptr},
     {5, "law", "Detune Law", 0, 5, 0, true, kLawLabels},
-    {6, "K", "Pull K", -1, 1, 0, false, nullptr},
+    {6, "K", "Pull K", -1, 1, -1, false, nullptr},   // floor default: see detune note above
     {7, "onset", "Onset Lock", -1, 1, 0, false, nullptr},  // ADR-056: bipolar (<0 = splay onset)
     {8, "dissolve", "Dissolve (s)", 0.05, 7.94, 0.63, false, nullptr},
     {9, "driftDepth", "Drift Depth (c)", 0, 100, 0, false, nullptr},  // widened from the
@@ -582,7 +588,7 @@ static const ParamDef kParams[] = {
        ("jumpy, jaggy") in the VST on 2026-08-28. On = the reduced-cost render
        (low fixed resolution, fewer march steps, 20 Hz, idle-gated); off = the
        phase circle returns to MAIN. The native-GUI escape is B75. */
-    {178, "specimen", "Specimen (CHROME-001)", 0, 1, 1, true, nullptr},
+    {178, "specimen", "Specimen (CHROME-002)", 0, 1, 1, true, nullptr},
     /* ADR-142 — the standard Delay's per-slot params: 232..263, four blocks of
        8, the same shape ADR-131 gave the time engines (slot = (id-232)/8, key
        = (id-232)%8), so a fifth slot or a ninth param is a table edit and never
@@ -1406,6 +1412,23 @@ struct Plugin
   struct ModDest { clap_id id = 0; double base = 0, lastApplied = 1e300; bool active = false; };
   ModDest modDests[hypersaw::ModCore::kMaxRoutes];
   bool modFromMatrix = false;
+  /* DEFAULT MAPPING (human 2026-08-29): a fresh instance ships with Macro 1
+     driving BOTH oscillators' detune and Macro 2 driving both pull-Ks — so
+     the default pads (M1/M2 on osc 1's pad) feel like the old hardwired XY
+     from the first note. Load-is-a-load still governs: a saved set's chunk
+     REPLACES these, absent keys clear them (ADR-138) — defaults are what you
+     get before you have said anything, never what overrides what you said.
+     Depths: detune 0.7 of range; K 1.0 (a unipolar macro can only push K up
+     from base, so full depth is what makes the pad's reach musical). */
+  void modInstallDefaults()
+  {
+    // 100% depth from floor defaults (human 2026-08-30): the unipolar macro
+    // then sweeps the ENTIRE range, reproducing the old absolute pad.
+    mod.addRoute(2, 4, 1.0, hypersaw::ModCore::kGlobal);      // M1 -> detune (osc 1)
+    mod.addRoute(2, 1004, 1.0, hypersaw::ModCore::kGlobal);   // M1 -> detune (osc 2)
+    mod.addRoute(3, 6, 1.0, hypersaw::ModCore::kGlobal);      // M2 -> pull K (osc 1)
+    mod.addRoute(3, 1006, 1.0, hypersaw::ModCore::kGlobal);   // M2 -> pull K (osc 2)
+  }
   ModDest *modDestFor(clap_id id, bool create)
   {
     for (auto &d : modDests) if (d.active && d.id == id) return &d;
@@ -1426,7 +1449,12 @@ struct Plugin
   // [osc0 X, osc0 Y, osc1 X, osc1 Y], each an index into macroVal.
   double macroVal[8] = {0};
   int xyAsn[4] = {0, 1, 2, 3};
-  double specimenOn = 0;   // ADR-140: CHROME-001 gate, off by default
+  /* = 1, matching the table (paramscope's default-truth sweep caught this as
+     a LIE: info said 1, readback said 0 — so fresh instances showed the
+     specimen OFF all along, which is why the human kept asking to "default it
+     on" after it was nominally defaulted. The member init and the table row
+     are two copies of one fact; the sweep is what keeps them honest. */
+  double specimenOn = 1;
   bool env2Gate = false;
   hypersaw::MorphCore morph;
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
@@ -1886,6 +1914,17 @@ struct Plugin
     // ADR-137: macros feed source slots 2-9 every tick. A macro with no route
     // is inert by the matrix's own law — no route, no evaluate output.
     for (int i = 0; i < 8; i++) mod.src[2 + i] = macroVal[i];
+    /* Pad AXES as first-class sources (human 2026-08-29: "make X and Y for
+       each separate XY grid accessible from the mod matrix"). Slots 10-13 =
+       XY1 X, XY1 Y, XY2 X, XY2 Y — each an ALIAS through the assignment, so
+       routing "XY1 X" means "whatever the pad's X drives", and re-aiming the
+       pad re-aims every route riding it. The full nested system is STRATA
+       (B77); this is the interim the human asked for. */
+    for (int i = 0; i < 4; i++)
+    {
+      const int a = xyAsn[i] & 7;
+      mod.src[10 + i] = macroVal[a];
+    }
     uint32_t dests[hypersaw::ModCore::kMaxRoutes];
     double deltas[hypersaw::ModCore::kMaxRoutes];
     const int n = mod.evaluate(hypersaw::ModCore::kGlobal, dests, deltas, hypersaw::ModCore::kMaxRoutes);
@@ -4796,6 +4835,16 @@ const clap_plugin_t *factory_create_plugin(const clap_plugin_factory *, const cl
 {
   if (std::strcmp(plugin_id, s_desc.id) != 0) return nullptr;
   auto *pl = new Plugin();
+  pl->modInstallDefaults();   // fresh instance: M1 -> detunes, M2 -> Ks (both oscs)
+  /* Floor defaults applied THROUGH applyParam: readback for these ids goes
+     through the cores, whose lab-authored defaults (detune 0.28, K 0) now
+     differ from the table's floors — paramscope's sweep flagged the mismatch
+     the moment the table moved. The cores stay untouched (they are the
+     parity reference); the shell simply sets the declared default at birth. */
+  pl->applyParam(4, 0.0);
+  pl->applyParam(1004, 0.0);
+  pl->applyParam(6, -1.0);
+  pl->applyParam(1006, -1.0);
   pl->host = host;
   pl->plugin.desc = &s_desc;
   pl->plugin.plugin_data = pl;

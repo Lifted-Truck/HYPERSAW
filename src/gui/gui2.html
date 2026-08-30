@@ -746,24 +746,26 @@
      shipped, and no audio oracle can see the difference. Reported by the human
      2026-08-12 as "I'm not seeing a panic button anywhere", while hunting a
      stuck note that panic is precisely the escape hatch for. -->
-<div class="hdr"><canvas class="brand" id="brand" width="146" height="96" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
+<div class="hdr"><canvas class="brand" id="brand" width="292" height="192" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
 
 <div class="page on" id="pg-MAIN">
-  <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
-    <div class="note">Selects which oscillator this page edits AND which one the
-      engine renders in the visualizers. Global parameters are unaffected — they
-      have no per-oscillator twin, so they never remap.</div>
-  </div>
+  <!-- The Editing bar left MAIN (human 2026-08-29: "I don't think the main
+       page needs an editing section anymore"). The SELECTION still exists —
+       it is global state, switched on OSC/MIX — and MAIN's waveform and XY
+       pad quietly follow whatever was last selected there. Only the switch
+       moved out, not the concept. -->
   <div class="vizcol">
-  <!-- CHROME-001 (ADR-139/140/144, B74): its own cluster, first in the left
-       column — the human's placement. It ships ON again now that ADR-143 gave
-       the frame loop the budget back; SET still carries the switch, and with
-       it off the phase circle takes the page's viz slot as before. -->
-  <div class="cluster" id="specimenBox"><h2>Specimen — CHROME-001</h2>
+  <!-- CHROME-002 (the human's new material study, 2026-08-29): the specimen
+       returns EXONERATED — the excision experiment proved the lag was the
+       param-sync repaint, not this. Now with a create-on-show lifecycle: the
+       GL context exists only once the cluster is actually visible, so "off"
+       finally means what the experiment had to prove the hard way. -->
+  <div class="cluster" id="specimenBox"><h2>Specimen — CHROME-002</h2>
     <canvas id="chromeC" style="display:block;width:100%;aspect-ratio:1.12;cursor:crosshair;touch-action:none"></canvas>
-    <div class="note" style="margin-top:5px">Notes strike the metal · the envelope
-      blooms the film · coherence pulls the lobes together. Drag orbits, click pokes.
-      It stops drawing entirely when nothing sounds, and settles at full resolution.</div>
+    <div class="note" style="margin-top:5px">The pearl under impact: notes STRIKE it —
+      capillary ripples spread from the strike point, tighter for higher notes —
+      sustained level makes it quiver, the envelope blooms the film, coherence
+      pulls the lobes together. Drag orbits · click strikes.</div>
   </div>
   <div class="cluster"><h2>XY — macro pad</h2>
     <canvas id="xy" class="xy" width="340" height="212"></canvas>
@@ -936,12 +938,25 @@
       pads' own selects are the same four values seen through the active
       oscillator.</div>
   </div>
+  <div class="cluster"><h2>Diagnostics — lag bisect</h2>
+    <div class="note">Each switch kills one periodic subsystem LIVE — no reinstall,
+      no reload. Turn them off one at a time and watch the corner's raf number;
+      the line names whatever is off. These are session-local and never saved.</div>
+    <div class="row"><label>Viz feed+paint</label><input type="checkbox" data-diag="viz" checked><output></output></div>
+    <div class="row"><label>Spectrum</label><input type="checkbox" data-diag="spec" checked><output></output></div>
+    <div class="row"><label>Scope</label><input type="checkbox" data-diag="scope" checked><output></output></div>
+    <div class="row"><label>XY pad paint</label><input type="checkbox" data-diag="xy" checked><output></output></div>
+    <div class="row"><label>Mod halos</label><input type="checkbox" data-diag="halos" checked><output></output></div>
+    <div class="row"><label>Param sync poll</label><input type="checkbox" data-diag="sync" checked><output></output></div>
+    <div class="row"><label>Morph polls</label><input type="checkbox" data-diag="morph" checked><output></output></div>
+    <div class="row"><label>Wordmark warp</label><input type="checkbox" data-diag="brand" checked><output></output></div>
+  </div>
   <div class="cluster"><h2>Visualizers</h2>
     <div class="row"><label>Specimen</label><input type="checkbox" data-p="178" checked><output></output></div>
-    <div class="note">CHROME-001 on MAIN in place of the phase circle — a
-      GPU-rendered material study that reacts to what you play. Costs real GPU;
-      off by default after it proved heavy in some hosts (ADR-140). The native
-      renderer that would make it free is roadmapped (B75).</div>
+    <div class="note">INERT IN THIS EXPERIMENT BUILD — the specimen is fully
+      excised (no canvas, no GL context) to give the lag A/B a clean single
+      variable. The switch stays so the parameter remains reachable; it does
+      nothing until the experiment is ratified or reverted.</div>
   </div>
   <div class="cluster"><h2>Keyboard</h2>
     <div id="setKeys"></div>
@@ -1040,13 +1055,13 @@
   <div class="cluster"><h2>Slot 1</h2>
     <div class="row" data-addr="fx1type"><label>FX1 Type</label><select data-p="57" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx1amt"><label>FX1 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="58" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx1tone"><label>FX1 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="96" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx1tone" data-when="fx1type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="96" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1mix"><label>FX1 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="133" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1size" data-when="fx1type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="200" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1spread" data-when="fx1type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="201" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx1taps" data-when="fx1type=7|8"><label>Taps / Lines</label><input type="range" data-p="202" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx1damp" data-when="fx1type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="203" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx1noise" data-when="fx1type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="204" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx1noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="204" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx1stereo" data-when="fx1type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="205" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx1dist" data-when="fx1type=7|8"><label>Spacing</label><select data-p="206" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d1time" data-when="fx1type=9,d1sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="232" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -1061,13 +1076,13 @@
   <div class="cluster"><h2>Slot 2</h2>
     <div class="row" data-addr="fx2type"><label>FX2 Type</label><select data-p="59" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx2amt"><label>FX2 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="60" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx2tone"><label>FX2 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="97" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx2tone" data-when="fx2type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="97" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2mix"><label>FX2 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="134" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2size" data-when="fx2type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="208" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2spread" data-when="fx2type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="209" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx2taps" data-when="fx2type=7|8"><label>Taps / Lines</label><input type="range" data-p="210" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx2damp" data-when="fx2type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="211" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx2noise" data-when="fx2type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="212" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx2noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="212" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx2stereo" data-when="fx2type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="213" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx2dist" data-when="fx2type=7|8"><label>Spacing</label><select data-p="214" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d2time" data-when="fx2type=9,d2sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="240" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -1082,13 +1097,13 @@
   <div class="cluster"><h2>Slot 3</h2>
     <div class="row" data-addr="fx3type"><label>FX3 Type</label><select data-p="61" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx3amt"><label>FX3 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="62" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx3tone"><label>FX3 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="98" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx3tone" data-when="fx3type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="98" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3mix"><label>FX3 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="135" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3size" data-when="fx3type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="216" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3spread" data-when="fx3type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="217" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx3taps" data-when="fx3type=7|8"><label>Taps / Lines</label><input type="range" data-p="218" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx3damp" data-when="fx3type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="219" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx3noise" data-when="fx3type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="220" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx3noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="220" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx3stereo" data-when="fx3type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="221" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx3dist" data-when="fx3type=7|8"><label>Spacing</label><select data-p="222" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d3time" data-when="fx3type=9,d3sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="248" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -1103,13 +1118,13 @@
   <div class="cluster"><h2>Slot 4</h2>
     <div class="row" data-addr="fx4type"><label>FX4 Type</label><select data-p="63" data-fixed="1"><option value="0" selected>Off</option><option value="1">Drive</option><option value="2">Filter</option><option value="3">Gain</option><option value="4">Comp</option><option value="5">Comb</option><option value="6">Notch</option><option value="7">Echo</option><option value="8">Room</option><option value="9">Delay</option></select><output></output></div>
     <div class="row kcell" data-addr="fx4amt"><label>FX4 Amount</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="64" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx4tone"><label>FX4 Tone</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="99" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx4tone" data-when="fx4type=5"><label>Resonance</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="99" data-fixed="1" min="0" max="1" step="0.005" value="0.5"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4mix"><label>FX4 Mix</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="136" data-fixed="1" min="0" max="1" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4size" data-when="fx4type=7|8"><label>Size</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="224" data-fixed="1" min="0" max="1" step="0.005" value="0.55"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4spread" data-when="fx4type=7|8"><label>Spread</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="225" data-fixed="1" min="0" max="1" step="0.005" value="0.6"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx4taps" data-when="fx4type=7|8"><label>Taps / Lines</label><input type="range" data-p="226" data-fixed="1" min="2" max="12" step="1" value="8"><output></output></div>
     <div class="row kcell" data-addr="fx4damp" data-when="fx4type=7|8"><label>Damping</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="227" data-fixed="1" min="0" max="1" step="0.005" value="0.4"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="fx4noise" data-when="fx4type=7|8"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="228" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="fx4noise" data-when="never"><label>Noise</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="228" data-fixed="1" min="0" max="1" step="0.005" value="0.2"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="fx4stereo" data-when="fx4type=7|8"><label>Stereo</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="229" data-fixed="1" min="0" max="1" step="0.005" value="0.7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="fx4dist" data-when="fx4type=7|8"><label>Spacing</label><select data-p="230" data-fixed="1"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="d4time" data-when="fx4type=9,d4sync=0"><label>Delay Time <span class="u">ms</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="256" data-fixed="1" data-log10="1" min="0" max="3.301" step="0.001" value="2.574"><span class="kmnow"></span></span><output></output></div>
@@ -1250,7 +1265,7 @@
     <div class="row kcell" data-addr="osc1.roundHi"><label>Round x Pitch <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="132" min="-1" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
   </div>
   <div class="cluster"><h2>The coupling</h2>
-    <div class="row kcell" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="6" min="-1" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.K"><label>Pull K <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="6" min="-1" max="1" step="0.005" value="-1"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="osc1.onset"><label>Onset Lock <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="7" min="-1" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="osc1.dissolve"><label>Dissolve (s) <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="8" data-log10="1" min="-1.301" max="0.8998" step="0.001" value="-0.2007"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="inertia"><label>Inertia</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="11" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
@@ -1262,7 +1277,7 @@
     <div class="row kcell" data-addr="osc1.n"><label>Voices <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="1" min="1" max="32" step="1" value="7"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.dist"><label>Distribution <span class="sc">osc1</span></label><select data-p="2"><option value="0">even spread</option><option value="1" selected>JP-8000 curve</option><option value="2">gaussian (seeded)</option><option value="3">cauchy (seeded)</option><option value="4">golden (irrational)</option></select><output></output></div>
     <div class="row kcell" data-addr="osc1.seed"><label>Seed <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="3" min="0" max="999999" step="1" value="1234"><span class="kmnow"></span></span><output></output></div>
-    <div class="row kcell" data-addr="osc1.detune"><label>Detune <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="4" min="0" max="1" step="0.005" value="0.28"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.detune"><label>Detune <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="4" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row" data-addr="osc1.law"><label>Detune Law <span class="sc">osc1</span></label><select data-p="5"><option value="0" selected>cents-constant</option><option value="1">Hz-constant</option><option value="2">ERB-flat</option><option value="3">tempo-grid</option><option value="4">harmonic (series)</option><option value="5">stretch (inharmonic)</option></select><output></output></div>
     <div class="row" data-addr="osc1.beatMult" data-when="law=3"><label>Grid Cycles/Beat <span class="sc">osc1</span></label><input type="range" data-p="23" min="0.25" max="8" step="0.005" value="1"><output></output></div>
     <div class="row kcell" data-addr="osc1.harmReach" data-when="law=4"><label>Harmonic Reach <span class="sc">osc1</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="79" min="0.25" max="4" step="0.005" value="1"><span class="kmnow"></span></span><output></output></div>
@@ -1554,9 +1569,18 @@ document.addEventListener('click', hzMaybeRelease, true);
         drawBendVib(); drawShapeWave();
       }
     };
+    /* PERSISTENCE (human 2026-08-29: "GUI color settings aren't persistent").
+       localStorage dies under the plugin's opaque origin (the ADR-105 A2
+       lesson), so prefs ride the same app-support store the presets use —
+       via the existing binds, kind "prefs", no new plumbing. */
+    const savePrefs = () => {
+      try { window.hzPresetSave && hzPresetSave('prefs', 'gui', JSON.stringify({ schemeIx, modeIx: window.__modeIx || 0 })); } catch (e) {}
+    };
+    window.__savePrefs = savePrefs;
     scr.addEventListener('click', () => {
       schemeIx = (schemeIx + 1) % SCHEMES.length;
       applyScheme(true);
+      savePrefs();
     });
     applyScheme(false);
     tabs.appendChild(scr);
@@ -1580,10 +1604,28 @@ document.addEventListener('click', hzMaybeRelease, true);
     };
     md.addEventListener('click', () => {
       modeIx = (modeIx + 1) % MODES.length;
+      window.__modeIx = modeIx;
       applyMode(true);
+      window.__savePrefs && __savePrefs();
     });
     applyMode(false);
     tabs.appendChild(md);
+    /* boot restore: async on purpose — the chips exist and painted defaults
+       already, so a late file read just re-applies on arrival. */
+    (async () => {
+      try {
+        if (!window.hzPresetLoad) return;
+        const raw = await hzPresetLoad('prefs', 'gui');
+        if (!raw) return;
+        const pf = JSON.parse(raw);
+        if (typeof pf.modeIx === 'number' && pf.modeIx >= 0 && pf.modeIx < MODES.length) {
+          modeIx = pf.modeIx; window.__modeIx = modeIx; applyMode(true);
+        }
+        if (typeof pf.schemeIx === 'number' && pf.schemeIx >= 0 && pf.schemeIx < SCHEMES.length) {
+          schemeIx = pf.schemeIx; applyScheme(true);
+        }
+      } catch (e) {}
+    })();
   }
 }
 function paintArm(v) {
@@ -2224,7 +2266,11 @@ const PARAM_MENU = [
 /* ADR-136: the MOD page's route list. Rendered from the shell's own table
    (hzModRoutes) — the GUI holds no second copy of the routes. */
 const MOD_SRC_NAMES = ['ENV 1', 'ENV 2', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4',
-                       'Macro 5', 'Macro 6', 'Macro 7', 'Macro 8'];
+                       'Macro 5', 'Macro 6', 'Macro 7', 'Macro 8',
+                       // slots 10-13 (ADR next): a pad AXIS as a first-class
+                       // source — it reads whatever macro the axis drives, so
+                       // routing "XY1 X" follows the assignment
+                       'XY1 X', 'XY1 Y', 'XY2 X', 'XY2 Y'];
 /* Internal ids never reach the UI (human 2026-08-28: the pitch route rendered
    as "#2147483649"). Synthetic dests get their names here; per-osc twins strip
    the stride and borrow the base control's label with an osc tag. */
@@ -2316,7 +2362,7 @@ function clearModVis(el) {
     row?.querySelector('.smod')?.remove(); row?.querySelector('.snow')?.remove();
   }
 }
-function applyModVis(el, base, now, lo, hi) {
+function applyModVis(el, base, now, lo, hi, rects) {
   /* Depth is a fraction of the PARAMETER's range (the shell scales by
      maxV-minV, ADR-136), so the reach edges are computed in value space and
      mapped through the control's own curve — a log control draws its band
@@ -2343,7 +2389,10 @@ function applyModVis(el, base, now, lo, hi) {
       band = document.createElement('span'); band.className = 'smod'; row.appendChild(band);
       tick = document.createElement('span'); tick.className = 'snow'; row.appendChild(tick);
     }
-    const rr = row.getBoundingClientRect(), er = el.getBoundingClientRect();
+    // measured in the halo pass's READ phase when batched; self-measure only on
+    // the direct-call path (route edits), where a single reflow is fine
+    const rr = rects ? rects.row : row.getBoundingClientRect();
+    const er = rects ? rects.el : el.getBoundingClientRect();
     const L = er.left - rr.left, W = er.width, T = er.bottom - rr.top;
     band.style.left = (L + Math.min(a, b) * W).toFixed(1) + 'px';
     band.style.width = Math.max(2, Math.abs(b - a) * W).toFixed(1) + 'px';
@@ -2364,29 +2413,61 @@ async function modHaloFrame() {
     const generic = MODROUTES.filter(r => (r.dest >>> 0) < 0x80000000);
     let live = [];
     if (generic.length) { try { live = JSON.parse(await window.hzModLive()); } catch (_) {} }
-    const byId = new Map();
-    // Scoped to the VISIBLE page: a whole-document sweep (~200 controls) plus a
-    // getBoundingClientRect per hit is a forced reflow, and it was running 20
-    // times a second over controls that were not on screen to be haloed.
-    const pg = document.querySelector('.page.on') || document;
-    if (live.length)
+    /* THE ONSET SUSPECT (human's timeline, 2026-08-29: "was it the halos?
+       those were added shortly before the specimen" — and the mechanism
+       fits). This pass used to rebuild its element map with a DOM sweep AND
+       interleave getBoundingClientRect reads with style writes, per tick:
+       write → read forces a synchronous reflow of a ~4,000-element document,
+       and it only starts once the set CONTAINS routes — which the human's set
+       gained in exactly the window the lag appeared. Three disciplines now:
+       the map is CACHED per (page, editOsc) and rebuilt only when that key
+       changes; every el's last-applied values gate the work (an unchanged
+       halo writes nothing); and all rect READS complete before any style
+       WRITE (two phases, no interleaving, no forced reflow). */
+    if (haloKey !== haloKeyNow()) { haloEls = null; haloKey = haloKeyNow(); }
+    if (live.length && !haloEls) {
+      haloEls = new Map();
+      const pg = document.querySelector('.page.on') || document;
       for (const el of pg.querySelectorAll('input[type=range][data-p]')) {
         const eff = el.dataset.fixed ? +el.dataset.p : effId(+el.dataset.p);
-        if (!byId.has(eff)) byId.set(eff, el);
+        if (!haloEls.has(eff)) haloEls.set(eff, el);
       }
+    }
     const seen = new Set();
+    const jobs = [];
     for (const d of live) {
-      const el = byId.get(d.id);
+      const el = haloEls && haloEls.get(d.id);
       if (!el) continue;                       // the other osc's twin: no visible control
       let lo = 0, hi = 0;
       for (const r of generic) if (r.dest === d.id) { lo += Math.min(0, r.depth); hi += Math.max(0, r.depth); }
       if (lo === 0 && hi === 0) continue;
-      applyModVis(el, d.base, d.now, lo, hi);
       seen.add(el);
+      const prev = haloLast.get(el);
+      if (prev && Math.abs(prev.base - d.base) < 1e-4 && Math.abs(prev.now - d.now) < 1e-4
+               && prev.lo === lo && prev.hi === hi) continue;   // unchanged: write nothing
+      haloLast.set(el, { base: d.base, now: d.now, lo, hi });
+      jobs.push({ el, d, lo, hi });
     }
-    for (const el of modMarked) if (!seen.has(el)) clearModVis(el);
+    // READ PHASE: measure every slider row this tick needs, before any write
+    for (const j of jobs) {
+      const k = j.el.parentElement;
+      if (!(k && k.classList.contains('knob'))) {
+        const row = j.el.closest('.row');
+        if (row && j.el.offsetParent !== null)
+          j.rects = { row: row.getBoundingClientRect(), el: j.el.getBoundingClientRect() };
+      }
+    }
+    // WRITE PHASE
+    for (const j of jobs) applyModVis(j.el, j.d.base, j.d.now, j.lo, j.hi, j.rects);
+    for (const el of modMarked) if (!seen.has(el)) { clearModVis(el); haloLast.delete(el); }
     modMarked = seen;
   } finally { modHaloBusy = false; }
+}
+let haloEls = null, haloKey = '';
+const haloLast = new Map();
+function haloKeyNow() {
+  const pg = document.querySelector('.page.on');
+  return (pg ? pg.id : '') + ':' + editOsc;
 }
 
 let menuEl = null;
@@ -2692,9 +2773,32 @@ function paintOscTabs(ps) {
 /* ADR-111: while a corner is armed, in-field controls display that corner's
    baseline; painting live values over them would flicker between what you are
    editing and what is sounding. Every live repaint goes through here. */
+/* THE LAG, FOUND BY THE HUMAN'S BISECT (2026-08-29: eight toggles, "only one
+   had any noticeable effect" — OFF:sync took raf 55ms → 17ms with everything
+   else running). This function repainted EVERY param on EVERY 500ms poll:
+   ~240 setControls, each two querySelectors over a ~4,000-element document
+   plus style writes — a ~100ms stall twice a second that the rAF EMA smears
+   into a constant 45-55ms. The poll is ancient; what changed is that the
+   mod/Delay/macro era grew the param count by ~56 and the generated-control
+   DOM substantially, pushing the per-poll cost over the threshold at exactly
+   the moment the specimen arrived to take the blame.
+
+   The fix: paint only what CHANGED since the last paint. On a quiet engine a
+   poll now paints zero controls; under automation it paints the moving ones.
+   The cache is busted on an oscillator switch, because effId remaps which
+   engine value each control shows — same values, different truth. */
+let lastPainted = {}, lastPaintedOsc = -1, lastPaintedArm = -2;
 function paintLive(ps) {
+  if (lastPaintedOsc !== editOsc) { lastPainted = {}; lastPaintedOsc = editOsc; }
+  /* Arm changes bust the cache too: while armed, the CONTROLS show corner
+     values (painted elsewhere) while the engine values sat unchanged — a
+     cached skip after release would leave the corner's numbers stuck on
+     screen even though the engine never moved. */
+  if (lastPaintedArm !== armedCorner) { lastPainted = {}; lastPaintedArm = armedCorner; }
   for (const [id, v] of Object.entries(ps)) {
     if (armedCorner >= 0 && CORNER_VALS && CORNER_VALS[id] !== undefined) continue;
+    if (lastPainted[id] === v) continue;
+    lastPainted[id] = v;
     setControl(+id, v);
   }
 }
@@ -2819,7 +2923,13 @@ const FEED_CONSUMERS = {
   // the feed for its strip meters even though it draws no phase circle.
   viz:   'canvas.phase, #vmapC, #carpetC, #stripC, .vizline, .vlabel, #chromeC, .meter',
   spec:  'canvas.spec',
-  scope: '#wavC2',
+  /* canvas.wavscope, NOT #wavC2 (the 2026-08-29 waveform bug): #wavC2 is the
+     RENDER SOURCE that happens to live on MAIN; OSC's copy carries only the
+     class, so gating on the id read "no consumer" there and the OSC waveform
+     went permanently dark — while MAIN kept working and made it look
+     intermittent. One-state-many-renderings applies to the GATE too: name the
+     class every rendering shares, never one rendering's id. */
+  scope: 'canvas.wavscope',
 };
 const FEED = { viz: true, spec: true, scope: true };
 function recomputeFeeds() {
@@ -2835,18 +2945,96 @@ function recomputeFeeds() {
    timer when rAF is starved. The health line names the active clock, so the
    next screenshot says which world we are in. */
 let lastBody = 0, lastRafTick = 0;
+/* QUIET MODE (experiment instrument, human-designed lineage): clicking the
+   health line silences EVERY periodic feed, poll and paint this GUI performs —
+   the page goes completely idle except the independent rAF meter that keeps
+   measuring the surface's own cadence. It is the feeds-vs-surface A/B as one
+   click: raf recovering toward 16 ms in quiet = our work is the cost (B76's
+   batched snapshot is the fix); raf staying ~44 ms over a DEAD page = the
+   surface itself is capped and B75 is the conversation. */
+/* The click now CYCLES: LOUD → NO-HALO → QUIET → LOUD. NO-HALO keeps every
+   feed and paint but silences only the halo pass — it exists to convict or
+   acquit the human's onset suspect specifically ("was it the halos? those
+   were added shortly before the specimen"). QUIET remains the total floor. */
+let MODE = 0;   // 0 loud · 1 no-halo · 2 quiet
+/* DIAG — the lag bisect the human asked for outright ("a list of features we
+   can disable one at a time with toggles until the lag goes away"). Every
+   subsystem that does periodic work has a live kill switch on SET; the corner
+   line names whatever is off. GUI-local state, deliberately not params: a
+   diagnostic that persisted into saved sets would be ADR-140's specimen
+   mistake again. */
+const DIAG = { viz: true, spec: true, scope: true, xy: true, halos: true,
+               sync: true, morph: true, brand: true };
+Object.defineProperty(window, 'QUIET', { get: () => MODE === 2, set: v => { MODE = v ? 2 : 0; } });
+let frameBusy = false, fetchEma = 0;
+let SCOPEDIAG = 'idle';   // the waveform's own state, printed in the corner —
+                          // one screenshot names why it is dark, if it is
+/* B76 pt 2: the bulk feeds arrive as base64-packed binary — ONE string token
+   each instead of thousands of number literals, because evaluateJavaScript's
+   parse cost is per-token and the DAW measured 44 ms loud with the literals
+   in the reply. decode cost here is microseconds via DataView. */
+function b64ToBytes(str) {
+  const bin = atob(str);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+async function frameFetch() {
+  const want = (FEED.viz && DIAG.viz ? 1 : 0) | (FEED.spec && DIAG.spec ? 2 : 0)
+             | (FEED.scope && DIAG.scope && wvC && !scopeFrozen ? 4 : 0);
+  if (!want || frameBusy) return;
+  frameBusy = true;
+  try {
+    const t0 = performance.now();
+    const f = await window.hzFrame(want);
+    fetchEma = fetchEma * 0.9 + (performance.now() - t0) * 0.1;
+    SCOPEDIAG = !FEED.scope ? 'nofeed' : !DIAG.scope ? 'toggled-off'
+              : scopeFrozen ? 'frozen' : !(want & 4) ? 'nowant'
+              : f.scope16 ? 'ok' : (f.scope ? 'raw' : 'ABSENT');
+    if (f.viz) { try { paintVizSnapshot(f.viz); } catch (e) {} }
+    if (f.spec8) {
+      try {
+        const q = b64ToBytes(f.spec8);
+        const bins = new Float32Array(q.length);
+        for (let i = 0; i < q.length; i++) bins[i] = q[i] / 255;
+        paintSpec(bins);
+      } catch (e) {}
+    } else if (f.spec) { try { paintSpec(f.spec); } catch (e) {} }
+    if (f.scope16) {
+      try {
+        const u = b64ToBytes(f.scope16);
+        const dv = new DataView(u.buffer);
+        const n = f.scopeN || (u.length >> 2);
+        const l = new Float32Array(n), r = new Float32Array(n);
+        for (let i = 0; i < n; i++) l[i] = dv.getInt16(i * 2, true) / 32768;
+        for (let i = 0; i < n; i++) r[i] = dv.getInt16((n + i) * 2, true) / 32768;
+        paintScope({ l, r });
+      } catch (e) {}
+    } else if (f.scope) { try { paintScope(f.scope); } catch (e) {} }
+  } finally { frameBusy = false; }
+}
 function frameBody() {
   lastBody = performance.now();
+  if (QUIET) return;
   frameNo++;
   /* 30 Hz, not 60, for the two heaviest feeds. The wordmark's warp already
      made this argument in this file and it holds here: halving the rate halves
      the cost outright, and neither a phase circle nor a smoothed spectrum
      reads differently at 30. The scope was already on this cadence. */
-  if (FEED.viz && frameNo % 2 === 0) vizFrame();
-  if (FEED.spec && frameNo % 2 === 1) specFrame();   // offset phase: never both in one frame
-  if (FEED.scope && frameNo % 2 === 0) drawScope().catch(() => {});
-  if (frameNo % 3 === 0) modHaloFrame().catch(() => {});   // ADR-137: live halos, ~20 Hz
-  if (frameNo % 3 === 0) chromeFrame();                    // ADR-140: the specimen, ~20 Hz
+  /* B76: in the plugin all three feeds ride ONE hzFrame round-trip at 20 Hz —
+     the QUIET instrument measured the bind as the cost (raf 44ms loud, 16ms
+     silent), so the CALL COUNT is what this cuts: 3-at-30Hz became 1-at-20Hz.
+     The per-feed fallback keeps dev pages and the lab harness working. */
+  if (window.hzFrame) {
+    if (frameNo % 3 === 0) frameFetch().catch(() => {});
+  } else {
+    if (FEED.viz && DIAG.viz && frameNo % 2 === 0) vizFrame();
+    if (FEED.spec && DIAG.spec && frameNo % 2 === 1) specFrame();   // offset phase
+    if (FEED.scope && DIAG.scope && frameNo % 2 === 0) drawScope().catch(() => {});
+  }
+  if (frameNo % 6 === 0 && MODE !== 1 && DIAG.halos) modHaloFrame().catch(() => {});   // halos: 10 Hz
+  if (frameNo % 3 === 0) chromeFrame();                  // CHROME-002, ~20 Hz
+  if (!DIAG.xy) return;   // DIAG: pad paint disabled
   {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
     const [mix, miy] = xyMacroIds();
     const mx = +(lastParams[mix] ?? 0), my = +(lastParams[miy] ?? 0);
@@ -3013,6 +3201,16 @@ function drawMeters(s) {
 const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pitT: 0.18,
   dent: { x: 0, v: 0 }, poke: [0, 0, 1], time: 3.7, scale: 1.0, ema: 8, last: 0,
   gates: {}, w: 0, h: 0, lastAct: 0, plate: false, up: 0,
+  strikeAge: 100, rWave: 9,   // legacy single-front fields (dent still uses poke)
+  /* FOUR RIPPLE FRONTS (human 2026-08-30: continuous propagation while held,
+     surviving new notes — "does the math get out of hand?" It does not: four
+     cheap terms in the SDF). Each front: age, origin, wavelength, and the
+     midi it belongs to while HELD (-1 once released). A held front RE-EMITS
+     when its rings have crossed, which turns tap-tap-hold from frozen into
+     continuous. */
+  fronts: [{age:100,poke:[0,0,1],wave:9,hold:-1},{age:100,poke:[0,0,1],wave:9,hold:-1},
+           {age:100,poke:[0,0,1],wave:9,hold:-1},{age:100,poke:[0,0,1],wave:9,hold:-1}],
+  frontIx: 0, shySm: 0,
   // the ceiling is the display's real pixel grid, capped at 2x: past that the
   // extra samples land inside a pixel nobody can resolve.
   scaleMax: Math.min(window.devicePixelRatio || 1, 2), scaleMin: 0.5 };
@@ -3054,10 +3252,14 @@ function chromeInit() {
   const fs = `precision highp float;
 uniform vec2 uRes;uniform float uTime;uniform float uK;uniform int uVariant;
 uniform vec3 uPoke;uniform float uDent;uniform vec2 uOrbit;uniform float uThick;
-uniform float uRipple;
+uniform vec3 uPokeN[4];uniform float uStrikeN[4];uniform float uRWaveN[4];
+uniform float uRAmp;uniform float uShy;
+uniform vec3 uBg;
 float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
 float map(vec3 p){
  float t=uTime*.35;
+ float qv=uShy*.016*sin(t*20.+p.y*9.+p.x*7.);
+ p+=qv;
  vec3 c1=vec3(sin(t*.7)*.33,sin(t*.9+1.7)*.2,cos(t*.6)*.28);
  vec3 c2=vec3(cos(t*.5+3.)*.38,cos(t*.8)*.22,sin(t*.7+1.)*.3);
  vec3 c3=vec3(sin(t*.6+5.)*.28,cos(t*.5+2.)*.27,cos(t*.9+4.)*.22);
@@ -3066,7 +3268,14 @@ float map(vec3 p){
  d=smin(d,length(p-c3)-.4,uK);
  vec3 q=p-uPoke;
  d+=uDent*exp(-dot(q,q)*16.);
- d+=uRipple*sin(p.x*6.+p.y*8.+p.z*5.-uTime*5.);
+ for(int i=0;i<4;i++){
+  if(uStrikeN[i]<3.5&&uRAmp>0.){
+   float rd2=distance(normalize(p),normalize(uPokeN[i]));
+   float front=rd2*3.2-uStrikeN[i]*2.6;
+   float env2=exp(-uStrikeN[i]*1.9)*exp(-front*front*2.2)*smoothstep(0.,.12,uStrikeN[i]);
+   d+=.085*uRAmp*env2*sin(front*uRWaveN[i]);
+  }
+ }
  return d;
 }
 vec3 calcN(vec3 p){
@@ -3095,16 +3304,16 @@ vec3 film(float c){
 void main(){
  vec2 uv=(gl_FragCoord.xy*2.-uRes)/uRes.y;
  float yaw=uOrbit.x,pit=clamp(uOrbit.y,-1.15,1.15);
- vec3 ro=vec3(cos(pit)*sin(yaw),sin(pit),cos(pit)*cos(yaw))*3.1;
+ vec3 ro=vec3(cos(pit)*sin(yaw),sin(pit),cos(pit)*cos(yaw))*2.75;
  vec3 ww=normalize(-ro);
  vec3 uu=normalize(cross(vec3(0.,1.,0.),ww));
  vec3 vv=cross(ww,uu);
  vec3 rd=normalize(uv.x*uu+uv.y*vv+2.1*ww);
- vec3 paperHi=vec3(.972,.962,.938),paperLo=vec3(.912,.898,.862);
+ vec3 paperHi=uBg*1.035;vec3 paperLo=uBg*.93;
  vec3 bg=mix(paperLo,paperHi,smoothstep(-1.,.9,uv.y));
  vec3 col=bg;
  float t=0.;bool hit=false;
- for(int i=0;i<44;i++){
+ for(int i=0;i<64;i++){
   vec3 p=ro+rd*t;
   float d=map(p);
   if(d<.0012*t+.0008){hit=true;break;}
@@ -3153,7 +3362,7 @@ void main(){
   const loc = gl.getAttribLocation(prog, 'a');
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uRipple'])
+  for (const n of ['uRes', 'uTime', 'uK', 'uVariant', 'uPoke', 'uDent', 'uOrbit', 'uThick', 'uPokeN', 'uStrikeN', 'uRWaveN', 'uRAmp', 'uShy', 'uBg'])
     chrome.u[n] = gl.getUniformLocation(prog, n);
   chrome.gl = gl; chrome.cv = cv;
   // pointer: drag orbits, click pokes — the source's interaction, kept
@@ -3179,7 +3388,7 @@ function chromePoke(clientX, clientY) {
   const u = ((clientX - r.left) * 2 - r.width) / r.height;
   const v2 = (r.height - (clientY - r.top) * 2) / r.height;
   const cp = Math.cos(chrome.pit), sp = Math.sin(chrome.pit), cy = Math.cos(chrome.yaw), sy = Math.sin(chrome.yaw);
-  const ro = [cp * sy * 3.1, sp * 3.1, cp * cy * 3.1];
+  const ro = [cp * sy * 2.75, sp * 2.75, cp * cy * 2.75];
   const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const ww = norm([-ro[0], -ro[1], -ro[2]]);
@@ -3194,16 +3403,49 @@ function chromePoke(clientX, clientY) {
   if (disc >= 0) { const t = -b - Math.sqrt(disc); p = [ro[0] + rd[0] * t, ro[1] + rd[1] * t, ro[2] + rd[2] * t]; }
   else { const t = -b; const q = [ro[0] + rd[0] * t, ro[1] + rd[1] * t, ro[2] + rd[2] * t]; p = norm(q); }
   chrome.poke = p; chrome.dent.v = 6.0;
+  chrome.strikeAge = 0; chrome.rWave = 9;
+  const cf = chrome.fronts[chrome.frontIx]; chrome.frontIx = (chrome.frontIx + 1) % 4;
+  cf.age = 0; cf.poke = [p[0], p[1], p[2]]; cf.wave = 9; cf.hold = -1;
 }
 function chromeNotePoke(midi) {
-  const az = (midi % 12) / 12 * Math.PI * 2;
+  /* CAMERA-RELATIVE, per the human: strikes must originate at a point
+     visible from the viewer's POV. Pitch class spreads strikes across ±70°
+     around the CURRENT view axis instead of an absolute azimuth that could
+     land on the far side of the mass. */
+  const az = chrome.yaw + ((midi % 12) / 12 - 0.5) * 2.4;
   const el = Math.max(-0.9, Math.min(0.9, (Math.floor(midi / 12) - 5) * 0.25));
   chrome.poke = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
   chrome.dent.v = 6.0;
+  // CHROME-002: the note is a STRIKE, and wavelength tracks pitch the way
+  // water does (human 2026-08-30, correcting my inverted first mapping —
+  // "lower notes have longer wavelength"): midi 36..96 maps uRWave 6..24, so
+  // low notes roll broad swells and high notes ring tight capillary rings.
+  // A click strikes at the middle of the range.
+  chrome.strikeAge = 0;
+  const wave = 6 + 18 * Math.max(0, Math.min(1, (midi - 36) / 60));
+  chrome.rWave = wave;
+  /* this note's existing front if re-struck, else the oldest FREE slot, else
+     round-robin — a retrigger re-arms its OWN front and never strangles a
+     neighbour's rings (the tap-tap freeze the human reported) */
+  let ix = chrome.fronts.findIndex(f => f.hold === midi);
+  if (ix < 0) {
+    ix = -1; let best = -1;
+    for (let i = 0; i < 4; i++) if (chrome.fronts[i].hold < 0 && chrome.fronts[i].age > best) { best = chrome.fronts[i].age; ix = i; }
+    if (ix < 0) { ix = chrome.frontIx; chrome.frontIx = (chrome.frontIx + 1) % 4; }
+  }
+  const f = chrome.fronts[ix];
+  f.age = 0; f.poke = chrome.poke.slice(); f.wave = wave; f.hold = midi;
 }
 function chromeFrame() {
   const c = chrome;
-  if (!c.gl) return;
+  if (!c.gl) {
+    // create-on-show: no context exists until the cluster is actually visible
+    if (c.fail) return;
+    const cv = document.getElementById('chromeC');
+    if (!cv || !cv.offsetParent) return;
+    chromeInit();
+    if (!c.gl) return;
+  }
   if (!c.cv.offsetParent) return;              // MAIN not showing: skip entirely
   const now = performance.now();
   const dt = Math.min(0.05, (now - c.last) / 1000 || 0.033);
@@ -3235,15 +3477,25 @@ function chromeFrame() {
       if (env > envMax) envMax = env;
       seen[midi] = true;
       if (gate && !c.gates[midi]) chromeNotePoke(midi);   // fresh attack strikes the metal
+      if (!gate && c.gates[midi])                          // release: the front finishes and dies
+        for (const f of c.fronts) if (f.hold === midi) f.hold = -1;
       c.gates[midi] = !!gate;
     }
-    for (const m in c.gates) if (!seen[m]) delete c.gates[m];
+    for (const m in c.gates) if (!seen[m]) {
+      // a note that VANISHES from the snapshot (voice stolen, row dropped)
+      // never sends a gate-0 — free its front here too, or it regenerates
+      // forever (caught by the front-lifecycle harness before shipping)
+      for (const f of c.fronts) if (f.hold === +m) f.hold = -1;
+      delete c.gates[m];
+    }
   }
   /* ADR-140 idle gate: with nothing sounding, nothing ringing and nobody
      touching it, the last frame stands as a product photograph — zero draws.
      Any note, level or poke re-arms instantly (the gate check above already
      latched fresh attacks into the dent spring). */
-  const ringing = Math.abs(c.dent.x) > 5e-4 || Math.abs(c.dent.v) > 2e-3;
+  const ringing = Math.abs(c.dent.x) > 5e-4 || Math.abs(c.dent.v) > 2e-3
+               || c.shySm > 1e-3
+               || c.fronts.some(f => f.age < 3.5 || f.hold >= 0);   // any live front
   if (envMax > 1e-3 || peak > 1e-3 || ringing) { c.lastAct = now; c.plate = false; }
   if (now - c.lastAct > 1500)
   {
@@ -3274,23 +3526,79 @@ function chromeFrame() {
   if (pw !== c.w || ph !== c.h) { c.w = pw; c.h = ph; cv.width = pw; cv.height = ph; gl.viewport(0, 0, pw, ph); }
   gl.uniform2f(c.u.uRes, pw, ph);
   gl.uniform1f(c.u.uTime, c.time);
-  gl.uniform1f(c.u.uK, Math.min(0.9, 0.1 + 0.35 * R));           // coherence pulls the lobes together
+  /* INVERTED per the human (2026-08-29): "lowering it appears to tighten the
+     metaphysical substance against the orbs" — so coherence now LOWERS uK.
+     A phase-locked swarm reads as the metal pulling taut; decoherence loosens. */
+  gl.uniform1f(c.u.uK, Math.max(0.12, 0.45 - 0.3 * R));
   gl.uniform1i(c.u.uVariant, 1);                                  // pearl
   gl.uniform3f(c.u.uPoke, c.poke[0], c.poke[1], c.poke[2]);
   gl.uniform1f(c.u.uDent, Math.max(-0.35, Math.min(0.35, d.x * 0.28)));
   gl.uniform2f(c.u.uOrbit, c.yaw, c.pit);
-  gl.uniform1f(c.u.uThick, 500 + 250 * Math.min(1, envMax));      // the pearl blooms on attack
-  gl.uniform1f(c.u.uRipple, Math.min(0.045, peak * 0.05));        // held level shivers the surface
+  gl.uniform1f(c.u.uThick, 480 + 250 * Math.min(1, envMax));      // the pearl blooms on attack
+  // CHROME-002's vocabulary: the strike front ages in real time; ripple
+  // amplitude breathes with the envelope; sustained level QUIVERS the mass.
+  c.strikeAge = Math.min(10, c.strikeAge + dt);
+  const pokes = new Float32Array(12), ages = new Float32Array(4), waves = new Float32Array(4);
+  for (let i = 0; i < 4; i++) {
+    const f = c.fronts[i];
+    f.age = Math.min(10, f.age + dt);
+    // HELD REGENERATION: while the note is gated, re-emit once the rings have
+    // crossed — continuous propagation for the whole hold, per the human.
+    if (f.hold >= 0 && f.age > 1.4) f.age = 0;
+    pokes[i * 3] = f.poke[0]; pokes[i * 3 + 1] = f.poke[1]; pokes[i * 3 + 2] = f.poke[2];
+    ages[i] = f.age; waves[i] = f.wave;
+  }
+  gl.uniform3fv(c.u.uPokeN, pokes);
+  gl.uniform1fv(c.u.uStrikeN, ages);
+  gl.uniform1fv(c.u.uRWaveN, waves);
+  // ripple DEPTH rides the envelope and the active osc's detune (the human's
+  // #4): a wide swarm strikes harder water.
+  const det = +(lastParams[effId(4)] ?? 0);
+  gl.uniform1f(c.u.uRAmp, Math.min(1, 0.25 + envMax * 0.5 + det * 0.35));
+  /* QUIVER SLEW (human: "the whole specimen jumps immediately as soon as the
+     note is played... quivering should always be slow"): the amplitude eases
+     in over ~250 ms and out over ~600 ms instead of stepping with the peak,
+     and the shader's quiver rate is nearly halved (38 -> 20). */
+  const shyT = Math.min(1, peak * 1.5) * 0.6;
+  const shyC = shyT > c.shySm ? 1 - Math.exp(-dt / 0.25) : 1 - Math.exp(-dt / 0.6);
+  c.shySm += (shyT - c.shySm) * shyC;
+  gl.uniform1f(c.u.uShy, c.shySm);
+  /* The human's #5: the specimen's ground follows the SCREEN colour, so the
+     material study sits inside the instrument's theme instead of on its own
+     paper. Parsed once per theme change, display-space, exact at ray misses
+     (the shader's bg path never gammas). */
+  {
+    const tok = TOK('--scr-tube', '#f2ede2');
+    if (tok !== c.bgTok) {
+      c.bgTok = tok;
+      let r = 0.95, g = 0.93, b = 0.89;
+      const hx = /^#([0-9a-f]{6})$/i.exec(tok.trim());
+      const rg = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(tok);
+      if (hx) { const v = parseInt(hx[1], 16); r = (v >> 16 & 255) / 255; g = (v >> 8 & 255) / 255; b = (v & 255) / 255; }
+      else if (rg) { r = +rg[1] / 255; g = +rg[2] / 255; b = +rg[3] / 255; }
+      c.bg = [r, g, b];
+    }
+    gl.uniform3f(c.u.uBg, c.bg[0], c.bg[1], c.bg[2]);
+  }
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
-chromeInit();
+/* CREATE-ON-SHOW (the excision experiment's structural lesson): chromeInit is
+   called lazily from the first frame that finds the canvas VISIBLE, so a
+   hidden specimen holds no GL context at all — "off" now means absent, which
+   is the state the experiment had to build a special branch to test. */
 
 let lastViz = null;
+/* B76: fetch and paint are separate — paintVizSnapshot takes a snapshot from
+   EITHER transport: the batched hzFrame (plugin) or the per-feed fallback
+   (dev server, lab harness). */
 async function vizFrame() {
   if (vizBusy) return;
   vizBusy = true;
-  try {
-    const s = await bridge.getViz();
+  try { paintVizSnapshot(await bridge.getViz()); } catch (e) {}
+  vizBusy = false;
+}
+function paintVizSnapshot(s) {
+  {
     lastViz = s;
     // Swap the engine-specific pair BEFORE drawing anything, so a throw below
     // cannot leave SPECTRA's strips hidden behind SAW's carpet (gui.html, same order).
@@ -3350,8 +3658,7 @@ async function vizFrame() {
     // phase circle did — the whole per-swarm family follows the switch.
     if (s && s.active && s.oscEnabled === false) { /* off state drawn above */ }
     else if (spectraOn) drawStrips(s); else { drawCarpet(s); drawVmap(s); }
-  } catch (e) {}
-  vizBusy = false;
+  }
 }
 /* ============ OSCILLOSCOPE — transplanted whole from gui.html ============
    The trigger-filter engineering below (lowpass-to-fundamental trigger, pole
@@ -3378,11 +3685,18 @@ for (const c of document.querySelectorAll('canvas.wavscope')) {
   };
 }
 let scopeBusy = false;
-async function drawScope() {
+async function drawScope() {   // B76: per-feed FALLBACK; the plugin path is frameFetch
   if (!wvC || scopeFrozen || scopeBusy || !window.hzGetScope) return;
+  scopeBusy = true;
+  try { paintScope(await bridge.getScope()); } catch (e) {}
+  scopeBusy = false;
+}
+function paintScope(s) {
+  if (!wvC || scopeFrozen) return;
   // ADR-100 A4: the scope follows the viz osc; a switched-off osc taps nothing,
   // so the ring is stale — show the OFF state instead of a frozen wave.
   if (lastVizOscEnabled === false) {
+    SCOPEDIAG = 'osc-off';
     const w2 = wvC.width, h2 = wvC.height;
     wvx.fillStyle = TOK('--scr-tube'); wvx.fillRect(0, 0, w2, h2);
     wvx.fillStyle = TOKA('--scr-grid', 0.75); wvx.font = '10px monospace';
@@ -3390,9 +3704,7 @@ async function drawScope() {
     blitScope();
     return;
   }
-  scopeBusy = true;
-  try {
-    const s = await bridge.getScope();
+  {
     const w = wvC.width, h = wvC.height;
     // OPAQUE clear + a TRIGGER. The first version used a translucent fill
     // (persistence) and drew from a fixed offset, so every frame started at a
@@ -3479,16 +3791,18 @@ async function drawScope() {
         wvx.setLineDash([]);
       }
     }
-  } catch (e) {}
+  }
   blitScope();
-  scopeBusy = false;
 }
 
-async function specFrame() {
+async function specFrame() {   // B76: per-feed FALLBACK; the plugin path is frameFetch
   if (specBusy) return;
   specBusy = true;
-  try {
-    const bins = await bridge.getSpec();
+  try { paintSpec(await bridge.getSpec()); } catch (e) {}
+  specBusy = false;
+}
+function paintSpec(bins) {
+  {
     // Two smoothers, different jobs (the "choppy" report was both at once):
     //  - TEMPORAL: asymmetric — fast attack, slow release — so transients stay
     //    honest while the noise floor stops flickering frame to frame.
@@ -3500,8 +3814,7 @@ async function specFrame() {
       specSm[i] = v > specSm[i] ? v : specSm[i] + (v - specSm[i]) * 0.28;
     }
     for (const _cv of SPECS()) { sc2 = _cv; sctx2 = _cv.getContext('2d'); _drawSpecOne(specSm); }
-  } catch (e) {}
-  specBusy = false;
+  }
 }
 
 // One canvas's worth of spectrum. Split out so the fan-out above stays inside
@@ -3623,7 +3936,13 @@ window.addEventListener('load', async () => {
       const clock = (performance.now() - lastRafTick > 200) ? 'timer' : 'raf';
       el.textContent = 'gui2 · build ' + build + ' · ' + gl
                      + ' · ' + clock + ' ' + (rafGap ? (rafGap.toFixed(0) + 'ms') : '—')
-                     + ' · dpr ' + (window.devicePixelRatio || 1) + sp;
+                     + ' · fetch ' + (fetchEma ? fetchEma.toFixed(1) + 'ms' : '—')
+                     + ' · wave:' + SCOPEDIAG
+                     + ' · dpr ' + (window.devicePixelRatio || 1) + sp
+                     + (Object.keys(DIAG).some(k => !DIAG[k])
+                        ? ' · OFF:' + Object.keys(DIAG).filter(k => !DIAG[k]).join(',') : '')
+                     + (MODE === 1 ? ' · NO-HALO (halos only silenced — click for QUIET)'
+                        : MODE === 2 ? ' · QUIET (all feeds silenced — click to restore)' : '');
     };
     health();
     setInterval(health, 2000);
@@ -3633,6 +3952,7 @@ window.addEventListener('load', async () => {
        MPE stream, so a confident warning would be wrong for anyone not using an
        expressive controller. A hint you can dismiss beats a defect you cannot find. */
     setInterval(async () => {
+      if (QUIET || !DIAG.sync) return;
       let h = '';
       try { h = await bridge.getHostHint(); } catch (e) { return; }
       let n = document.getElementById('hostHint');
@@ -3651,15 +3971,18 @@ window.addEventListener('load', async () => {
       }
       n.textContent = '⚠ ' + h;
     }, 2000);
-    el.style.cssText = 'position:fixed;right:6px;bottom:4px;font-size:9px;color:var(--dim);opacity:.6;pointer-events:none';
+    el.style.cssText = 'position:fixed;right:6px;bottom:4px;font-size:9px;color:var(--dim);opacity:.6;cursor:pointer';
+    el.title = 'click cycles: LOUD → NO-HALO (halos off, feeds on) → QUIET (everything off) → LOUD; watch the raf number in each';
+    el.addEventListener('click', () => { MODE = (MODE + 1) % 3; health(); });
     document.body.appendChild(el);
   } catch (e) {}
   syncFromEngine().catch(() => {});
   recomputeFeeds();   // ADR-143: MAIN's consumers, before the first frame
   drawXY();
-  setInterval(() => syncFromEngine().catch(() => {}), 500);
+  setInterval(() => { if (!QUIET && DIAG.sync) syncFromEngine().catch(() => {}); }, 500);
   // arm + exempt are engine state; repaint them on the same cadence as params
-  setInterval(() => { paintArm(armValue()); paintExempt().catch(() => {});
+  setInterval(() => { if (QUIET || !DIAG.morph) return;
+                      paintArm(armValue()); paintExempt().catch(() => {});
                       paintOwners().catch(() => {}); paintCornerView().catch(() => {}); }, 700);
 });
 /* ---- PORTED FROM src/gui/gui.html (GUI1), VERBATIM ------------------------
@@ -4049,11 +4372,39 @@ function tdWarp(seed) {
        the same nominal width); 1.0 matches the other details by eye — the
        human's ask, 2026-08-28. The ring still closes: a smaller radius closes
        more easily, not less. */
-    const EDGE_R = 1.0;
+    const EDGE_R = 2.6;   // human 2026-08-29: at 2x the hairline read too thin; ~1.3px visual
     const EDGE_OFF = [[1,0],[-1,0],[0,1],[0,-1],[0.7,0.7],[-0.7,0.7],[0.7,-0.7],[-0.7,-0.7]]
                        .map(([x, y]) => [x * EDGE_R, y * EDGE_R]);
+    /* HUE-TEST (human 2026-08-29): "test the stroke color off in hue by 90
+       degrees from the fill... clicking the logo could flip back and forth".
+       The 2026-08-25 ruling retired the outline click; this reintroduces the
+       click as an explicit AUDITION mode at the human's request — the ruling
+       on the winner comes later, and then the click goes again. */
+    let brandHueTest = false, lastTint = '';
+    const hueRot = (hex, deg) => {
+      const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
+      const v = parseInt(m[1], 16);
+      let r = (v >> 16 & 255) / 255, g = (v >> 8 & 255) / 255, b = (v & 255) / 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+      let h = 0, sN = 0;
+      if (mx !== mn) {
+        const d = mx - mn;
+        sN = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        h /= 6;
+      }
+      h = (h + deg / 360) % 1;
+      const q = l < 0.5 ? l * (1 + sN) : l + sN - l * sN, pp = 2 * l - q;
+      const f = t => { t = (t + 1) % 1; return t < 1/6 ? pp + (q - pp) * 6 * t : t < 1/2 ? q : t < 2/3 ? pp + (q - pp) * (2/3 - t) * 6 : pp; };
+      const to2 = x => Math.round(x * 255).toString(16).padStart(2, '0');
+      return '#' + to2(f(h + 1/3)) + to2(f(h)) + to2(f(h - 1/3));
+    };
+    cv.style.cursor = 'pointer';
+    cv.title = 'click: audition the 90°-rotated stroke hue';
+    cv.addEventListener('click', () => { brandHueTest = !brandHueTest; });
     const outline = () => {
-      const edge = TOK('--lg-edge', 'none');
+      let edge = TOK('--lg-edge', 'none');
+      if (brandHueTest && lastTint) edge = hueRot(lastTint, 90);
       if (!edge || edge === 'none') return;      // dark mode: the fill carries itself
       fctx.clearRect(0, 0, W, H); fctx.drawImage(cv, 0, 0);   // the tinted fill
       ectx.clearRect(0, 0, W, H); ectx.drawImage(cv, 0, 0);
@@ -4070,11 +4421,11 @@ function tdWarp(seed) {
       sctx.fillStyle = ink;
       /* Helvetica per the session JSON ("font": "Helvetica") -- the mark had
          been borrowing the UI's monospace, which was never art-directed. */
-      sctx.font = '700 45px Helvetica,"Helvetica Neue",Arial,sans-serif';
+      sctx.font = '700 90px Helvetica,"Helvetica Neue",Arial,sans-serif';
       sctx.textBaseline = 'middle';
       /* high in the box: the blobs pull DOWNWARD hardest, so the room has to
          be underneath the type rather than centred around it */
-      sctx.fillText('horde', 8, H * 0.38);
+      sctx.fillText('horde', 16, H * 0.38);
       SRC = sctx.getImageData(0, 0, W, H);
       DST = ctx.createImageData(W, H);
       bakedInk = ink;
@@ -4097,7 +4448,11 @@ function tdWarp(seed) {
        to the glyphs. Displacement relative to the TYPE is what preserves the
        authored look. (The old 288 reference was the README's example canvas,
        which was never the session the human actually tuned.) */
-    const TD_AUTHORED_FONT = 200, OUR_FONT = 45, K = OUR_FONT / TD_AUTHORED_FONT;
+    /* 2x BITMAP, SAME CSS BOX (human 2026-08-29: "increase the resolution of
+       the logo"): the page runs at dpr 2 since ADR-146, and a 146px bitmap in
+       a 146px box was rendering soft. Every strength keys off OUR_FONT, so
+       doubling the font with the bitmap keeps the authored look exactly. */
+    const TD_AUTHORED_FONT = 200, OUR_FONT = 90, K = OUR_FONT / TD_AUTHORED_FONT;
     /* The outline audition (2026-08-25) is RESOLVED: the human ruled the ink
        outline stays in light mode ("it definitely looks better than no
        border", 2026-08-26). The click-to-toggle went with the ruling -- a
@@ -4165,7 +4520,7 @@ function tdWarp(seed) {
         const top = mix(TOK(LG[0], '#FF2E88'), TOK(LG[1], '#00D5C8'), smX);
         const bot = mix(TOK(LG[2], '#FF2E88'), TOK(LG[3], '#00D5C8'), smX);
         ctx.globalCompositeOperation = 'source-in';
-        ctx.fillStyle = mix(top, bot, smY);
+        ctx.fillStyle = lastTint = mix(top, bot, smY);
         ctx.fillRect(0, 0, W, H);
         ctx.globalCompositeOperation = 'source-over';
         return;
@@ -4206,10 +4561,11 @@ function tdWarp(seed) {
     };
 
     let last = 0, tSec = 0;
-    const SPEED = 0.55;                      // t-units per second
+    const SPEED = 0.35;   // slowed per the human (was 0.55) — statelier, less busy
     const FRAME = 1000 / 30;
     const draw = (nowMs) => {
       requestAnimationFrame(draw);
+      if (!DIAG.brand) return;              // DIAG: warp frozen, loop kept for re-enable
       if (nowMs - last < FRAME) return;
       const dt = last ? Math.min(0.25, (nowMs - last) / 1000) : 0;
       last = nowMs;
@@ -4263,6 +4619,9 @@ function tdWarp(seed) {
 }
 document.querySelectorAll('canvas.spec').forEach(wireSpecHover);
 document.querySelectorAll('.knob').forEach(wireKnob);
+document.querySelectorAll('input[data-diag]').forEach(cb => {
+  cb.addEventListener('change', () => { DIAG[cb.dataset.diag] = cb.checked; });
+});
 /* Knob cells flow in one grid per cluster. Done at runtime rather than in the
    generator because the generator emits per PARAMETER and this is a property
    of the GROUP — and because a hidden cell must still be a `.row` child of the

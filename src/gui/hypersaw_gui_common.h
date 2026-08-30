@@ -197,7 +197,10 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     std::string safe;
     for (char c : name)
       if (std::isalnum((unsigned char)c) || c == ' ' || c == '-' || c == '_') safe += c;
-    if (safe.empty() || (kind != "presets" && kind != "corners") || json.empty())
+    // "prefs": machine-local GUI settings (scheme/mode). The scheme chip was
+    // "session-only on purpose — an audition" until 2026-08-29, when the human
+    // reported the non-persistence as a bug: the audition graduated.
+    if (safe.empty() || (kind != "presets" && kind != "corners" && kind != "prefs") || json.empty())
       return choc::value::createBool(false);
     const fs::path dir = fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")
                          / "Library/Application Support/LiftedTruck/HYPERSAW" / kind;
@@ -354,6 +357,77 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     for (int i = 0; i < kN; i++) { L.addArrayElement(l[i]); R.addArrayElement(r[i]); }
     auto obj = choc::value::createObject("Scope");
     obj.addMember("l", L); obj.addMember("r", R);
+    return obj;
+  });
+  /* B76: ONE round-trip per GUI frame tick instead of three. Measured with
+     the QUIET instrument (2026-08-29): a fully silenced page ran raf 16ms
+     while the loud page ran 44ms — the per-frame cost was ours, and the BIND
+     is the expensive unit (marshal + main-thread hop + reply eval), not the
+     native work inside it. So the three per-feed fetches collapse into one
+     call whose payload the ADR-143 consumer gate trims per page. The per-feed
+     binds above STAY — they are the fallback for a page served outside the
+     plugin (dev server, lab harness) and the seam other callers already use.
+     `want` bits: 1 viz · 2 spec · 4 scope. */
+  /* B76 part 2 — THE TOKENS, NOT THE CALLS. Collapsing three calls into one
+     (part 1) moved the DAW's raf number not at all (44 ms before and after),
+     which killed the call-count theory and convicted the payload: every bind
+     reply is an evaluateJavaScript whose cost is per-TOKEN, and the scope was
+     ~3,072 number literals per frame. A base64 string of packed int16 is ONE
+     token carrying the same samples — the JS side decodes it in microseconds
+     with a DataView. Int16 is not an audio path: 96 dB of display dynamic
+     range on a ~300 px canvas, quantization invisible by construction. The
+     spectrum rides the same way as uint8 (the GUI smooths it anyway). */
+  web->bind("hzFrame", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    static const char *kB64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    auto b64 = [](const unsigned char *d, size_t n) {
+      std::string o;
+      o.reserve(((n + 2) / 3) * 4);
+      for (size_t i = 0; i < n; i += 3)
+      {
+        const unsigned a = d[i], b = i + 1 < n ? d[i + 1] : 0, c = i + 2 < n ? d[i + 2] : 0;
+        o += kB64[a >> 2];
+        o += kB64[((a & 3) << 4) | (b >> 4)];
+        o += i + 1 < n ? kB64[((b & 15) << 2) | (c >> 6)] : '=';
+        o += i + 2 < n ? kB64[c & 63] : '=';
+      }
+      return o;
+    };
+    const int want = args.isArray() && args.size() >= 1
+                         ? (int)args[0].getWithDefault<int64_t>(7) : 7;
+    auto obj = choc::value::createObject("Frame");
+    if (want & 1) obj.addMember("viz", vizToValue(host.getViz()));
+    if (want & 2)
+    {
+      constexpr int kBins = 256;
+      float bins[kBins];
+      host.getSpectrum(bins, kBins);
+      unsigned char q[kBins];
+      for (int i = 0; i < kBins; i++)
+      {
+        const float v = bins[i] < 0 ? 0.0f : (bins[i] > 1 ? 1.0f : bins[i]);
+        q[i] = (unsigned char)(v * 255.0f + 0.5f);
+      }
+      obj.addMember("spec8", b64(q, kBins));
+    }
+    if (want & 4)
+    {
+      constexpr int kN = 1536;   // matches hzGetScope, same reason (D2 period)
+      float l[kN], r[kN];
+      if (host.getScope) host.getScope(l, r, kN);
+      else { for (int i = 0; i < kN; i++) { l[i] = 0; r[i] = 0; } }
+      // little-endian int16, L block then R block — the JS DataView mirrors this
+      unsigned char pk[kN * 4];
+      auto put = [&](int idx, float v) {
+        const float c = v < -1 ? -1.0f : (v > 1 ? 1.0f : v);
+        const int16_t q = (int16_t)(c * 32767.0f);
+        pk[idx * 2] = (unsigned char)(q & 0xFF);
+        pk[idx * 2 + 1] = (unsigned char)((q >> 8) & 0xFF);
+      };
+      for (int i = 0; i < kN; i++) put(i, l[i]);
+      for (int i = 0; i < kN; i++) put(kN + i, r[i]);
+      obj.addMember("scope16", b64(pk, sizeof pk));
+      obj.addMember("scopeN", (int32_t)kN);
+    }
     return obj;
   });
   web->bind("hzGetState", [&host](const choc::value::ValueView &) -> choc::value::Value {

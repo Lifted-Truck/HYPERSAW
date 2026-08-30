@@ -223,10 +223,10 @@ osc1.voiceEnv	osc1	Per-Partial Env	OSC	Onset & scatter	toggle		onset-scatter
 osc2.voiceEnv	osc2	Per-Partial Env	OSC	Onset & scatter	toggle		onset-scatter			
 osc1.relScatter	osc1	Release Scatter	OSC	Onset & scatter	knob		onset-scatter			
 osc2.relScatter	osc2	Release Scatter	OSC	Onset & scatter	knob		onset-scatter			
-fx1tone	global	FX1 Tone	FX	Slot 1	knob		fx-rack			
-fx2tone	global	FX2 Tone	FX	Slot 2	knob		fx-rack			
-fx3tone	global	FX3 Tone	FX	Slot 3	knob		fx-rack			
-fx4tone	global	FX4 Tone	FX	Slot 4	knob		fx-rack			
+fx1tone	global	Resonance	FX	Slot 1	knob		fx-rack	fx1type=5		fx1type=5
+fx2tone	global	Resonance	FX	Slot 2	knob		fx-rack	fx2type=5		fx2type=5
+fx3tone	global	Resonance	FX	Slot 3	knob		fx-rack	fx3type=5		fx3type=5
+fx4tone	global	Resonance	FX	Slot 4	knob		fx-rack	fx4type=5		fx4type=5
 inertiaCurve	global	Inertia Curve (dev)	OSC	The coupling	knob		the-coupling	never		never
 masterVol	global	Master Volume	MIX	Mix	knob		mix			
 gSemi	global	Pitch	MIX	Mix	knob		mix			
@@ -298,28 +298,28 @@ fx1size	global	Size	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
 fx1spread	global	Spread	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
 fx1taps	global	Taps / Lines	FX	Slot 1	select		fx-rack	fx1type=7|8		fx1type=7|8
 fx1damp	global	Damping	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
-fx1noise	global	Noise	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
+fx1noise	global	Noise	FX	Slot 1	knob		fx-rack	never		never
 fx1stereo	global	Stereo	FX	Slot 1	knob		fx-rack	fx1type=7|8		fx1type=7|8
 fx1dist	global	Spacing	FX	Slot 1	select		fx-rack	fx1type=7|8		fx1type=7|8
 fx2size	global	Size	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
 fx2spread	global	Spread	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
 fx2taps	global	Taps / Lines	FX	Slot 2	select		fx-rack	fx2type=7|8		fx2type=7|8
 fx2damp	global	Damping	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
-fx2noise	global	Noise	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
+fx2noise	global	Noise	FX	Slot 2	knob		fx-rack	never		never
 fx2stereo	global	Stereo	FX	Slot 2	knob		fx-rack	fx2type=7|8		fx2type=7|8
 fx2dist	global	Spacing	FX	Slot 2	select		fx-rack	fx2type=7|8		fx2type=7|8
 fx3size	global	Size	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
 fx3spread	global	Spread	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
 fx3taps	global	Taps / Lines	FX	Slot 3	select		fx-rack	fx3type=7|8		fx3type=7|8
 fx3damp	global	Damping	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
-fx3noise	global	Noise	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
+fx3noise	global	Noise	FX	Slot 3	knob		fx-rack	never		never
 fx3stereo	global	Stereo	FX	Slot 3	knob		fx-rack	fx3type=7|8		fx3type=7|8
 fx3dist	global	Spacing	FX	Slot 3	select		fx-rack	fx3type=7|8		fx3type=7|8
 fx4size	global	Size	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4spread	global	Spread	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4taps	global	Taps / Lines	FX	Slot 4	select		fx-rack	fx4type=7|8		fx4type=7|8
 fx4damp	global	Damping	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
-fx4noise	global	Noise	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
+fx4noise	global	Noise	FX	Slot 4	knob		fx-rack	never		never
 fx4stereo	global	Stereo	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4dist	global	Spacing	FX	Slot 4	select		fx-rack	fx4type=7|8		fx4type=7|8
 modEnvPitch	global	Env > Pitch	OSC	Pitch	knob	st	mod-matrix			
