@@ -749,11 +749,11 @@
 <div class="hdr"><canvas class="brand" id="brand" width="292" height="192" aria-label="horde" role="img"></canvas><div class="tabs" id="tabs"><button id="panicBtn" class="panic" title="all notes off — clears both engines, every note tag, the mono held-stack and the FX tails, and writes a forensic dump">PANIC</button></div></div>
 
 <div class="page on" id="pg-MAIN">
-  <div class="cluster oscbar"><h2>Editing<span class="oscSel" id="oscSelMain"></span></h2>
-    <div class="note">Selects which oscillator this page edits AND which one the
-      engine renders in the visualizers. Global parameters are unaffected — they
-      have no per-oscillator twin, so they never remap.</div>
-  </div>
+  <!-- The Editing bar left MAIN (human 2026-08-29: "I don't think the main
+       page needs an editing section anymore"). The SELECTION still exists —
+       it is global state, switched on OSC/MIX — and MAIN's waveform and XY
+       pad quietly follow whatever was last selected there. Only the switch
+       moved out, not the concept. -->
   <div class="vizcol">
   <!-- CHROME-002 (the human's new material study, 2026-08-29): the specimen
        returns EXONERATED — the excision experiment proved the lag was the
@@ -1569,9 +1569,18 @@ document.addEventListener('click', hzMaybeRelease, true);
         drawBendVib(); drawShapeWave();
       }
     };
+    /* PERSISTENCE (human 2026-08-29: "GUI color settings aren't persistent").
+       localStorage dies under the plugin's opaque origin (the ADR-105 A2
+       lesson), so prefs ride the same app-support store the presets use —
+       via the existing binds, kind "prefs", no new plumbing. */
+    const savePrefs = () => {
+      try { window.hzPresetSave && hzPresetSave('prefs', 'gui', JSON.stringify({ schemeIx, modeIx: window.__modeIx || 0 })); } catch (e) {}
+    };
+    window.__savePrefs = savePrefs;
     scr.addEventListener('click', () => {
       schemeIx = (schemeIx + 1) % SCHEMES.length;
       applyScheme(true);
+      savePrefs();
     });
     applyScheme(false);
     tabs.appendChild(scr);
@@ -1595,10 +1604,28 @@ document.addEventListener('click', hzMaybeRelease, true);
     };
     md.addEventListener('click', () => {
       modeIx = (modeIx + 1) % MODES.length;
+      window.__modeIx = modeIx;
       applyMode(true);
+      window.__savePrefs && __savePrefs();
     });
     applyMode(false);
     tabs.appendChild(md);
+    /* boot restore: async on purpose — the chips exist and painted defaults
+       already, so a late file read just re-applies on arrival. */
+    (async () => {
+      try {
+        if (!window.hzPresetLoad) return;
+        const raw = await hzPresetLoad('prefs', 'gui');
+        if (!raw) return;
+        const pf = JSON.parse(raw);
+        if (typeof pf.modeIx === 'number' && pf.modeIx >= 0 && pf.modeIx < MODES.length) {
+          modeIx = pf.modeIx; window.__modeIx = modeIx; applyMode(true);
+        }
+        if (typeof pf.schemeIx === 'number' && pf.schemeIx >= 0 && pf.schemeIx < SCHEMES.length) {
+          schemeIx = pf.schemeIx; applyScheme(true);
+        }
+      } catch (e) {}
+    })();
   }
 }
 function paintArm(v) {

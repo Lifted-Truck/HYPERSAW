@@ -197,7 +197,10 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
     std::string safe;
     for (char c : name)
       if (std::isalnum((unsigned char)c) || c == ' ' || c == '-' || c == '_') safe += c;
-    if (safe.empty() || (kind != "presets" && kind != "corners") || json.empty())
+    // "prefs": machine-local GUI settings (scheme/mode). The scheme chip was
+    // "session-only on purpose — an audition" until 2026-08-29, when the human
+    // reported the non-persistence as a bug: the audition graduated.
+    if (safe.empty() || (kind != "presets" && kind != "corners" && kind != "prefs") || json.empty())
       return choc::value::createBool(false);
     const fs::path dir = fs::path(std::getenv("HOME") ? std::getenv("HOME") : "")
                          / "Library/Application Support/LiftedTruck/HYPERSAW" / kind;
