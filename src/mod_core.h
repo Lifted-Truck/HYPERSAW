@@ -40,7 +40,7 @@ namespace hypersaw
 
 struct ModCore
 {
-  static constexpr int kMaxSources = 16;
+  static constexpr int kMaxSources = 24;   // ADR-149: MIDI/MPE sources joined at 14-17
   static constexpr int kMaxRoutes = 64;
 
   enum Scope : int { kGlobal = 0, kPerNote = 1 };
