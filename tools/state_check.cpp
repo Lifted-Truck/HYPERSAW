@@ -251,6 +251,11 @@ int main()
     paramsB->get_info(b, i, &info);
     double got = 0;
     paramsB->get_value(b, info.id, &got);
+    // ADR-147: the specimen's visibility is a GUI preference, NOT patch
+    // state — the chunk writes it for forward compatibility but the restore
+    // path never reads it back, BY RULING. Asserting its round-trip would be
+    // asserting the superseded contract.
+    if (info.id == 178) continue;
     if (got != held[i])
     {
       std::printf("     mismatch id %u: held %.17g restored %.17g\n", info.id, held[i], got);
@@ -277,7 +282,9 @@ int main()
   double kv = 0, det = 0;
   paramsC->get_value(c, 6, &kv);
   paramsC->get_value(c, 4, &det);
-  check(kv == 0.5 && det == 0.28, "missing keys keep defaults; unknown keys ignored");
+  // det 0.0, not 0.28: the human moved detune's default to the FLOOR
+  // (2026-08-30) so the unipolar M1 route can sweep the whole knob.
+  check(kv == 0.5 && det == 0.0, "missing keys keep defaults; unknown keys ignored");
 
   a->destroy(a);
   /* THE JSON STATE PATH (2026-08-21) — the preset system's path, previously

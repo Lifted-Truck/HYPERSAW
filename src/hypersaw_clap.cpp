@@ -138,9 +138,15 @@ static const ParamDef kParams[] = {
     {1, "n", "Voices", 1, 32, 7, true, nullptr},
     {2, "dist", "Distribution", 0, 4, 1, true, kDistLabels},
     {3, "seed", "Seed", 0, 999999, 1234, true, nullptr},
-    {4, "detune", "Detune", 0, 1, 0.28, false, nullptr},
+    /* Default at the FLOOR (human 2026-08-30): macros are unipolar, so the
+       default M1->detune route can only push UP from base — with base at 0.28
+       the pad could never reach the bottom third. Floor + 100% depth makes
+       the macro sweep cover the whole knob, which is the old hardwired pad's
+       feel exactly. Interim until bipolar modulation is an option (the
+       human's own framing); revisit with STRATA/B77. */
+    {4, "detune", "Detune", 0, 1, 0, false, nullptr},
     {5, "law", "Detune Law", 0, 5, 0, true, kLawLabels},
-    {6, "K", "Pull K", -1, 1, 0, false, nullptr},
+    {6, "K", "Pull K", -1, 1, -1, false, nullptr},   // floor default: see detune note above
     {7, "onset", "Onset Lock", -1, 1, 0, false, nullptr},  // ADR-056: bipolar (<0 = splay onset)
     {8, "dissolve", "Dissolve (s)", 0.05, 7.94, 0.63, false, nullptr},
     {9, "driftDepth", "Drift Depth (c)", 0, 100, 0, false, nullptr},  // widened from the
@@ -1416,8 +1422,10 @@ struct Plugin
      from base, so full depth is what makes the pad's reach musical). */
   void modInstallDefaults()
   {
-    mod.addRoute(2, 4, 0.7, hypersaw::ModCore::kGlobal);      // M1 -> detune (osc 1)
-    mod.addRoute(2, 1004, 0.7, hypersaw::ModCore::kGlobal);   // M1 -> detune (osc 2)
+    // 100% depth from floor defaults (human 2026-08-30): the unipolar macro
+    // then sweeps the ENTIRE range, reproducing the old absolute pad.
+    mod.addRoute(2, 4, 1.0, hypersaw::ModCore::kGlobal);      // M1 -> detune (osc 1)
+    mod.addRoute(2, 1004, 1.0, hypersaw::ModCore::kGlobal);   // M1 -> detune (osc 2)
     mod.addRoute(3, 6, 1.0, hypersaw::ModCore::kGlobal);      // M2 -> pull K (osc 1)
     mod.addRoute(3, 1006, 1.0, hypersaw::ModCore::kGlobal);   // M2 -> pull K (osc 2)
   }
@@ -1441,7 +1449,12 @@ struct Plugin
   // [osc0 X, osc0 Y, osc1 X, osc1 Y], each an index into macroVal.
   double macroVal[8] = {0};
   int xyAsn[4] = {0, 1, 2, 3};
-  double specimenOn = 0;   // ADR-140: CHROME-001 gate, off by default
+  /* = 1, matching the table (paramscope's default-truth sweep caught this as
+     a LIE: info said 1, readback said 0 — so fresh instances showed the
+     specimen OFF all along, which is why the human kept asking to "default it
+     on" after it was nominally defaulted. The member init and the table row
+     are two copies of one fact; the sweep is what keeps them honest. */
+  double specimenOn = 1;
   bool env2Gate = false;
   hypersaw::MorphCore morph;
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
@@ -4823,6 +4836,15 @@ const clap_plugin_t *factory_create_plugin(const clap_plugin_factory *, const cl
   if (std::strcmp(plugin_id, s_desc.id) != 0) return nullptr;
   auto *pl = new Plugin();
   pl->modInstallDefaults();   // fresh instance: M1 -> detunes, M2 -> Ks (both oscs)
+  /* Floor defaults applied THROUGH applyParam: readback for these ids goes
+     through the cores, whose lab-authored defaults (detune 0.28, K 0) now
+     differ from the table's floors — paramscope's sweep flagged the mismatch
+     the moment the table moved. The cores stay untouched (they are the
+     parity reference); the shell simply sets the declared default at birth. */
+  pl->applyParam(4, 0.0);
+  pl->applyParam(1004, 0.0);
+  pl->applyParam(6, -1.0);
+  pl->applyParam(1006, -1.0);
   pl->host = host;
   pl->plugin.desc = &s_desc;
   pl->plugin.plugin_data = pl;
