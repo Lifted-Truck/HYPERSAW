@@ -4648,3 +4648,27 @@ proposed with this ADR.
 FILT page), B82 (per-note evaluate with per-voice source vectors), and the
 human's parity re-baseline pre-authorization stands recorded in B81 for the
 day a consumer changes the summed sound.
+
+## ADR-149 — MIDI/MPE performance signals join the matrix (2026-08-30)
+
+**Status: ACCEPTED.** Sources 14-17: **Velocity** (last note-on), **Mod
+Wheel** (CC1), **Pressure** (channel aftertouch or any note-expression
+pressure, whichever spoke last), **Pitch Wheel** (bipolar, −1..1 — the first
+bipolar source, and the shape B87's bipolar-modulation want will generalize).
+kMaxSources 16 → 24.
+
+**Two of these were being DROPPED on the floor:** the MIDI handler read only
+0xE0 — CC1 and channel pressure never reached anything. The wheel your hand
+was on had no path into the instrument except the pitch lane.
+
+**Scope, stated honestly:** these are GLOBAL projections (last-note velocity,
+one pressure). TRUE per-note routing — this voice's velocity to this voice's
+cutoff — is B82's build, now unblocked on both sides: ADR-148 gave it the
+audio seam, this gives it the source vocabulary; what remains is per-note
+evaluate + the dest whitelist.
+
+**Measured through the shipped path** (midisrc_probe): a real CC1 event at
+127 drove a routed destination to exactly depth × range (25.0 on the
+100-cent drift lane at 0.25), base readback intact. mod/mpe/notefuzz/parity
+all green; the pitch-wheel channel-0 path is untouched (the source capture
+rides beside the existing applyParam(38) write).

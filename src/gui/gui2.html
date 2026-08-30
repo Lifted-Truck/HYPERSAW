@@ -2270,7 +2270,9 @@ const MOD_SRC_NAMES = ['ENV 1', 'ENV 2', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro
                        // slots 10-13 (ADR next): a pad AXIS as a first-class
                        // source — it reads whatever macro the axis drives, so
                        // routing "XY1 X" follows the assignment
-                       'XY1 X', 'XY1 Y', 'XY2 X', 'XY2 Y'];
+                       'XY1 X', 'XY1 Y', 'XY2 X', 'XY2 Y',
+                       // slots 14-17 (ADR-149): MIDI/MPE performance signals
+                       'Velocity', 'Mod Wheel', 'Pressure', 'Pitch Wheel'];
 /* Internal ids never reach the UI (human 2026-08-28: the pitch route rendered
    as "#2147483649"). Synthetic dests get their names here; per-osc twins strip
    the stride and borrow the base control's label with an osc tag. */
@@ -3282,7 +3284,7 @@ float map(vec3 p){
    d+=.085*uRAmp*env2*sin(front*uRWaveN[i]);
   }
   if(uHeldN[i]>.001){
-   d+=.05*uRAmp*uHeldN[i]*exp(-rd2*2.2)*sin(rd2*uRWaveN[i]-uTime*.8*uRWaveN[i]);
+   d+=.05*uRAmp*uHeldN[i]*exp(-rd2*2.2)*sin((rd2*3.2-uTime*2.6)*uRWaveN[i]);
   }
  }
  return d;

@@ -1455,6 +1455,13 @@ struct Plugin
      on" after it was nominally defaulted. The member init and the table row
      are two copies of one fact; the sweep is what keeps them honest. */
   double specimenOn = 1;
+  /* ADR-149: MIDI/MPE performance signals as matrix sources (slots 14-17).
+     GLOBAL projections for now — per-note APPLICATION is B82's build; these
+     make the wheel/pressure/velocity routable today. */
+  double srcVel = 0;      // last note-on velocity, 0..1
+  double srcWheel = 0;    // CC1, 0..1 (was previously DROPPED entirely)
+  double srcPress = 0;    // latest pressure (channel AT or any note expression)
+  double srcPitchW = 0;   // plain pitch wheel, -1..1 (bipolar source)
   bool env2Gate = false;
   hypersaw::MorphCore morph;
   std::vector<clap_id> morphIds;          // id order = persistence order (stable)
@@ -1925,6 +1932,12 @@ struct Plugin
       const int a = xyAsn[i] & 7;
       mod.src[10 + i] = macroVal[a];
     }
+    // ADR-149: MIDI/MPE performance signals, slots 14-17 (velocity, mod
+    // wheel, pressure, pitch wheel). Global projections; B82 owns per-note.
+    mod.src[14] = srcVel;
+    mod.src[15] = srcWheel;
+    mod.src[16] = srcPress;
+    mod.src[17] = srcPitchW;
     uint32_t dests[hypersaw::ModCore::kMaxRoutes];
     double deltas[hypersaw::ModCore::kMaxRoutes];
     const int n = mod.evaluate(hypersaw::ModCore::kGlobal, dests, deltas, hypersaw::ModCore::kMaxRoutes);
@@ -3714,6 +3727,7 @@ struct Plugin
           retireTag(slot);
           lastNoteKey = n->key;
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
+          srcVel = n->velocity;   // ADR-149: matrix source 14
           break;
         }
         int struck;
@@ -3822,6 +3836,7 @@ struct Plugin
           retireTag(slot);
           lastNoteKey = n->key;
           tags[slot] = {n->note_id, n->port_index, n->channel, n->key, true, (float)n->velocity};
+          srcVel = n->velocity;   // ADR-149: matrix source 14
           struck = slot;
         }
         // ADR-038: a fresh strike resets noteTune (ADR-036), so re-apply the
@@ -3859,6 +3874,7 @@ struct Plugin
             {
               setNotePressureAll(i, x->value);
             }
+          srcPress = x->value;   // ADR-149: matrix source 16
           break;
         }
         if (x->expression_id != CLAP_NOTE_EXPRESSION_TUNING) break;
@@ -3883,6 +3899,12 @@ struct Plugin
         // Channel 1 (index 0) is excluded: see mpeBendSemis.
         auto *m = reinterpret_cast<const clap_event_midi_t *>(ev);
         const int ch = m->data[0] & 0x0F;
+        /* ADR-149: CC1 and channel pressure were DROPPED here until now — the
+           handler read only 0xE0. They become matrix sources 15 and 16. */
+        if ((m->data[0] & 0xF0) == 0xB0 && m->data[1] == 1)
+        { srcWheel = m->data[2] / 127.0; break; }
+        if ((m->data[0] & 0xF0) == 0xD0)
+        { srcPress = m->data[1] / 127.0; break; }
         if ((m->data[0] & 0xF0) != 0xE0) break;
         const int v14 = (int)m->data[1] | ((int)m->data[2] << 7);
         if (ch == 0)
@@ -3901,6 +3923,7 @@ struct Plugin
              and the MPE manager-channel default; a bend-range param can widen
              it later without touching this site. */
           applyParam(38, (v14 - 8192) * (2.0 / 8192.0));
+          srcPitchW = (v14 - 8192) / 8192.0;   // ADR-149: matrix source 17, bipolar
           break;
         }
         const double semis = (v14 - 8192) * (48.0 / 8192.0);
