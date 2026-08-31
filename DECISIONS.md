@@ -4712,3 +4712,43 @@ stochastic chord-cluster vision, recorded verbatim, decomposition deferred).
 
 **Evidence.** parity 156/156 (181 defaults 0 → tuning term adds 0 → bit-clean),
 paramscope/state/mod green, lab_load green, gen_gui_controls 198 controls.
+
+
+## ADR-151 — 2026-08-31: MAIN polish round 2 — one field painter, self-gated mini, honest XY reach, eased tension
+
+**Context.** The human's review of the ADR-150 landing: the mini morph was
+"the wrong aesthetic" and went blank on a screen-colour change; the new
+clusters had nested inside Presets (a markup slip — the close tag sat after
+them); the pads silently drove four parameters with no way to see or refuse
+it; the specimen snapped taut in a single frame on a strike and its held
+waves read as jerky quivering on high notes.
+
+**Decisions.**
+1. **One morph-field painter.** The mini's hand-rolled bilinear blend is
+   deleted; `paintMorphField()` is extracted from the big pad's `drawField`
+   and both call it — the pads cannot drift apart again. The scheme-switch
+   blank had the same root as the 2026-08-24 big-pad bug (`_padInvalidate`
+   re-bakes; the mini had no hook), so `_padInvalidate` now wakes the mini too.
+2. **The mini shows only while morph is ON** (param 151), via a
+   `data-selfgate` marker that `applyGates` respects — its cluster loop was
+   recomputing `hidden` for every cluster and silently clobbering any
+   visibility another system set. Self-gating clusters are now first-class.
+3. **Layout:** Presets closes before the XY/Morph/Wheels clusters (they were
+   accidentally its children); Macros moves to the controls column — the
+   viz column is visualizers only, per the human.
+4. **Honest XY reach.** Every assignment select gains **None** (value 8;
+   params 174-177/179/180 max 7→8; the C++ alias slots emit 0.0 for an
+   unassigned axis instead of `& 7`-wrapping onto Macro 1). Each pad carries
+   a live note listing what its axes actually touch: the assigned macro plus
+   every matrix route riding it (and the pad-axis alias slots, for the osc
+   pad) — rendered from MODROUTES, no second copy.
+5. **Specimen:** uK is eased (tighten ~280 ms — the lead-up — relax ~500 ms)
+   instead of stepping with R. The held-wave temporal rate saturates at 26
+   rad/s: it used to scale with the note's spatial wavelength (2.6·W, ~10 Hz
+   at W=24), under-sampled at frame rate — that WAS the "jerky quivering on
+   the higher frequencies". Spatial wavelength still tracks the note.
+
+**Evidence.** verify full exit 0 (range widening is parity-safe: defaults
+unchanged, None emits the 0.0 an absent source always had); in-pane: gating
+holds through applyGates both ways, corner pixel matches the field bake,
+route note renders "x → Macro 1 → Detune". Installed 6ee53f5.
