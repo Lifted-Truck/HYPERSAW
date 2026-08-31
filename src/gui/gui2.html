@@ -3512,7 +3512,7 @@ void main(){
     if (!down) return;
     const dx = e.clientX - lx, dy = e.clientY - ly;
     if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    if (moved) { chrome.yawT -= dx * 0.006; chrome.pitT = Math.max(-1.1, Math.min(1.1, chrome.pitT + dy * 0.005));
+    if (moved) { chrome.yawT += dx * 0.006; chrome.pitT = Math.max(-1.1, Math.min(1.1, chrome.pitT + dy * 0.005));
       chrome.lastAct = performance.now(); }
     lx = e.clientX; ly = e.clientY;
   });
@@ -3574,13 +3574,17 @@ function chromeNotePoke(midi) {
     if (ix < 0) { ix = chrome.frontIx; chrome.frontIx = (chrome.frontIx + 1) % 4; }
   }
   const f = chrome.fronts[ix];
+  const rebind = f.hold === midi;   // re-strike of a still-held note keeps its spot
   f.age = 0; f.wave = wave; f.hold = midi;
   /* random WITHIN VIEW, then world-locked: scatter around the current view
      axis (±~52° az, ±~29° el — comfortably inside the visible cap), frozen
      as absolute angles. The old pitch-class grid put every C in the same
-     spot; the human asked for spawn points "more random". */
-  f.az = chrome.yaw + (chrome.rng() * 2 - 1) * 0.9;
-  f.el = Math.max(-0.85, Math.min(0.85, chrome.pit * 0.6 + (chrome.rng() * 2 - 1) * 0.5));
+     spot; the human asked for spawn points "more random". Only a FRESH
+     binding rolls the dice — repeated pokes are idempotent in position. */
+  if (!rebind) {
+    f.az = chrome.yaw + (chrome.rng() * 2 - 1) * 0.9;
+    f.el = Math.max(-0.85, Math.min(0.85, chrome.pit * 0.6 + (chrome.rng() * 2 - 1) * 0.5));
+  }
 }
 function chromeFrame() {
   const c = chrome;
@@ -3617,23 +3621,23 @@ function chromeFrame() {
   const s = lastViz;
   if (s) {
     R = +s.R || 0; peak = +s.outPeak || 0;
-    const seen = {};
+    /* COALESCE BY NOTE FIRST. A retrigger holds the same midi in TWO rows —
+       the old slot ringing out (gate 0) and the new one attacking (gate 1) —
+       and per-row latch writes let the release row reset the latch every
+       frame, so the attack row re-poked every frame. Deterministic origins
+       hid it (same spot each time); random origins painted it as a cloud
+       (human 2026-08-31). A note is HELD if any row says so; edges are
+       computed once per note against the coalesced view. Vanished notes
+       (voice stolen, row dropped) fall out the same way: absent = released. */
+    const gatedNow = {};
     if (s.notes) for (const row of s.notes) {
-      const midi = row[0], gate = row[1], env = row[2];
-      if (env > envMax) envMax = env;
-      seen[midi] = true;
-      if (gate && !c.gates[midi]) chromeNotePoke(midi);   // fresh attack strikes the metal
-      if (!gate && c.gates[midi])                          // release: the front finishes and dies
-        for (const f of c.fronts) if (f.hold === midi) f.hold = -1;
-      c.gates[midi] = !!gate;
+      if (row[2] > envMax) envMax = row[2];
+      if (row[1]) gatedNow[row[0]] = true;
     }
-    for (const m in c.gates) if (!seen[m]) {
-      // a note that VANISHES from the snapshot (voice stolen, row dropped)
-      // never sends a gate-0 — free its front here too, or it regenerates
-      // forever (caught by the front-lifecycle harness before shipping)
+    for (const m in gatedNow) if (!c.gates[m]) chromeNotePoke(+m);   // fresh attack
+    for (const m in c.gates) if (!gatedNow[m])                        // release or vanish
       for (const f of c.fronts) if (f.hold === +m) f.hold = -1;
-      delete c.gates[m];
-    }
+    c.gates = gatedNow;
   }
   /* ADR-140 idle gate: with nothing sounding, nothing ringing and nobody
      touching it, the last frame stands as a product photograph — zero draws.
