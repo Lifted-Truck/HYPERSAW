@@ -767,7 +767,6 @@
       sustained level makes it quiver, the envelope blooms the film, coherence
       pulls the lobes together. Drag orbits · click strikes.</div>
   </div>
-  </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:none;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
@@ -829,6 +828,7 @@
       <div class="row kcell"><label>M7</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="172" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
       <div class="row kcell"><label>M8</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="173" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     </div>
+  </div>
 <!--GEN:MAIN-->
   <div class="cluster"><h2>Bend</h2>
     <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
@@ -968,10 +968,10 @@
   </div>
   <div class="cluster"><h2>Visualizers</h2>
     <div class="row"><label>Specimen</label><input type="checkbox" data-p="178" checked><output></output></div>
-    <div class="note">INERT IN THIS EXPERIMENT BUILD — the specimen is fully
-      excised (no canvas, no GL context) to give the lag A/B a clean single
-      variable. The switch stays so the parameter remains reachable; it does
-      nothing until the experiment is ratified or reverted.</div>
+    <div class="note">Shows CHROME-002 on MAIN in place of the phase circle. The
+      specimen was exonerated by the excision experiment (the lag was the
+      param-sync repaint, ADR-147) and is fully live again — create-on-show,
+      so OFF means no GL context exists at all.</div>
   </div>
   <div class="cluster"><h2>Keyboard</h2>
     <div id="setKeys"></div>
