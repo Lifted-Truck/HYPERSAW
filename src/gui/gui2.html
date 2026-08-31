@@ -264,6 +264,10 @@
            border:0; background:transparent; border-radius:0; }
   /* audition: the mark without its ink edge */
   .tabs { flex-wrap:wrap; row-gap:4px; }
+  /* The PAGE tabs wrap as a GROUP (human 2026-08-31: "jump to the next line
+     as a group on resizing instead of one at a time") — a nowrap sub-flex
+     inside the wrapping bar moves below as one unit. */
+  .pgtabs { display:flex; gap:4px; flex-wrap:nowrap; }
 
   /* the Editing bar's own content steps aside for the overhang */
 
@@ -2853,6 +2857,9 @@ const PAGES = [['MAIN', true], ['OSC', true], ['MIX', true], ['FX', true],
                ['MOD', true], ['MORPH', true],
                ['SET', true]];   // SPACE retired 2026-08-24; SET added 2026-08-25
 const tabs = $('#tabs');
+const pgTabs = document.createElement('div');
+pgTabs.className = 'pgtabs';
+tabs.appendChild(pgTabs);
 for (const [name, live] of PAGES) {
   const t = document.createElement('div');
   t.className = 'tab' + (name === 'MAIN' ? ' on' : '') + (live ? '' : ' stub');
@@ -2890,7 +2897,7 @@ for (const [name, live] of PAGES) {
       drawEnvelope(null); drawScatter(lastViz); drawBendStep(); drawBendVib(); drawShapeWave();
     }
   });
-  tabs.appendChild(t);
+  pgTabs.appendChild(t);
 }
 /* ============ XY (macro controller, ADR-137) ===============
    The pad no longer writes detune/pull K. It CONTROLS two macros — which two
@@ -3327,14 +3334,17 @@ const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pi
      midi it belongs to while HELD (-1 once released). A held front RE-EMITS
      when its rings have crossed, which turns tap-tap-hold from frozen into
      continuous. */
-  /* fronts store CAMERA-RELATIVE offsets (azOff/elOff) and derive their
-     world point per frame from the live yaw/pitch — so a front is visible
-     from the viewer's POV by construction, for its whole life. The absolute
-     poke of the first pass leaked the ruling twice: elevation was absolute
-     while azimuth was relative, and the slow turntable carried the camera
-     away from held fronts' fixed origins (both human-reported 2026-08-30). */
-  fronts: [{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},
-           {age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0}],
+  /* fronts store ABSOLUTE world angles (az/el), fixed at spawn (human
+     2026-08-31: origins "maintain their position on the specimen instead of
+     locking to a position relative to the camera"). Spawn placement derives
+     from the LIVE camera plus a seeded random scatter, so every front is
+     born in view and then rides the mass as it turns — eventually rotating
+     out of sight, which the human has ruled acceptable. */
+  fronts: [{age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0},{age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0},
+           {age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0},{age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0}],
+  // mulberry32 (SPEC §5.7 discipline): the scatter is a reproducible stream
+  rng: (a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; })(0xC0FFEE),
   frontIx: 0, shySm: 0,
   // the ceiling is the display's real pixel grid, capped at 2x: past that the
   // extra samples land inside a pixel nobody can resolve.
@@ -3534,8 +3544,8 @@ function chromePoke(clientX, clientY) {
   chrome.strikeAge = 0; chrome.rWave = 9;
   const cf = chrome.fronts[chrome.frontIx]; chrome.frontIx = (chrome.frontIx + 1) % 4;
   cf.age = 0; cf.wave = 9; cf.hold = -1;
-  cf.azOff = Math.atan2(p[0], p[2]) - chrome.yaw;
-  cf.elOff = Math.max(-0.45, Math.min(0.45, Math.asin(Math.max(-1, Math.min(1, p[1]))) - chrome.pit * 0.6));
+  cf.az = Math.atan2(p[0], p[2]);
+  cf.el = Math.asin(Math.max(-1, Math.min(1, p[1])));
 }
 function chromeNotePoke(midi) {
   /* CAMERA-RELATIVE, per the human: strikes must originate at a point
@@ -3565,8 +3575,12 @@ function chromeNotePoke(midi) {
   }
   const f = chrome.fronts[ix];
   f.age = 0; f.wave = wave; f.hold = midi;
-  f.azOff = ((midi % 12) / 12 - 0.5) * 2.0;
-  f.elOff = Math.max(-0.45, Math.min(0.45, (Math.floor(midi / 12) - 5) * 0.18));
+  /* random WITHIN VIEW, then world-locked: scatter around the current view
+     axis (±~52° az, ±~29° el — comfortably inside the visible cap), frozen
+     as absolute angles. The old pitch-class grid put every C in the same
+     spot; the human asked for spawn points "more random". */
+  f.az = chrome.yaw + (chrome.rng() * 2 - 1) * 0.9;
+  f.el = Math.max(-0.85, Math.min(0.85, chrome.pit * 0.6 + (chrome.rng() * 2 - 1) * 0.5));
 }
 function chromeFrame() {
   const c = chrome;
@@ -3692,9 +3706,8 @@ function chromeFrame() {
     const hT = f.hold >= 0 ? 1 : 0;
     const hC = hT > f.heldAmt ? 1 - Math.exp(-dt / 0.25) : 1 - Math.exp(-dt / 0.45);
     f.heldAmt += (hT - f.heldAmt) * hC;
-    // world point derived per frame from the LIVE camera: visible by construction
-    const az = c.yaw + f.azOff;
-    const el = Math.max(-0.85, Math.min(0.85, c.pit * 0.6 + f.elOff));
+    // world-locked: the angles were frozen at spawn, in view by construction
+    const az = f.az, el = f.el;
     pokes[i * 3] = Math.cos(el) * Math.sin(az);
     pokes[i * 3 + 1] = Math.sin(el);
     pokes[i * 3 + 2] = Math.cos(el) * Math.cos(az);
