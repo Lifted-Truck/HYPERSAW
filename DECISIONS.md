@@ -4672,3 +4672,43 @@ evaluate + the dest whitelist.
 100-cent drift lane at 0.25), base readback intact. mod/mpe/notefuzz/parity
 all green; the pitch-wheel channel-0 path is untouched (the source capture
 rides beside the existing applyParam(38) write).
+
+## ADR-150 — 2026-08-31: MAIN gets its own hands — separate main XY, continuous pitch, morph mini, wheels
+
+**Context.** The human's 2026-08-31 batch, all one theme: MAIN was borrowing
+the OSC pages' controls instead of owning its own. The "main" XY pad was the
+active osc's pad wearing a different frame; transposition only moved in
+integer jumps so morphing between presets with different tunings stair-stepped;
+pitch bend lived on the OSC page only and mod wheel had no GUI surface at all.
+
+**Decisions.**
+1. **The MAIN pad is its own instrument** (params 179 `mainAsnX` / 180
+   `mainAsnY`, default macros 1/2 — the detune/K pair, centered at 0.5 so the
+   default patch puts the puck mid-pad). It never re-aims when the edit osc
+   changes. The OSC pad keeps its 174-177 per-osc assignment behavior. One
+   pad controller (`wirePad`) drives both with different id sources — the
+   pads-as-class discipline B85 asked for, landed here.
+2. **Continuous per-osc pitch** (param 181 `oscPitch`, ±24 st, float). It sums
+   into the same per-osc tuning term as transpose/octave but is NOT quantized
+   and NOT in kGlobalIds, so it twins and morphs — the smooth blend the
+   integer transpose knobs structurally cannot give. Transpose stays integer;
+   this is a parallel lane, not a replacement.
+3. **Morph mini on MAIN** (B85 first landing): a light second rendering of the
+   morph field — bilinear MCOLORS ground + live puck at (152,153), drag writes
+   through the same gesture path. The heavy baked-field pad remains the MORPH
+   page's; the mini redraws only when the puck moves (`morphMiniDirty`).
+4. **Wheels on MAIN**: the bend wheel widget re-mounts to MAIN's Wheels
+   cluster (param 38, spring-back behavior unchanged) beside a new mod-wheel
+   slider driving matrix source 15 via a new `setModWheel` host hook — the
+   GUI wheel and a real CC1 land in the same `srcWheel`, so there is exactly
+   one mod-wheel truth.
+5. **Logo**: colored-stroke hue offset 90°→120° (90 produced no pink/purple
+   anywhere on the field — the human auditioned it); with morph toggled OFF
+   the mark now drifts hue medium-slowly (~50 s full cycle) instead of
+   freezing on meaningless position colours.
+
+**Also filed:** B88 (scale-quantize slider + chord topology — the human's
+stochastic chord-cluster vision, recorded verbatim, decomposition deferred).
+
+**Evidence.** parity 156/156 (181 defaults 0 → tuning term adds 0 → bit-clean),
+paramscope/state/mod green, lab_load green, gen_gui_controls 198 controls.

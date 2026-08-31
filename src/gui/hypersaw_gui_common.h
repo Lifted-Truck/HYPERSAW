@@ -266,6 +266,11 @@ inline std::unique_ptr<choc::ui::WebView> makeWebView(GuiHost &host)
                        args[1].getWithDefault<double>(0.0));
     return choc::value::createBool(true);
   });
+  web->bind("hzModWheel", [&host](const choc::value::ValueView &args) -> choc::value::Value {
+    if (host.setModWheel && args.isArray() && args.size() >= 1)
+      host.setModWheel(args[0].getWithDefault<double>(0.0));
+    return choc::value::createBool(true);
+  });
   web->bind("hzModSource", [&host](const choc::value::ValueView &args) -> choc::value::Value {
     bool ok = false;
     if (host.modSetSource && args.isArray() && args.size() >= 2)
