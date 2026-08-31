@@ -372,3 +372,7 @@ d4fb	global	Feedback	FX	Slot 4	knob		fx-rack	fx4type=9		fx4type=9
 d4cross	global	Crossfeed	FX	Slot 4	knob		fx-rack	fx4type=9		fx4type=9
 d4damp	global	Damp	FX	Slot 4	knob		fx-rack	fx4type=9		fx4type=9
 d4hp	global	Loop HP	FX	Slot 4	knob	Hz	fx-rack	fx4type=9		fx4type=9
+mainAsnX	global	Main x	SET	XY assignment	select		mod-matrix			
+mainAsnY	global	Main y	SET	XY assignment	select		mod-matrix			
+osc1.oscPitch	osc1	Pitch (st)	OSC	Pitch	knob	st	the-swarm			
+osc2.oscPitch	osc2	Pitch (st)	OSC	Pitch	knob	st	the-swarm			

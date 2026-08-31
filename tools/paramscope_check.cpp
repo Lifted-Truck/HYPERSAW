@@ -304,12 +304,20 @@ int main()
   // The vacuity control. Fanning everything to everything would pass assertion
   // 1 perfectly and silently destroy addressing.
   {
-    const double a1 = timeTo90(renderSolo(0, {{19, LONG}}));      // osc1's attack only
-    const double a2 = timeTo90(renderSolo(1, {{19, LONG}}));      // osc2 must be unaffected
+    /* {166,0},{167,0}: this probe MEASURES attack via time-to-90%-of-peak,
+       which silently assumed a near-unison default — a beating detuned swarm
+       peaks mid-render and reads "slow" regardless of its actual attack.
+       That assumption became false on 2026-08-30 when the macros started
+       defaulting centred (detune rests at 0.5 through the default routes).
+       Zeroing the macros here pins the swarm to unison, which is the probe
+       stating the assumption it always held. The detector-shares-assumption
+       trap, caught by its own failure. */
+    const double a1 = timeTo90(renderSolo(0, {{166, 0}, {167, 0}, {19, LONG}}));
+    const double a2 = timeTo90(renderSolo(1, {{166, 0}, {167, 0}, {19, LONG}}));
     std::snprintf(d, sizeof(d), "id 19 alone -> osc1 90%% at %.3f s, osc2 at %.3f s", a1, a2);
     check(a1 > 0.5 && a2 < 0.1, "a PER-OSC param reaches ONLY its own oscillator", d);
 
-    const double b1 = timeTo90(renderSolo(0, {{19, LONG}, {1000 + 19, LONG}}));
+    const double b1 = timeTo90(renderSolo(0, {{166, 0}, {167, 0}, {19, LONG}, {1000 + 19, LONG}}));
     const double b2 = timeTo90(renderSolo(1, {{19, LONG}, {1000 + 19, LONG}}));
     std::snprintf(d, sizeof(d), "ids 19 and 1019 -> osc1 %.3f s, osc2 %.3f s", b1, b2);
     check(b1 > 0.5 && b2 > 0.5, "addressing the second oscillator's copy works", d);

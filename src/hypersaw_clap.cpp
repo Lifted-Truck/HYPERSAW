@@ -572,8 +572,12 @@ static const ParamDef kParams[] = {
        OUT of the destination menu (macro-as-dest is fan-out, B70-adjacent,
        refused until ruled). Assignment defaults 0/1/2/3: osc 1's pad drives
        M1/M2, osc 2's M3/M4, and M5-8 start knob-only. */
-    {166, "macro1", "Macro 1", 0, 1, 0, false, nullptr},
-    {167, "macro2", "Macro 2", 0, 1, 0, false, nullptr},
+    /* 0.5, not 0 (human 2026-08-30: "the default setting needs to center the
+       main XY"): with floor defaults + 100% depth on the default routes,
+       centred macros land detune at 0.5 and K at 0 — K's OLD default exactly,
+       detune a touch wider than the old 0.28. The pad rests centred. */
+    {166, "macro1", "Macro 1", 0, 1, 0.5, false, nullptr},
+    {167, "macro2", "Macro 2", 0, 1, 0.5, false, nullptr},
     {168, "macro3", "Macro 3", 0, 1, 0, false, nullptr},
     {169, "macro4", "Macro 4", 0, 1, 0, false, nullptr},
     {170, "macro5", "Macro 5", 0, 1, 0, false, nullptr},
@@ -589,6 +593,16 @@ static const ParamDef kParams[] = {
        (low fixed resolution, fewer march steps, 20 Hz, idle-gated); off = the
        phase circle returns to MAIN. The native-GUI escape is B75. */
     {178, "specimen", "Specimen (CHROME-002)", 0, 1, 1, true, nullptr},
+    /* ADR-150: MAIN's XY is its OWN pad (human: "the main XY needs to be its
+       own XY separate from the OSC XYs; I didn't realize it wasn't yet") —
+       its own assignment pair, not a view of the active osc's. */
+    {179, "mainAsnX", "Main X > Macro", 0, 7, 0, true, nullptr},
+    {180, "mainAsnY", "Main Y > Macro", 0, 7, 1, true, nullptr},
+    /* ADR-150: continuous per-osc pitch, in semitones — the transposition
+       knobs (octave/semi) are stepped so the morph ARGMAX-jumps them; this
+       one BLENDS. Per-osc (not in kGlobalIds), so morphInit auto-includes it
+       and its twin — smooth pitch morphing for free. */
+    {181, "oscPitch", "Pitch (cont.)", -24, 24, 0, false, nullptr},
     /* ADR-142 — the standard Delay's per-slot params: 232..263, four blocks of
        8, the same shape ADR-131 gave the time engines (slot = (id-232)/8, key
        = (id-232)%8), so a fifth slot or a ninth param is a table edit and never
@@ -733,6 +747,7 @@ constexpr clap_id kGlobalIds[] = {
     166, 167, 168, 169, 170, 171, 172, 173,      // ADR-137 macros (mod sources 2-9)
     174, 175, 176, 177,                          // ADR-137 per-osc XY axis assignment
     178,                                         // ADR-140 specimen on/off (GUI-only)
+    179, 180,                                    // ADR-150 MAIN pad's own assignment
     232, 233, 234, 235, 236, 237, 238, 239,      // ADR-142 Delay slot 1
     240, 241, 242, 243, 244, 245, 246, 247,      // ADR-142 Delay slot 2
     248, 249, 250, 251, 252, 253, 254, 255,      // ADR-142 Delay slot 3
@@ -1447,8 +1462,10 @@ struct Plugin
   int env2Stage = 0;   // 0 idle, 1 attack, 2 decay/sustain
   // ADR-137: macro values (mod source slots 2-9) and the XY axis assignment
   // [osc0 X, osc0 Y, osc1 X, osc1 Y], each an index into macroVal.
-  double macroVal[8] = {0};
+  double macroVal[8] = {0.5, 0.5, 0, 0, 0, 0, 0, 0};   // 1/2 match their 0.5 table default (paramscope sweep)
   int xyAsn[4] = {0, 1, 2, 3};
+  int mainAsn[2] = {0, 1};                       // ADR-150: MAIN pad's own pair
+  double pitchContA[kMaxOsc] = {0};              // ADR-150: continuous per-osc pitch (st)
   /* = 1, matching the table (paramscope's default-truth sweep caught this as
      a LIE: info said 1, readback said 0 — so fresh instances showed the
      specimen OFF all along, which is why the human kept asking to "default it
@@ -2124,7 +2141,8 @@ struct Plugin
   void updateTune(uint32_t k)
   {
     const double st = 12.0 * (octaveA[k] + gOct) + semiA[k] + gSemi + pitchBend +
-                      (fineCentsA[k] + gFine) / 100.0 + modPitchSm;   // B69: matrix offset
+                      (fineCentsA[k] + gFine) / 100.0 + modPitchSm    // B69: matrix offset
+                      + pitchContA[k];   // ADR-150: the morphable continuous pitch
     const double factor = st == 0.0 ? 1.0 : std::pow(2.0, st / 12.0);
     cores[k].setParam("tune", factor);
     if (k == 0)
@@ -3260,6 +3278,13 @@ struct Plugin
       }
       if (id >= 166 && id <= 173) { macroVal[id - 166] = applied; return; }
       if (id >= 174 && id <= 177) { xyAsn[id - 174] = (int)applied; return; }
+      if (id == 179 || id == 180) { mainAsn[id - 179] = (int)applied; return; }
+      if (baseIdOf(id) == 181)
+      {
+        const uint32_t osc = oscOfId(id);
+        if (osc < kNumOsc) { pitchContA[osc] = applied; updateTune(osc); }
+        return;
+      }
       if (id == 178) { specimenOn = applied; return; }
       /* NOTE LANE (ADR-096). Mirrors the bend block above field-for-field, minus
          retMul. Note the absent tau: id 33 carries the note lag, in seconds, and
@@ -3611,6 +3636,9 @@ struct Plugin
       if (d->id == 165) return env2R;
       if (d->id >= 166 && d->id <= 173) return macroVal[d->id - 166];
       if (d->id >= 174 && d->id <= 177) return xyAsn[d->id - 174];
+      if (d->id == 179 || d->id == 180) return mainAsn[d->id - 179];
+      if (baseIdOf(d->id) == 181)
+        return pitchContA[oscOfId(id) < kNumOsc ? oscOfId(id) : 0];
       if (d->id == 178) return specimenOn;
       if (d->id >= 116 && d->id <= 128)
         return d->id == 116 ? scale.root : (double)scale.mask[d->id - 117];
@@ -4726,6 +4754,7 @@ bool gui_create(const clap_plugin_t *p, const char *api, bool is_floating)
     if (i >= 0 && i < pl->mod.nRoutes) pl->mod.routes[i].depth = v;
   };
   hostIf.modSetSource = [pl](int i, uint32_t src) { return pl->modSetSource(i, src); };
+  hostIf.setModWheel = [pl](double v) { pl->srcWheel = v < 0 ? 0 : (v > 1 ? 1 : v); };
   hostIf.modRemoveRoute = [pl](int i) { pl->mod.removeRoute(i); };
   hostIf.morphCornerValsJson = [pl](int k) { return pl->morphCornerValsJson(k); };
   hostIf.morphCornerApply = [pl](uint32_t k, const std::string &j) { return pl->cornerApply((int)k, j); };

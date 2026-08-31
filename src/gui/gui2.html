@@ -767,14 +767,6 @@
       sustained level makes it quiver, the envelope blooms the film, coherence
       pulls the lobes together. Drag orbits · click strikes.</div>
   </div>
-  <div class="cluster"><h2>XY — macro pad</h2>
-    <canvas id="xy" class="xy" width="340" height="212"></canvas>
-    <div class="row xyAsnRow"><label>x drives</label><select class="xyAX"></select><output></output></div>
-    <div class="row xyAsnRow"><label>y drives</label><select class="xyAY"></select><output></output></div>
-    <div class="note" style="margin-top:5px">ADR-137: the pad CONTROLS two macros — which two is the
-      ACTIVE oscillator's assignment (the plumbing rule: nothing hardwired to
-      oscillator 1). Route the macros by right-clicking any knob.</div>
-  </div>
   <div class="cluster"><h2>Macros</h2>
     <div class="knobs">
       <div class="row kcell"><label>M1</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="166" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
@@ -813,6 +805,28 @@
   <div class="note">Stored in this plugin's browser storage (per machine). COPY
     PATCH / PASTE in the tab bar remains the export path; a disk browser is the
     roadmapped next step.</div>
+  <!-- ADR-150: MAIN's XY is its OWN pad — its own assignment pair (179/180,
+       fixed selects: this pad never remaps with the osc selection), placed
+       under Presets per the human's layout ruling. Rests centred: macros 1/2
+       default 0.5. -->
+  <div class="cluster"><h2>XY — main pad</h2>
+    <canvas id="xyMain" class="xy" width="340" height="212"></canvas>
+    <div class="row xyAsnRow"><label>x drives</label><select data-p="179" data-fixed="1"><option value="0" selected>Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+    <div class="row xyAsnRow"><label>y drives</label><select data-p="180" data-fixed="1"><option value="0">Macro 1</option><option value="1" selected>Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+  </div>
+  <div class="cluster"><h2>Morph</h2>
+    <!-- B85 first landing: a light morph pad — the four corner colours as a
+         bilinear ground and the live (152,153) puck; drag writes both params.
+         The full baked-field pad stays the MORPH page's signature; this is
+         the position control, everywhere the hand wants it. -->
+    <canvas id="morphMini" width="340" height="212" style="display:block;width:100%;cursor:crosshair;touch-action:none;border:var(--stroke) solid var(--line);border-radius:var(--r)"></canvas>
+  </div>
+  <div class="cluster"><h2>Wheels</h2>
+    <div id="wheelsMount"></div>
+    <div class="row"><label>Mod</label><input type="range" id="modWheelCtl" min="0" max="1" step="0.005" value="0"><output>0.00</output></div>
+    <div class="note">Pitch springs back on release and rides the whole bend
+      path; Mod drives the matrix's Mod Wheel source — route it to anything.</div>
+  </div>
 </div>
 <!--GEN:MAIN-->
   <div class="cluster"><h2>Bend</h2>
@@ -1255,6 +1269,7 @@
     <div class="row kcell" data-addr="penvD"><label>P.Env Decay <span class="u">s</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="163" min="0.005" max="4" step="0.005" value="0.16"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="penvS"><label>P.Env Sustain</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="164" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
     <div class="row kcell" data-addr="penvR"><label>P.Env Release <span class="u">s</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="165" min="0.005" max="8" step="0.005" value="0.16"><span class="kmnow"></span></span><output></output></div>
+    <div class="row kcell" data-addr="osc1.oscPitch"><label>Pitch (st) <span class="sc">osc1</span> <span class="u">st</span></label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="181" min="-24" max="24" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
   </div>
   <div class="cluster"><h2>Saw shape</h2>
     <canvas class="gviz" data-viz="shapewave" width="260" height="72"></canvas>
@@ -1857,6 +1872,8 @@ function setControl(id, v) {
     ASN[base - 174] = v; syncXYAsnSelects(); xyDirty = true;
   }
   if (base === 178) specimenSync(v > 0.5);   // ADR-140: swap specimen/phase circle
+  if (base === 179 || base === 180) xyDirty = true;   // ADR-150: MAIN pad re-aimed
+  if (base === 152 || base === 153) morphMiniDirty = true;   // morph puck moved
   const el = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
   if (el) paintControl(el, v);
   // A HOST-DRIVEN repaint changes what the gates read, so they must be
@@ -2031,7 +2048,10 @@ const cornerFills = [];
    legitimately hold a nonzero Pitch, and a wheel that springs to zero would
    stomp it on every release. */
 {
-  const bendCluster = document.querySelector('[data-addr="bendQuant"]')?.closest('.cluster');
+  // ADR-150: the wheel lives in MAIN's Wheels cluster now (fall back to the
+  // bend cluster for dev pages that predate it)
+  const bendCluster = document.getElementById('wheelsMount')
+                   || document.querySelector('[data-addr="bendQuant"]')?.closest('.cluster');
   if (bendCluster) {
     const box = document.createElement('div');
     box.className = 'row wheelRow';
@@ -2866,29 +2886,105 @@ for (const [name, live] of PAGES) {
    "Main shows whichever XY belongs to the selected osc" holds by construction.
    The macros then reach parameters only through the matrix: the pad is a
    control surface, the routing stays in one place. */
-const XYS = () => [...document.querySelectorAll('canvas.xy')];
+/* ADR-150: TWO pads, one machine each. MAIN's pad is its OWN — assignment
+   params 179/180, never remapped by the osc selection (the human: "the main
+   XY needs to be its own XY separate from the OSC XYs"). The OSC pad keeps
+   the active-osc behaviour (174-177). Same controller, different id source. */
 const ASN = [0, 1, 2, 3];       // [osc0 X, osc0 Y, osc1 X, osc1 Y] → macro index
 const xyMacroIds = () => [166 + ASN[editOsc * 2], 166 + ASN[editOsc * 2 + 1]];
-let xyLastX = -1, xyLastY = -1, xyDirty = true, xyDown = false;
-function xyApply(e) {
-  const r = e.currentTarget.getBoundingClientRect();
-  const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-  const y = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
-  const [ix, iy] = xyMacroIds();
-  bridge.setParam(ix, x); bridge.setParam(iy, y);
-  lastParams[ix] = x; lastParams[iy] = y;
-  setControl(ix, x); setControl(iy, y);
-  xyDirty = true;
-}
-XYS().forEach(cv => {
-  cv.addEventListener('pointerdown', e => { xyDown = true; cv.setPointerCapture(e.pointerId);
-    const [ix, iy] = xyMacroIds();
-    bridge.gesture(ix, true); bridge.gesture(iy, true); xyApply(e); });
-  cv.addEventListener('pointermove', e => { if (xyDown) xyApply(e); });
-  cv.addEventListener('pointerup', () => { xyDown = false;
-    const [ix, iy] = xyMacroIds();
+const mainMacroIds = () => [166 + (+(lastParams[179] ?? 0)), 166 + (+(lastParams[180] ?? 1))];
+const PADS = [
+  { sel: '#xyMain', ids: mainMacroIds, lastX: -1, lastY: -1, dirty: true },
+  { sel: '#xy2',    ids: xyMacroIds,   lastX: -1, lastY: -1, dirty: true },
+];
+let xyDirty = true;   // legacy flag: any write marks BOTH pads (cheap, correct)
+function wirePad(pad) {
+  const cv = document.querySelector(pad.sel);
+  if (!cv) return;
+  pad.cv = cv;
+  let down = false;
+  const apply = e => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const y = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+    const [ix, iy] = pad.ids();
+    bridge.setParam(ix, x); bridge.setParam(iy, y);
+    lastParams[ix] = x; lastParams[iy] = y;
+    setControl(ix, x); setControl(iy, y);
+    xyDirty = true;
+  };
+  cv.addEventListener('pointerdown', e => { down = true; cv.setPointerCapture(e.pointerId);
+    const [ix, iy] = pad.ids();
+    bridge.gesture(ix, true); bridge.gesture(iy, true); apply(e); });
+  cv.addEventListener('pointermove', e => { if (down) apply(e); });
+  cv.addEventListener('pointerup', () => { down = false;
+    const [ix, iy] = pad.ids();
     bridge.gesture(ix, false); bridge.gesture(iy, false); });
-});
+}
+PADS.forEach(wirePad);
+/* B85 first landing: the light morph pad. Corner colours from MCOLORS (the
+   engine's own corner identity), bilinear ground, live puck at (152,153);
+   drag writes both params through the same gesture path the big pad uses. */
+let morphMiniDirty = true;
+function drawMorphMini() {
+  const cv = document.getElementById('morphMini');
+  if (!cv || !morphMiniDirty || !cv.offsetParent) return;
+  morphMiniDirty = false;
+  const g = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  const hex = c => { const m = /^#([0-9a-f]{6})$/i.exec(c); const v = m ? parseInt(m[1], 16) : 0;
+    return [v >> 16 & 255, v >> 8 & 255, v & 255]; };
+  const C = (typeof MCOLORS !== 'undefined' ? MCOLORS : ['#FFD702', '#FF2E88', '#00D5C8', '#A6F219']).map(hex);
+  const img = g.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    const fy = y / (h - 1);
+    for (let x = 0; x < w; x++) {
+      const fx = x / (w - 1);
+      const o = (y * w + x) * 4;
+      for (let ch = 0; ch < 3; ch++) {
+        const top = C[0][ch] * (1 - fx) + C[1][ch] * fx;
+        const bot = C[2][ch] * (1 - fx) + C[3][ch] * fx;
+        img.data[o + ch] = (top * (1 - fy) + bot * fy) * 0.55 + 40;
+      }
+      img.data[o + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const mx = +(lastParams[152] ?? 0), my = +(lastParams[153] ?? 0);
+  const px = mx * w, py = my * h;
+  g.strokeStyle = TOK('--line', '#191521'); g.lineWidth = 2;
+  g.beginPath(); g.arc(px, py, 7, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = TOK('--value', '#F5169C');
+  g.beginPath(); g.arc(px, py, 4, 0, Math.PI * 2); g.fill();
+}
+(() => {
+  const cv = document.getElementById('morphMini');
+  if (!cv) return;
+  let down = false;
+  const apply = e => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    bridge.setParam(152, x); bridge.setParam(153, y);
+    lastParams[152] = x; lastParams[153] = y;
+    morphMiniDirty = true;
+  };
+  cv.addEventListener('pointerdown', e => { down = true; cv.setPointerCapture(e.pointerId);
+    bridge.gesture(152, true); bridge.gesture(153, true); apply(e); });
+  cv.addEventListener('pointermove', e => { if (down) apply(e); });
+  cv.addEventListener('pointerup', () => { down = false;
+    bridge.gesture(152, false); bridge.gesture(153, false); });
+})();
+/* ADR-150: the GUI mod wheel — drives matrix source 15 through hzModWheel. */
+(() => {
+  const w = document.getElementById('modWheelCtl');
+  if (!w) return;
+  const o = w.closest('.row').querySelector('output');
+  w.addEventListener('input', () => {
+    o.textContent = (+w.value).toFixed(2);
+    try { window.hzModWheel && hzModWheel(+w.value); } catch (e) {}
+  });
+})();
 /* The assignment selects. Every .xyAX/.xyAY on any page is synced from the one
    ASN mirror — the same one-state-many-renderings discipline the pads use. */
 function syncXYAsnSelects() {
@@ -3037,25 +3133,26 @@ function frameBody() {
   if (frameNo % 6 === 0 && MODE !== 1 && DIAG.halos) modHaloFrame().catch(() => {});   // halos: 10 Hz
   if (frameNo % 3 === 0) chromeFrame();                  // CHROME-002, ~20 Hz
   if (!DIAG.xy) return;   // DIAG: pad paint disabled
-  {  // the puck follows the ASSIGNED macros — knob drags and automation both land here
-    const [mix, miy] = xyMacroIds();
+  for (const pad of PADS) {   // each pad follows ITS OWN assigned macros
+    if (!pad.cv) continue;
+    const [mix, miy] = pad.ids();
     const mx = +(lastParams[mix] ?? 0), my = +(lastParams[miy] ?? 0);
-    if (mx !== xyLastX || my !== xyLastY) { xyLastX = mx; xyLastY = my; xyDirty = true; }
+    if (mx !== pad.lastX || my !== pad.lastY || xyDirty) {
+      pad.lastX = mx; pad.lastY = my;
+      const xyctx = pad.cv.getContext('2d');
+      const w = pad.cv.width, h = pad.cv.height;
+      xyctx.fillStyle = TOK('--scr-tube'); xyctx.fillRect(0, 0, w, h);
+      scan(xyctx, w, h, scanA());
+      const x = mx * w, y = (1 - my) * h;
+      xyctx.strokeStyle = TOKA('--scr-grid', 0.30);
+      xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
+      xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();
+      xyctx.fillStyle = TOK('--scr-value');
+      xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
+    }
   }
-  if (!xyDirty) return;
   xyDirty = false;
-  for (const cv of XYS()) {
-    const xyctx = cv.getContext('2d');
-    const w = cv.width, h = cv.height;
-    xyctx.fillStyle = TOK('--scr-tube'); xyctx.fillRect(0, 0, w, h);
-  scan(xyctx, w, h, scanA());
-    const x = xyLastX * w, y = (1 - xyLastY) * h;
-    xyctx.strokeStyle = TOKA('--scr-grid', 0.30);
-    xyctx.beginPath(); xyctx.moveTo(x, 0); xyctx.lineTo(x, h);
-    xyctx.moveTo(0, y); xyctx.lineTo(w, y); xyctx.stroke();
-    xyctx.fillStyle = TOK('--scr-value');
-    xyctx.beginPath(); xyctx.arc(x, y, 5, 0, Math.PI * 2); xyctx.fill();
-  }
+  drawMorphMini();
 }
 function drawXY() {
   requestAnimationFrame(drawXY);
@@ -4407,7 +4504,7 @@ function tdWarp(seed) {
        The 2026-08-25 ruling retired the outline click; this reintroduces the
        click as an explicit AUDITION mode at the human's request — the ruling
        on the winner comes later, and then the click goes again. */
-    let brandHueTest = false, lastTint = '';
+    let brandHueTest = false, lastTint = '', brandHuePh = 0;
     const hueRot = (hex, deg) => {
       const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
       const v = parseInt(m[1], 16);
@@ -4431,7 +4528,7 @@ function tdWarp(seed) {
     cv.addEventListener('click', () => { brandHueTest = !brandHueTest; });
     const outline = () => {
       let edge = TOK('--lg-edge', 'none');
-      if (brandHueTest && lastTint) edge = hueRot(lastTint, 90);
+      if (brandHueTest && lastTint) edge = hueRot(lastTint, 120);   // 90 auditioned pinkless; the human asked for 120
       if (!edge || edge === 'none') return;      // dark mode: the fill carries itself
       fctx.clearRect(0, 0, W, H); fctx.drawImage(cv, 0, 0);   // the tinted fill
       ectx.clearRect(0, 0, W, H); ectx.drawImage(cv, 0, 0);
@@ -4541,6 +4638,17 @@ function tdWarp(seed) {
          blend the pad's field uses (A top-left, B top-right, C bottom-left,
          D bottom-right -- the gradient corners in drawField), so the logo IS
          the morph cursor. Standalone, the uneven drift below remains. */
+      /* ADR-150: with the morph toggled OFF the position colours are frozen
+         and meaningless — the mark drifts hue medium-slowly instead (full
+         cycle ~50 s), per the human. Morph on: the bilinear blend as before. */
+      if ((+(lastParams[151] ?? 0)) < 0.5) {
+        brandHuePh = (brandHuePh + dt * 0.02) % 1;
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = lastTint = hueRot(TOK(LG[0], '#FF2E88'), brandHuePh * 360);
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
+        return;
+      }
       const mx = lastParams[152], my = lastParams[153];
       if (mx !== undefined && my !== undefined) {
         smX += (+mx - smX) * 0.1; smY += (+my - smY) * 0.1;
