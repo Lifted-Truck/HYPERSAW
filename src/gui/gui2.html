@@ -264,6 +264,10 @@
            border:0; background:transparent; border-radius:0; }
   /* audition: the mark without its ink edge */
   .tabs { flex-wrap:wrap; row-gap:4px; }
+  /* The PAGE tabs wrap as a GROUP (human 2026-08-31: "jump to the next line
+     as a group on resizing instead of one at a time") — a nowrap sub-flex
+     inside the wrapping bar moves below as one unit. */
+  .pgtabs { display:flex; gap:4px; flex-wrap:nowrap; }
 
   /* the Editing bar's own content steps aside for the overhang */
 
@@ -767,18 +771,6 @@
       sustained level makes it quiver, the envelope blooms the film, coherence
       pulls the lobes together. Drag orbits · click strikes.</div>
   </div>
-  <div class="cluster"><h2>Macros</h2>
-    <div class="knobs">
-      <div class="row kcell"><label>M1</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="166" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-      <div class="row kcell"><label>M2</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="167" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-      <div class="row kcell"><label>M3</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="168" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-      <div class="row kcell"><label>M4</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="169" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-      <div class="row kcell"><label>M5</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="170" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-      <div class="row kcell"><label>M6</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="171" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-      <div class="row kcell"><label>M7</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="172" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-      <div class="row kcell"><label>M8</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="173" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
-    </div>
-  </div>
   <div class="cluster"><h2>Viz — <span id="vizWho">OSC 1</span></h2>
     <canvas id="phaseC" class="phase" width="220" height="220" style="display:none;margin:0 auto;max-width:232px"></canvas>
     <div class="vizline vRead">R —</div>
@@ -805,16 +797,18 @@
   <div class="note">Stored in this plugin's browser storage (per machine). COPY
     PATCH / PASTE in the tab bar remains the export path; a disk browser is the
     roadmapped next step.</div>
+</div>
   <!-- ADR-150: MAIN's XY is its OWN pad — its own assignment pair (179/180,
        fixed selects: this pad never remaps with the osc selection), placed
        under Presets per the human's layout ruling. Rests centred: macros 1/2
        default 0.5. -->
   <div class="cluster"><h2>XY — main pad</h2>
     <canvas id="xyMain" class="xy" width="340" height="212"></canvas>
-    <div class="row xyAsnRow"><label>x drives</label><select data-p="179" data-fixed="1"><option value="0" selected>Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
-    <div class="row xyAsnRow"><label>y drives</label><select data-p="180" data-fixed="1"><option value="0">Macro 1</option><option value="1" selected>Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+    <div class="row xyAsnRow"><label>x drives</label><select data-p="179" data-fixed="1"><option value="0" selected>Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option><option value="8">None</option></select><output></output></div>
+    <div class="row xyAsnRow"><label>y drives</label><select data-p="180" data-fixed="1"><option value="0">Macro 1</option><option value="1" selected>Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option><option value="8">None</option></select><output></output></div>
+    <div class="note xyRouteNote" id="xyMainRoutes"></div>
   </div>
-  <div class="cluster"><h2>Morph</h2>
+  <div class="cluster" id="morphMiniBox" data-selfgate hidden><h2>Morph</h2>
     <!-- B85 first landing: a light morph pad — the four corner colours as a
          bilinear ground and the live (152,153) puck; drag writes both params.
          The full baked-field pad stays the MORPH page's signature; this is
@@ -827,7 +821,18 @@
     <div class="note">Pitch springs back on release and rides the whole bend
       path; Mod drives the matrix's Mod Wheel source — route it to anything.</div>
   </div>
-</div>
+  <div class="cluster"><h2>Macros</h2>
+    <div class="knobs">
+      <div class="row kcell"><label>M1</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="166" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M2</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="167" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M3</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="168" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M4</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="169" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M5</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="170" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M6</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="171" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M7</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="172" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+      <div class="row kcell"><label>M8</label><span class="knob"><span class="kmod"></span><span class="karc"></span><span class="kcap"></span><span class="kptr"></span><input type="range" data-p="173" min="0" max="1" step="0.005" value="0"><span class="kmnow"></span></span><output></output></div>
+    </div>
+  </div>
 <!--GEN:MAIN-->
   <div class="cluster"><h2>Bend</h2>
     <canvas class="gviz" data-viz="bendstep" width="260" height="72"></canvas>
@@ -944,10 +949,10 @@
        audits for. data-fixed: each row addresses ITS oscillator, never the
        edited one. -->
   <div class="cluster"><h2>XY assignment</h2>
-    <div class="row"><label>OSC1 x</label><select data-p="174" data-fixed="1"><option value="0" selected>Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
-    <div class="row"><label>OSC1 y</label><select data-p="175" data-fixed="1"><option value="0">Macro 1</option><option value="1" selected>Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
-    <div class="row"><label>OSC2 x</label><select data-p="176" data-fixed="1"><option value="0">Macro 1</option><option value="1">Macro 2</option><option value="2" selected>Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
-    <div class="row"><label>OSC2 y</label><select data-p="177" data-fixed="1"><option value="0">Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3" selected>Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option></select><output></output></div>
+    <div class="row"><label>OSC1 x</label><select data-p="174" data-fixed="1"><option value="0" selected>Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option><option value="8">None</option></select><output></output></div>
+    <div class="row"><label>OSC1 y</label><select data-p="175" data-fixed="1"><option value="0">Macro 1</option><option value="1" selected>Macro 2</option><option value="2">Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option><option value="8">None</option></select><output></output></div>
+    <div class="row"><label>OSC2 x</label><select data-p="176" data-fixed="1"><option value="0">Macro 1</option><option value="1">Macro 2</option><option value="2" selected>Macro 3</option><option value="3">Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option><option value="8">None</option></select><output></output></div>
+    <div class="row"><label>OSC2 y</label><select data-p="177" data-fixed="1"><option value="0">Macro 1</option><option value="1">Macro 2</option><option value="2">Macro 3</option><option value="3" selected>Macro 4</option><option value="4">Macro 5</option><option value="5">Macro 6</option><option value="6">Macro 7</option><option value="7">Macro 8</option><option value="8">None</option></select><output></output></div>
     <div class="note">Which macro each XY pad axis drives, per oscillator. The
       pads' own selects are the same four values seen through the active
       oscillator.</div>
@@ -967,10 +972,10 @@
   </div>
   <div class="cluster"><h2>Visualizers</h2>
     <div class="row"><label>Specimen</label><input type="checkbox" data-p="178" checked><output></output></div>
-    <div class="note">INERT IN THIS EXPERIMENT BUILD — the specimen is fully
-      excised (no canvas, no GL context) to give the lag A/B a clean single
-      variable. The switch stays so the parameter remains reachable; it does
-      nothing until the experiment is ratified or reverted.</div>
+    <div class="note">Shows CHROME-002 on MAIN in place of the phase circle. The
+      specimen was exonerated by the excision experiment (the lag was the
+      param-sync repaint, ADR-147) and is fully live again — create-on-show,
+      so OFF means no GL context exists at all.</div>
   </div>
   <div class="cluster"><h2>Keyboard</h2>
     <div id="setKeys"></div>
@@ -1195,6 +1200,7 @@
     <canvas id="xy2" class="xy" width="340" height="212"></canvas>
     <div class="row xyAsnRow"><label>x drives</label><select class="xyAX"></select><output></output></div>
     <div class="row xyAsnRow"><label>y drives</label><select class="xyAY"></select><output></output></div>
+    <div class="note xyRouteNote" id="xyOscRoutes"></div>
   </div>
   </div>
   <div class="ctlcol">
@@ -1872,8 +1878,14 @@ function setControl(id, v) {
     ASN[base - 174] = v; syncXYAsnSelects(); xyDirty = true;
   }
   if (base === 178) specimenSync(v > 0.5);   // ADR-140: swap specimen/phase circle
-  if (base === 179 || base === 180) xyDirty = true;   // ADR-150: MAIN pad re-aimed
+  if (base === 179 || base === 180) { xyDirty = true; try { updateXYRouteNotes(); } catch (_) {} }   // ADR-150: MAIN pad re-aimed
+  if (base >= 174 && base <= 177) { try { updateXYRouteNotes(); } catch (_) {} }
   if (base === 152 || base === 153) morphMiniDirty = true;   // morph puck moved
+  if (base === 151) {   // mini morph rides the toggle: hidden unless morph is ON
+    const box = document.getElementById('morphMiniBox');
+    if (box) box.hidden = v < 0.5;
+    morphMiniDirty = true;
+  }
   const el = document.querySelector(`[data-p="${base}"]:not([data-fixed])`);
   if (el) paintControl(el, v);
   // A HOST-DRIVEN repaint changes what the gates read, so they must be
@@ -2076,6 +2088,19 @@ const cornerFills = [];
   }
 }
 /* ============ MORPH PAD + CORNERS (ADR-104) ============ */
+/* The ONE morph-field painter — the big pad and MAIN's mini both call this,
+   so they cannot drift apart (the mini's first version hand-rolled a bilinear
+   blend and the human immediately flagged it as "the wrong aesthetic"). */
+function paintMorphField(fx, w, h) {
+  fx.fillStyle = TOK('--scr-tube'); fx.fillRect(0, 0, w, h);
+  for (let k = 0; k < 4; k++) {
+    const gx = (k % 2) ? w : 0, gy = (k > 1) ? h : 0;
+    const gr = fx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(w, h));
+    gr.addColorStop(0, MCOLORS[k] + '55'); gr.addColorStop(0.7, 'transparent');
+    fx.fillStyle = gr; fx.fillRect(0, 0, w, h);
+  }
+  scan(fx, w, h, scanA());
+}
 {
   const pad = document.getElementById('morphPad');
   if (pad) {
@@ -2088,17 +2113,7 @@ const cornerFills = [];
        the expensive part is a blit. */
     const field = document.createElement('canvas');
     let padW = 0, padH = 0;
-    const drawField = () => {
-      const fx = field.getContext('2d');
-      fx.fillStyle = TOK('--scr-tube'); fx.fillRect(0, 0, padW, padH);
-      for (let k = 0; k < 4; k++) {
-        const gx = (k % 2) ? padW : 0, gy = (k > 1) ? padH : 0;
-        const gr = fx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(padW, padH));
-        gr.addColorStop(0, MCOLORS[k] + '55'); gr.addColorStop(0.7, 'transparent');
-        fx.fillStyle = gr; fx.fillRect(0, 0, padW, padH);
-      }
-      scan(fx, padW, padH, scanA());   // baked into the field, not per frame
-    };
+    const drawField = () => paintMorphField(field.getContext('2d'), padW, padH);
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const w = Math.max(1, Math.round(pad.clientWidth * dpr));
@@ -2123,6 +2138,7 @@ const cornerFills = [];
        runs (the pad's rAF does not tick in every host -- see the probe hook). */
     window._padInvalidate = () => {
       padW = -1; padH = -1; lastX = -1; lastY = -1;
+      morphMiniDirty = true;   // the mini is cleared by the same recolour
       if (!pad.offsetWidth) return;      // hidden: resize() re-bakes on reveal
       resize();
       px.drawImage(field, 0, 0);
@@ -2430,7 +2446,7 @@ async function modHaloFrame() {
     // routes change on user actions and rarely otherwise; refresh at ~2 Hz so a
     // host-side change cannot strand a stale halo for more than half a second
     if ((modRouteTick++ % 10) === 0 && window.hzModRoutes) {
-      try { MODROUTES = JSON.parse(await window.hzModRoutes()); } catch (_) {}
+      try { MODROUTES = JSON.parse(await window.hzModRoutes()); updateXYRouteNotes(); } catch (_) {}
     }
     const generic = MODROUTES.filter(r => (r.dest >>> 0) < 0x80000000);
     let live = [];
@@ -2841,6 +2857,9 @@ const PAGES = [['MAIN', true], ['OSC', true], ['MIX', true], ['FX', true],
                ['MOD', true], ['MORPH', true],
                ['SET', true]];   // SPACE retired 2026-08-24; SET added 2026-08-25
 const tabs = $('#tabs');
+const pgTabs = document.createElement('div');
+pgTabs.className = 'pgtabs';
+tabs.appendChild(pgTabs);
 for (const [name, live] of PAGES) {
   const t = document.createElement('div');
   t.className = 'tab' + (name === 'MAIN' ? ' on' : '') + (live ? '' : ' stub');
@@ -2878,7 +2897,7 @@ for (const [name, live] of PAGES) {
       drawEnvelope(null); drawScatter(lastViz); drawBendStep(); drawBendVib(); drawShapeWave();
     }
   });
-  tabs.appendChild(t);
+  pgTabs.appendChild(t);
 }
 /* ============ XY (macro controller, ADR-137) ===============
    The pad no longer writes detune/pull K. It CONTROLS two macros — which two
@@ -2891,8 +2910,9 @@ for (const [name, live] of PAGES) {
    XY needs to be its own XY separate from the OSC XYs"). The OSC pad keeps
    the active-osc behaviour (174-177). Same controller, different id source. */
 const ASN = [0, 1, 2, 3];       // [osc0 X, osc0 Y, osc1 X, osc1 Y] → macro index
-const xyMacroIds = () => [166 + ASN[editOsc * 2], 166 + ASN[editOsc * 2 + 1]];
-const mainMacroIds = () => [166 + (+(lastParams[179] ?? 0)), 166 + (+(lastParams[180] ?? 1))];
+const asnPid = a => (a >= 0 && a < 8) ? 166 + a : -1;   // 8 = None -> no target
+const xyMacroIds = () => [asnPid(ASN[editOsc * 2]), asnPid(ASN[editOsc * 2 + 1])];
+const mainMacroIds = () => [asnPid(+(lastParams[179] ?? 0)), asnPid(+(lastParams[180] ?? 1))];
 const PADS = [
   { sel: '#xyMain', ids: mainMacroIds, lastX: -1, lastY: -1, dirty: true },
   { sel: '#xy2',    ids: xyMacroIds,   lastX: -1, lastY: -1, dirty: true },
@@ -2908,18 +2928,17 @@ function wirePad(pad) {
     const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     const y = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
     const [ix, iy] = pad.ids();
-    bridge.setParam(ix, x); bridge.setParam(iy, y);
-    lastParams[ix] = x; lastParams[iy] = y;
-    setControl(ix, x); setControl(iy, y);
+    if (ix >= 0) { bridge.setParam(ix, x); lastParams[ix] = x; setControl(ix, x); }
+    if (iy >= 0) { bridge.setParam(iy, y); lastParams[iy] = y; setControl(iy, y); }
     xyDirty = true;
   };
   cv.addEventListener('pointerdown', e => { down = true; cv.setPointerCapture(e.pointerId);
     const [ix, iy] = pad.ids();
-    bridge.gesture(ix, true); bridge.gesture(iy, true); apply(e); });
+    if (ix >= 0) bridge.gesture(ix, true); if (iy >= 0) bridge.gesture(iy, true); apply(e); });
   cv.addEventListener('pointermove', e => { if (down) apply(e); });
   cv.addEventListener('pointerup', () => { down = false;
     const [ix, iy] = pad.ids();
-    bridge.gesture(ix, false); bridge.gesture(iy, false); });
+    if (ix >= 0) bridge.gesture(ix, false); if (iy >= 0) bridge.gesture(iy, false); });
 }
 PADS.forEach(wirePad);
 /* B85 first landing: the light morph pad. Corner colours from MCOLORS (the
@@ -2932,30 +2951,10 @@ function drawMorphMini() {
   morphMiniDirty = false;
   const g = cv.getContext('2d');
   const w = cv.width, h = cv.height;
-  const hex = c => { const m = /^#([0-9a-f]{6})$/i.exec(c); const v = m ? parseInt(m[1], 16) : 0;
-    return [v >> 16 & 255, v >> 8 & 255, v & 255]; };
-  const C = (typeof MCOLORS !== 'undefined' ? MCOLORS : ['#FFD702', '#FF2E88', '#00D5C8', '#A6F219']).map(hex);
-  const img = g.createImageData(w, h);
-  for (let y = 0; y < h; y++) {
-    const fy = y / (h - 1);
-    for (let x = 0; x < w; x++) {
-      const fx = x / (w - 1);
-      const o = (y * w + x) * 4;
-      for (let ch = 0; ch < 3; ch++) {
-        const top = C[0][ch] * (1 - fx) + C[1][ch] * fx;
-        const bot = C[2][ch] * (1 - fx) + C[3][ch] * fx;
-        img.data[o + ch] = (top * (1 - fy) + bot * fy) * 0.55 + 40;
-      }
-      img.data[o + 3] = 255;
-    }
-  }
-  g.putImageData(img, 0, 0);
+  paintMorphField(g, w, h);
   const mx = +(lastParams[152] ?? 0), my = +(lastParams[153] ?? 0);
-  const px = mx * w, py = my * h;
-  g.strokeStyle = TOK('--line', '#191521'); g.lineWidth = 2;
-  g.beginPath(); g.arc(px, py, 7, 0, Math.PI * 2); g.stroke();
-  g.fillStyle = TOK('--value', '#F5169C');
-  g.beginPath(); g.arc(px, py, 4, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = TOK('--scr-value'); g.lineWidth = 1.5;
+  g.beginPath(); g.arc(mx * w, my * h, 7, 0, Math.PI * 2); g.stroke();
 }
 (() => {
   const cv = document.getElementById('morphMini');
@@ -2993,6 +2992,7 @@ function syncXYAsnSelects() {
 }
 document.querySelectorAll('select.xyAX, select.xyAY').forEach(sel => {
   for (let i = 0; i < 8; i++) sel.add(new Option('Macro ' + (i + 1), i));
+  sel.add(new Option('None', 8));
   sel.addEventListener('change', () => {
     const axis = sel.classList.contains('xyAX') ? 0 : 1;
     const pid = 174 + editOsc * 2 + axis;
@@ -3002,6 +3002,32 @@ document.querySelectorAll('select.xyAX, select.xyAY').forEach(sel => {
   });
 });
 syncXYAsnSelects();
+/* What does this pad actually TOUCH? Each axis line = the macro it drives plus
+   every matrix route riding that macro (and, for the osc pad, routes on the
+   pad-axis alias slots 10-13). Rendered from MODROUTES — no second copy. */
+function padRouteLine(axisName, asn, aliasSlot) {
+  if (asn >= 8 || asn < 0) return axisName + ' → none';
+  const dests = [];
+  for (const r of (MODROUTES || [])) {
+    if (r.src === 2 + asn || (aliasSlot >= 0 && r.src === aliasSlot))
+      dests.push(modDestLabel(r.dest));
+  }
+  return axisName + ' → Macro ' + (asn + 1) + (dests.length ? ' → ' + dests.join(', ') : '');
+}
+let lastRouteNotes = '';
+function updateXYRouteNotes() {
+  const main = document.getElementById('xyMainRoutes');
+  const osc = document.getElementById('xyOscRoutes');
+  const mTxt = padRouteLine('x', +(lastParams[179] ?? 0), -1) + '\n'
+             + padRouteLine('y', +(lastParams[180] ?? 1), -1);
+  const oTxt = padRouteLine('x', ASN[editOsc * 2], 10 + editOsc * 2) + '\n'
+             + padRouteLine('y', ASN[editOsc * 2 + 1], 11 + editOsc * 2);
+  const both = mTxt + '|' + oTxt;
+  if (both === lastRouteNotes) return;
+  lastRouteNotes = both;
+  if (main) main.textContent = mTxt;
+  if (osc) osc.textContent = oTxt;
+}
 let frameNo = 0;
 /* ============ FEED GATING (ADR-143) ============
    Every one of these feeds crosses the BRIDGE, and the bridge is the expensive
@@ -3136,7 +3162,8 @@ function frameBody() {
   for (const pad of PADS) {   // each pad follows ITS OWN assigned macros
     if (!pad.cv) continue;
     const [mix, miy] = pad.ids();
-    const mx = +(lastParams[mix] ?? 0), my = +(lastParams[miy] ?? 0);
+    const mx = mix >= 0 ? +(lastParams[mix] ?? 0) : 0.5;   // None: rest centred
+    const my = miy >= 0 ? +(lastParams[miy] ?? 0) : 0.5;
     if (mx !== pad.lastX || my !== pad.lastY || xyDirty) {
       pad.lastX = mx; pad.lastY = my;
       const xyctx = pad.cv.getContext('2d');
@@ -3307,14 +3334,17 @@ const chrome = { gl: null, u: {}, cv: null, yaw: 0.55, pit: 0.18, yawT: 0.55, pi
      midi it belongs to while HELD (-1 once released). A held front RE-EMITS
      when its rings have crossed, which turns tap-tap-hold from frozen into
      continuous. */
-  /* fronts store CAMERA-RELATIVE offsets (azOff/elOff) and derive their
-     world point per frame from the live yaw/pitch — so a front is visible
-     from the viewer's POV by construction, for its whole life. The absolute
-     poke of the first pass leaked the ruling twice: elevation was absolute
-     while azimuth was relative, and the slow turntable carried the camera
-     away from held fronts' fixed origins (both human-reported 2026-08-30). */
-  fronts: [{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},
-           {age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0},{age:100,azOff:0,elOff:0,wave:9,hold:-1,heldAmt:0}],
+  /* fronts store ABSOLUTE world angles (az/el), fixed at spawn (human
+     2026-08-31: origins "maintain their position on the specimen instead of
+     locking to a position relative to the camera"). Spawn placement derives
+     from the LIVE camera plus a seeded random scatter, so every front is
+     born in view and then rides the mass as it turns — eventually rotating
+     out of sight, which the human has ruled acceptable. */
+  fronts: [{age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0},{age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0},
+           {age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0},{age:100,az:0,el:0,wave:9,hold:-1,heldAmt:0}],
+  // mulberry32 (SPEC §5.7 discipline): the scatter is a reproducible stream
+  rng: (a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; })(0xC0FFEE),
   frontIx: 0, shySm: 0,
   // the ceiling is the display's real pixel grid, capped at 2x: past that the
   // extra samples land inside a pixel nobody can resolve.
@@ -3381,7 +3411,7 @@ float map(vec3 p){
    d+=.085*uRAmp*env2*sin(front*uRWaveN[i]);
   }
   if(uHeldN[i]>.001){
-   d+=.05*uRAmp*uHeldN[i]*exp(-rd2*2.2)*sin((rd2*3.2-uTime*2.6)*uRWaveN[i]);
+   d+=.05*uRAmp*uHeldN[i]*exp(-rd2*2.2)*sin(rd2*3.2*uRWaveN[i]-uTime*min(2.6*uRWaveN[i],26.));
   }
  }
  return d;
@@ -3482,7 +3512,7 @@ void main(){
     if (!down) return;
     const dx = e.clientX - lx, dy = e.clientY - ly;
     if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    if (moved) { chrome.yawT -= dx * 0.006; chrome.pitT = Math.max(-1.1, Math.min(1.1, chrome.pitT + dy * 0.005));
+    if (moved) { chrome.yawT += dx * 0.006; chrome.pitT = Math.max(-1.1, Math.min(1.1, chrome.pitT + dy * 0.005));
       chrome.lastAct = performance.now(); }
     lx = e.clientX; ly = e.clientY;
   });
@@ -3514,8 +3544,8 @@ function chromePoke(clientX, clientY) {
   chrome.strikeAge = 0; chrome.rWave = 9;
   const cf = chrome.fronts[chrome.frontIx]; chrome.frontIx = (chrome.frontIx + 1) % 4;
   cf.age = 0; cf.wave = 9; cf.hold = -1;
-  cf.azOff = Math.atan2(p[0], p[2]) - chrome.yaw;
-  cf.elOff = Math.max(-0.45, Math.min(0.45, Math.asin(Math.max(-1, Math.min(1, p[1]))) - chrome.pit * 0.6));
+  cf.az = Math.atan2(p[0], p[2]);
+  cf.el = Math.asin(Math.max(-1, Math.min(1, p[1])));
 }
 function chromeNotePoke(midi) {
   /* CAMERA-RELATIVE, per the human: strikes must originate at a point
@@ -3544,9 +3574,17 @@ function chromeNotePoke(midi) {
     if (ix < 0) { ix = chrome.frontIx; chrome.frontIx = (chrome.frontIx + 1) % 4; }
   }
   const f = chrome.fronts[ix];
+  const rebind = f.hold === midi;   // re-strike of a still-held note keeps its spot
   f.age = 0; f.wave = wave; f.hold = midi;
-  f.azOff = ((midi % 12) / 12 - 0.5) * 2.0;
-  f.elOff = Math.max(-0.45, Math.min(0.45, (Math.floor(midi / 12) - 5) * 0.18));
+  /* random WITHIN VIEW, then world-locked: scatter around the current view
+     axis (±~52° az, ±~29° el — comfortably inside the visible cap), frozen
+     as absolute angles. The old pitch-class grid put every C in the same
+     spot; the human asked for spawn points "more random". Only a FRESH
+     binding rolls the dice — repeated pokes are idempotent in position. */
+  if (!rebind) {
+    f.az = chrome.yaw + (chrome.rng() * 2 - 1) * 0.9;
+    f.el = Math.max(-0.85, Math.min(0.85, chrome.pit * 0.6 + (chrome.rng() * 2 - 1) * 0.5));
+  }
 }
 function chromeFrame() {
   const c = chrome;
@@ -3583,23 +3621,23 @@ function chromeFrame() {
   const s = lastViz;
   if (s) {
     R = +s.R || 0; peak = +s.outPeak || 0;
-    const seen = {};
+    /* COALESCE BY NOTE FIRST. A retrigger holds the same midi in TWO rows —
+       the old slot ringing out (gate 0) and the new one attacking (gate 1) —
+       and per-row latch writes let the release row reset the latch every
+       frame, so the attack row re-poked every frame. Deterministic origins
+       hid it (same spot each time); random origins painted it as a cloud
+       (human 2026-08-31). A note is HELD if any row says so; edges are
+       computed once per note against the coalesced view. Vanished notes
+       (voice stolen, row dropped) fall out the same way: absent = released. */
+    const gatedNow = {};
     if (s.notes) for (const row of s.notes) {
-      const midi = row[0], gate = row[1], env = row[2];
-      if (env > envMax) envMax = env;
-      seen[midi] = true;
-      if (gate && !c.gates[midi]) chromeNotePoke(midi);   // fresh attack strikes the metal
-      if (!gate && c.gates[midi])                          // release: the front finishes and dies
-        for (const f of c.fronts) if (f.hold === midi) f.hold = -1;
-      c.gates[midi] = !!gate;
+      if (row[2] > envMax) envMax = row[2];
+      if (row[1]) gatedNow[row[0]] = true;
     }
-    for (const m in c.gates) if (!seen[m]) {
-      // a note that VANISHES from the snapshot (voice stolen, row dropped)
-      // never sends a gate-0 — free its front here too, or it regenerates
-      // forever (caught by the front-lifecycle harness before shipping)
+    for (const m in gatedNow) if (!c.gates[m]) chromeNotePoke(+m);   // fresh attack
+    for (const m in c.gates) if (!gatedNow[m])                        // release or vanish
       for (const f of c.fronts) if (f.hold === +m) f.hold = -1;
-      delete c.gates[m];
-    }
+    c.gates = gatedNow;
   }
   /* ADR-140 idle gate: with nothing sounding, nothing ringing and nobody
      touching it, the last frame stands as a product photograph — zero draws.
@@ -3641,7 +3679,16 @@ function chromeFrame() {
   /* INVERTED per the human (2026-08-29): "lowering it appears to tighten the
      metaphysical substance against the orbs" — so coherence now LOWERS uK.
      A phase-locked swarm reads as the metal pulling taut; decoherence loosens. */
-  gl.uniform1f(c.u.uK, Math.max(0.12, 0.45 - 0.3 * R));
+  /* ...and EASED (human 2026-08-31: "it tenses up in a single frame when you
+     strike a note; I would prefer a lead-up") — tightening takes ~280 ms,
+     relaxing ~500 ms, so a strike draws the surface taut instead of snapping. */
+  {
+    const kT = Math.max(0.12, 0.45 - 0.3 * R);
+    if (c.kSm === undefined) c.kSm = kT;
+    const kC = kT < c.kSm ? 1 - Math.exp(-dt / 0.28) : 1 - Math.exp(-dt / 0.5);
+    c.kSm += (kT - c.kSm) * kC;
+    gl.uniform1f(c.u.uK, c.kSm);
+  }
   gl.uniform1i(c.u.uVariant, 1);                                  // pearl
   gl.uniform3f(c.u.uPoke, c.poke[0], c.poke[1], c.poke[2]);
   gl.uniform1f(c.u.uDent, Math.max(-0.35, Math.min(0.35, d.x * 0.28)));
@@ -3663,9 +3710,8 @@ function chromeFrame() {
     const hT = f.hold >= 0 ? 1 : 0;
     const hC = hT > f.heldAmt ? 1 - Math.exp(-dt / 0.25) : 1 - Math.exp(-dt / 0.45);
     f.heldAmt += (hT - f.heldAmt) * hC;
-    // world point derived per frame from the LIVE camera: visible by construction
-    const az = c.yaw + f.azOff;
-    const el = Math.max(-0.85, Math.min(0.85, c.pit * 0.6 + f.elOff));
+    // world-locked: the angles were frozen at spawn, in view by construction
+    const az = f.az, el = f.el;
     pokes[i * 3] = Math.cos(el) * Math.sin(az);
     pokes[i * 3 + 1] = Math.sin(el);
     pokes[i * 3 + 2] = Math.cos(el) * Math.cos(az);
@@ -4312,6 +4358,7 @@ function applyGates() {
   // a class that no longer exists, so this loop matched nothing and would have
   // left an empty titled box behind.
   document.querySelectorAll('.cluster').forEach(g => {
+    if (g.dataset.selfgate !== undefined) return;   // owns its visibility (mini morph rides 151)
     const rows = [...g.querySelectorAll('.row')];   // descends into .knobs too
     g.hidden = rows.length > 0 && rows.every(r => r.hidden);
   });

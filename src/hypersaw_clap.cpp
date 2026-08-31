@@ -584,10 +584,10 @@ static const ParamDef kParams[] = {
     {171, "macro6", "Macro 6", 0, 1, 0, false, nullptr},
     {172, "macro7", "Macro 7", 0, 1, 0, false, nullptr},
     {173, "macro8", "Macro 8", 0, 1, 0, false, nullptr},
-    {174, "xyAsn0X", "XY1 X > Macro", 0, 7, 0, true, nullptr},
-    {175, "xyAsn0Y", "XY1 Y > Macro", 0, 7, 1, true, nullptr},
-    {176, "xyAsn1X", "XY2 X > Macro", 0, 7, 2, true, nullptr},
-    {177, "xyAsn1Y", "XY2 Y > Macro", 0, 7, 3, true, nullptr},
+    {174, "xyAsn0X", "XY1 X > Macro", 0, 8, 0, true, nullptr},
+    {175, "xyAsn0Y", "XY1 Y > Macro", 0, 8, 1, true, nullptr},
+    {176, "xyAsn1X", "XY2 X > Macro", 0, 8, 2, true, nullptr},
+    {177, "xyAsn1Y", "XY2 Y > Macro", 0, 8, 3, true, nullptr},
     /* ADR-140: the CHROME-001 specimen is OFF by default — measured untenable
        ("jumpy, jaggy") in the VST on 2026-08-28. On = the reduced-cost render
        (low fixed resolution, fewer march steps, 20 Hz, idle-gated); off = the
@@ -596,8 +596,8 @@ static const ParamDef kParams[] = {
     /* ADR-150: MAIN's XY is its OWN pad (human: "the main XY needs to be its
        own XY separate from the OSC XYs; I didn't realize it wasn't yet") —
        its own assignment pair, not a view of the active osc's. */
-    {179, "mainAsnX", "Main X > Macro", 0, 7, 0, true, nullptr},
-    {180, "mainAsnY", "Main Y > Macro", 0, 7, 1, true, nullptr},
+    {179, "mainAsnX", "Main X > Macro", 0, 8, 0, true, nullptr},
+    {180, "mainAsnY", "Main Y > Macro", 0, 8, 1, true, nullptr},
     /* ADR-150: continuous per-osc pitch, in semitones — the transposition
        knobs (octave/semi) are stepped so the morph ARGMAX-jumps them; this
        one BLENDS. Per-osc (not in kGlobalIds), so morphInit auto-includes it
@@ -1946,8 +1946,10 @@ struct Plugin
        (B77); this is the interim the human asked for. */
     for (int i = 0; i < 4; i++)
     {
-      const int a = xyAsn[i] & 7;
-      mod.src[10 + i] = macroVal[a];
+      // 8 = None (2026-08-31): an unassigned axis is a silent source, not a
+      // wrapped-around macro — the & 7 mask would have aliased it to Macro 1.
+      const int a = xyAsn[i];
+      mod.src[10 + i] = (a >= 0 && a < 8) ? macroVal[a] : 0.0;
     }
     // ADR-149: MIDI/MPE performance signals, slots 14-17 (velocity, mod
     // wheel, pressure, pitch wheel). Global projections; B82 owns per-note.
