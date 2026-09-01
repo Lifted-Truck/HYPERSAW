@@ -68,12 +68,15 @@ rate, lag, mass-spring), quantisation to chromatic or to a scale in three flavou
 grid, and an on-screen wheel so every one of them is auditionable without hardware. Glide
 sources, mono/legato, and MPE per-note bend live here too.
 
-**Eight macro knobs and a per-oscillator XY pad** (2026-08-28): the pad drives two assignable
-macros; macros reach any continuous parameter through the **mod matrix** — right-click a knob
-to send it. Modulation draws as an offset (a reach arc and a live tick around a stationary
-knob) — the knob always shows the value you authored. Two envelopes (the amp projection and a
-dedicated pitch ADSR) are auto-included sources. Routes do not yet survive a session reload —
-the named next increment.
+**Eight macro knobs, MAIN's own XY pad, a morph mini, and wheels** (2026-09-01): MAIN carries
+its own assignable pad (each axis picks a macro, or None — and lists what it actually reaches
+through the matrix), a light morph position pad that appears while morph is on, and on-screen
+pitch-bend + mod wheels. The OSC pages keep their per-oscillator pads. Macros reach any
+continuous parameter through the **mod matrix** — right-click a knob to send it; modulation
+draws as an offset (a reach arc and a live tick around a stationary knob) — the knob always
+shows the value you authored. Routes persist with the patch. While morph is ON, the macro
+family suspends so corners keep their authored identity (ADR-152); sources beyond the
+envelopes: velocity, mod wheel, pressure, pitch wheel (ADR-149).
 
 ---
 
