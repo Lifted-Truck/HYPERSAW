@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HORDE — intent bus morph prototype</title>
+<style>
+:root{
+  --bg:#1a1d24;--panel:#20242d;--panel2:#262b36;--line:#333a48;--text:#e3e6ec;--dim:#8b93a3;
+  --A:#4fd1c5;--B:#f2b544;--C:#f06aa8;--D:#b3d94e;--none:#4b5262;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-size:13px;line-height:1.4;font-variant-numeric:tabular-nums}
+header{padding:16px 22px 10px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+header h1{margin:0;font-size:18px;font-weight:600;letter-spacing:.2px}
+header p{margin:0;color:var(--dim);max-width:70ch}
+main{display:grid;grid-template-columns:300px 340px 1fr;gap:12px;padding:0 16px 16px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}
+section h2{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--dim)}
+section h2 span{color:var(--text);font-weight:400}
+.row2{grid-column:1/-1;display:grid;grid-template-columns:1fr 1.4fr;gap:12px}
+.row3{grid-column:1/-1}
+canvas{display:block;border-radius:4px;background:var(--panel2);touch-action:none}
+.ctl{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.ctl label{color:var(--dim);min-width:74px}
+input[type=range]{accent-color:#9aa4b8;height:18px}
+input[type=range].tiny{width:52px}
+select,button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:3px 7px;font:inherit}
+button{cursor:pointer}
+button:hover{border-color:#5a6478}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #9aa4b8;outline-offset:1px}
+.knobs{display:flex;gap:22px;justify-content:center;margin-top:10px}
+.knob{text-align:center;width:90px}
+.knob small{display:block;color:var(--dim);margin-top:2px;min-height:14px}
+/* parameter bars */
+.params{display:flex;flex-direction:column;gap:6px}
+.p{display:grid;grid-template-columns:78px 1fr 44px 40px;align-items:center;gap:8px}
+.p .n{font-weight:600}
+.bar{position:relative;height:16px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.bar .rng{position:absolute;top:0;bottom:0;opacity:.28}
+.bar .base{position:absolute;top:0;bottom:0;width:2px;opacity:.9}
+.bar .fin{position:absolute;top:2px;bottom:2px;width:4px;border-radius:2px;background:var(--text)}
+.bar .hit{position:absolute;right:0;top:0;bottom:0;width:3px;background:#ff5c5c;display:none}
+.p .v{color:var(--dim);text-align:right}
+.p .o{font-weight:600;text-align:center;border-radius:3px;padding:1px 0}
+.legend{display:flex;gap:10px;margin-top:10px;color:var(--dim);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+/* editor */
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+.tabs button{border-width:2px}
+table{border-collapse:collapse;width:100%}
+th{color:var(--dim);font-weight:500;text-align:left;padding:2px 4px;font-size:12px}
+td{padding:2px 4px;white-space:nowrap}
+td input[type=range]{width:64px;vertical-align:middle}
+td.n{font-weight:600}
+.locked{color:#ff9a9a}
+.note{color:var(--dim);margin:6px 0 0}
+/* keys */
+.keys{display:flex;gap:3px;flex-wrap:wrap}
+.keys button{min-width:44px;padding:8px 0}
+.keys button.on{background:#3a4152}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-weight:600}
+@media (max-width:1000px){main{grid-template-columns:1fr 1fr}.row2{grid-template-columns:1fr}}
+@media (max-width:640px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>HORDE morph &amp; intent bus</h1>
+  <p>Macros and the pad never write to parameters. They write to four intents (X, Y, Intensity, Motion); each corner binds intents to its own parameters. Move the morph pad and watch bindings, ranges, and the pad's home flip with the parameters they belong to. Hold a key to hear it.</p>
+</header>
+<main>
+
+<section>
+  <h2>Morph <span id="ownerSummary"></span></h2>
+  <canvas id="morph" width="276" height="276"></canvas>
+  <div class="ctl"><label>Steepness</label><input id="steep" type="range" min="1" max="24" step="1" value="8"><span id="steepV">8</span></div>
+  <div class="ctl"><button id="reshuffle">Reshuffle flip points</button><button id="commit">Commit to dominant corner</button></div>
+  <div class="ctl"><label>Unison</label><span id="unisonBadge" class="badge">—</span><span class="note" style="margin:0">structural: resolves as one atom</span></div>
+</section>
+
+<section>
+  <h2>Performance pad <span id="padOwner"></span></h2>
+  <canvas id="perf" width="316" height="220"></canvas>
+  <div class="ctl"><label><input id="latch" type="checkbox"> Latch</label><span class="note" style="margin:0">off: puck springs back to the corner's home</span></div>
+  <div class="knobs">
+    <div class="knob"><canvas id="kINT" width="72" height="72"></canvas>Intensity<small id="oINT"></small></div>
+    <div class="knob"><canvas id="kMOT" width="72" height="72"></canvas>Motion<small id="oMOT"></small></div>
+  </div>
+</section>
+
+<section>
+  <h2>Parameters <span>base · range · final</span></h2>
+  <div class="params" id="params"></div>
+  <div class="legend">
+    <span><i style="background:var(--text)"></i>final</span>
+    <span><i style="background:#ff5c5c"></i>clamped by corner range</span>
+    <span>tint = owning corner</span>
+  </div>
+</section>
+
+<div class="row2">
+<section>
+  <h2>Modulation</h2>
+  <div style="font-weight:600;margin-top:4px">Corner LFO <span class="note" style="display:inline">(lives in each corner, rate is the morphable LFO rate)</span></div>
+  <div class="ctl"><label>Editing</label><span id="lfoCornerName" class="badge">A</span>
+    <label>Target</label><select id="cLfoT"></select>
+    <label>Depth</label><input id="cLfoD" type="range" min="0" max="1" step="0.01"><span id="cLfoDV"></span></div>
+  <div class="ctl"><label>Scope</label><select id="cLfoS"><option value="corner">travels with corner (inside clamp)</option><option value="global">promoted to global (always on, outside clamp)</option></select></div>
+  <div style="font-weight:600;margin-top:14px">Global LFO <span class="note" style="display:inline">(above the morph; can target things a corner never can)</span></div>
+  <div class="ctl"><label>Target</label><select id="gLfoT"></select>
+    <label>Rate</label><input id="gLfoR" type="range" min="0.05" max="6" step="0.05" value="0.3"><span id="gLfoRV">0.3 Hz</span></div>
+  <div class="ctl"><label>Depth</label><input id="gLfoD" type="range" min="0" max="1" step="0.01" value="0.4"><span id="gLfoDV">0.40</span>
+    <label><input id="gArmor" type="checkbox"> Respect corner range</label></div>
+  <p class="note">Rule shown here: anything that targets the morph position or an intent has to be global. The corner target list doesn't offer them.</p>
+</section>
+
+<section>
+  <h2>Corner editor</h2>
+  <div class="tabs" id="tabs"></div>
+  <table id="edit"></table>
+  <div class="ctl"><label>Home</label><button id="setHome">Set this corner's home to puck</button>
+    <label>Unison</label><select id="eUnison"><option>1</option><option>3</option><option>5</option><option>7</option></select></div>
+  <p class="note">Min = max means locked: intents and corner LFO can't move it while this corner owns it. Depths are bipolar, in normalized units per full intent swing.</p>
+</section>
+</div>
+
+<section class="row3">
+  <h2>Keys <span>a w s e d f t g y h u j k, z/x octave</span></h2>
+  <div class="keys" id="keys"></div>
+</section>
+</main>
+
+<script>
+/* ---------- model ---------- */
+const P = ['detune','width','sub','cutoff','reso','drive','delay','lfoRate'];
+const PN = {detune:'Detune',width:'Width',sub:'Sub',cutoff:'Cutoff',reso:'Reso',drive:'Drive',delay:'Delay',lfoRate:'LFO rate'};
+const INT = ['X','Y','INT','MOT'];
+const CN = ['A','B','C','D'];
+const CC = {A:'#4fd1c5',B:'#f2b544',C:'#f06aa8',D:'#b3d94e'};
+const CLAB = {A:'Lush',B:'Sub',C:'Screech',D:'Chip'};
+
+function mk(base, range, bind, home, unison, lfo){
+  const r = {}; P.forEach(p=>{ r[p] = range[p] ? range[p].slice() : [0,1]; });
+  const b = {}; INT.forEach(i=>{ b[i] = {}; P.forEach(p=>{ b[i][p] = (bind[i]&&bind[i][p])||0; }); });
+  return {base, range:r, bind:b, home, unison, lfo};
+}
+const corners = {
+  A: mk({detune:.55,width:.8,sub:.2,cutoff:.7,reso:.2,drive:.1,delay:.4,lfoRate:.2}, {},
+        {X:{detune:.4}, Y:{cutoff:-.35}, INT:{drive:.5,cutoff:.2}, MOT:{lfoRate:.5,delay:.25}},
+        {x:.5,y:.5}, 7, {target:'cutoff',depth:.15,scope:'corner'}),
+  B: mk({detune:.05,width:.1,sub:.9,cutoff:.18,reso:.1,drive:.3,delay:0,lfoRate:.1},
+        {cutoff:[.12,.25], delay:[0,0], detune:[0,.15]},
+        {X:{drive:.4}, Y:{reso:-.3}, INT:{drive:.5,sub:.2}, MOT:{}},
+        {x:.3,y:.4}, 1, {target:'drive',depth:.1,scope:'corner'}),
+  C: mk({detune:.3,width:.5,sub:0,cutoff:.85,reso:.8,drive:.8,delay:.2,lfoRate:.7},
+        {reso:[.6,1], drive:[.5,1]},
+        {X:{cutoff:.5}, Y:{reso:-.2}, INT:{drive:.3,reso:.2}, MOT:{lfoRate:.4,delay:.3}},
+        {x:.7,y:.6}, 3, {target:'cutoff',depth:.4,scope:'corner'}),
+  D: mk({detune:0,width:.3,sub:.5,cutoff:.5,reso:.4,drive:0,delay:.6,lfoRate:.5},
+        {detune:[0,.03], drive:[0,.05]},
+        {X:{sub:.5}, Y:{delay:-.3}, INT:{cutoff:.4}, MOT:{lfoRate:.6,width:.3}},
+        {x:.5,y:.3}, 1, {target:'cutoff',depth:.3,scope:'corner'}),
+};
+
+const S = {
+  morph:{x:.5,y:.5}, morphEff:{x:.5,y:.5}, steep:8,
+  seeds:{}, owner:{}, homeOwner:'A', unisonOwner:'A',
+  puck:{x:.5,y:.5,vx:0,vy:0}, drag:null, latch:false,
+  intents:{X:0,Y:0,INT:0,MOT:0},
+  final:{}, clamped:{}, weights:{A:1,B:0,C:0,D:0},
+  gLfo:{target:'none',rate:.3,depth:.4,armor:false,phase:0},
+  cLfoPhase:0, editing:'A', t:0,
+};
+function reshuffle(){ P.forEach(p=>S.seeds[p]=Math.random()); S.seeds.home=Math.random(); S.seeds.unison=Math.random(); }
+reshuffle();
+
+function weights(x,y,k){
+  let w = {A:(1-x)*(1-y), B:x*(1-y), C:(1-x)*y, D:x*y};
+  let s=0; CN.forEach(c=>{ w[c]=Math.pow(w[c],k); s+=w[c]; });
+  CN.forEach(c=>w[c]/=s); return w;
+}
+function pick(seed,w){ let a=0; for(const c of CN){ a+=w[c]; if(seed<a) return c; } return 'D'; }
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---------- resolve ---------- */
+function resolve(dt){
+  S.t += dt;
+  // global LFO value
+  S.gLfo.phase = (S.gLfo.phase + S.gLfo.rate*dt) % 1;
+  const gl = Math.sin(S.gLfo.phase*2*Math.PI) * S.gLfo.depth;
+  const gt = S.gLfo.target;
+  S.morphEff.x = clamp(S.morph.x + (gt==='morphX'?gl*.5:0), 0,1);
+  S.morphEff.y = clamp(S.morph.y + (gt==='morphY'?gl*.5:0), 0,1);
+  S.weights = weights(S.morphEff.x,S.morphEff.y,S.steep);
+  P.forEach(p=>S.owner[p]=pick(S.seeds[p],S.weights));
+  S.homeOwner = pick(S.seeds.home,S.weights);
+  S.unisonOwner = pick(S.seeds.unison,S.weights);
+
+  // puck physics: spring toward drag point or home
+  const home = corners[S.homeOwner].home;
+  const tgt = S.drag ? S.drag : (S.latch ? null : home);
+  const pk=S.puck;
+  if(tgt){
+    const k = S.drag?600:90, d = S.drag?40:11;
+    pk.vx += (k*(tgt.x-pk.x) - d*pk.vx)*dt; pk.vy += (k*(tgt.y-pk.y) - d*pk.vy)*dt;
+    pk.x += pk.vx*dt; pk.y += pk.vy*dt;
+  } else { pk.vx=pk.vy=0; }
+  pk.x=clamp(pk.x,0,1); pk.y=clamp(pk.y,0,1);
+  S.intents.X = clamp((pk.x-home.x)*2,-1,1) + (gt==='intentX'?gl:0);
+  S.intents.Y = clamp((home.y-pk.y)*2,-1,1);
+
+  // corner LFO (rate is the morphable param, so compute after base+intents)
+  let lfoRateNorm = 0;
+  {
+    const c=S.owner.lfoRate, cr=corners[c];
+    let v=cr.base.lfoRate; INT.forEach(i=>v+=S.intents[i]*cr.bind[i].lfoRate);
+    lfoRateNorm = clamp(v,cr.range.lfoRate[0],cr.range.lfoRate[1]);
+  }
+  const lfoHz = 0.1*Math.pow(120, lfoRateNorm);
+  S.cLfoPhase = (S.cLfoPhase + lfoHz*dt)%1;
+  const cl = Math.sin(S.cLfoPhase*2*Math.PI);
+
+  P.forEach(p=>{
+    const c=S.owner[p], cr=corners[c];
+    let v=cr.base[p];
+    INT.forEach(i=>v+=S.intents[i]*cr.bind[i][p]);
+    if(cr.lfo.scope==='corner' && cr.lfo.target===p) v += cl*cr.lfo.depth*.5;
+    const lo=cr.range[p][0], hi=cr.range[p][1];
+    const cv = clamp(v,lo,hi);
+    S.clamped[p] = Math.abs(cv-v)>1e-4;
+    v=cv;
+    // global-scope corner LFOs apply regardless of owner, outside the clamp
+    CN.forEach(k=>{ const L=corners[k].lfo; if(L.scope==='global' && L.target===p) v += cl*L.depth*.5; });
+    if(gt===p){ v += gl; if(S.gLfo.armor) v = clamp(v,lo,hi); }
+    S.final[p]=clamp(v,0,1);
+  });
+}
+
+/* ---------- audio ---------- */
+let AC=null, master, shaper, filt, delay, fb, wet, dry, subBus, oscBus;
+const voices = new Map();
+function audioInit(){
+  if(AC) return; AC = new (window.AudioContext||window.webkitAudioContext)();
+  oscBus = AC.createGain(); shaper = AC.createWaveShaper(); shaper.oversample='2x';
+  filt = AC.createBiquadFilter(); filt.type='lowpass';
+  delay = AC.createDelay(1); delay.delayTime.value=.34; fb=AC.createGain(); fb.gain.value=.45;
+  wet=AC.createGain(); dry=AC.createGain(); master=AC.createGain(); master.gain.value=.25;
+  oscBus.connect(shaper); shaper.connect(filt); filt.connect(dry); filt.connect(delay);
+  delay.connect(fb); fb.connect(delay); delay.connect(wet);
+  dry.connect(master); wet.connect(master); master.connect(AC.destination);
+  setDrive(0);
+}
+let lastDrive=-1;
+function setDrive(d){
+  if(Math.abs(d-lastDrive)<.01) return; lastDrive=d;
+  const n=1024, c=new Float32Array(n), k=1+d*30;
+  for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; c[i]=Math.tanh(k*x)/Math.tanh(k)*(1-0.15*d)+0.15*d*Math.sin(3*x*d); }
+  shaper.curve=c;
+}
+function noteOn(id,freq){
+  audioInit(); if(AC.state==='suspended') AC.resume();
+  if(voices.has(id)) return;
+  const n = corners[S.unisonOwner].unison;
+  const env = AC.createGain(); env.gain.setValueAtTime(0,AC.currentTime); env.gain.linearRampToValueAtTime(1/Math.sqrt(n),AC.currentTime+.012);
+  const oscs=[];
+  for(let i=0;i<n;i++){
+    const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=freq;
+    const pan=AC.createStereoPanner(); o.connect(pan); pan.connect(env);
+    oscs.push({o,pan,idx: n===1?0 : (i/(n-1))*2-1}); o.start();
+  }
+  const sub=AC.createOscillator(); sub.type='sine'; sub.frequency.value=freq/2;
+  const sg=AC.createGain(); sg.gain.value=0; sub.connect(sg); sg.connect(env); sub.start();
+  env.connect(oscBus);
+  voices.set(id,{env,oscs,sub,sg,freq,n});
+}
+function noteOff(id){
+  const v=voices.get(id); if(!v) return; voices.delete(id);
+  const t=AC.currentTime; v.env.gain.cancelScheduledValues(t); v.env.gain.setValueAtTime(v.env.gain.value,t); v.env.gain.linearRampToValueAtTime(0,t+.25);
+  setTimeout(()=>{ v.oscs.forEach(x=>x.o.stop()); v.sub.stop(); },300);
+}
+function applyAudio(){
+  if(!AC) return; const f=S.final, t=AC.currentTime, tc=.02;
+  filt.frequency.setTargetAtTime(60*Math.pow(200,f.cutoff),t,tc);
+  filt.Q.setTargetAtTime(.5+f.reso*16,t,tc);
+  setDrive(f.drive);
+  wet.gain.setTargetAtTime(f.delay*.6,t,tc); dry.gain.setTargetAtTime(1-f.delay*.4,t,tc);
+  voices.forEach(v=>{
+    v.oscs.forEach(x=>{ x.o.detune.setTargetAtTime(x.idx*f.detune*60,t,tc); x.pan.pan.setTargetAtTime(x.idx*f.width,t,tc); });
+    v.sg.gain.setTargetAtTime(f.sub*1.2,t,tc);
+  });
+}
+
+/* ---------- UI: morph pad ---------- */
+const mc=document.getElementById('morph'), mctx=mc.getContext('2d');
+function drawMorph(){
+  const W=mc.width,H=mc.height; mctx.clearRect(0,0,W,H);
+  // corner fields
+  const g = mctx.createLinearGradient(0,0,W,0);
+  mctx.fillStyle='#262b36'; mctx.fillRect(0,0,W,H);
+  [['A',0,0],['B',W,0],['C',0,H],['D',W,H]].forEach(([c,x,y])=>{
+    const rg=mctx.createRadialGradient(x,y,0,x,y,W*.75); rg.addColorStop(0,CC[c]+'55'); rg.addColorStop(1,CC[c]+'00');
+    mctx.fillStyle=rg; mctx.fillRect(0,0,W,H);
+    mctx.fillStyle=CC[c]; mctx.font='600 12px system-ui';
+    mctx.textAlign = x?'right':'left'; mctx.textBaseline = y?'bottom':'top';
+    mctx.fillText(c+' '+CLAB[c], x + (x?-8:8), y + (y?-8:8));
+  });
+  // owner dots ring around position
+  const px=S.morphEff.x*W, py=S.morphEff.y*H;
+  P.forEach((p,i)=>{ const a=i/P.length*2*Math.PI, r=22; mctx.fillStyle=CC[S.owner[p]]; mctx.beginPath(); mctx.arc(px+Math.cos(a)*r,py+Math.sin(a)*r,4,0,7); mctx.fill(); });
+  mctx.strokeStyle='#e3e6ec'; mctx.lineWidth=2; mctx.beginPath(); mctx.arc(px,py,7,0,7); mctx.stroke();
+  if(S.gLfo.target==='morphX'||S.gLfo.target==='morphY'){ mctx.strokeStyle='#e3e6ec66'; mctx.lineWidth=1; mctx.beginPath(); mctx.arc(S.morph.x*W,S.morph.y*H,4,0,7); mctx.stroke(); }
+}
+function padPos(cv,e){ const r=cv.getBoundingClientRect(); return {x:clamp((e.clientX-r.left)/r.width,0,1), y:clamp((e.clientY-r.top)/r.height,0,1)}; }
+let mdrag=false;
+mc.addEventListener('pointerdown',e=>{ mdrag=true; mc.setPointerCapture(e.pointerId); S.morph=padPos(mc,e); });
+mc.addEventListener('pointermove',e=>{ if(mdrag) S.morph=padPos(mc,e); });
+mc.addEventListener('pointerup',()=>mdrag=false);
+
+/* ---------- UI: performance pad ---------- */
+const pc=document.getElementById('perf'), pctx=pc.getContext('2d');
+function drawPerf(){
+  const W=pc.width,H=pc.height; pctx.clearRect(0,0,W,H);
+  pctx.fillStyle='#262b36'; pctx.fillRect(0,0,W,H);
+  const hc = S.homeOwner, home=corners[hc].home, hx=home.x*W, hy=home.y*H;
+  // reach box: ±0.5 around home = full intent swing
+  pctx.strokeStyle=CC[hc]+'55'; pctx.setLineDash([3,4]); pctx.strokeRect(hx-W*.5,hy-H*.5,W,H); pctx.setLineDash([]);
+  // faint homes of the other corners
+  CN.forEach(c=>{ if(c===hc) return; pctx.fillStyle=CC[c]+'44'; pctx.beginPath(); pctx.arc(corners[c].home.x*W,corners[c].home.y*H,4,0,7); pctx.fill(); });
+  // tether
+  const px=S.puck.x*W, py=S.puck.y*H;
+  pctx.strokeStyle=CC[hc]+'99'; pctx.lineWidth=1.5; pctx.beginPath(); pctx.moveTo(hx,hy); pctx.lineTo(px,py); pctx.stroke();
+  // home marker
+  pctx.strokeStyle=CC[hc]; pctx.lineWidth=2; pctx.beginPath(); pctx.arc(hx,hy,8,0,7); pctx.stroke();
+  pctx.beginPath(); pctx.moveTo(hx-12,hy); pctx.lineTo(hx+12,hy); pctx.moveTo(hx,hy-12); pctx.lineTo(hx,hy+12); pctx.stroke();
+  // puck
+  pctx.fillStyle='#e3e6ec'; pctx.beginPath(); pctx.arc(px,py,7,0,7); pctx.fill();
+  // axis owner tints
+  const ox=intentOwner('X'), oy=intentOwner('Y');
+  pctx.fillStyle=ox?CC[ox]:'#4b5262'; pctx.fillRect(0,H-3,W,3);
+  pctx.fillStyle=oy?CC[oy]:'#4b5262'; pctx.fillRect(0,0,3,H);
+}
+pc.addEventListener('pointerdown',e=>{ pc.setPointerCapture(e.pointerId); S.drag=padPos(pc,e); });
+pc.addEventListener('pointermove',e=>{ if(S.drag) S.drag=padPos(pc,e); });
+pc.addEventListener('pointerup',()=>{ S.drag=null; });
+pc.addEventListener('pointercancel',()=>{ S.drag=null; });
+
+/* who owns an intent right now: corner with the most live |depth| */
+function intentOwner(i){
+  const acc={A:0,B:0,C:0,D:0};
+  P.forEach(p=>{ const c=S.owner[p]; acc[c]+=Math.abs(corners[c].bind[i][p]); });
+  let best=null,bv=0; CN.forEach(c=>{ if(acc[c]>bv){bv=acc[c];best=c;} });
+  return bv>0?best:null;
+}
+function intentLiveTargets(i){
+  return P.filter(p=>Math.abs(corners[S.owner[p]].bind[i][p])>0).map(p=>PN[p]).join(', ');
+}
+
+/* ---------- UI: knobs ---------- */
+function knob(id,intent){
+  const cv=document.getElementById(id), ctx=cv.getContext('2d'); let dragY=null, start=0;
+  cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); dragY=e.clientY; start=S.intents[intent]; });
+  cv.addEventListener('pointermove',e=>{ if(dragY!==null) S.intents[intent]=clamp(start+(dragY-e.clientY)/80,-1,1); });
+  cv.addEventListener('pointerup',()=>dragY=null);
+  cv.addEventListener('dblclick',()=>S.intents[intent]=0);
+  return ()=>{
+    const v=S.intents[intent], o=intentOwner(intent), col=o?CC[o]:'#4b5262';
+    ctx.clearRect(0,0,72,72);
+    ctx.lineWidth=5; ctx.strokeStyle='#333a48'; ctx.beginPath(); ctx.arc(36,36,28,Math.PI*.75,Math.PI*2.25); ctx.stroke();
+    ctx.strokeStyle=col; ctx.beginPath();
+    const a0=Math.PI*1.5, a1=a0+v*Math.PI*.75; ctx.arc(36,36,28,Math.min(a0,a1),Math.max(a0,a1)); ctx.stroke();
+    ctx.fillStyle='#262b36'; ctx.beginPath(); ctx.arc(36,36,20,0,7); ctx.fill();
+    ctx.strokeStyle='#e3e6ec'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(36,36); ctx.lineTo(36+Math.cos(a1)*18,36+Math.sin(a1)*18); ctx.stroke();
+    document.getElementById('o'+intent).textContent = o? intentLiveTargets(intent) : 'nothing here';
+  };
+}
+const drawKINT=knob('kINT','INT'), drawKMOT=knob('kMOT','MOT');
+
+/* ---------- UI: parameter bars ---------- */
+const pel={};
+const pwrap=document.getElementById('params');
+P.forEach(p=>{
+  const d=document.createElement('div'); d.className='p';
+  d.innerHTML=`<span class="n">${PN[p]}</span><div class="bar"><div class="rng"></div><div class="base"></div><div class="fin"></div><div class="hit"></div></div><span class="v"></span><span class="o"></span>`;
+  pwrap.appendChild(d);
+  pel[p]={n:d.querySelector('.n'),rng:d.querySelector('.rng'),base:d.querySelector('.base'),fin:d.querySelector('.fin'),hit:d.querySelector('.hit'),v:d.querySelector('.v'),o:d.querySelector('.o')};
+});
+function drawParams(){
+  P.forEach(p=>{
+    const c=S.owner[p], cr=corners[c], e=pel[p], col=CC[c];
+    const lo=cr.range[p][0], hi=cr.range[p][1];
+    e.n.style.color=col;
+    e.rng.style.left=(lo*100)+'%'; e.rng.style.width=(Math.max(hi-lo,.006)*100)+'%'; e.rng.style.background=col;
+    e.base.style.left=`calc(${cr.base[p]*100}% - 1px)`; e.base.style.background=col;
+    e.fin.style.left=`calc(${S.final[p]*100}% - 2px)`;
+    e.hit.style.display=S.clamped[p]?'block':'none';
+    e.v.textContent=S.final[p].toFixed(2);
+    e.o.textContent=c; e.o.style.background=col+'33'; e.o.style.color=col;
+  });
+  const cnt={A:0,B:0,C:0,D:0}; P.forEach(p=>cnt[S.owner[p]]++);
+  document.getElementById('ownerSummary').textContent = CN.map(c=>c+cnt[c]).join('  ');
+  const ub=document.getElementById('unisonBadge'); ub.textContent=corners[S.unisonOwner].unison+' voices from '+S.unisonOwner; ub.style.background=CC[S.unisonOwner]+'33'; ub.style.color=CC[S.unisonOwner];
+  const po=document.getElementById('padOwner'); po.textContent='home from '+S.homeOwner; po.style.color=CC[S.homeOwner];
+}
+
+/* ---------- UI: modulation ---------- */
+const cLfoT=document.getElementById('cLfoT'), cLfoD=document.getElementById('cLfoD'), cLfoS=document.getElementById('cLfoS'), gLfoT=document.getElementById('gLfoT');
+P.forEach(p=>{ cLfoT.add(new Option(PN[p],p)); });
+[['none','none'],['morphX','Morph X (global only)'],['morphY','Morph Y (global only)'],['intentX','Intent X (global only)']].forEach(([v,l])=>gLfoT.add(new Option(l,v)));
+P.forEach(p=>gLfoT.add(new Option(PN[p],p)));
+function loadLfoEditor(){
+  const L=corners[S.editing].lfo; cLfoT.value=L.target; cLfoD.value=L.depth; cLfoS.value=L.scope;
+  document.getElementById('cLfoDV').textContent=(+L.depth).toFixed(2);
+  const b=document.getElementById('lfoCornerName'); b.textContent=S.editing+' '+CLAB[S.editing]; b.style.background=CC[S.editing]+'33'; b.style.color=CC[S.editing];
+}
+cLfoT.oninput=()=>corners[S.editing].lfo.target=cLfoT.value;
+cLfoD.oninput=()=>{ corners[S.editing].lfo.depth=+cLfoD.value; document.getElementById('cLfoDV').textContent=(+cLfoD.value).toFixed(2); };
+cLfoS.oninput=()=>corners[S.editing].lfo.scope=cLfoS.value;
+gLfoT.oninput=()=>S.gLfo.target=gLfoT.value;
+document.getElementById('gLfoR').oninput=e=>{ S.gLfo.rate=+e.target.value; document.getElementById('gLfoRV').textContent=S.gLfo.rate.toFixed(2)+' Hz'; };
+document.getElementById('gLfoD').oninput=e=>{ S.gLfo.depth=+e.target.value; document.getElementById('gLfoDV').textContent=S.gLfo.depth.toFixed(2); };
+document.getElementById('gArmor').oninput=e=>S.gLfo.armor=e.target.checked;
+
+/* ---------- UI: corner editor ---------- */
+const tabs=document.getElementById('tabs'), edit=document.getElementById('edit');
+CN.forEach(c=>{ const b=document.createElement('button'); b.textContent=c+' '+CLAB[c]; b.onclick=()=>{S.editing=c; buildEditor();}; tabs.appendChild(b); });
+function buildEditor(){
+  const c=S.editing, cr=corners[c];
+  [...tabs.children].forEach((b,i)=>{ b.style.borderColor = CN[i]===c?CC[c]:'var(--line)'; b.style.color = CN[i]===c?CC[c]:'var(--text)'; });
+  let h='<tr><th></th><th>base</th><th>min</th><th>max</th><th>X</th><th>Y</th><th>Int</th><th>Mot</th></tr>';
+  P.forEach(p=>{
+    const locked=cr.range[p][0]===cr.range[p][1];
+    h+=`<tr><td class="n ${locked?'locked':''}">${PN[p]}${locked?' 🔒':''}</td>
+      <td><input type="range" min="0" max="1" step="0.01" value="${cr.base[p]}" data-k="base" data-p="${p}"></td>
+      <td><input type="range" min="0" max="1" step="0.01" value="${cr.range[p][0]}" data-k="min" data-p="${p}"></td>
+      <td><input type="range" min="0" max="1" step="0.01" value="${cr.range[p][1]}" data-k="max" data-p="${p}"></td>`;
+    INT.forEach(i=>{ h+=`<td><input type="range" min="-1" max="1" step="0.05" value="${cr.bind[i][p]}" data-k="${i}" data-p="${p}"></td>`; });
+    h+='</tr>';
+  });
+  edit.innerHTML=h;
+  edit.querySelectorAll('input').forEach(inp=>{
+    inp.oninput=()=>{
+      const k=inp.dataset.k, p=inp.dataset.p, v=+inp.value;
+      if(k==='base') cr.base[p]=v;
+      else if(k==='min'){ cr.range[p][0]=v; if(cr.range[p][1]<v){cr.range[p][1]=v;} }
+      else if(k==='max'){ cr.range[p][1]=v; if(cr.range[p][0]>v){cr.range[p][0]=v;} }
+      else cr.bind[k][p]=v;
+      if(k==='min'||k==='max'){ const row=inp.closest('tr'); const lk=cr.range[p][0]===cr.range[p][1]; row.firstChild.className='n'+(lk?' locked':''); row.firstChild.textContent=PN[p]+(lk?' 🔒':''); }
+    };
+  });
+  document.getElementById('eUnison').value=cr.unison;
+  loadLfoEditor();
+}
+document.getElementById('eUnison').oninput=e=>corners[S.editing].unison=+e.target.value;
+document.getElementById('setHome').onclick=()=>{ corners[S.editing].home={x:S.puck.x,y:S.puck.y}; };
+document.getElementById('steep').oninput=e=>{ S.steep=+e.target.value; document.getElementById('steepV').textContent=S.steep; };
+document.getElementById('reshuffle').onclick=reshuffle;
+document.getElementById('latch').oninput=e=>S.latch=e.target.checked;
+document.getElementById('commit').onclick=()=>{
+  // bake current offsets into the dominant corner, for the parameters it owns; recenter its home; zero macros
+  let dom='A',bv=0; CN.forEach(c=>{ if(S.weights[c]>bv){bv=S.weights[c];dom=c;} });
+  const cr=corners[dom];
+  P.forEach(p=>{ if(S.owner[p]===dom){ let v=cr.base[p]; INT.forEach(i=>v+=S.intents[i]*cr.bind[i][p]); cr.base[p]=clamp(v,cr.range[p][0],cr.range[p][1]); } });
+  cr.home={x:S.puck.x,y:S.puck.y};
+  S.intents.INT=0; S.intents.MOT=0;
+  S.editing=dom; buildEditor();
+};
+
+/* ---------- keys ---------- */
+const KEYS='awsedftgyhujk'; let octave=0;
+const keysEl=document.getElementById('keys'), keyBtns={};
+const NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B','C'];
+KEYS.split('').forEach((k,i)=>{
+  const b=document.createElement('button'); b.textContent=NAMES[i]; b.title=k;
+  b.addEventListener('pointerdown',e=>{ b.setPointerCapture(e.pointerId); on(k,i); });
+  b.addEventListener('pointerup',()=>off(k)); b.addEventListener('pointercancel',()=>off(k));
+  keysEl.appendChild(b); keyBtns[k]=b;
+});
+function on(k,i){ noteOn(k, 130.81*Math.pow(2,(i+octave*12)/12)); keyBtns[k].classList.add('on'); }
+function off(k){ noteOff(k); keyBtns[k].classList.remove('on'); }
+window.addEventListener('keydown',e=>{
+  if(e.repeat || e.target.tagName==='INPUT' || e.target.tagName==='SELECT') return;
+  const i=KEYS.indexOf(e.key); if(i>=0) on(e.key,i);
+  if(e.key==='z') octave=Math.max(-2,octave-1); if(e.key==='x') octave=Math.min(2,octave+1);
+});
+window.addEventListener('keyup',e=>{ const i=KEYS.indexOf(e.key); if(i>=0) off(e.key); });
+
+/* ---------- loops ---------- */
+let last=performance.now();
+setInterval(()=>{ const now=performance.now(), dt=Math.min(.05,(now-last)/1000); last=now; resolve(dt); applyAudio(); },16);
+function frame(){ drawMorph(); drawPerf(); drawKINT(); drawKMOT(); drawParams(); requestAnimationFrame(frame); }
+buildEditor(); resolve(0.016); frame();
+</script>
+</body>
+</html>

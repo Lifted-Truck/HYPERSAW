@@ -4752,3 +4752,43 @@ waves read as jerky quivering on high notes.
 unchanged, None emits the 0.0 an absent source always had); in-pane: gating
 holds through applyGates both ways, corner pixel matches the field bake,
 route note renders "x → Macro 1 → Detune". Installed 6ee53f5.
+
+
+## ADR-152 — 2026-09-01: morph corner integrity — macro family suspends under morph; capture flattens (QM-4 ingested)
+
+**Context.** The human: corner presets whose identity lives in K/detune were
+being flattened because the global XY/macros write offsets on top of whatever
+the morph resolves — the pad position is an invisible fifth author of every
+corner (QM-4's P1, observed here before the spec named it). Worse, capture
+stored BASE values (ADR-136 readback contract), so a corner authored with
+macros displaced never contained the sound that was captured.
+
+**Decisions.**
+1. **The macro family (source slots 2-13: macros + pad aliases) is SUSPENDED
+   while the morph is ON** — sources read 0, routes contribute nothing, every
+   dest releases to base, and base follows the morph field (the ADR-136
+   intercept at the applyParam choke point). Performance sources (ENV 1/2,
+   velocity, wheel, pressure, pitch wheel) stay live: gestures, not layout.
+   Non-destructive — no routes are removed; the GUI greys the suspended rows
+   and the pad route notes say "(suspended: morph on)".
+2. **Capture flattens** (QM-4 §7 brought forward): morphCapture bakes the
+   macro family's live contribution (mod.src × depth × span, clamped to the
+   dest's range) into the stored corner, so the corner IS the sound that was
+   authored. Corners captured before this ADR store base-only — re-capture
+   to upgrade them.
+3. **QM-4 ingested** (`QM-4-intent-bus-spec.md` + `horde-intent-bus-prototype.html`,
+   filed as B89): the real architecture — intents, corner-owned bindings,
+   modulation tiers, atomic structural resolution. This ADR is explicitly the
+   interim; B89 retires it. One sanctioned prototype edit outstanding: seed
+   `reshuffle()` (unseeded Math.random, the CANTO/STATION blocker class).
+   Both files enter the protected list (they ARE the reference).
+
+**Rejected:** removing macro routes on morph-on (destructive, loses user
+routing); corner-specific route tables now (that IS B89 §6.2 — building it
+twice as an interim would be the complexity the reduce-never-invent tenet
+exists to stop).
+
+**Evidence.** verify full exit 0 (suspension is inert with morph off — the
+shipped default — so every parity chain is untouched by construction);
+md->base follows morph writes at hypersaw_clap.cpp:3150, so suspended routes
+cannot fight the field. In-pane: route rows grey under morph, notes update.
