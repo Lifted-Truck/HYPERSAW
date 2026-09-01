@@ -4792,3 +4792,39 @@ exists to stop).
 shipped default — so every parity chain is untouched by construction);
 md->base follows morph writes at hypersaw_clap.cpp:3150, so suspended routes
 cannot fight the field. In-pane: route rows grey under morph, notes update.
+
+
+## ADR-153 — 2026-09-01: SvfCore — the per-voice filter's core (B81 inc 2, slice 1)
+
+**Context.** B81 increment 2 opens: the SVF pair that rides the ADR-148 tap.
+First slice = the core + its spec, nothing else — the shell integration,
+routing, envelope, and FILT page follow on the proven core.
+
+**Decisions.**
+1. **TPT (Zavalishin) state-variable form**, LP/BP/HP off one pass, chosen
+   for stability under audio-rate cutoff motion — the whole point of this
+   filter is to be swept by a per-voice envelope.
+2. **Rest damping k = √2 (Q = 0.707, Butterworth)**, res → k floor 0.05.
+   The oracle caught the first draft here: k = 2 measured −6.02 dB at fc —
+   critical damping, not the classic synth lowpass. Measured, then fixed;
+   the suite records both numbers.
+3. **Bit-exact bypass** (voicetap discipline: off is provably absent) and
+   **caller-owned parameter slew** — setParams is state-pure (T7 proves a
+   redundant set is a no-op), so the shell's seconds-based tick coefficients
+   (ADR-009) own all smoothing and the oracle can pin input/param pairs to
+   exact outputs.
+4. **Oracle-as-spec from birth** (`svf_check`, eight probes: bypass
+   bit-exactness, DC law, −3 dB at fc at two sample rates, 12 dB/oct
+   rolloff, bounded resonance, corner stability as bounded-AND-decaying
+   windowed peaks, setParams purity). No reference lab exists on purpose
+   (B81: the E1 labs are bus creatures). Registered in CMake, NOT wired
+   into ./verify — the standing human ruling covers it with
+   delay/strata/voicetap.
+5. **Slot renumber recorded:** the filter env's matrix source slot is 18 —
+   the entry's original "slot 14" predates ADR-149 taking 14-17.
+
+**Evidence.** svf_check GREEN (0 failures) after two honest reds: the k-law
+fix (design bug, caught by T3) and two probe fixes (T6's absolute floor was
+aspirational against a 10 Hz / Q≈20 ring's physics; instantaneous tail
+samples land on arbitrary ring phase — windowed peaks measure the envelope).
+verify full untouched: the core is unwired, zero shipped-path changes.
