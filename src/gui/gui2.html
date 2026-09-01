@@ -1882,6 +1882,7 @@ function setControl(id, v) {
   if (base >= 174 && base <= 177) { try { updateXYRouteNotes(); } catch (_) {} }
   if (base === 152 || base === 153) morphMiniDirty = true;   // morph puck moved
   if (base === 151) {   // mini morph rides the toggle: hidden unless morph is ON
+    lastRouteNotes = ''; try { updateXYRouteNotes(); } catch (_) {}
     const box = document.getElementById('morphMiniBox');
     if (box) box.hidden = v < 0.5;
     morphMiniDirty = true;
@@ -2351,6 +2352,13 @@ async function renderModRoutes() {
     const src = document.createElement('select');
     for (let i = 0; i < MOD_SRC_NAMES.length; i++) src.add(new Option(MOD_SRC_NAMES[i], i));
     src.value = r.src;
+    /* ADR-152: the macro family (macros + pad aliases) is suspended while the
+       morph is ON — corners own those values. Show it instead of letting the
+       row look live while contributing nothing. */
+    if (r.src >= 2 && r.src <= 13 && (+(lastParams[151] ?? 0)) > 0.5) {
+      row.style.opacity = '0.45';
+      row.title = 'suspended while morph is ON — the corners own these values (ADR-152)';
+    }
     src.disabled = pitchRoute;
     src.title = pitchRoute ? 'the pitch route is ENV 2 by contract (ADR-135)' : 'which modulator drives this';
     src.addEventListener('change', async () => {
@@ -3012,7 +3020,8 @@ function padRouteLine(axisName, asn, aliasSlot) {
     if (r.src === 2 + asn || (aliasSlot >= 0 && r.src === aliasSlot))
       dests.push(modDestLabel(r.dest));
   }
-  return axisName + ' → Macro ' + (asn + 1) + (dests.length ? ' → ' + dests.join(', ') : '');
+  const sus = (+(lastParams[151] ?? 0)) > 0.5 ? ' (suspended: morph on)' : '';
+  return axisName + ' → Macro ' + (asn + 1) + (dests.length ? ' → ' + dests.join(', ') + sus : '');
 }
 let lastRouteNotes = '';
 function updateXYRouteNotes() {
@@ -4690,8 +4699,15 @@ function tdWarp(seed) {
          cycle ~50 s), per the human. Morph on: the bilinear blend as before. */
       if ((+(lastParams[151] ?? 0)) < 0.5) {
         brandHuePh = (brandHuePh + dt * 0.02) % 1;
+        /* slightly desaturated in free-roam (human 2026-09-01: "more in line
+           with the rest of the color scheme") — 18% toward its own luma */
+        const desat = hex => { const m = /^#([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
+          const v = parseInt(m[1], 16); let r = v >> 16 & 255, g = v >> 8 & 255, b = v & 255;
+          const l = 0.299 * r + 0.587 * g + 0.114 * b, f = 0.18;
+          r = Math.round(r + (l - r) * f); g = Math.round(g + (l - g) * f); b = Math.round(b + (l - b) * f);
+          return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1); };
         ctx.globalCompositeOperation = 'source-in';
-        ctx.fillStyle = lastTint = hueRot(TOK(LG[0], '#FF2E88'), brandHuePh * 360);
+        ctx.fillStyle = lastTint = desat(hueRot(TOK(LG[0], '#FF2E88'), brandHuePh * 360));
         ctx.fillRect(0, 0, W, H);
         ctx.globalCompositeOperation = 'source-over';
         return;

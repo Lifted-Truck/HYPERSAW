@@ -138,7 +138,9 @@ E, ingested 2026-07-18), and swarmalator.html (experimental swarmalator engine,
 ingested 2026-07-19, ADR-048), and `horde_formant_pulsar_fof.html` (formant
 engine, ingested 2026-08-17, ADR-091; one sanctioned edit outstanding: seed its
 masking RNG), and `station.html` + `STATION-SPEC.md` (STATION engine, ingested
-2026-08-25, ADR-122; one sanctioned edit: seed the Wave RAM randomize) — (they ARE the reference — an edit there is a spec change), `./verify`, golden render fixtures once they exist.
+2026-08-25, ADR-122; one sanctioned edit: seed the Wave RAM randomize), and
+`QM-4-intent-bus-spec.md` + `horde-intent-bus-prototype.html` (intent bus,
+ingested 2026-09-01, ADR-152; one sanctioned edit: seed `reshuffle()`) — (they ARE the reference — an edit there is a spec change), `./verify`, golden render fixtures once they exist.
 
 **Verify targets.** `fast`: leak gate + structure/manifest sanity now; grows
 the L0 suite (parity + trajectories) from Phase 1 — seconds-to-minutes,

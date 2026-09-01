@@ -1685,7 +1685,30 @@ struct Plugin
     if (k < 0 || k > 3) return;
     morphInit();
     for (size_t i = 0; i < morphIds.size(); i++)
-      morphCorner[k][i] = readParam(morphIds[i]);
+    {
+      const uint32_t id = morphIds[i];
+      double v = readParam(id);
+      /* ADR-152 — CAPTURE FLATTENS (QM-4 §7, brought forward): readParam
+         reports BASE, but the sound being captured includes the macro
+         family's live offsets — and those sources are suspended once the
+         morph runs, so a base-only capture stores a corner that never
+         sounds like what was authored. Bake the macro-family contribution
+         (slots 2-13, mod.src already reflects any suspension) into the
+         stored value, clamped to the dest's own range. Routes to stepped
+         params are refused at add, so everything summed here is continuous. */
+      if (const ParamDef *pd = findParam(id))
+      {
+        double macroOfs = 0;
+        for (int r = 0; r < mod.nRoutes; r++)
+        {
+          const auto &q = mod.routes[r];
+          if (q.active && q.dest == id && q.src >= 2 && q.src <= 13)
+            macroOfs += mod.src[q.src] * q.depth;
+        }
+        v = std::max(pd->minV, std::min(pd->maxV, v + macroOfs * (pd->maxV - pd->minV)));
+      }
+      morphCorner[k][i] = v;
+    }
     morphCornersAuthored = true;
   }
 
@@ -1937,7 +1960,17 @@ struct Plugin
     }
     // ADR-137: macros feed source slots 2-9 every tick. A macro with no route
     // is inert by the matrix's own law — no route, no evaluate output.
-    for (int i = 0; i < 8; i++) mod.src[2 + i] = macroVal[i];
+    /* ADR-152: while the morph is ON the whole macro FAMILY (macros 2-9 and
+       the pad aliases 10-13) is suspended — sources read 0, so their routes
+       contribute nothing and every dest releases to its base, which the morph
+       field owns (base follows morph writes, the ADR-136 intercept). Without
+       this the global pad/macro position is an invisible fifth author of
+       every corner (QM-4 P1): corners whose identity lives in K/detune were
+       flattened to wherever the pad happened to rest. Performance sources
+       (ENV 1/2, velocity, wheel, pressure, pitch wheel) stay live — they are
+       gestures, not layout. */
+    const double macroLive = morphOn > 0.5 ? 0.0 : 1.0;
+    for (int i = 0; i < 8; i++) mod.src[2 + i] = macroVal[i] * macroLive;
     /* Pad AXES as first-class sources (human 2026-08-29: "make X and Y for
        each separate XY grid accessible from the mod matrix"). Slots 10-13 =
        XY1 X, XY1 Y, XY2 X, XY2 Y — each an ALIAS through the assignment, so
@@ -1949,7 +1982,7 @@ struct Plugin
       // 8 = None (2026-08-31): an unassigned axis is a silent source, not a
       // wrapped-around macro — the & 7 mask would have aliased it to Macro 1.
       const int a = xyAsn[i];
-      mod.src[10 + i] = (a >= 0 && a < 8) ? macroVal[a] : 0.0;
+      mod.src[10 + i] = (a >= 0 && a < 8) ? macroVal[a] * macroLive : 0.0;
     }
     // ADR-149: MIDI/MPE performance signals, slots 14-17 (velocity, mod
     // wheel, pressure, pitch wheel). Global projections; B82 owns per-note.
