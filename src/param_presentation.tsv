@@ -322,11 +322,11 @@ fx4damp	global	Damping	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4noise	global	Noise	FX	Slot 4	knob		fx-rack	never		never
 fx4stereo	global	Stereo	FX	Slot 4	knob		fx-rack	fx4type=7|8		fx4type=7|8
 fx4dist	global	Spacing	FX	Slot 4	select		fx-rack	fx4type=7|8		fx4type=7|8
-modEnvPitch	global	Env > Pitch	OSC	Pitch	knob	st	mod-matrix			
-penvA	global	P.Env Attack	OSC	Pitch	knob	s	mod-matrix			
-penvD	global	P.Env Decay	OSC	Pitch	knob	s	mod-matrix			
-penvS	global	P.Env Sustain	OSC	Pitch	knob		mod-matrix			
-penvR	global	P.Env Release	OSC	Pitch	knob	s	mod-matrix			
+modEnvPitch	global	Env > Pitch	OSC	Pitch Env	knob	st	mod-matrix			
+penvA	global	P.Env Attack	OSC	Pitch Env	knob	s	mod-matrix			
+penvD	global	P.Env Decay	OSC	Pitch Env	knob	s	mod-matrix			
+penvS	global	P.Env Sustain	OSC	Pitch Env	knob		mod-matrix			
+penvR	global	P.Env Release	OSC	Pitch Env	knob	s	mod-matrix			
 macro1	global	M1	MAIN	Macros	knob		mod-matrix			
 macro2	global	M2	MAIN	Macros	knob		mod-matrix			
 macro3	global	M3	MAIN	Macros	knob		mod-matrix			
