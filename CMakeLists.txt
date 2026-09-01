@@ -384,6 +384,13 @@ if(NOT MSVC)
   target_compile_options(voicetap_check PRIVATE -O2)
 endif()
 
+# svf_check: SvfCore's oracle-as-spec (B81 inc 2 — no reference lab exists on
+# purpose; the suite IS the spec). Unwired, same standing ruling as the rest.
+add_executable(svf_check tools/svf_check.cpp)
+if(NOT MSVC)
+  target_compile_options(svf_check PRIVATE -O2)
+endif()
+
 # strata_check: STRATA's six properties, as the human's own spec states them
 # (B77 increment 1). Core + oracle land together, unwired -- the glide_core /
 # mod_core order. Wiring it into ./verify is a human decision (charter).
