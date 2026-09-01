@@ -56,3 +56,5 @@ swarm-dynamics · parity-oracle · plugin-platform · realtime-perf
 - [L0044] Stacked PRs merge bottom-up or strand work on a corpse — verify tips with merge-base --is-ancestor
 - [L0045] A running DAW keeps the old plugin image — verify the mapped inode or the in-GUI stamp, never the disk alone
 - L0046 substring-anchored HTML cuts + tag-count-balance blindness → exact-line anchors; DOM parentage is the nesting oracle (tooling, editing)
+- L0047 git tree is the canonical case — case-insensitive fs display lies; read ls-tree before case-sensitive acts (git, cross-repo)
+- L0048 idempotent consumers mask repeat-firing producers; variance exposes the repeat as a fake new bug (events, debugging)

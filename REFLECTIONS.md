@@ -16,3 +16,4 @@
   Aug-26 answer; round1 acked). Nothing owed either direction. Kept one fact:
   cite their DECISIONS #61 (edge gain / node constants / ordering) when the
   B50 visual routing matrix starts.
+- [2026-09-01] Loose threads at close: (1) DAW audition backlog — installed 4f1ffec carries macro suspension under morph + capture-flatten (ADR-152), pitch consolidation, logo free-roam desat, world-locked random ripple origins, retrigger-cloud fix, grouped page tabs — none auditioned yet; feedback list opens next session. (2) B90's drift-rate tempo-sync mode switch is ruled but unbuilt. Also pending on the human: FOUNDATIONS PR #92 merge (mailbox case repair — our delivery gate is red until then) and horde PR #516.
