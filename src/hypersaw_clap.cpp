@@ -1634,9 +1634,16 @@ struct Plugin
       /* -1 = no corner owns this right now (field off, or exempt). The key's
          PRESENCE is the membership answer, which the menu needs whether or not
          the field is running — so every id is emitted, always. */
-      const int k = (!live || (i < morphExempt.size() && morphExempt[i]))
-                        ? -1
-                        : morph.pickCorner((int)morphGroupLead(i), lw, morphCoup);
+      int k = (!live || (i < morphExempt.size() && morphExempt[i]))
+                  ? -1
+                  : morph.pickCorner((int)morphGroupLead(i), lw, morphCoup);
+      /* -2 = HELD (B93, 2026-09-03): a corner won this parameter but its
+         enabling condition is false in that corner, so morphStep holds the
+         live value instead of applying the corner's (ADR-108). Painting the
+         winner's colour here was a lie the human caught as "globals that act
+         like corner params" — the knob wore corner B's colour while showing
+         a value no corner owned. The GUI paints held distinctly. */
+      if (k >= 0 && !depLiveInCorner(morphIds[i], k)) k = -2;
       std::snprintf(buf, sizeof(buf), "%s\"%u\":%d", first ? "" : ",",
                     (unsigned)morphIds[i], k);
       out += buf;

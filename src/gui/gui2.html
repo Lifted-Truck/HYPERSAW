@@ -613,6 +613,10 @@
      contrast with the ground to be identifiable.
      padding 5 -> 9px: a 3px stripe left only 2px of air before the text. */
   .row.owned { box-shadow:inset 3px 0 0 var(--own); padding-left:9px; }
+  /* B93: held — the morph field is not applying any corner to this control
+     (winner's dependency false, ADR-108). Dashed edge, no corner colour. */
+  .row.held > label { opacity:.6; }
+  .row.held > label::after { content:' \00b7 held'; font-size:9px; opacity:.7; }
   /* ARMED VIEW: rows this corner does not own show its STORED value, which is
      not what you are hearing — provisional, so it recedes AND says whose value
      it is. Two attempts are recorded here because the second one overcorrected.
@@ -2641,6 +2645,9 @@ async function paintOwners() {
     if (!el) continue;
     const id = el.dataset.fixed ? +el.dataset.p : effId(+el.dataset.p);
     const k = OWNERS[id];
+    // -2 = HELD (B93): the field is NOT applying any corner here because the
+    // winning corner's enabling condition is false — no colour, a held mark.
+    row.classList.toggle('held', k === -2);
     if (k === undefined || k < 0) { row.style.removeProperty('--own'); row.classList.remove('owned'); }
     else { row.style.setProperty('--own', MCOLORS[k]); row.classList.add('owned'); }
   }

@@ -365,6 +365,11 @@ endif()
 # + RSS under a seeded stream, static and morphing. Not a gate.
 add_executable(ratchet_probe tools/ratchet_probe.cpp)
 target_link_libraries(ratchet_probe PRIVATE ${PROJECT_NAME}-impl)
+# morphscope_probe: WHERE does an edit land under the morph (mode x arm x
+# puck position), read back corner by corner. Diagnostic for the 2026-09-03
+# "globals act like corner params" report; prints, never judges.
+add_executable(morphscope_probe tools/morphscope_probe.cpp)
+target_link_libraries(morphscope_probe PRIVATE ${PROJECT_NAME}-impl)
 if(NOT MSVC)
   target_compile_options(ratchet_probe PRIVATE -O2)
 endif()
