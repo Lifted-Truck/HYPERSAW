@@ -16,6 +16,8 @@
  *     4 detune     — continuous, per-osc, in the field by construction
  * Diagnostic, not a gate: it prints, it does not judge.
  */
+#include <algorithm>   // notefuzz_scaffold.inc uses std::stable_sort and expects the
+                       // includer to provide it — MSVC's <vector> does not (build-windows red)
 #include <cmath>
 #include <cstdio>
 #include <string>
