@@ -389,6 +389,13 @@ if(NOT MSVC)
   target_compile_options(voicetap_check PRIVATE -O2)
 endif()
 
+# bendsweep_probe: B94's reproduction sweep — GlideCore-direct, spring x
+# quantise x hysteresis x step-timing, both control rates. Diagnostic.
+add_executable(bendsweep_probe tools/bendsweep_probe.cpp)
+if(NOT MSVC)
+  target_compile_options(bendsweep_probe PRIVATE -O2)
+endif()
+
 # svf_check: SvfCore's oracle-as-spec (B81 inc 2 — no reference lab exists on
 # purpose; the suite IS the spec). Unwired, same standing ruling as the rest.
 add_executable(svf_check tools/svf_check.cpp)
